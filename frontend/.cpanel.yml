@@ -1,0 +1,8 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/graspsoftware/public_html/pajak-kedai.graspsoftwaresolutions.xyz
+    - cd $DEPLOYPATH
+    - /opt/cpanel/ea-nodejs16/bin/npm install
+    - /opt/cpanel/ea-nodejs16/bin/npm run build
+    - cp -r dist/* $DEPLOYPATH/
