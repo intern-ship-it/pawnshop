@@ -1,16 +1,36 @@
 /**
- * Auth Slice - Updated with async thunks for API integration
+ * Auth Slice - Redux state for authentication
+ * Updated for Laravel backend with username login
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import authService from '@/services/authService'
 
 // Async Thunks
+
+export const loginWithUsername = createAsyncThunk(
+  'auth/loginWithUsername',
+  async ({ username, password }, { rejectWithValue }) => {
+    try {
+      const response = await authService.loginWithUsername(username, password)
+      if (!response.success) {
+        return rejectWithValue(response.message || 'Login failed')
+      }
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.message || 'Login failed')
+    }
+  }
+)
+
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const response = await authService.login(email, password)
+      if (!response.success) {
+        return rejectWithValue(response.message || 'Login failed')
+      }
       return response.data
     } catch (error) {
       return rejectWithValue(error.message || 'Login failed')
@@ -25,8 +45,7 @@ export const logout = createAsyncThunk(
       await authService.logout()
       return null
     } catch (error) {
-      // Still logout locally even if API fails
-      authService.logout()
+      authService.clearLocalAuth()
       return rejectWithValue(error.message)
     }
   }
@@ -37,9 +56,12 @@ export const fetchCurrentUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.getCurrentUser()
+      if (!response.success) {
+        return rejectWithValue(response.message || 'Failed to fetch user')
+      }
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message)
+      return rejectWithValue(error.message || 'Failed to fetch user')
     }
   }
 )
@@ -49,6 +71,9 @@ export const verifyPasskey = createAsyncThunk(
   async (passkey, { rejectWithValue }) => {
     try {
       const response = await authService.verifyPasskey(passkey)
+      if (!response.success) {
+        return rejectWithValue(response.message || 'Invalid passkey')
+      }
       return response.data
     } catch (error) {
       return rejectWithValue(error.message || 'Invalid passkey')
@@ -65,6 +90,9 @@ export const changePassword = createAsyncThunk(
         newPassword,
         confirmPassword
       )
+      if (!response.success) {
+        return rejectWithValue(response.message || 'Failed to change password')
+      }
       return response.data
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to change password')
@@ -73,11 +101,17 @@ export const changePassword = createAsyncThunk(
 )
 
 // Initial state
+const storedUser = authService.getStoredUser()
+const hasToken = authService.isAuthenticated()
+
 const initialState = {
-  user: authService.getStoredUser(),
-  role: authService.getStoredUser()?.role || null,
-  isAuthenticated: authService.isAuthenticated(),
+  user: storedUser,
+  role: storedUser?.role || null,
+  permissions: storedUser?.permissions || {},
+  branch: storedUser?.branch || null,
+  isAuthenticated: hasToken && !!storedUser,
   passkeyVerified: false,
+  passkeyExpiry: null,
   loading: false,
   error: null,
 }
@@ -92,35 +126,49 @@ const authSlice = createSlice({
     },
     clearPasskeyVerification: (state) => {
       state.passkeyVerified = false
-    },
-    // For mock/local auth (can remove later)
-    loginStart: (state) => {
-      state.loading = true
-      state.error = null
-    },
-    loginSuccess: (state, action) => {
-      state.loading = false
-      state.user = action.payload.user
-      state.role = action.payload.role
-      state.isAuthenticated = true
-      state.error = null
-    },
-    loginFailure: (state, action) => {
-      state.loading = false
-      state.error = action.payload
-      state.isAuthenticated = false
+      state.passkeyExpiry = null
     },
     logoutSuccess: (state) => {
       state.user = null
       state.role = null
+      state.permissions = {}
+      state.branch = null
       state.isAuthenticated = false
       state.passkeyVerified = false
+      state.passkeyExpiry = null
       state.error = null
+    },
+    setUser: (state, action) => {
+      state.user = action.payload
+      state.role = action.payload?.role || null
+      state.permissions = action.payload?.permissions || {}
+      state.branch = action.payload?.branch || null
+      state.isAuthenticated = true
     },
   },
   extraReducers: (builder) => {
     builder
-      // Login
+      // Login with Username
+      .addCase(loginWithUsername.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(loginWithUsername.fulfilled, (state, action) => {
+        state.loading = false
+        state.user = action.payload.user
+        state.role = action.payload.user?.role || null
+        state.permissions = action.payload.user?.permissions || {}
+        state.branch = action.payload.user?.branch || null
+        state.isAuthenticated = true
+        state.error = null
+      })
+      .addCase(loginWithUsername.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+        state.isAuthenticated = false
+      })
+
+      // Login (legacy)
       .addCase(login.pending, (state) => {
         state.loading = true
         state.error = null
@@ -129,6 +177,8 @@ const authSlice = createSlice({
         state.loading = false
         state.user = action.payload.user
         state.role = action.payload.user?.role || null
+        state.permissions = action.payload.user?.permissions || {}
+        state.branch = action.payload.user?.branch || null
         state.isAuthenticated = true
         state.error = null
       })
@@ -146,17 +196,22 @@ const authSlice = createSlice({
         state.loading = false
         state.user = null
         state.role = null
+        state.permissions = {}
+        state.branch = null
         state.isAuthenticated = false
         state.passkeyVerified = false
+        state.passkeyExpiry = null
         state.error = null
       })
       .addCase(logout.rejected, (state) => {
-        // Still clear state on logout failure
         state.loading = false
         state.user = null
         state.role = null
+        state.permissions = {}
+        state.branch = null
         state.isAuthenticated = false
         state.passkeyVerified = false
+        state.passkeyExpiry = null
       })
 
       // Fetch Current User
@@ -167,12 +222,13 @@ const authSlice = createSlice({
         state.loading = false
         state.user = action.payload
         state.role = action.payload?.role || null
+        state.permissions = action.payload?.permissions || {}
+        state.branch = action.payload?.branch || null
         state.isAuthenticated = true
       })
       .addCase(fetchCurrentUser.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
-        state.isAuthenticated = false
       })
 
       // Verify Passkey
@@ -183,6 +239,7 @@ const authSlice = createSlice({
       .addCase(verifyPasskey.fulfilled, (state) => {
         state.loading = false
         state.passkeyVerified = true
+        state.passkeyExpiry = Date.now() + (5 * 60 * 1000)
       })
       .addCase(verifyPasskey.rejected, (state, action) => {
         state.loading = false
@@ -208,10 +265,22 @@ const authSlice = createSlice({
 export const {
   clearError,
   clearPasskeyVerification,
-  loginStart,
-  loginSuccess,
-  loginFailure,
   logoutSuccess,
+  setUser,
 } = authSlice.actions
+
+// Selectors
+export const selectIsAuthenticated = (state) => state.auth.isAuthenticated
+export const selectUser = (state) => state.auth.user
+export const selectRole = (state) => state.auth.role
+export const selectPermissions = (state) => state.auth.permissions
+export const selectBranch = (state) => state.auth.branch
+export const selectPasskeyVerified = (state) => {
+  const { passkeyVerified, passkeyExpiry } = state.auth
+  if (passkeyVerified && passkeyExpiry) {
+    return Date.now() < passkeyExpiry
+  }
+  return false
+}
 
 export default authSlice.reducer

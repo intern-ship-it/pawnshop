@@ -62,6 +62,13 @@ class AuthController extends Controller
         // Create token
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Get permissions in correct format: ["module.action", ...]
+        $permissions = $user->role
+            ? $user->role->getEnabledPermissions()->map(function ($p) {
+                return $p->module . '.' . $p->action;
+            })->values()->toArray()
+            : [];
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
@@ -84,7 +91,7 @@ class AuthController extends Controller
                         'code' => $user->branch->code,
                         'name' => $user->branch->name,
                     ] : null,
-                    'permissions' => $user->role ? $user->role->getEnabledPermissions()->pluck('module', 'action') : [],
+                    'permissions' => $permissions,
                 ],
                 'token' => $token,
                 'token_type' => 'Bearer',

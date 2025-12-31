@@ -1,145 +1,124 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import { useAppDispatch } from '@/app/hooks'
-import { loginStart, loginSuccess, loginFailure } from '@/features/auth/authSlice'
-import { addToast } from '@/features/ui/uiSlice'
-import { cn } from '@/lib/utils'
-import { authService } from '@/services'
-import Button from '@/components/common/Button'
-import { User, Lock, Eye, EyeOff, Check } from 'lucide-react'
-import { motion } from 'framer-motion'
+/**
+ * Login Page - User authentication
+ */
 
-// Demo accounts for quick testing
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { loginWithUsername, clearError } from "@/features/auth/authSlice";
+import { addToast } from "@/features/ui/uiSlice";
+import { cn } from "@/lib/utils";
+import Button from "@/components/common/Button";
+import { User, Lock, Eye, EyeOff, Check } from "lucide-react";
+import { motion } from "framer-motion";
+
 const demoAccounts = [
-  { username: 'superadmin', password: 'password123', role: 'Super Admin' },
-  { username: 'admin', password: 'password123', role: 'Administrator' },
-  { username: 'manager', password: 'password123', role: 'Manager' },
-  { username: 'cashier', password: 'password123', role: 'Cashier' },
-  { username: 'auditor', password: 'password123', role: 'Auditor' },
-]
+  { username: "superadmin", password: "password123", role: "Super Admin" },
+  { username: "admin", password: "password123", role: "Administrator" },
+  { username: "manager", password: "password123", role: "Manager" },
+  { username: "cashier", password: "password123", role: "Cashier" },
+  { username: "auditor", password: "password123", role: "Auditor" },
+];
 
-// Features list
 const features = [
-  'KPKT Malaysia Compliant',
-  'Real-time Gold Price Tracking',
-  'Comprehensive Reporting',
-  'Multi-branch Support',
-]
+  "KPKT Malaysia Compliant",
+  "Real-time Gold Price Tracking",
+  "Comprehensive Reporting",
+  "Multi-branch Support",
+];
 
 export default function Login() {
-  const dispatch = useAppDispatch()
-  const navigate = useNavigate()
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-  })
-  const [errors, setErrors] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
+  const {
+    isAuthenticated,
+    loading,
+    error: authError,
+  } = useAppSelector((state) => state.auth);
+
+  const [formData, setFormData] = useState({ username: "", password: "" });
+  const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (authError) {
+      setErrors({ form: authError });
+    }
+  }, [authError]);
+
+  useEffect(() => {
+    return () => {
+      dispatch(clearError());
+    };
+  }, [dispatch]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: null }))
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name] || errors.form) {
+      setErrors((prev) => ({ ...prev, [name]: null, form: null }));
+      dispatch(clearError());
     }
-  }
+  };
 
   const validateForm = () => {
-    const newErrors = {}
-
-    if (!formData.username.trim()) {
-      newErrors.username = 'Username is required'
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    const newErrors = {};
+    if (!formData.username.trim()) newErrors.username = "Username is required";
+    if (!formData.password) newErrors.password = "Password is required";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    if (!validateForm()) return
-
-    setLoading(true)
-    dispatch(loginStart())
+    e.preventDefault();
+    if (!validateForm()) return;
 
     try {
-      // Call real API - backend accepts both email and username
-      const response = await authService.login(formData.username, formData.password)
+      const result = await dispatch(
+        loginWithUsername({
+          username: formData.username,
+          password: formData.password,
+        })
+      ).unwrap();
 
-      if (response.success) {
-        const { user, token } = response.data
-
-        const authData = {
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            username: user.username,
-            branch_id: user.branch_id,
-            branch: user.branch,
-          },
-          role: user.role,
-          permissions: user.permissions || [],
-          isAuthenticated: true,
-        }
-
-        // Update Redux state
-        dispatch(loginSuccess(authData))
-
-        // Show success toast
-        dispatch(addToast({
+      dispatch(
+        addToast({
           id: Date.now(),
-          type: 'success',
-          title: 'Login Successful!',
-          message: `Welcome back, ${user.name}!`,
-        }))
-
-        // Navigate to dashboard
-        navigate('/')
-      } else {
-        throw new Error(response.message || 'Login failed')
-      }
+          type: "success",
+          title: "Login Successful!",
+          message: `Welcome back, ${result.user?.name || "User"}!`,
+        })
+      );
     } catch (error) {
-      const errorMessage = error.message || 'Invalid username or password'
-      
-      dispatch(loginFailure(errorMessage))
-      setErrors({ form: errorMessage })
-      
-      // Show error toast
-      dispatch(addToast({
-        id: Date.now(),
-        type: 'error',
-        title: 'Login Failed',
-        message: errorMessage,
-      }))
-    } finally {
-      setLoading(false)
+      dispatch(
+        addToast({
+          id: Date.now(),
+          type: "error",
+          title: "Login Failed",
+          message: error || "Invalid username or password",
+        })
+      );
     }
-  }
+  };
 
-  // Handle demo account quick login
   const handleDemoLogin = (account) => {
-    setFormData({
-      username: account.username,
-      password: account.password,
-    })
-    setErrors({})
-  }
+    setFormData({ username: account.username, password: account.password });
+    setErrors({});
+    dispatch(clearError());
+  };
 
   return (
     <div className="min-h-screen flex">
       {/* Left Side - Branding */}
       <div className="hidden lg:flex flex-1 bg-zinc-900 text-white p-12 flex-col justify-center relative overflow-hidden">
-        {/* Logo */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -157,7 +136,6 @@ export default function Login() {
           </div>
         </motion.div>
 
-        {/* Headline */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -171,17 +149,16 @@ export default function Login() {
           </h2>
         </motion.div>
 
-        {/* Description */}
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
           className="text-zinc-400 mb-8 max-w-md"
         >
-          Complete pawn shop management system compliant with KPKT Malaysia regulations. Manage pledges, customers, inventory, and auctions effortlessly.
+          Complete pawn shop management system compliant with KPKT Malaysia
+          regulations.
         </motion.p>
 
-        {/* Features */}
         <motion.ul
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -231,20 +208,18 @@ export default function Login() {
               <p className="text-zinc-500 mt-1">Sign in to your account</p>
             </div>
 
-            {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Form Error */}
               {errors.form && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
+                  animate={{ opacity: 1, height: "auto" }}
                   className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
                 >
                   {errors.form}
                 </motion.div>
               )}
 
-              {/* Username Input */}
+              {/* Username */}
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1.5">
                   Username <span className="text-red-500">*</span>
@@ -259,11 +234,10 @@ export default function Login() {
                     value={formData.username}
                     onChange={handleChange}
                     className={cn(
-                      'block w-full pl-10 pr-3 py-2.5 border rounded-lg',
-                      'bg-white text-zinc-900 placeholder-zinc-400',
-                      'focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500',
-                      'transition-colors duration-200',
-                      errors.username ? 'border-red-300' : 'border-zinc-300'
+                      "block w-full pl-10 pr-3 py-2.5 border rounded-lg",
+                      "bg-white text-zinc-900 placeholder-zinc-400",
+                      "focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500",
+                      errors.username ? "border-red-300" : "border-zinc-300"
                     )}
                     placeholder="Enter your username"
                   />
@@ -273,7 +247,7 @@ export default function Login() {
                 )}
               </div>
 
-              {/* Password Input */}
+              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1.5">
                   Password <span className="text-red-500">*</span>
@@ -283,16 +257,15 @@ export default function Login() {
                     <Lock className="h-5 w-5 text-zinc-400" />
                   </div>
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
                     className={cn(
-                      'block w-full pl-10 pr-10 py-2.5 border rounded-lg',
-                      'bg-white text-zinc-900 placeholder-zinc-400',
-                      'focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500',
-                      'transition-colors duration-200',
-                      errors.password ? 'border-red-300' : 'border-zinc-300'
+                      "block w-full pl-10 pr-10 py-2.5 border rounded-lg",
+                      "bg-white text-zinc-900 placeholder-zinc-400",
+                      "focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500",
+                      errors.password ? "border-red-300" : "border-zinc-300"
                     )}
                     placeholder="Enter your password"
                   />
@@ -313,7 +286,7 @@ export default function Login() {
                 )}
               </div>
 
-              {/* Remember Me & Forgot Password */}
+              {/* Remember Me */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -332,7 +305,6 @@ export default function Login() {
                 </button>
               </div>
 
-              {/* Submit Button */}
               <Button
                 type="submit"
                 variant="accent"
@@ -356,9 +328,10 @@ export default function Login() {
                     type="button"
                     onClick={() => handleDemoLogin(account)}
                     className={cn(
-                      'px-3 py-2 rounded-lg border text-sm font-medium transition-all',
-                      'border-zinc-200 hover:border-amber-300 hover:bg-amber-50',
-                      formData.username === account.username && 'border-amber-400 bg-amber-50'
+                      "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
+                      "border-zinc-200 hover:border-amber-300 hover:bg-amber-50",
+                      formData.username === account.username &&
+                        "border-amber-400 bg-amber-50"
                     )}
                   >
                     <span className="text-zinc-700">{account.role}</span>
@@ -368,7 +341,6 @@ export default function Login() {
             </div>
           </motion.div>
 
-          {/* Footer */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -380,5 +352,5 @@ export default function Login() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,5 +1,10 @@
+/**
+ * Redux Hooks
+ * Typed versions of useDispatch and useSelector for use throughout the app
+ */
+
 import { useDispatch, useSelector } from 'react-redux'
 
-// Typed hooks for use throughout the app
-export const useAppDispatch = useDispatch
+// Export typed hooks
+export const useAppDispatch = () => useDispatch()
 export const useAppSelector = useSelector
