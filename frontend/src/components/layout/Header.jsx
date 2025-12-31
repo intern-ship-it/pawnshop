@@ -196,7 +196,7 @@ export default function Header() {
                 <p className="text-sm font-medium text-zinc-700 leading-tight">
                   {user?.name || 'Guest'}
                 </p>
-                <p className="text-xs text-zinc-400 capitalize">{role || 'User'}</p>
+                <p className="text-xs text-zinc-400 capitalize">{role?.name || role || 'User'}</p>
               </div>
 
               <ChevronDown className="w-4 h-4 text-zinc-400 hidden lg:block" />

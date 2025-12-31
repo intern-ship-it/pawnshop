@@ -244,7 +244,7 @@ const [companyShort, setCompanyShort] = useState('DA')
                 {user?.name || 'Guest User'}
               </p>
               <p className="text-xs text-zinc-400 capitalize">
-                {role || 'No Role'}
+                {role?.name || role || 'No Role'}
               </p>
             </div>
           )}

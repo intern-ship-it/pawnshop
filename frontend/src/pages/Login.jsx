@@ -11,10 +11,11 @@ import { motion } from 'framer-motion'
 
 // Demo accounts for quick testing
 const demoAccounts = [
-  { username: 'admin', password: 'admin123', role: 'Administrator' },
-  { username: 'manager', password: 'manager123', role: 'Manager' },
-  { username: 'cashier', password: 'cashier123', role: 'Cashier' },
-  { username: 'auditor', password: 'auditor123', role: 'Auditor' },
+  { username: 'superadmin', password: 'password123', role: 'Super Admin' },
+  { username: 'admin', password: 'password123', role: 'Administrator' },
+  { username: 'manager', password: 'password123', role: 'Manager' },
+  { username: 'cashier', password: 'password123', role: 'Cashier' },
+  { username: 'auditor', password: 'password123', role: 'Auditor' },
 ]
 
 // Features list

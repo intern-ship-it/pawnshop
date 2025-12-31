@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -13,6 +12,7 @@ return new class extends Migration
             $table->foreignId('branch_id')->constrained();
             $table->string('employee_id', 20)->unique()->nullable();
             $table->string('name', 100);
+            $table->string('username')->unique();
             $table->string('email', 100)->unique();
             $table->string('phone', 20)->nullable();
             $table->string('password');

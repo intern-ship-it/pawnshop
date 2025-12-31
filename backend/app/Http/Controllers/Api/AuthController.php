@@ -14,26 +14,46 @@ class AuthController extends Controller
 {
     /**
      * Login user and create token
+     * Accepts either email or username
      */
     public function login(Request $request): JsonResponse
     {
+        // Validate - require password and either email or username
         $request->validate([
-            'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        // Check if at least one identifier is provided
+        if (!$request->filled('email') && !$request->filled('username')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Username or email is required',
+                'errors' => [
+                    'username' => ['Username or email is required.'],
+                ],
+            ], 422);
+        }
+
+        // Find user by email or username
+        $user = null;
+        if ($request->filled('email')) {
+            $user = User::where('email', $request->email)->first();
+        } elseif ($request->filled('username')) {
+            $user = User::where('username', $request->username)->first();
+        }
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid username or password',
+            ], 401);
         }
 
         if (!$user->is_active) {
-            throw ValidationException::withMessages([
-                'email' => ['Your account has been deactivated.'],
-            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account has been deactivated',
+            ], 403);
         }
 
         // Update last login
@@ -50,20 +70,21 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'username' => $user->username,
                     'employee_id' => $user->employee_id,
                     'phone' => $user->phone,
                     'profile_photo' => $user->profile_photo,
-                    'role' => [
+                    'role' => $user->role ? [
                         'id' => $user->role->id,
                         'name' => $user->role->name,
                         'slug' => $user->role->slug,
-                    ],
-                    'branch' => [
+                    ] : null,
+                    'branch' => $user->branch ? [
                         'id' => $user->branch->id,
                         'code' => $user->branch->code,
                         'name' => $user->branch->name,
-                    ],
-                    'permissions' => $user->role->getEnabledPermissions()->pluck('module', 'action'),
+                    ] : null,
+                    'permissions' => $user->role ? $user->role->getEnabledPermissions()->pluck('module', 'action') : [],
                 ],
                 'token' => $token,
                 'token_type' => 'Bearer',
@@ -90,10 +111,10 @@ class AuthController extends Controller
     public function refresh(Request $request): JsonResponse
     {
         $user = $request->user();
-        
+
         // Revoke current token
         $request->user()->currentAccessToken()->delete();
-        
+
         // Create new token
         $token = $user->createToken('auth_token')->plainTextToken;
 
