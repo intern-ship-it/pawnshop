@@ -27,7 +27,7 @@ class GoldPriceService
     public function getCurrentPrices(): array
     {
         $cacheKey = "gold_prices_{$this->baseCurrency}";
-        
+
         return Cache::remember($cacheKey, $this->cacheTtl, function () {
             return $this->fetchLivePrices();
         });
@@ -39,7 +39,7 @@ class GoldPriceService
     public function getCaratPrices(): array
     {
         $cacheKey = "gold_carat_prices_{$this->baseCurrency}";
-        
+
         return Cache::remember($cacheKey, $this->cacheTtl, function () {
             return $this->fetchCaratPrices();
         });
@@ -58,21 +58,23 @@ class GoldPriceService
             $response = Http::timeout(10)->get("{$this->baseUrl}/latest", [
                 'api_key' => $this->apiKey,
                 'base' => $this->baseCurrency,
-                'currencies' => 'XAU,XAG,XPT,XPD',
-                'unit' => 'gram',
+                'currencies' => 'XAU,XAG',
             ]);
 
             if ($response->successful() && $response->json('success')) {
                 $data = $response->json();
                 $rates = $data['rates'] ?? [];
-                
+
                 // Calculate price per gram (API returns how much 1 MYR buys, we need inverse)
-                $goldPerGram = isset($rates['XAU']) && $rates['XAU'] > 0 
-                    ? round(1 / $rates['XAU'], 2) 
+                $goldPerTroyOz = isset($rates['XAU']) && $rates['XAU'] > 0
+                    ? round(1 / $rates['XAU'], 2)
                     : null;
-                $silverPerGram = isset($rates['XAG']) && $rates['XAG'] > 0 
-                    ? round(1 / $rates['XAG'], 2) 
+                $goldPerGram = $goldPerTroyOz ? round($goldPerTroyOz / 31.1035, 2) : null;
+
+                $silverPerTroyOz = isset($rates['XAG']) && $rates['XAG'] > 0
+                    ? round(1 / $rates['XAG'], 2)
                     : null;
+                $silverPerGram = $silverPerTroyOz ? round($silverPerTroyOz / 31.1035, 2) : null;
 
                 $result = [
                     'success' => true,
@@ -129,7 +131,7 @@ class GoldPriceService
             if ($response->successful() && $response->json('success')) {
                 $data = $response->json();
                 $caratData = $data['data'] ?? [];
-                
+
                 // Map karat to Malaysian purity codes
                 $result = [
                     'success' => true,
@@ -189,14 +191,14 @@ class GoldPriceService
             if ($response->successful() && $response->json('success')) {
                 $data = $response->json();
                 $rates = $data['rates'] ?? [];
-                
+
                 return [
                     'success' => true,
                     'date' => $date,
                     'prices' => [
-                        'gold_per_gram' => isset($rates['XAU']) && $rates['XAU'] > 0 
+                        'gold_per_gram' => isset($rates['XAU']) && $rates['XAU'] > 0
                             ? round(1 / $rates['XAU'], 2) : null,
-                        'silver_per_gram' => isset($rates['XAG']) && $rates['XAG'] > 0 
+                        'silver_per_gram' => isset($rates['XAG']) && $rates['XAG'] > 0
                             ? round(1 / $rates['XAG'], 2) : null,
                     ],
                 ];
@@ -215,14 +217,14 @@ class GoldPriceService
     public function calculateItemValue(float $weightGrams, string $purityCode, ?float $customGoldPrice = null): array
     {
         $prices = $this->getCaratPrices();
-        
+
         // Get gold price for the purity
         $pricePerGram = $customGoldPrice;
-        
+
         if (!$pricePerGram && $prices['success']) {
             $pricePerGram = $prices['purity_codes'][$purityCode] ?? null;
         }
-        
+
         if (!$pricePerGram) {
             // Use fallback calculation based on 999 price and purity percentage
             $purity999Price = $prices['purity_codes']['999'] ?? config('pawnsys.gold_price.fallback_999', 400);
@@ -240,7 +242,7 @@ class GoldPriceService
 
         $marketValue = round($weightGrams * $pricePerGram, 2);
         $loanPercentages = config('pawnsys.pledge.default_loan_percentages', [80, 70, 60]);
-        
+
         return [
             'weight_grams' => $weightGrams,
             'purity_code' => $purityCode,
@@ -317,7 +319,7 @@ class GoldPriceService
     {
         // Try to get last logged price
         $lastLog = GoldPriceLog::latest('fetched_at')->first();
-        
+
         if ($lastLog) {
             return [
                 'success' => true,
@@ -340,7 +342,7 @@ class GoldPriceService
 
         // Ultimate fallback - configured default prices
         $defaultGold = config('pawnsys.gold_price.fallback_999', 400);
-        
+
         return [
             'success' => true,
             'source' => 'fallback',
@@ -366,7 +368,7 @@ class GoldPriceService
     protected function getFallbackCaratPrices(): array
     {
         $gold999 = config('pawnsys.gold_price.fallback_999', 400);
-        
+
         return [
             'success' => true,
             'source' => 'fallback',
