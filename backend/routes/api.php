@@ -20,7 +20,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\WhatsAppController;
 use App\Http\Controllers\Api\PrintController;
 use App\Http\Controllers\Api\AuditController;
-
+use App\Http\Controllers\Api\GoldPriceController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -50,6 +50,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/due-reminders', [DashboardController::class, 'dueReminders']);
         Route::get('/overdue-pledges', [DashboardController::class, 'overduePledges']);
         Route::get('/gold-prices', [DashboardController::class, 'goldPrices']);
+    });
+
+    // Gold Prices (MetalPriceAPI - Live Prices)
+    Route::prefix('gold-prices')->group(function () {
+        Route::get('/current', [GoldPriceController::class, 'current']);
+        Route::get('/carat', [GoldPriceController::class, 'carat']);
+        Route::get('/dashboard', [GoldPriceController::class, 'dashboard']);
+        Route::get('/historical/{date}', [GoldPriceController::class, 'historical']);
+        Route::get('/history', [GoldPriceController::class, 'history']);
+        Route::post('/calculate', [GoldPriceController::class, 'calculate']);
+        Route::post('/refresh', [GoldPriceController::class, 'refresh']);
+        Route::post('/manual', [GoldPriceController::class, 'setManual']);
+        Route::get('/usage', [GoldPriceController::class, 'usage']);
     });
 
     // Branches

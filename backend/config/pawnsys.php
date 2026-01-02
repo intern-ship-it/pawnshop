@@ -75,4 +75,12 @@ return [
     'date_format' => 'd/m/Y',
     'datetime_format' => 'd/m/Y H:i:s',
 
+    // Gold Price API (MetalPriceAPI.com)
+    'gold_price' => [
+        'api_key' => env('METALPRICE_API_KEY'),
+        'base_currency' => env('METALPRICE_BASE_CURRENCY', 'MYR'),
+        'cache_ttl' => env('METALPRICE_CACHE_TTL', 300), // 5 minutes
+        'fallback_999' => env('GOLD_FALLBACK_PRICE_999', 400), // Fallback RM per gram for 999 gold
+    ],
+
 ];
