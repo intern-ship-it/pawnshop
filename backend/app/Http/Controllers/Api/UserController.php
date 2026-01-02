@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Role;
+use App\Models\Permission;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -12,38 +12,34 @@ use Illuminate\Support\Facades\Hash;
 class UserController extends Controller
 {
     /**
-     * List all users
+     * List users
      */
     public function index(Request $request): JsonResponse
     {
-        $branchId = $request->user()->branch_id;
+        $user = $request->user();
 
-        $query = User::where('branch_id', $branchId)
-            ->with(['role:id,name,slug']);
+        // Super admin sees all users, others see only their branch
+        if ($user->isSuperAdmin()) {
+            $query = User::with(['role', 'branch']);
+        } else {
+            $query = User::where('branch_id', $user->branch_id)
+                ->with(['role', 'branch']);
+        }
 
-        // Search
-        if ($search = $request->get('search')) {
+        // Search filter
+        if ($request->filled('search')) {
+            $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('username', 'like', "%{$search}%")
                     ->orWhere('employee_id', 'like', "%{$search}%");
             });
         }
 
-        // Filter by role
-        if ($roleId = $request->get('role_id')) {
-            $query->where('role_id', $roleId);
-        }
+        $users = $query->orderBy('name')->get();
 
-        // Filter by status
-        if ($request->has('is_active')) {
-            $query->where('is_active', $request->boolean('is_active'));
-        }
-
-        $users = $query->orderBy('name')
-            ->paginate($request->get('per_page', 15));
-
-        return $this->paginated($users);
+        return $this->success($users);
     }
 
     /**
@@ -53,43 +49,84 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'employee_id' => 'required|string|max:20|unique:users,employee_id',
+            'username' => 'required|string|max:50|unique:users,username',
             'name' => 'required|string|max:100',
             'email' => 'required|email|max:100|unique:users,email',
             'phone' => 'nullable|string|max:20',
             'password' => 'required|string|min:8',
             'role_id' => 'required|exists:roles,id',
+            'branch_id' => 'nullable|exists:branches,id',
+            'is_active' => 'nullable|boolean',
+            'custom_permissions' => 'nullable|array',
+            'custom_permissions.granted' => 'nullable|array',
+            'custom_permissions.granted.*' => 'integer|exists:permissions,id',
+            'custom_permissions.revoked' => 'nullable|array',
+            'custom_permissions.revoked.*' => 'integer|exists:permissions,id',
         ]);
 
-        $branchId = $request->user()->branch_id;
+        // Determine branch
+        if ($request->user()->isSuperAdmin() && isset($validated['branch_id'])) {
+            $branchId = $validated['branch_id'];
+        } else {
+            $branchId = $request->user()->branch_id;
+        }
 
         $user = User::create([
             'branch_id' => $branchId,
             'employee_id' => $validated['employee_id'],
+            'username' => $validated['username'],
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($validated['password']),
             'role_id' => $validated['role_id'],
-            'is_active' => true,
+            'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        $user->load('role');
+        // Handle custom permissions
+        if (!empty($validated['custom_permissions'])) {
+            $this->syncCustomPermissions($user, $validated['custom_permissions']);
+        }
+
+        $user->load(['role', 'branch']);
 
         return $this->success($user, 'User created successfully', 201);
     }
 
     /**
-     * Get user details
+     * Get user details with permissions
      */
     public function show(Request $request, User $user): JsonResponse
     {
-        if ($user->branch_id !== $request->user()->branch_id) {
+        // Authorization check
+        if (!$request->user()->isSuperAdmin() && $user->branch_id !== $request->user()->branch_id) {
             return $this->error('Unauthorized', 403);
         }
 
-        $user->load(['role', 'branch']);
+        $user->load(['role', 'branch', 'customPermissions']);
 
-        return $this->success($user);
+        // Get effective permissions
+        $effectivePermissions = $user->getEffectivePermissions();
+
+        // Get custom permission IDs
+        $customGranted = $user->customPermissions()
+            ->wherePivot('is_granted', true)
+            ->pluck('permissions.id')
+            ->toArray();
+
+        $customRevoked = $user->customPermissions()
+            ->wherePivot('is_granted', false)
+            ->pluck('permissions.id')
+            ->toArray();
+
+        return $this->success([
+            'user' => $user,
+            'effective_permissions' => $effectivePermissions,
+            'custom_permissions' => [
+                'granted' => $customGranted,
+                'revoked' => $customRevoked,
+            ],
+        ]);
     }
 
     /**
@@ -97,7 +134,8 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResponse
     {
-        if ($user->branch_id !== $request->user()->branch_id) {
+        // Authorization
+        if (!$request->user()->isSuperAdmin() && $user->branch_id !== $request->user()->branch_id) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -107,16 +145,39 @@ class UserController extends Controller
             'phone' => 'nullable|string|max:20',
             'password' => 'nullable|string|min:8',
             'role_id' => 'sometimes|exists:roles,id',
+            'branch_id' => 'nullable|exists:branches,id',
+            'is_active' => 'nullable|boolean',
+            'custom_permissions' => 'nullable|array',
+            'custom_permissions.granted' => 'nullable|array',
+            'custom_permissions.granted.*' => 'integer|exists:permissions,id',
+            'custom_permissions.revoked' => 'nullable|array',
+            'custom_permissions.revoked.*' => 'integer|exists:permissions,id',
         ]);
 
-        if (isset($validated['password'])) {
+        // Handle branch_id for super admin
+        if (!$request->user()->isSuperAdmin()) {
+            unset($validated['branch_id']);
+        }
+
+        // Handle password
+        if (isset($validated['password']) && $validated['password']) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
             unset($validated['password']);
         }
 
+        // Remove custom_permissions from validated (handle separately)
+        $customPermissions = $validated['custom_permissions'] ?? null;
+        unset($validated['custom_permissions']);
+
         $user->update($validated);
-        $user->load('role');
+
+        // Handle custom permissions
+        if ($customPermissions !== null) {
+            $this->syncCustomPermissions($user, $customPermissions);
+        }
+
+        $user->load(['role', 'branch']);
 
         return $this->success($user, 'User updated successfully');
     }
@@ -126,14 +187,22 @@ class UserController extends Controller
      */
     public function destroy(Request $request, User $user): JsonResponse
     {
-        if ($user->branch_id !== $request->user()->branch_id) {
+        if (!$request->user()->isSuperAdmin() && $user->branch_id !== $request->user()->branch_id) {
             return $this->error('Unauthorized', 403);
         }
 
-        // Cannot delete self
+        // Cannot delete yourself
         if ($user->id === $request->user()->id) {
             return $this->error('Cannot delete your own account', 422);
         }
+
+        // Cannot delete super admin
+        if ($user->isSuperAdmin()) {
+            return $this->error('Cannot delete super admin', 422);
+        }
+
+        // Detach custom permissions
+        $user->customPermissions()->detach();
 
         $user->delete();
 
@@ -141,11 +210,114 @@ class UserController extends Controller
     }
 
     /**
-     * Update user passkey
+     * Get user permissions (role + custom)
+     */
+    public function permissions(Request $request, User $user): JsonResponse
+    {
+        if (!$request->user()->isSuperAdmin() && $user->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $allPermissions = Permission::all()->groupBy('module');
+
+        // Get role permissions
+        $rolePermissionIds = [];
+        if ($user->role) {
+            $rolePermissionIds = $user->role->getEnabledPermissions()
+                ->pluck('id')
+                ->toArray();
+        }
+
+        // Get custom permissions
+        $customGranted = $user->customPermissions()
+            ->wherePivot('is_granted', true)
+            ->pluck('permissions.id')
+            ->toArray();
+
+        $customRevoked = $user->customPermissions()
+            ->wherePivot('is_granted', false)
+            ->pluck('permissions.id')
+            ->toArray();
+
+        // Format response
+        $result = [];
+        foreach ($allPermissions as $module => $permissions) {
+            $result[$module] = $permissions->map(function ($permission) use ($rolePermissionIds, $customGranted, $customRevoked) {
+                $fromRole = in_array($permission->id, $rolePermissionIds);
+                $isGranted = in_array($permission->id, $customGranted);
+                $isRevoked = in_array($permission->id, $customRevoked);
+
+                // Effective status
+                $effective = ($fromRole || $isGranted) && !$isRevoked;
+
+                return [
+                    'id' => $permission->id,
+                    'action' => $permission->action,
+                    'name' => $permission->name,
+                    'description' => $permission->description,
+                    'requires_passkey' => $permission->requires_passkey,
+                    'from_role' => $fromRole,
+                    'custom_granted' => $isGranted,
+                    'custom_revoked' => $isRevoked,
+                    'is_enabled' => $effective,
+                ];
+            });
+        }
+
+        return $this->success($result);
+    }
+
+    /**
+     * Update user custom permissions
+     */
+    public function updatePermissions(Request $request, User $user): JsonResponse
+    {
+        // Only super admin can manage permissions
+        if (!$request->user()->isSuperAdmin()) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $validated = $request->validate([
+            'granted' => 'nullable|array',
+            'granted.*' => 'integer|exists:permissions,id',
+            'revoked' => 'nullable|array',
+            'revoked.*' => 'integer|exists:permissions,id',
+        ]);
+
+        $this->syncCustomPermissions($user, $validated);
+
+        return $this->success(null, 'Permissions updated successfully');
+    }
+
+    /**
+     * Sync custom permissions for user
+     */
+    private function syncCustomPermissions(User $user, array $permissions): void
+    {
+        // Clear existing custom permissions
+        $user->customPermissions()->detach();
+
+        // Add granted permissions
+        if (!empty($permissions['granted'])) {
+            foreach ($permissions['granted'] as $permissionId) {
+                $user->customPermissions()->attach($permissionId, ['is_granted' => true]);
+            }
+        }
+
+        // Add revoked permissions
+        if (!empty($permissions['revoked'])) {
+            foreach ($permissions['revoked'] as $permissionId) {
+                $user->customPermissions()->attach($permissionId, ['is_granted' => false]);
+            }
+        }
+    }
+
+    /**
+     * Update passkey
      */
     public function updatePasskey(Request $request, User $user): JsonResponse
     {
-        if ($user->branch_id !== $request->user()->branch_id) {
+        if (!$request->user()->isSuperAdmin() && $user->branch_id !== $request->user()->branch_id) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -165,21 +337,14 @@ class UserController extends Controller
      */
     public function toggleStatus(Request $request, User $user): JsonResponse
     {
-        if ($user->branch_id !== $request->user()->branch_id) {
+        if (!$request->user()->isSuperAdmin() && $user->branch_id !== $request->user()->branch_id) {
             return $this->error('Unauthorized', 403);
-        }
-
-        // Cannot deactivate self
-        if ($user->id === $request->user()->id) {
-            return $this->error('Cannot change your own status', 422);
         }
 
         $user->update([
             'is_active' => !$user->is_active,
         ]);
 
-        $message = $user->is_active ? 'User activated' : 'User deactivated';
-
-        return $this->success($user, $message);
+        return $this->success($user, 'Status updated successfully');
     }
 }

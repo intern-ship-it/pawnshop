@@ -229,6 +229,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Users
     Route::prefix('users')->group(function () {
+        Route::get('/{user}/permissions', [UserController::class, 'permissions']);
+        Route::put('/{user}/permissions', [UserController::class, 'updatePermissions']);
         Route::put('/{user}/passkey', [UserController::class, 'updatePasskey']);
         Route::put('/{user}/toggle-status', [UserController::class, 'toggleStatus']);
     });
