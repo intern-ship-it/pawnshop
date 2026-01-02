@@ -1,18 +1,24 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router'
-import { useAppDispatch } from '@/app/hooks'
-import { addToast } from '@/features/ui/uiSlice'
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/utils/localStorage'
-import { cn } from '@/lib/utils'
-import { AnimatePresence, motion } from 'framer-motion'
-import PageWrapper from '@/components/layout/PageWrapper'
-import { Card, Button, Input, Select, Badge, Modal } from '@/components/common'
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
+import { useAppDispatch } from "@/app/hooks";
+import { addToast } from "@/features/ui/uiSlice";
+import {
+  getStorageItem,
+  setStorageItem,
+  STORAGE_KEYS,
+} from "@/utils/localStorage";
+import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
+import PageWrapper from "@/components/layout/PageWrapper";
+import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import goldPriceService from "@/services/goldPriceService";
 import {
   Settings,
   Building2,
   DollarSign,
   Percent,
   TrendingUp,
+  TrendingDown,
   Package,
   Grid3X3,
   Gem,
@@ -25,152 +31,179 @@ import {
   X,
   RefreshCw,
   AlertTriangle,
+  AlertCircle,
+  CheckCircle,
   Info,
   Clock,
   Calculator,
   Users,
   ChevronRight,
   MessageCircle,
-} from 'lucide-react'
-import WhatsAppSettings from './WhatsAppSettings'
+} from "lucide-react";
+import WhatsAppSettings from "./WhatsAppSettings";
 
 // Default settings structure
 const defaultSettings = {
   company: {
-    name: 'Dsara Asset Ventures Sdn Bhd',
-    license: 'KPKT-PG-12345',
-    address: 'No. 123, Jalan Utama, 50000 Kuala Lumpur',
-    phone: '03-1234 5678',
-    email: 'info@dsara.com',
-    receiptHeader: 'PAJAK GADAI BERLESEN',
-    receiptFooter: 'Terima kasih atas sokongan anda',
+    name: "Dsara Asset Ventures Sdn Bhd",
+    license: "KPKT-PG-12345",
+    address: "No. 123, Jalan Utama, 50000 Kuala Lumpur",
+    phone: "03-1234 5678",
+    email: "info@dsara.com",
+    receiptHeader: "PAJAK GADAI BERLESEN",
+    receiptFooter: "Terima kasih atas sokongan anda",
   },
   goldPrice: {
-    source: 'manual', // 'api' or 'manual'
-    apiUrl: '',
-    manualPrice: 320.00,
+    source: "api", // 'api' or 'manual'
+    apiUrl: "",
+    manualPrice: 320.0,
     lastUpdated: new Date().toISOString(),
-    updatedBy: 'System',
+    updatedBy: "System",
   },
   marginPresets: [
-    { id: 1, value: 80, label: '80%', isDefault: true },
-    { id: 2, value: 70, label: '70%', isDefault: false },
-    { id: 3, value: 60, label: '60%', isDefault: false },
+    { id: 1, value: 80, label: "80%", isDefault: true },
+    { id: 2, value: 70, label: "70%", isDefault: false },
+    { id: 3, value: 60, label: "60%", isDefault: false },
   ],
   interestRules: {
-    tier1: { months: 6, rate: 0.5, label: 'First 6 months' },
-    tier2: { months: 12, rate: 1.5, label: 'After 6 months (maintained)' },
-    tier3: { months: 999, rate: 2.0, label: 'Overdue (not maintained)' },
+    tier1: { months: 6, rate: 0.5, label: "First 6 months" },
+    tier2: { months: 12, rate: 1.5, label: "After 6 months (maintained)" },
+    tier3: { months: 999, rate: 2.0, label: "Overdue (not maintained)" },
     gracePeriodDays: 7,
   },
   categories: [
-    { id: 1, name: 'Ring', nameMs: 'Cincin', active: true },
-    { id: 2, name: 'Chain', nameMs: 'Rantai', active: true },
-    { id: 3, name: 'Bangle', nameMs: 'Gelang', active: true },
-    { id: 4, name: 'Bracelet', nameMs: 'Rantai Tangan', active: true },
-    { id: 5, name: 'Necklace', nameMs: 'Kalung', active: true },
-    { id: 6, name: 'Earring', nameMs: 'Anting-anting', active: true },
-    { id: 7, name: 'Pendant', nameMs: 'Loket', active: true },
-    { id: 8, name: 'Brooch', nameMs: 'Kerongsang', active: true },
-    { id: 9, name: 'Gold Bar', nameMs: 'Jongkong Emas', active: true },
-    { id: 10, name: 'Other', nameMs: 'Lain-lain', active: true },
+    { id: 1, name: "Ring", nameMs: "Cincin", active: true },
+    { id: 2, name: "Chain", nameMs: "Rantai", active: true },
+    { id: 3, name: "Bangle", nameMs: "Gelang", active: true },
+    { id: 4, name: "Bracelet", nameMs: "Rantai Tangan", active: true },
+    { id: 5, name: "Necklace", nameMs: "Kalung", active: true },
+    { id: 6, name: "Earring", nameMs: "Anting-anting", active: true },
+    { id: 7, name: "Pendant", nameMs: "Loket", active: true },
+    { id: 8, name: "Brooch", nameMs: "Kerongsang", active: true },
+    { id: 9, name: "Gold Bar", nameMs: "Jongkong Emas", active: true },
+    { id: 10, name: "Other", nameMs: "Lain-lain", active: true },
   ],
   purities: [
-    { id: 1, value: '999', label: '999 (24K)', factor: 0.999, active: true },
-    { id: 2, value: '916', label: '916 (22K)', factor: 0.916, active: true },
-    { id: 3, value: '835', label: '835 (20K)', factor: 0.835, active: true },
-    { id: 4, value: '750', label: '750 (18K)', factor: 0.750, active: true },
-    { id: 5, value: '375', label: '375 (9K)', factor: 0.375, active: true },
+    { id: 1, value: "999", label: "999 (24K)", factor: 0.999, active: true },
+    { id: 2, value: "916", label: "916 (22K)", factor: 0.916, active: true },
+    { id: 3, value: "835", label: "835 (20K)", factor: 0.835, active: true },
+    { id: 4, value: "750", label: "750 (18K)", factor: 0.75, active: true },
+    { id: 5, value: "375", label: "375 (9K)", factor: 0.375, active: true },
   ],
   stoneDeduction: {
-    defaultType: 'percentage', // 'percentage' or 'fixed'
+    defaultType: "percentage", // 'percentage' or 'fixed'
     defaultValue: 5,
     categoryRules: [],
   },
   racks: [
-    { id: 'A', name: 'Rack A', slots: 20, description: 'Main storage' },
-    { id: 'B', name: 'Rack B', slots: 20, description: 'Secondary storage' },
-    { id: 'C', name: 'Rack C', slots: 15, description: 'Forfeited items' },
+    { id: "A", name: "Rack A", slots: 20, description: "Main storage" },
+    { id: "B", name: "Rack B", slots: 20, description: "Secondary storage" },
+    { id: "C", name: "Rack C", slots: 15, description: "Forfeited items" },
   ],
-}
+};
 
 // Tabs configuration
 const tabs = [
-  { id: 'company', label: 'Company', icon: Building2 },
-  { id: 'goldPrice', label: 'Gold Price', icon: DollarSign },
-  { id: 'margin', label: 'Margin %', icon: Percent },
-  { id: 'interest', label: 'Interest Rules', icon: TrendingUp },
-  { id: 'categories', label: 'Categories', icon: Package },
-  { id: 'purities', label: 'Purities', icon: Gem },
-  { id: 'stoneDeduction', label: 'Stone Deduction', icon: Scale },
-  { id: 'racks', label: 'Racks', icon: Grid3X3 },
-  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
-]
+  { id: "company", label: "Company", icon: Building2 },
+  { id: "goldPrice", label: "Gold Price", icon: DollarSign },
+  { id: "margin", label: "Margin %", icon: Percent },
+  { id: "interest", label: "Interest Rules", icon: TrendingUp },
+  { id: "categories", label: "Categories", icon: Package },
+  { id: "purities", label: "Purities", icon: Gem },
+  { id: "stoneDeduction", label: "Stone Deduction", icon: Scale },
+  { id: "racks", label: "Racks", icon: Grid3X3 },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+];
 
 export default function SettingsScreen() {
-  const navigate = useNavigate()
-  const dispatch = useAppDispatch()
-  const [activeTab, setActiveTab] = useState('company')
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [activeTab, setActiveTab] = useState("company");
   const [settings, setSettings] = useState(() => {
-    const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null)
-    return stored ? { ...defaultSettings, ...stored } : defaultSettings
-  })
-  const [isSaving, setIsSaving] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
+    const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
+    return stored ? { ...defaultSettings, ...stored } : defaultSettings;
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Save settings
   const handleSave = () => {
-    setIsSaving(true)
+    setIsSaving(true);
     setTimeout(() => {
-      setStorageItem(STORAGE_KEYS.SETTINGS, settings)
-      setIsSaving(false)
-      setHasChanges(false)
-      
+      setStorageItem(STORAGE_KEYS.SETTINGS, settings);
+      setIsSaving(false);
+      setHasChanges(false);
+
       // Dispatch custom event to update sidebar company name
-      window.dispatchEvent(new CustomEvent('settingsUpdated', { detail: settings }))
-      
-      dispatch(addToast({
-        type: 'success',
-        title: 'Saved',
-        message: 'Settings have been saved successfully',
-      }))
-    }, 500)
-  }
+      window.dispatchEvent(
+        new CustomEvent("settingsUpdated", { detail: settings })
+      );
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Saved",
+          message: "Settings have been saved successfully",
+        })
+      );
+    }, 500);
+  };
 
   // Update settings helper
   const updateSettings = (section, data) => {
-    setSettings(prev => ({
+    setSettings((prev) => ({
       ...prev,
-      [section]: typeof data === 'function' ? data(prev[section]) : data,
-    }))
-    setHasChanges(true)
-  }
+      [section]: typeof data === "function" ? data(prev[section]) : data,
+    }));
+    setHasChanges(true);
+  };
 
   // Render tab content
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'company':
-        return <CompanyTab settings={settings} updateSettings={updateSettings} />
-      case 'goldPrice':
-        return <GoldPriceTab settings={settings} updateSettings={updateSettings} dispatch={dispatch} />
-      case 'margin':
-        return <MarginTab settings={settings} updateSettings={updateSettings} />
-      case 'interest':
-        return <InterestTab settings={settings} updateSettings={updateSettings} />
-      case 'categories':
-        return <CategoriesTab settings={settings} updateSettings={updateSettings} />
-      case 'purities':
-        return <PuritiesTab settings={settings} updateSettings={updateSettings} />
-      case 'stoneDeduction':
-        return <StoneDeductionTab settings={settings} updateSettings={updateSettings} />
-      case 'racks':
-        return <RacksTab settings={settings} updateSettings={updateSettings} />
-      case 'whatsapp':
-        return <WhatsAppSettings />
+      case "company":
+        return (
+          <CompanyTab settings={settings} updateSettings={updateSettings} />
+        );
+      case "goldPrice":
+        return (
+          <GoldPriceTab
+            settings={settings}
+            updateSettings={updateSettings}
+            dispatch={dispatch}
+          />
+        );
+      case "margin":
+        return (
+          <MarginTab settings={settings} updateSettings={updateSettings} />
+        );
+      case "interest":
+        return (
+          <InterestTab settings={settings} updateSettings={updateSettings} />
+        );
+      case "categories":
+        return (
+          <CategoriesTab settings={settings} updateSettings={updateSettings} />
+        );
+      case "purities":
+        return (
+          <PuritiesTab settings={settings} updateSettings={updateSettings} />
+        );
+      case "stoneDeduction":
+        return (
+          <StoneDeductionTab
+            settings={settings}
+            updateSettings={updateSettings}
+          />
+        );
+      case "racks":
+        return <RacksTab settings={settings} updateSettings={updateSettings} />;
+      case "whatsapp":
+        return <WhatsAppSettings />;
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   return (
     <PageWrapper
@@ -194,25 +227,29 @@ export default function SettingsScreen() {
           <Card className="p-2">
             <nav className="space-y-1">
               {tabs.map((tab) => {
-                const Icon = tab.icon
+                const Icon = tab.icon;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      'w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all',
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all",
                       activeTab === tab.id
-                        ? 'bg-amber-500/10 text-amber-600 font-medium'
-                        : 'text-zinc-600 hover:bg-zinc-50'
+                        ? "bg-amber-500/10 text-amber-600 font-medium"
+                        : "text-zinc-600 hover:bg-zinc-50"
                     )}
                   >
-                    <Icon className={cn(
-                      'w-5 h-5',
-                      activeTab === tab.id ? 'text-amber-500' : 'text-zinc-400'
-                    )} />
+                    <Icon
+                      className={cn(
+                        "w-5 h-5",
+                        activeTab === tab.id
+                          ? "text-amber-500"
+                          : "text-zinc-400"
+                      )}
+                    />
                     {tab.label}
                   </button>
-                )
+                );
               })}
             </nav>
           </Card>
@@ -228,8 +265,12 @@ export default function SettingsScreen() {
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">Unsaved Changes</p>
-                    <p className="text-xs text-amber-600 mt-1">Don't forget to save your changes.</p>
+                    <p className="text-sm font-medium text-amber-800">
+                      Unsaved Changes
+                    </p>
+                    <p className="text-xs text-amber-600 mt-1">
+                      Don't forget to save your changes.
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -237,7 +278,10 @@ export default function SettingsScreen() {
           )}
 
           {/* User Management Link */}
-          <Card className="mt-4 p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/settings/users')}>
+          <Card
+            className="mt-4 p-4 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => navigate("/settings/users")}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -245,7 +289,9 @@ export default function SettingsScreen() {
                 </div>
                 <div>
                   <p className="font-medium text-zinc-800">User Management</p>
-                  <p className="text-xs text-zinc-500">Manage users & permissions</p>
+                  <p className="text-xs text-zinc-500">
+                    Manage users & permissions
+                  </p>
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-zinc-400" />
@@ -269,7 +315,7 @@ export default function SettingsScreen() {
         </div>
       </div>
     </PageWrapper>
-  )
+  );
 }
 
 // ============================================
@@ -278,11 +324,11 @@ export default function SettingsScreen() {
 
 // Company Tab
 function CompanyTab({ settings, updateSettings }) {
-  const company = settings.company
+  const company = settings.company;
 
   const handleChange = (field, value) => {
-    updateSettings('company', { ...company, [field]: value })
-  }
+    updateSettings("company", { ...company, [field]: value });
+  };
 
   return (
     <Card className="p-6">
@@ -295,41 +341,41 @@ function CompanyTab({ settings, updateSettings }) {
         <Input
           label="Company Name"
           value={company.name}
-          onChange={(e) => handleChange('name', e.target.value)}
+          onChange={(e) => handleChange("name", e.target.value)}
           placeholder="Enter company name"
         />
         <Input
           label="License Number (KPKT)"
           value={company.license}
-          onChange={(e) => handleChange('license', e.target.value)}
+          onChange={(e) => handleChange("license", e.target.value)}
           placeholder="KPKT-PG-XXXXX"
         />
         <div className="md:col-span-2">
           <Input
             label="Address"
             value={company.address}
-            onChange={(e) => handleChange('address', e.target.value)}
+            onChange={(e) => handleChange("address", e.target.value)}
             placeholder="Full business address"
           />
         </div>
         <Input
           label="Phone"
           value={company.phone}
-          onChange={(e) => handleChange('phone', e.target.value)}
+          onChange={(e) => handleChange("phone", e.target.value)}
           placeholder="03-XXXX XXXX"
         />
         <Input
           label="Email"
           type="email"
           value={company.email}
-          onChange={(e) => handleChange('email', e.target.value)}
+          onChange={(e) => handleChange("email", e.target.value)}
           placeholder="info@company.com"
         />
         <div className="md:col-span-2">
           <Input
             label="Receipt Header Text"
             value={company.receiptHeader}
-            onChange={(e) => handleChange('receiptHeader', e.target.value)}
+            onChange={(e) => handleChange("receiptHeader", e.target.value)}
             placeholder="Text shown at top of receipts"
           />
         </div>
@@ -337,43 +383,176 @@ function CompanyTab({ settings, updateSettings }) {
           <Input
             label="Receipt Footer Text"
             value={company.receiptFooter}
-            onChange={(e) => handleChange('receiptFooter', e.target.value)}
+            onChange={(e) => handleChange("receiptFooter", e.target.value)}
             placeholder="Text shown at bottom of receipts"
           />
         </div>
       </div>
     </Card>
-  )
+  );
 }
 
-// Gold Price Tab
+// ============================================
+// GOLD PRICE TAB - WITH REAL API INTEGRATION
+// ============================================
 function GoldPriceTab({ settings, updateSettings, dispatch }) {
-  const goldPrice = settings.goldPrice
-  const [isRefreshing, setIsRefreshing] = useState(false)
+  const goldPrice = settings.goldPrice;
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [apiPrices, setApiPrices] = useState(null);
+  const [apiError, setApiError] = useState(null);
+  const [apiLoading, setApiLoading] = useState(false);
+
+  // Purity definitions for display
+  const purities = [
+    { code: "999", karat: "24K", percentage: 99.9 },
+    { code: "916", karat: "22K", percentage: 91.6 },
+    { code: "875", karat: "21K", percentage: 87.5 },
+    { code: "750", karat: "18K", percentage: 75.0 },
+    { code: "585", karat: "14K", percentage: 58.5 },
+    { code: "375", karat: "9K", percentage: 37.5 },
+  ];
+
+  // Fetch API prices when source is 'api'
+  useEffect(() => {
+    if (goldPrice.source === "api") {
+      fetchApiPrices();
+    }
+  }, [goldPrice.source]);
 
   const handleChange = (field, value) => {
-    updateSettings('goldPrice', { 
-      ...goldPrice, 
+    updateSettings("goldPrice", {
+      ...goldPrice,
       [field]: value,
       lastUpdated: new Date().toISOString(),
-      updatedBy: 'Admin',
-    })
-  }
+      updatedBy: "Admin",
+    });
+  };
 
-  const handleRefreshAPI = () => {
-    setIsRefreshing(true)
-    // Simulate API call
-    setTimeout(() => {
-      const mockPrice = 315 + Math.random() * 15 // Random price between 315-330
-      handleChange('manualPrice', parseFloat(mockPrice.toFixed(2)))
-      setIsRefreshing(false)
-      dispatch(addToast({
-        type: 'success',
-        title: 'Gold Price Updated',
-        message: `Current price: RM ${mockPrice.toFixed(2)}/g`,
-      }))
-    }, 1500)
-  }
+  // Fetch prices from real API
+  const fetchApiPrices = async () => {
+    try {
+      setApiLoading(true);
+      setApiError(null);
+
+      const response = await goldPriceService.getDashboardPrices();
+
+      if (response.data) {
+        const data = response.data;
+        const price999 = data.current?.prices?.gold?.per_gram || 0;
+
+        setApiPrices({
+          price999: price999,
+          carat: data.carat || {},
+          source: data.current?.source || "api",
+          change: data.change,
+          lastUpdated: data.last_updated,
+        });
+
+        // Update settings with live price
+        if (price999 > 0) {
+          updateSettings("goldPrice", {
+            ...goldPrice,
+            manualPrice: price999,
+            lastUpdated: new Date().toISOString(),
+            updatedBy: "API",
+          });
+        }
+      }
+    } catch (err) {
+      console.error("API fetch error:", err);
+      setApiError("Failed to fetch from API. Please check backend connection.");
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  // Handle refresh button click
+  const handleRefreshAPI = async () => {
+    setIsRefreshing(true);
+
+    try {
+      if (goldPrice.source === "api") {
+        // Clear cache and fetch fresh prices
+        await goldPriceService.refreshPrices();
+        await fetchApiPrices();
+
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Gold Price Updated",
+            message: `Live price: RM ${
+              apiPrices?.price999?.toFixed(2) ||
+              goldPrice.manualPrice?.toFixed(2)
+            }/g`,
+          })
+        );
+      } else {
+        // Manual mode - just update timestamp
+        handleChange("lastUpdated", new Date().toISOString());
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Price Updated",
+            message: `Manual price: RM ${goldPrice.manualPrice?.toFixed(2)}/g`,
+          })
+        );
+      }
+    } catch (err) {
+      console.error("Refresh error:", err);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Refresh Failed",
+          message: "Could not refresh gold price. Please try again.",
+        })
+      );
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Get display price - API price if available, otherwise manual
+  const displayPrice =
+    goldPrice.source === "api" && apiPrices?.price999
+      ? apiPrices.price999
+      : goldPrice.manualPrice;
+
+  // Get source indicator
+  const getSourceBadge = () => {
+    if (goldPrice.source === "manual") {
+      return (
+        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
+          Manual
+        </span>
+      );
+    }
+    if (apiError) {
+      return (
+        <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">
+          API Error
+        </span>
+      );
+    }
+    if (apiPrices?.source === "metalpriceapi") {
+      return (
+        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
+          🟢 Live
+        </span>
+      );
+    }
+    if (apiPrices?.source === "cache") {
+      return (
+        <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs">
+          🟡 Cached
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 bg-zinc-100 text-zinc-700 rounded-full text-xs">
+        Loading...
+      </span>
+    );
+  };
 
   return (
     <Card className="p-6">
@@ -386,11 +565,48 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
       <div className="p-6 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-amber-100 text-sm">Current Gold Price (999)</p>
-            <p className="text-4xl font-bold mt-1">RM {goldPrice.manualPrice?.toFixed(2)}/g</p>
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-amber-100 text-sm">Current Gold Price (999)</p>
+              {getSourceBadge()}
+            </div>
+            <p className="text-4xl font-bold mt-1">
+              {apiLoading ? (
+                <span className="text-2xl">Loading...</span>
+              ) : (
+                `RM ${displayPrice?.toFixed(2) || "0.00"}/g`
+              )}
+            </p>
+
+            {/* Price Change */}
+            {goldPrice.source === "api" &&
+              apiPrices?.change &&
+              apiPrices.change.amount !== 0 && (
+                <p
+                  className={cn(
+                    "text-sm mt-1 flex items-center gap-1",
+                    apiPrices.change.direction === "up"
+                      ? "text-green-200"
+                      : "text-red-200"
+                  )}
+                >
+                  {apiPrices.change.direction === "up" ? (
+                    <TrendingUp className="w-4 h-4" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4" />
+                  )}
+                  {apiPrices.change.direction === "up" ? "+" : ""}
+                  RM {apiPrices.change.amount?.toFixed(2)} (
+                  {apiPrices.change.percent?.toFixed(2)}%)
+                  <span className="text-amber-200 ml-1">vs yesterday</span>
+                </p>
+              )}
+
             <p className="text-amber-100 text-xs mt-2 flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              Last updated: {new Date(goldPrice.lastUpdated).toLocaleString()}
+              Last updated:{" "}
+              {new Date(
+                apiPrices?.lastUpdated || goldPrice.lastUpdated
+              ).toLocaleString()}
             </p>
           </div>
           <Button
@@ -398,7 +614,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
             className="bg-white/20 border-white/30 text-white hover:bg-white/30"
             leftIcon={RefreshCw}
             onClick={handleRefreshAPI}
-            loading={isRefreshing}
+            loading={isRefreshing || apiLoading}
           >
             Refresh
           </Button>
@@ -407,55 +623,71 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
 
       {/* Source Selection */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-zinc-700 mb-3">Price Source</label>
+        <label className="block text-sm font-medium text-zinc-700 mb-3">
+          Price Source
+        </label>
         <div className="flex gap-4">
-          <label className={cn(
-            'flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all',
-            goldPrice.source === 'manual'
-              ? 'border-amber-500 bg-amber-50'
-              : 'border-zinc-200 hover:border-zinc-300'
-          )}>
+          <label
+            className={cn(
+              "flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all",
+              goldPrice.source === "manual"
+                ? "border-amber-500 bg-amber-50"
+                : "border-zinc-200 hover:border-zinc-300"
+            )}
+          >
             <input
               type="radio"
               name="priceSource"
               value="manual"
-              checked={goldPrice.source === 'manual'}
-              onChange={() => handleChange('source', 'manual')}
+              checked={goldPrice.source === "manual"}
+              onChange={() => handleChange("source", "manual")}
               className="sr-only"
             />
-            <div className={cn(
-              'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-              goldPrice.source === 'manual' ? 'border-amber-500' : 'border-zinc-300'
-            )}>
-              {goldPrice.source === 'manual' && (
+            <div
+              className={cn(
+                "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                goldPrice.source === "manual"
+                  ? "border-amber-500"
+                  : "border-zinc-300"
+              )}
+            >
+              {goldPrice.source === "manual" && (
                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
               )}
             </div>
             <div>
               <p className="font-medium text-zinc-800">Manual Entry</p>
-              <p className="text-sm text-zinc-500">Enter price manually each day</p>
+              <p className="text-sm text-zinc-500">
+                Enter price manually each day
+              </p>
             </div>
           </label>
 
-          <label className={cn(
-            'flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all',
-            goldPrice.source === 'api'
-              ? 'border-amber-500 bg-amber-50'
-              : 'border-zinc-200 hover:border-zinc-300'
-          )}>
+          <label
+            className={cn(
+              "flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all",
+              goldPrice.source === "api"
+                ? "border-amber-500 bg-amber-50"
+                : "border-zinc-200 hover:border-zinc-300"
+            )}
+          >
             <input
               type="radio"
               name="priceSource"
               value="api"
-              checked={goldPrice.source === 'api'}
-              onChange={() => handleChange('source', 'api')}
+              checked={goldPrice.source === "api"}
+              onChange={() => handleChange("source", "api")}
               className="sr-only"
             />
-            <div className={cn(
-              'w-5 h-5 rounded-full border-2 flex items-center justify-center',
-              goldPrice.source === 'api' ? 'border-amber-500' : 'border-zinc-300'
-            )}>
-              {goldPrice.source === 'api' && (
+            <div
+              className={cn(
+                "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                goldPrice.source === "api"
+                  ? "border-amber-500"
+                  : "border-zinc-300"
+              )}
+            >
+              {goldPrice.source === "api" && (
                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
               )}
             </div>
@@ -468,60 +700,101 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
       </div>
 
       {/* Manual Price Input */}
-      {goldPrice.source === 'manual' && (
+      {goldPrice.source === "manual" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Input
-            label="Gold Price (RM/gram)"
+            label="Gold Price (RM/gram) - 999 Purity"
             type="number"
             step="0.01"
             value={goldPrice.manualPrice}
-            onChange={(e) => handleChange('manualPrice', parseFloat(e.target.value) || 0)}
+            onChange={(e) =>
+              handleChange("manualPrice", parseFloat(e.target.value) || 0)
+            }
             leftIcon={DollarSign}
           />
         </div>
       )}
 
-      {/* API Settings */}
-      {goldPrice.source === 'api' && (
-        <div className="p-4 bg-zinc-50 rounded-xl">
-          <p className="text-sm text-zinc-600 flex items-center gap-2">
-            <Info className="w-4 h-4" />
-            API integration requires backend setup. Currently using simulated data.
-          </p>
+      {/* API Status */}
+      {goldPrice.source === "api" && (
+        <div
+          className={cn(
+            "p-4 rounded-xl",
+            apiError ? "bg-red-50" : "bg-green-50"
+          )}
+        >
+          {apiError ? (
+            <p className="text-sm text-red-600 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {apiError}
+            </p>
+          ) : (
+            <p className="text-sm text-green-600 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              Connected to MetalPriceAPI. Prices update automatically.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Price by Purity Table (when API mode) */}
+      {goldPrice.source === "api" && apiPrices && (
+        <div className="mt-6">
+          <h3 className="text-sm font-medium text-zinc-700 mb-3">
+            Price by Purity (RM/gram)
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {purities.map((purity) => {
+              const price =
+                apiPrices.carat?.[purity.code] ||
+                displayPrice * (purity.percentage / 100);
+              return (
+                <div
+                  key={purity.code}
+                  className="p-3 bg-zinc-50 rounded-lg text-center"
+                >
+                  <p className="text-xs text-zinc-500">{purity.karat}</p>
+                  <p className="text-sm font-bold text-zinc-800">
+                    RM {price.toFixed(2)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </Card>
-  )
+  );
 }
 
 // Margin Tab
 function MarginTab({ settings, updateSettings }) {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [newMargin, setNewMargin] = useState('')
-  const presets = settings.marginPresets
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newMargin, setNewMargin] = useState("");
+  const presets = settings.marginPresets;
 
   const handleSetDefault = (id) => {
-    const updated = presets.map(p => ({ ...p, isDefault: p.id === id }))
-    updateSettings('marginPresets', updated)
-  }
+    const updated = presets.map((p) => ({ ...p, isDefault: p.id === id }));
+    updateSettings("marginPresets", updated);
+  };
 
   const handleDelete = (id) => {
-    const updated = presets.filter(p => p.id !== id)
-    updateSettings('marginPresets', updated)
-  }
+    const updated = presets.filter((p) => p.id !== id);
+    updateSettings("marginPresets", updated);
+  };
 
   const handleAdd = () => {
-    const value = parseInt(newMargin)
+    const value = parseInt(newMargin);
     if (value > 0 && value <= 100) {
       const updated = [
         ...presets,
-        { id: Date.now(), value, label: `${value}%`, isDefault: false }
-      ]
-      updateSettings('marginPresets', updated)
-      setNewMargin('')
-      setShowAddModal(false)
+        { id: Date.now(), value, label: `${value}%`, isDefault: false },
+      ];
+      updateSettings("marginPresets", updated);
+      setNewMargin("");
+      setShowAddModal(false);
     }
-  }
+  };
 
   return (
     <Card className="p-6">
@@ -530,13 +803,19 @@ function MarginTab({ settings, updateSettings }) {
           <Percent className="w-5 h-5 text-amber-500" />
           Margin Percentage Presets
         </h2>
-        <Button variant="outline" size="sm" leftIcon={Plus} onClick={() => setShowAddModal(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          leftIcon={Plus}
+          onClick={() => setShowAddModal(true)}
+        >
           Add Preset
         </Button>
       </div>
 
       <p className="text-sm text-zinc-500 mb-6">
-        These presets appear as quick-select buttons when creating a new pledge. The default preset will be pre-selected.
+        These presets appear as quick-select buttons when creating a new pledge.
+        The default preset will be pre-selected.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -544,17 +823,17 @@ function MarginTab({ settings, updateSettings }) {
           <div
             key={preset.id}
             className={cn(
-              'p-4 rounded-xl border-2 transition-all',
+              "p-4 rounded-xl border-2 transition-all",
               preset.isDefault
-                ? 'border-amber-500 bg-amber-50'
-                : 'border-zinc-200 hover:border-zinc-300'
+                ? "border-amber-500 bg-amber-50"
+                : "border-zinc-200 hover:border-zinc-300"
             )}
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-3xl font-bold text-zinc-800">{preset.value}%</span>
-              {preset.isDefault && (
-                <Badge variant="success">Default</Badge>
-              )}
+              <span className="text-3xl font-bold text-zinc-800">
+                {preset.value}%
+              </span>
+              {preset.isDefault && <Badge variant="success">Default</Badge>}
             </div>
             <div className="flex gap-2">
               {!preset.isDefault && (
@@ -599,7 +878,11 @@ function MarginTab({ settings, updateSettings }) {
             rightElement={<span className="text-zinc-400">%</span>}
           />
           <div className="flex gap-3 mt-6">
-            <Button variant="outline" fullWidth onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowAddModal(false)}
+            >
               Cancel
             </Button>
             <Button variant="accent" fullWidth onClick={handleAdd}>
@@ -609,26 +892,26 @@ function MarginTab({ settings, updateSettings }) {
         </div>
       </Modal>
     </Card>
-  )
+  );
 }
 
 // Interest Tab
 function InterestTab({ settings, updateSettings }) {
-  const rules = settings.interestRules
+  const rules = settings.interestRules;
 
   const handleChange = (tier, field, value) => {
-    updateSettings('interestRules', {
+    updateSettings("interestRules", {
       ...rules,
-      [tier]: { ...rules[tier], [field]: value }
-    })
-  }
+      [tier]: { ...rules[tier], [field]: value },
+    });
+  };
 
   const handleGraceChange = (value) => {
-    updateSettings('interestRules', {
+    updateSettings("interestRules", {
       ...rules,
-      gracePeriodDays: parseInt(value) || 0
-    })
-  }
+      gracePeriodDays: parseInt(value) || 0,
+    });
+  };
 
   return (
     <Card className="p-6">
@@ -641,7 +924,9 @@ function InterestTab({ settings, updateSettings }) {
         <div className="flex gap-3">
           <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-700">
-            <p className="font-medium mb-1">Interest Calculation (KPKT Compliant)</p>
+            <p className="font-medium mb-1">
+              Interest Calculation (KPKT Compliant)
+            </p>
             <ul className="list-disc list-inside space-y-1 text-blue-600">
               <li>Interest is calculated monthly based on principal amount</li>
               <li>Tier upgrades apply to all outstanding months</li>
@@ -660,7 +945,9 @@ function InterestTab({ settings, updateSettings }) {
             </div>
             <div>
               <p className="font-medium text-zinc-800">{rules.tier1.label}</p>
-              <p className="text-sm text-zinc-500">Initial rate for new pledges</p>
+              <p className="text-sm text-zinc-500">
+                Initial rate for new pledges
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -668,14 +955,18 @@ function InterestTab({ settings, updateSettings }) {
               label="Duration (months)"
               type="number"
               value={rules.tier1.months}
-              onChange={(e) => handleChange('tier1', 'months', parseInt(e.target.value) || 0)}
+              onChange={(e) =>
+                handleChange("tier1", "months", parseInt(e.target.value) || 0)
+              }
             />
             <Input
               label="Interest Rate (%)"
               type="number"
               step="0.1"
               value={rules.tier1.rate}
-              onChange={(e) => handleChange('tier1', 'rate', parseFloat(e.target.value) || 0)}
+              onChange={(e) =>
+                handleChange("tier1", "rate", parseFloat(e.target.value) || 0)
+              }
               rightElement={<span className="text-zinc-400">%</span>}
             />
           </div>
@@ -689,7 +980,9 @@ function InterestTab({ settings, updateSettings }) {
             </div>
             <div>
               <p className="font-medium text-zinc-800">{rules.tier2.label}</p>
-              <p className="text-sm text-zinc-500">Rate after initial period if renewed</p>
+              <p className="text-sm text-zinc-500">
+                Rate after initial period if renewed
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -697,14 +990,18 @@ function InterestTab({ settings, updateSettings }) {
               label="Duration (months)"
               type="number"
               value={rules.tier2.months}
-              onChange={(e) => handleChange('tier2', 'months', parseInt(e.target.value) || 0)}
+              onChange={(e) =>
+                handleChange("tier2", "months", parseInt(e.target.value) || 0)
+              }
             />
             <Input
               label="Interest Rate (%)"
               type="number"
               step="0.1"
               value={rules.tier2.rate}
-              onChange={(e) => handleChange('tier2', 'rate', parseFloat(e.target.value) || 0)}
+              onChange={(e) =>
+                handleChange("tier2", "rate", parseFloat(e.target.value) || 0)
+              }
               rightElement={<span className="text-zinc-400">%</span>}
             />
           </div>
@@ -718,7 +1015,9 @@ function InterestTab({ settings, updateSettings }) {
             </div>
             <div>
               <p className="font-medium text-zinc-800">{rules.tier3.label}</p>
-              <p className="text-sm text-zinc-500">Penalty rate for overdue pledges</p>
+              <p className="text-sm text-zinc-500">
+                Penalty rate for overdue pledges
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -727,7 +1026,9 @@ function InterestTab({ settings, updateSettings }) {
               type="number"
               step="0.1"
               value={rules.tier3.rate}
-              onChange={(e) => handleChange('tier3', 'rate', parseFloat(e.target.value) || 0)}
+              onChange={(e) =>
+                handleChange("tier3", "rate", parseFloat(e.target.value) || 0)
+              }
               rightElement={<span className="text-zinc-400">%</span>}
             />
             <Input
@@ -753,38 +1054,43 @@ function InterestTab({ settings, updateSettings }) {
         </div>
       </div>
     </Card>
-  )
+  );
 }
 
 // Categories Tab
 function CategoriesTab({ settings, updateSettings }) {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [formData, setFormData] = useState({ name: '', nameMs: '' })
-  const categories = settings.categories
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({ name: "", nameMs: "" });
+  const categories = settings.categories;
 
   const handleAdd = () => {
     if (formData.name) {
       const updated = [
         ...categories,
-        { id: Date.now(), name: formData.name, nameMs: formData.nameMs || formData.name, active: true }
-      ]
-      updateSettings('categories', updated)
-      setFormData({ name: '', nameMs: '' })
-      setShowAddModal(false)
+        {
+          id: Date.now(),
+          name: formData.name,
+          nameMs: formData.nameMs || formData.name,
+          active: true,
+        },
+      ];
+      updateSettings("categories", updated);
+      setFormData({ name: "", nameMs: "" });
+      setShowAddModal(false);
     }
-  }
+  };
 
   const handleToggle = (id) => {
-    const updated = categories.map(c => 
+    const updated = categories.map((c) =>
       c.id === id ? { ...c, active: !c.active } : c
-    )
-    updateSettings('categories', updated)
-  }
+    );
+    updateSettings("categories", updated);
+  };
 
   const handleDelete = (id) => {
-    const updated = categories.filter(c => c.id !== id)
-    updateSettings('categories', updated)
-  }
+    const updated = categories.filter((c) => c.id !== id);
+    updateSettings("categories", updated);
+  };
 
   return (
     <Card className="p-6">
@@ -793,7 +1099,12 @@ function CategoriesTab({ settings, updateSettings }) {
           <Package className="w-5 h-5 text-amber-500" />
           Item Categories
         </h2>
-        <Button variant="outline" size="sm" leftIcon={Plus} onClick={() => setShowAddModal(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          leftIcon={Plus}
+          onClick={() => setShowAddModal(true)}
+        >
           Add Category
         </Button>
       </div>
@@ -803,39 +1114,37 @@ function CategoriesTab({ settings, updateSettings }) {
           <div
             key={category.id}
             className={cn(
-              'flex items-center justify-between p-4 rounded-xl border transition-all',
+              "flex items-center justify-between p-4 rounded-xl border transition-all",
               category.active
-                ? 'border-zinc-200 bg-white'
-                : 'border-zinc-100 bg-zinc-50 opacity-60'
+                ? "border-zinc-200 bg-white"
+                : "border-zinc-100 bg-zinc-50 opacity-60"
             )}
           >
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                <Package className="w-5 h-5 text-amber-600" />
-              </div>
+              <button
+                onClick={() => handleToggle(category.id)}
+                className={cn(
+                  "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                  category.active
+                    ? "bg-emerald-500 border-emerald-500"
+                    : "border-zinc-300"
+                )}
+              >
+                {category.active && <Check className="w-3 h-3 text-white" />}
+              </button>
               <div>
                 <p className="font-medium text-zinc-800">{category.name}</p>
                 <p className="text-sm text-zinc-500">{category.nameMs}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleToggle(category.id)}
-                className={category.active ? 'text-emerald-600' : 'text-zinc-400'}
-              >
-                {category.active ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDelete(category.id)}
-                className="text-red-500 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(category.id)}
+              className="text-zinc-400 hover:text-red-500"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         ))}
       </div>
@@ -847,7 +1156,7 @@ function CategoriesTab({ settings, updateSettings }) {
         title="Add Category"
         size="sm"
       >
-        <div className="p-5 space-y-4">
+        <div className="p-5">
           <Input
             label="Category Name (English)"
             value={formData.name}
@@ -857,11 +1166,17 @@ function CategoriesTab({ settings, updateSettings }) {
           <Input
             label="Category Name (Malay)"
             value={formData.nameMs}
-            onChange={(e) => setFormData({ ...formData, nameMs: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, nameMs: e.target.value })
+            }
             placeholder="e.g. Cincin"
           />
           <div className="flex gap-3 mt-6">
-            <Button variant="outline" fullWidth onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowAddModal(false)}
+            >
               Cancel
             </Button>
             <Button variant="accent" fullWidth onClick={handleAdd}>
@@ -871,44 +1186,48 @@ function CategoriesTab({ settings, updateSettings }) {
         </div>
       </Modal>
     </Card>
-  )
+  );
 }
 
 // Purities Tab
 function PuritiesTab({ settings, updateSettings }) {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [formData, setFormData] = useState({ value: '', label: '', factor: '' })
-  const purities = settings.purities
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({
+    value: "",
+    label: "",
+    factor: "",
+  });
+  const purities = settings.purities;
 
   const handleAdd = () => {
     if (formData.value && formData.factor) {
       const updated = [
         ...purities,
-        { 
-          id: Date.now(), 
-          value: formData.value, 
-          label: formData.label || formData.value, 
+        {
+          id: Date.now(),
+          value: formData.value,
+          label: formData.label || formData.value,
           factor: parseFloat(formData.factor) || 0,
-          active: true 
-        }
-      ]
-      updateSettings('purities', updated)
-      setFormData({ value: '', label: '', factor: '' })
-      setShowAddModal(false)
+          active: true,
+        },
+      ];
+      updateSettings("purities", updated);
+      setFormData({ value: "", label: "", factor: "" });
+      setShowAddModal(false);
     }
-  }
+  };
 
   const handleToggle = (id) => {
-    const updated = purities.map(p => 
+    const updated = purities.map((p) =>
       p.id === id ? { ...p, active: !p.active } : p
-    )
-    updateSettings('purities', updated)
-  }
+    );
+    updateSettings("purities", updated);
+  };
 
   const handleDelete = (id) => {
-    const updated = purities.filter(p => p.id !== id)
-    updateSettings('purities', updated)
-  }
+    const updated = purities.filter((p) => p.id !== id);
+    updateSettings("purities", updated);
+  };
 
   return (
     <Card className="p-6">
@@ -917,7 +1236,12 @@ function PuritiesTab({ settings, updateSettings }) {
           <Gem className="w-5 h-5 text-amber-500" />
           Gold Purities
         </h2>
-        <Button variant="outline" size="sm" leftIcon={Plus} onClick={() => setShowAddModal(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          leftIcon={Plus}
+          onClick={() => setShowAddModal(true)}
+        >
           Add Purity
         </Button>
       </div>
@@ -927,33 +1251,38 @@ function PuritiesTab({ settings, updateSettings }) {
           <div
             key={purity.id}
             className={cn(
-              'p-4 rounded-xl border-2 transition-all',
+              "p-4 rounded-xl border-2 transition-all",
               purity.active
-                ? 'border-amber-200 bg-amber-50'
-                : 'border-zinc-100 bg-zinc-50 opacity-60'
+                ? "border-amber-200 bg-amber-50"
+                : "border-zinc-100 bg-zinc-50 opacity-60"
             )}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-2xl font-bold text-zinc-800">{purity.value}</p>
-                <p className="text-sm text-zinc-500">{purity.label}</p>
-              </div>
-              <Badge variant="secondary">{(purity.factor * 100).toFixed(1)}%</Badge>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-2xl font-bold text-zinc-800">
+                {purity.value}
+              </span>
+              <button
                 onClick={() => handleToggle(purity.id)}
-                className={cn('flex-1', purity.active ? 'text-emerald-600' : 'text-zinc-400')}
+                className={cn(
+                  "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                  purity.active
+                    ? "bg-emerald-500 border-emerald-500"
+                    : "border-zinc-300"
+                )}
               >
-                {purity.active ? 'Active' : 'Inactive'}
-              </Button>
+                {purity.active && <Check className="w-3 h-3 text-white" />}
+              </button>
+            </div>
+            <p className="text-sm text-zinc-500 mb-3">{purity.label}</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-zinc-400">
+                Factor: {purity.factor}
+              </span>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => handleDelete(purity.id)}
-                className="text-red-500 hover:bg-red-50"
+                className="text-zinc-400 hover:text-red-500"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -969,17 +1298,21 @@ function PuritiesTab({ settings, updateSettings }) {
         title="Add Purity"
         size="sm"
       >
-        <div className="p-5 space-y-4">
+        <div className="p-5">
           <Input
-            label="Purity Value"
+            label="Purity Code"
             value={formData.value}
-            onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, value: e.target.value })
+            }
             placeholder="e.g. 916"
           />
           <Input
             label="Display Label"
             value={formData.label}
-            onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, label: e.target.value })
+            }
             placeholder="e.g. 916 (22K)"
           />
           <Input
@@ -987,12 +1320,18 @@ function PuritiesTab({ settings, updateSettings }) {
             type="number"
             step="0.001"
             value={formData.factor}
-            onChange={(e) => setFormData({ ...formData, factor: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, factor: e.target.value })
+            }
             placeholder="e.g. 0.916"
             helperText="Used for value calculation"
           />
           <div className="flex gap-3 mt-6">
-            <Button variant="outline" fullWidth onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowAddModal(false)}
+            >
               Cancel
             </Button>
             <Button variant="accent" fullWidth onClick={handleAdd}>
@@ -1002,16 +1341,16 @@ function PuritiesTab({ settings, updateSettings }) {
         </div>
       </Modal>
     </Card>
-  )
+  );
 }
 
 // Stone Deduction Tab
 function StoneDeductionTab({ settings, updateSettings }) {
-  const deduction = settings.stoneDeduction
+  const deduction = settings.stoneDeduction;
 
   const handleChange = (field, value) => {
-    updateSettings('stoneDeduction', { ...deduction, [field]: value })
-  }
+    updateSettings("stoneDeduction", { ...deduction, [field]: value });
+  };
 
   return (
     <Card className="p-6">
@@ -1024,109 +1363,135 @@ function StoneDeductionTab({ settings, updateSettings }) {
         <div className="flex gap-3">
           <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-blue-700">
-            Stone deduction is applied to gross weight to calculate net gold weight for valuation.
+            Stone deduction is applied to gross weight to calculate net gold
+            weight for valuation.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-3">Default Deduction Type</label>
+          <label className="block text-sm font-medium text-zinc-700 mb-3">
+            Default Deduction Type
+          </label>
           <div className="flex gap-4">
-            <label className={cn(
-              'flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all',
-              deduction.defaultType === 'percentage'
-                ? 'border-amber-500 bg-amber-50'
-                : 'border-zinc-200 hover:border-zinc-300'
-            )}>
+            <label
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all",
+                deduction.defaultType === "percentage"
+                  ? "border-amber-500 bg-amber-50"
+                  : "border-zinc-200 hover:border-zinc-300"
+              )}
+            >
               <input
                 type="radio"
                 name="deductionType"
                 value="percentage"
-                checked={deduction.defaultType === 'percentage'}
-                onChange={() => handleChange('defaultType', 'percentage')}
+                checked={deduction.defaultType === "percentage"}
+                onChange={() => handleChange("defaultType", "percentage")}
                 className="sr-only"
               />
               <Percent className="w-4 h-4" />
               <span className="font-medium">Percentage</span>
             </label>
-            <label className={cn(
-              'flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all',
-              deduction.defaultType === 'fixed'
-                ? 'border-amber-500 bg-amber-50'
-                : 'border-zinc-200 hover:border-zinc-300'
-            )}>
+            <label
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all",
+                deduction.defaultType === "fixed"
+                  ? "border-amber-500 bg-amber-50"
+                  : "border-zinc-200 hover:border-zinc-300"
+              )}
+            >
               <input
                 type="radio"
                 name="deductionType"
                 value="fixed"
-                checked={deduction.defaultType === 'fixed'}
-                onChange={() => handleChange('defaultType', 'fixed')}
+                checked={deduction.defaultType === "fixed"}
+                onChange={() => handleChange("defaultType", "fixed")}
                 className="sr-only"
               />
-              <Calculator className="w-4 h-4" />
-              <span className="font-medium">Fixed (gram)</span>
+              <Scale className="w-4 h-4" />
+              <span className="font-medium">Fixed (g)</span>
             </label>
           </div>
         </div>
-
         <Input
-          label={`Default Value (${deduction.defaultType === 'percentage' ? '%' : 'gram'})`}
+          label={`Default Value (${
+            deduction.defaultType === "percentage" ? "%" : "grams"
+          })`}
           type="number"
-          step="0.1"
+          step="0.01"
           value={deduction.defaultValue}
-          onChange={(e) => handleChange('defaultValue', parseFloat(e.target.value) || 0)}
-          rightElement={<span className="text-zinc-400">{deduction.defaultType === 'percentage' ? '%' : 'g'}</span>}
+          onChange={(e) =>
+            handleChange("defaultValue", parseFloat(e.target.value) || 0)
+          }
+          rightElement={
+            <span className="text-zinc-400">
+              {deduction.defaultType === "percentage" ? "%" : "g"}
+            </span>
+          }
         />
       </div>
 
       {/* Example Calculation */}
       <div className="p-4 bg-zinc-50 rounded-xl">
-        <p className="text-sm font-medium text-zinc-700 mb-2">Example Calculation:</p>
+        <p className="text-sm font-medium text-zinc-700 mb-2">
+          Example Calculation:
+        </p>
         <div className="text-sm text-zinc-600">
           <p>Gross Weight: 10.00g</p>
-          <p>Stone Deduction: {deduction.defaultValue}{deduction.defaultType === 'percentage' ? '%' : 'g'}</p>
+          <p>
+            Stone Deduction: {deduction.defaultValue}
+            {deduction.defaultType === "percentage" ? "%" : "g"}
+          </p>
           <p className="font-medium text-zinc-800 mt-1">
-            Net Weight: {deduction.defaultType === 'percentage' 
-              ? (10 * (1 - deduction.defaultValue / 100)).toFixed(2) 
-              : (10 - deduction.defaultValue).toFixed(2)}g
+            Net Weight:{" "}
+            {deduction.defaultType === "percentage"
+              ? (10 * (1 - deduction.defaultValue / 100)).toFixed(2)
+              : (10 - deduction.defaultValue).toFixed(2)}
+            g
           </p>
         </div>
       </div>
     </Card>
-  )
+  );
 }
 
 // Racks Tab
 function RacksTab({ settings, updateSettings }) {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [formData, setFormData] = useState({ id: '', name: '', slots: 20, description: '' })
-  const racks = settings.racks
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({
+    id: "",
+    name: "",
+    slots: 20,
+    description: "",
+  });
+  const racks = settings.racks;
 
   const handleAdd = () => {
     if (formData.id && formData.name) {
       const updated = [
         ...racks,
-        { 
-          id: formData.id.toUpperCase(), 
-          name: formData.name, 
+        {
+          id: formData.id.toUpperCase(),
+          name: formData.name,
           slots: parseInt(formData.slots) || 20,
-          description: formData.description 
-        }
-      ]
-      updateSettings('racks', updated)
-      setFormData({ id: '', name: '', slots: 20, description: '' })
-      setShowAddModal(false)
+          description: formData.description,
+        },
+      ];
+      updateSettings("racks", updated);
+      setFormData({ id: "", name: "", slots: 20, description: "" });
+      setShowAddModal(false);
     }
-  }
+  };
 
   const handleDelete = (id) => {
-    const updated = racks.filter(r => r.id !== id)
-    updateSettings('racks', updated)
-  }
+    const updated = racks.filter((r) => r.id !== id);
+    updateSettings("racks", updated);
+  };
 
   // Calculate total slots
-  const totalSlots = racks.reduce((sum, r) => sum + r.slots, 0)
+  const totalSlots = racks.reduce((sum, r) => sum + r.slots, 0);
 
   return (
     <Card className="p-6">
@@ -1135,7 +1500,12 @@ function RacksTab({ settings, updateSettings }) {
           <Grid3X3 className="w-5 h-5 text-amber-500" />
           Rack / Locker Setup
         </h2>
-        <Button variant="outline" size="sm" leftIcon={Plus} onClick={() => setShowAddModal(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          leftIcon={Plus}
+          onClick={() => setShowAddModal(true)}
+        >
           Add Rack
         </Button>
       </div>
@@ -1170,41 +1540,22 @@ function RacksTab({ settings, updateSettings }) {
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className="text-lg font-semibold text-zinc-800">{rack.slots}</p>
+                <p className="text-lg font-semibold text-zinc-800">
+                  {rack.slots}
+                </p>
                 <p className="text-xs text-zinc-500">slots</p>
               </div>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => handleDelete(rack.id)}
-                className="text-red-500 hover:bg-red-50"
+                className="text-zinc-400 hover:text-red-500"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Rack Visual */}
-      <div className="mt-6 p-4 bg-zinc-50 rounded-xl">
-        <p className="text-sm font-medium text-zinc-700 mb-3">Rack Layout Preview</p>
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {racks.map((rack) => (
-            <div key={rack.id} className="flex-shrink-0">
-              <p className="text-xs text-zinc-500 text-center mb-1">{rack.id}</p>
-              <div className="grid grid-cols-4 gap-1">
-                {Array.from({ length: Math.min(rack.slots, 20) }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-4 h-4 rounded-sm bg-zinc-200"
-                    title={`${rack.id}-${String(i + 1).padStart(2, '0')}`}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Add Modal */}
@@ -1214,14 +1565,13 @@ function RacksTab({ settings, updateSettings }) {
         title="Add Rack"
         size="sm"
       >
-        <div className="p-5 space-y-4">
+        <div className="p-5">
           <Input
             label="Rack ID"
             value={formData.id}
             onChange={(e) => setFormData({ ...formData, id: e.target.value })}
             placeholder="e.g. D"
-            maxLength={3}
-            helperText="Short code (1-3 characters)"
+            maxLength={2}
           />
           <Input
             label="Rack Name"
@@ -1233,17 +1583,25 @@ function RacksTab({ settings, updateSettings }) {
             label="Number of Slots"
             type="number"
             value={formData.slots}
-            onChange={(e) => setFormData({ ...formData, slots: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, slots: e.target.value })
+            }
             placeholder="20"
           />
           <Input
             label="Description"
             value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="e.g. High value items"
+            onChange={(e) =>
+              setFormData({ ...formData, description: e.target.value })
+            }
+            placeholder="e.g. High-value items"
           />
           <div className="flex gap-3 mt-6">
-            <Button variant="outline" fullWidth onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowAddModal(false)}
+            >
               Cancel
             </Button>
             <Button variant="accent" fullWidth onClick={handleAdd}>
@@ -1253,5 +1611,5 @@ function RacksTab({ settings, updateSettings }) {
         </div>
       </Modal>
     </Card>
-  )
+  );
 }

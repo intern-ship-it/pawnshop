@@ -55,7 +55,7 @@ class GoldPriceService
         }
 
         try {
-            $response = Http::timeout(10)->get("{$this->baseUrl}/latest", [
+            $response = Http::withoutVerifying()->timeout(10)->get("{$this->baseUrl}/latest", [
                 'api_key' => $this->apiKey,
                 'base' => $this->baseCurrency,
                 'currencies' => 'XAU,XAG',
@@ -123,7 +123,7 @@ class GoldPriceService
         }
 
         try {
-            $response = Http::timeout(10)->get("{$this->baseUrl}/carat", [
+            $response = Http::withoutVerifying()->timeout(10)->get("{$this->baseUrl}/carat", [
                 'api_key' => $this->apiKey,
                 'base' => $this->baseCurrency,
             ]);
@@ -181,7 +181,7 @@ class GoldPriceService
         }
 
         try {
-            $response = Http::timeout(10)->get("{$this->baseUrl}/{$date}", [
+            $response = Http::withoutVerifying()->timeout(10)->get("{$this->baseUrl}/{$date}", [
                 'api_key' => $this->apiKey,
                 'base' => $this->baseCurrency,
                 'currencies' => 'XAU,XAG',
@@ -269,7 +269,7 @@ class GoldPriceService
         }
 
         try {
-            $response = Http::timeout(10)->get("{$this->baseUrl}/usage", [
+            $response = Http::withoutVerifying()->timeout(10)->get("{$this->baseUrl}/usage", [
                 'api_key' => $this->apiKey,
             ]);
 
@@ -341,7 +341,7 @@ class GoldPriceService
         }
 
         // Ultimate fallback - configured default prices
-        $defaultGold = config('pawnsys.gold_price.fallback_999', 400);
+        $defaultGold = floatval(config('pawnsys.gold_price.fallback_999', 400));
 
         return [
             'success' => true,
@@ -367,7 +367,7 @@ class GoldPriceService
      */
     protected function getFallbackCaratPrices(): array
     {
-        $gold999 = config('pawnsys.gold_price.fallback_999', 400);
+        $gold999 = floatval(config('pawnsys.gold_price.fallback_999', 400));
 
         return [
             'success' => true,
