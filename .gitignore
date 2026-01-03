@@ -32,7 +32,6 @@ backend/vendor/
 backend/node_modules/
 backend/public/hot
 backend/public/storage
-backend/storage/*.key
 backend/.env
 backend/.env.backup
 backend/.env.production
@@ -41,20 +40,39 @@ backend/Homestead.json
 backend/Homestead.yaml
 backend/auth.json
 
-# Storage & Cache
+# Storage logs
 backend/storage/logs/*
-!backend/storage/logs/.gitignore
+!backend/storage/logs/.gitkeep
+
+# Storage framework
 backend/storage/framework/cache/data/*
-backend/storage/framework/cache/*
-!backend/storage/framework/cache/.gitignore
+!backend/storage/framework/cache/data/.gitkeep
+
 backend/storage/framework/sessions/*
-!backend/storage/framework/sessions/.gitignore
+!backend/storage/framework/sessions/.gitkeep
+
 backend/storage/framework/views/*
-!backend/storage/framework/views/.gitignore
+!backend/storage/framework/views/.gitkeep
+
 backend/storage/framework/testing/*
-!backend/storage/framework/testing/.gitignore
+!backend/storage/framework/testing/.gitkeep
+
+# Storage app - Keep subdirectories, ignore uploaded files
+backend/storage/app/public/documents/*
+!backend/storage/app/public/documents/.gitkeep
+
+backend/storage/app/public/photos/*
+!backend/storage/app/public/photos/.gitkeep
+
+backend/storage/app/public/receipts/*
+!backend/storage/app/public/receipts/.gitkeep
+
+backend/storage/app/public/signatures/*
+!backend/storage/app/public/signatures/.gitkeep
+
+# Bootstrap cache
 backend/bootstrap/cache/*
-!backend/bootstrap/cache/.gitignore
+!backend/bootstrap/cache/.gitkeep
 
 # Helper files
 backend/_ide_helper.php
