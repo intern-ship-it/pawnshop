@@ -1,0 +1,28 @@
+---
+deployment:
+  tasks:
+    # Set deploy path
+    - export DEPLOYPATH=/home/graspsoftware/public_html/pajak-kedai.graspsoftwaresolutions.xyz
+    
+    # Build Frontend
+    - cd $DEPLOYPATH/frontend
+    - /opt/cpanel/ea-nodejs16/bin/npm install
+    - /opt/cpanel/ea-nodejs16/bin/npm run build
+    
+    # Frontend build goes to backend/public (via vite.config.js)
+    # If not using vite outDir, uncomment below:
+    # - cp -r $DEPLOYPATH/frontend/dist/* $DEPLOYPATH/backend/public/
+    
+    # Install Laravel dependencies
+    - cd $DEPLOYPATH/backend
+    - /opt/cpanel/ea-php82/root/usr/bin/php /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader
+    
+    # Set permissions
+    - chmod -R 775 $DEPLOYPATH/backend/storage
+    - chmod -R 775 $DEPLOYPATH/backend/bootstrap/cache
+    
+    # Clear Laravel cache
+    - cd $DEPLOYPATH/backend
+    - /opt/cpanel/ea-php82/root/usr/bin/php artisan config:cache
+    - /opt/cpanel/ea-php82/root/usr/bin/php artisan route:cache
+    - /opt/cpanel/ea-php82/root/usr/bin/php artisan view:cache

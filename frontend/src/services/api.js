@@ -5,8 +5,20 @@
 
 import axios from 'axios'
 
-// API Base URL - change for production
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+// Auto-detect API URL based on environment
+const getApiUrl = () => {
+  const hostname = window.location.hostname
+  
+  // Local development
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://127.0.0.1:8000/api'
+  }
+  
+  // Production - same domain, just add /api
+  return `${window.location.origin}/api`
+}
+
+const API_BASE_URL = getApiUrl()
 
 // Create Axios instance
 const api = axios.create({
@@ -15,7 +27,6 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  // withCredentials: true, // REMOVED - Not needed for token-based auth
 })
 
 // Token storage key
@@ -53,34 +64,42 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    // Handle 401 Unauthorized
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip token refresh for auth endpoints (login, refresh, etc.)
+    const isAuthEndpoint = originalRequest.url?.includes('auth/login') || 
+                           originalRequest.url?.includes('auth/refresh') ||
+                           originalRequest.url?.includes('auth/logout')
+
+    // Handle 401 Unauthorized (but not for auth endpoints)
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true
 
-      // Try to refresh token
-      try {
-        const refreshResponse = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${getToken()}`,
-            },
-          }
-        )
+      // Only try refresh if we have a token
+      const currentToken = getToken()
+      if (currentToken) {
+        try {
+          const refreshResponse = await axios.post(
+            `${API_BASE_URL}/auth/refresh`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${currentToken}`,
+              },
+            }
+          )
 
-        if (refreshResponse.data.success) {
-          const newToken = refreshResponse.data.data.token
-          setToken(newToken)
-          originalRequest.headers.Authorization = `Bearer ${newToken}`
-          return api(originalRequest)
+          if (refreshResponse.data.success) {
+            const newToken = refreshResponse.data.data.token
+            setToken(newToken)
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            return api(originalRequest)
+          }
+        } catch (refreshError) {
+          // Refresh failed - logout user
+          removeToken()
+          localStorage.removeItem('pawnsys_user')
+          window.location.href = '/login'
+          return Promise.reject(refreshError)
         }
-      } catch (refreshError) {
-        // Refresh failed - logout user
-        removeToken()
-        localStorage.removeItem('pawnsys_user')
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
       }
     }
 

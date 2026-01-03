@@ -1,5 +1,6 @@
 /**
  * Login Page - User authentication
+ * Company name is loaded from cached settings (localStorage)
  */
 
 import { useState, useEffect } from "react";
@@ -7,6 +8,7 @@ import { useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { loginWithUsername, clearError } from "@/features/auth/authSlice";
 import { addToast } from "@/features/ui/uiSlice";
+import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
 import Button from "@/components/common/Button";
 import { User, Lock, Eye, EyeOff, Check } from "lucide-react";
@@ -41,6 +43,44 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Company info from settings
+  const [companyName, setCompanyName] = useState("PawnSys");
+  const [companyShort, setCompanyShort] = useState("PS");
+
+  // Load company name from cached settings
+  useEffect(() => {
+    const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {});
+    if (settings.company?.name) {
+      setCompanyName(settings.company.name);
+      const words = settings.company.name.split(" ");
+      setCompanyShort(
+        words.length >= 2
+          ? words[0][0] + words[1][0]
+          : settings.company.name.substring(0, 2).toUpperCase()
+      );
+    }
+  }, []);
+
+  // Listen for settings updates (in case user changes settings and comes back)
+  useEffect(() => {
+    const handleSettingsUpdate = (e) => {
+      const settings = e.detail || getStorageItem(STORAGE_KEYS.SETTINGS, {});
+      if (settings.company?.name) {
+        setCompanyName(settings.company.name);
+        const words = settings.company.name.split(" ");
+        setCompanyShort(
+          words.length >= 2
+            ? words[0][0] + words[1][0]
+            : settings.company.name.substring(0, 2).toUpperCase()
+        );
+      }
+    };
+    window.addEventListener("settingsUpdated", handleSettingsUpdate);
+    return () =>
+      window.removeEventListener("settingsUpdated", handleSettingsUpdate);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -51,6 +91,7 @@ export default function Login() {
   useEffect(() => {
     if (authError) {
       setErrors({ form: authError });
+      setIsSubmitting(false);
     }
   }, [authError]);
 
@@ -79,7 +120,13 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
+
     if (!validateForm()) return;
+    if (isSubmitting || loading) return;
+
+    setIsSubmitting(true);
+    setErrors({});
 
     try {
       const result = await dispatch(
@@ -94,16 +141,21 @@ export default function Login() {
           id: Date.now(),
           type: "success",
           title: "Login Successful!",
-          message: `Welcome back, ${result.user?.name || "User"}!`,
+          message: "Welcome back, " + (result.user?.name || "User") + "!",
         })
       );
     } catch (error) {
+      const errorMessage =
+        error?.message || error || "Invalid username or password";
+      setErrors({ form: errorMessage });
+      setIsSubmitting(false);
+
       dispatch(
         addToast({
           id: Date.now(),
           type: "error",
           title: "Login Failed",
-          message: error || "Invalid username or password",
+          message: errorMessage,
         })
       );
     }
@@ -119,6 +171,20 @@ export default function Login() {
     <div className="min-h-screen flex">
       {/* Left Side - Branding */}
       <div className="hidden lg:flex flex-1 bg-zinc-900 text-white p-12 flex-col justify-center relative overflow-hidden">
+        {/* Background Decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {/* Large gradient circle */}
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl" />
+
+          {/* Grid pattern */}
+          <div
+            className="absolute inset-0 opacity-5"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f59e0b' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }}
+          />
+        </div>
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -126,11 +192,13 @@ export default function Login() {
           className="mb-12"
         >
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500">
-              <span className="text-2xl font-bold text-zinc-900">PS</span>
+            <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.5)]">
+              <span className="text-2xl font-bold text-zinc-900">
+                {companyShort}
+              </span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold">PawnSys</h1>
+              <h1 className="text-2xl font-bold">{companyName}</h1>
               <p className="text-amber-500 text-sm">Pajak Kedai Management</p>
             </div>
           </div>
@@ -142,7 +210,7 @@ export default function Login() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="mb-8"
         >
-          <h2 className="text-4xl font-bold leading-tight">
+          <h2 className="text-5xl font-bold leading-tight">
             Streamline Your
             <br />
             <span className="text-amber-500">Pawn Business</span>
@@ -188,10 +256,14 @@ export default function Login() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
             <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500">
-              <span className="text-xl font-bold text-zinc-900">PS</span>
+              <span className="text-xl font-bold text-zinc-900">
+                {companyShort}
+              </span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-zinc-800">PawnSys</h1>
+              <h1 className="text-2xl font-bold text-zinc-800">
+                {companyName}
+              </h1>
               <p className="text-amber-600 text-sm">Pajak Kedai Management</p>
             </div>
           </div>
@@ -310,9 +382,10 @@ export default function Login() {
                 variant="accent"
                 size="lg"
                 fullWidth
-                loading={loading}
+                loading={isSubmitting || loading}
+                disabled={isSubmitting || loading}
               >
-                Sign In
+                {isSubmitting || loading ? "Signing In..." : "Sign In"}
               </Button>
             </form>
 
@@ -347,7 +420,7 @@ export default function Login() {
             transition={{ delay: 0.8 }}
             className="text-center text-xs text-zinc-500 mt-6"
           >
-            © 2025 PawnSys. KPKT Malaysia Compliant System.
+            © 2025 {companyName}. KPKT Malaysia Compliant System.
           </motion.p>
         </div>
       </div>

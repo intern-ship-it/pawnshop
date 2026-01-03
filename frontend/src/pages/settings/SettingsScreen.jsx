@@ -7,6 +7,7 @@ import {
   setStorageItem,
   STORAGE_KEYS,
 } from "@/utils/localStorage";
+import { settingsService } from "@/services";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -39,6 +40,7 @@ import {
   Users,
   ChevronRight,
   MessageCircle,
+  Loader2,
 } from "lucide-react";
 import WhatsAppSettings from "./WhatsAppSettings";
 
@@ -124,31 +126,75 @@ export default function SettingsScreen() {
     return stored ? { ...defaultSettings, ...stored } : defaultSettings;
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Save settings
-  const handleSave = () => {
+  // Save settings to API
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setStorageItem(STORAGE_KEYS.SETTINGS, settings);
-      setIsSaving(false);
-      setHasChanges(false);
+    try {
+      const apiPayload = transformFrontendToApi(settings);
+      const response = await settingsService.update(apiPayload);
 
-      // Dispatch custom event to update sidebar company name
+      if (response.success) {
+        setStorageItem(STORAGE_KEYS.SETTINGS, settings);
+        setHasChanges(false);
+        window.dispatchEvent(
+          new CustomEvent("settingsUpdated", { detail: settings })
+        );
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Saved",
+            message: "Settings have been saved successfully",
+          })
+        );
+      } else {
+        throw new Error(response.message || "Save failed");
+      }
+    } catch (error) {
+      console.error("API save failed:", error);
+      // Fallback: Save to localStorage anyway
+      setStorageItem(STORAGE_KEYS.SETTINGS, settings);
+      setHasChanges(false);
       window.dispatchEvent(
         new CustomEvent("settingsUpdated", { detail: settings })
       );
-
       dispatch(
         addToast({
-          type: "success",
-          title: "Saved",
-          message: "Settings have been saved successfully",
+          type: "warning",
+          title: "Saved Locally",
+          message: "Settings saved locally. Will sync to server when online.",
         })
       );
-    }, 500);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
+  // ============================================
+  // LOAD SETTINGS FROM API ON MOUNT - ADD THIS BLOCK
+  // ============================================
+  useEffect(() => {
+    const loadSettingsFromApi = async () => {
+      setIsLoading(true);
+      try {
+        const response = await settingsService.getAll();
+        if (response.success && response.data) {
+          const transformed = transformApiToFrontend(response.data);
+          const merged = { ...settings, ...transformed };
+          setSettings(merged);
+          setStorageItem(STORAGE_KEYS.SETTINGS, merged);
+        }
+      } catch (error) {
+        console.error("Failed to load settings from API:", error);
+        // Keep using localStorage data (already loaded)
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSettingsFromApi();
+  }, []);
   // Update settings helper
   const updateSettings = (section, data) => {
     setSettings((prev) => ({
@@ -158,8 +204,128 @@ export default function SettingsScreen() {
     setHasChanges(true);
   };
 
+  // ============================================
+  // API TRANSFORM HELPERS - ADD THIS BLOCK
+  // ============================================
+  const transformApiToFrontend = (apiData) => {
+    const result = { ...defaultSettings };
+    if (!apiData) return result;
+
+    // Transform company settings from API grouped format
+    if (apiData.company && Array.isArray(apiData.company)) {
+      const companyMap = {};
+      apiData.company.forEach((s) => {
+        companyMap[s.key_name] = s.value;
+      });
+      result.company = {
+        name: companyMap.name || defaultSettings.company.name,
+        license: companyMap.registration_no || defaultSettings.company.license,
+        address: companyMap.address || defaultSettings.company.address,
+        phone: companyMap.phone || defaultSettings.company.phone,
+        email: companyMap.email || defaultSettings.company.email,
+        receiptHeader:
+          companyMap.receipt_header || defaultSettings.company.receiptHeader,
+        receiptFooter:
+          companyMap.receipt_footer || defaultSettings.company.receiptFooter,
+      };
+    }
+
+    // Transform pledge settings
+    if (apiData.pledge && Array.isArray(apiData.pledge)) {
+      const pledgeMap = {};
+      apiData.pledge.forEach((s) => {
+        pledgeMap[s.key_name] = s.value;
+      });
+      if (pledgeMap.default_loan_percentage) {
+        const defaultPct = parseInt(pledgeMap.default_loan_percentage);
+        result.marginPresets = result.marginPresets.map((m) => ({
+          ...m,
+          isDefault: m.value === defaultPct,
+        }));
+      }
+      if (pledgeMap.grace_period_days) {
+        result.interestRules.gracePeriodDays = parseInt(
+          pledgeMap.grace_period_days
+        );
+      }
+    }
+
+    return result;
+  };
+
+  const transformFrontendToApi = (settings) => {
+    const apiSettings = [];
+
+    // Company settings
+    if (settings.company) {
+      apiSettings.push(
+        { category: "company", key_name: "name", value: settings.company.name },
+        {
+          category: "company",
+          key_name: "registration_no",
+          value: settings.company.license,
+        },
+        {
+          category: "company",
+          key_name: "address",
+          value: settings.company.address,
+        },
+        {
+          category: "company",
+          key_name: "phone",
+          value: settings.company.phone,
+        },
+        {
+          category: "company",
+          key_name: "email",
+          value: settings.company.email,
+        },
+        {
+          category: "company",
+          key_name: "receipt_header",
+          value: settings.company.receiptHeader,
+        },
+        {
+          category: "company",
+          key_name: "receipt_footer",
+          value: settings.company.receiptFooter,
+        }
+      );
+    }
+
+    // Margin - save default percentage
+    if (settings.marginPresets) {
+      const defaultMargin = settings.marginPresets.find((m) => m.isDefault);
+      if (defaultMargin) {
+        apiSettings.push({
+          category: "pledge",
+          key_name: "default_loan_percentage",
+          value: String(defaultMargin.value),
+        });
+      }
+    }
+
+    // Interest rules
+    if (settings.interestRules) {
+      apiSettings.push({
+        category: "pledge",
+        key_name: "grace_period_days",
+        value: String(settings.interestRules.gracePeriodDays),
+      });
+    }
+
+    return apiSettings;
+  };
   // Render tab content
   const renderTabContent = () => {
+    if (isLoading) {
+      return (
+        <Card className="p-12 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+          <span className="ml-3 text-zinc-600">Loading settings...</span>
+        </Card>
+      );
+    }
     switch (activeTab) {
       case "company":
         return (
@@ -215,7 +381,7 @@ export default function SettingsScreen() {
           leftIcon={Save}
           onClick={handleSave}
           loading={isSaving}
-          disabled={!hasChanges}
+          disabled={!hasChanges || isLoading}
         >
           Save Changes
         </Button>
