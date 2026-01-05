@@ -1,275 +1,205 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router'
-import { useAppSelector, useAppDispatch } from '@/app/hooks'
-import { setCustomers, setSelectedCustomer } from '@/features/customers/customersSlice'
-import { addToast } from '@/features/ui/uiSlice'
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/utils/localStorage'
-import { formatDate, formatCurrency, formatIC, formatPhone } from '@/utils/formatters'
-import { validateIC } from '@/utils/validators'
-import { cn } from '@/lib/utils'
-import { motion, AnimatePresence } from 'framer-motion'
-import PageWrapper from '@/components/layout/PageWrapper'
-import { Card, Button, Badge, Input } from '@/components/common'
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
-  Plus,
-  Download,
-  Search,
-  Filter,
+  setCustomers,
+  deleteCustomer,
+} from "@/features/customers/customersSlice";
+import { addToast } from "@/features/ui/uiSlice";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import PageWrapper from "@/components/layout/PageWrapper";
+import { Card, Button, Modal } from "@/components/common";
+import { customerService } from "@/services";
+import { getStorageUrl } from "@/utils/helpers";
+import {
   Users,
   UserCheck,
   UserX,
+  AlertTriangle,
+  Search,
+  Plus,
+  Download,
   Eye,
   Edit,
-  ChevronRight,
-  X,
-  CreditCard,
+  Trash2,
   Phone,
-  MapPin,
-  Calendar,
-  AlertTriangle,
-} from 'lucide-react'
+  Mail,
+  RefreshCw,
+  CreditCard,
+} from "lucide-react";
 
 export default function CustomerList() {
-  const navigate = useNavigate()
-  const dispatch = useAppDispatch()
-  const { customers } = useAppSelector((state) => state.customers)
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const { customers, loading } = useAppSelector((state) => state.customers);
 
-  // Local state
-  const [searchQuery, setSearchQuery] = useState('')
-  const [icLookup, setIcLookup] = useState('')
-  const [lookupResult, setLookupResult] = useState(null)
-  const [isSearching, setIsSearching] = useState(false)
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [showFilters, setShowFilters] = useState(false)
+  // State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load customers from localStorage on mount
+  // Ref for synchronous guard against double calls
+  const isDeleteInProgress = useRef(false);
+
+  // Fetch customers on mount
   useEffect(() => {
-    const storedCustomers = getStorageItem(STORAGE_KEYS.CUSTOMERS, [])
-    if (storedCustomers.length === 0) {
-      // Initialize with mock data if empty
-      const mockCustomers = [
-        {
-          id: 'CUS001',
-          name: 'Ahmad bin Abdullah',
-          icNumber: '880515145678',
-          phone: '0123456789',
-          whatsapp: '0123456789',
-          email: 'ahmad@email.com',
-          address: '123, Jalan Merdeka, Taman Sentosa, 81200 Johor Bahru, Johor',
-          dateOfBirth: '1988-05-15',
-          gender: 'male',
-          occupation: 'Engineer',
-          icFrontImage: null,
-          icBackImage: null,
-          profilePhoto: null,
-          activePledges: 2,
-          totalPledges: 5,
-          totalAmount: 15000,
-          lastVisit: '2024-12-20',
-          riskLevel: 'low',
-          status: 'active',
-          createdAt: '2024-01-15',
-          updatedAt: '2024-12-20',
-        },
-        {
-          id: 'CUS002',
-          name: 'Siti Nurhaliza binti Mohd',
-          icNumber: '920830108765',
-          phone: '0198765432',
-          whatsapp: '0198765432',
-          email: 'siti@email.com',
-          address: '45, Lorong Damai, Kampung Baru, 50300 Kuala Lumpur',
-          dateOfBirth: '1992-08-30',
-          gender: 'female',
-          occupation: 'Teacher',
-          icFrontImage: null,
-          icBackImage: null,
-          profilePhoto: null,
-          activePledges: 1,
-          totalPledges: 3,
-          totalAmount: 8500,
-          lastVisit: '2024-12-18',
-          riskLevel: 'low',
-          status: 'active',
-          createdAt: '2024-03-20',
-          updatedAt: '2024-12-18',
-        },
-        {
-          id: 'CUS003',
-          name: 'Raj Kumar a/l Subramaniam',
-          icNumber: '750220145432',
-          phone: '0167890123',
-          whatsapp: '0167890123',
-          email: 'raj@email.com',
-          address: '78, Jalan Harmoni, Taman Pelangi, 80400 Johor Bahru, Johor',
-          dateOfBirth: '1975-02-20',
-          gender: 'male',
-          occupation: 'Business Owner',
-          icFrontImage: null,
-          icBackImage: null,
-          profilePhoto: null,
-          activePledges: 0,
-          totalPledges: 8,
-          totalAmount: 45000,
-          lastVisit: '2024-12-10',
-          riskLevel: 'medium',
-          status: 'active',
-          createdAt: '2023-06-10',
-          updatedAt: '2024-12-10',
-        },
-        {
-          id: 'CUS004',
-          name: 'Lee Mei Ling',
-          icNumber: '850712089012',
-          phone: '0145678901',
-          whatsapp: '0145678901',
-          email: 'meiling@email.com',
-          address: '22, Jalan Kenanga, Taman Bunga, 14000 Bukit Mertajam, Penang',
-          dateOfBirth: '1985-07-12',
-          gender: 'female',
-          occupation: 'Accountant',
-          icFrontImage: null,
-          icBackImage: null,
-          profilePhoto: null,
-          activePledges: 3,
-          totalPledges: 6,
-          totalAmount: 22000,
-          lastVisit: '2024-12-22',
-          riskLevel: 'low',
-          status: 'active',
-          createdAt: '2024-02-28',
-          updatedAt: '2024-12-22',
-        },
-        {
-          id: 'CUS005',
-          name: 'Muhammad Faiz bin Ismail',
-          icNumber: '950405067890',
-          phone: '0112345678',
-          whatsapp: '0112345678',
-          email: 'faiz@email.com',
-          address: '99, Jalan Setia, Taman Impian, 40150 Shah Alam, Selangor',
-          dateOfBirth: '1995-04-05',
-          gender: 'male',
-          occupation: 'Freelancer',
-          icFrontImage: null,
-          icBackImage: null,
-          profilePhoto: null,
-          activePledges: 1,
-          totalPledges: 2,
-          totalAmount: 5500,
-          lastVisit: '2024-12-15',
-          riskLevel: 'high',
-          status: 'active',
-          createdAt: '2024-10-01',
-          updatedAt: '2024-12-15',
-        },
-      ]
-      setStorageItem(STORAGE_KEYS.CUSTOMERS, mockCustomers)
-      dispatch(setCustomers(mockCustomers))
-    } else {
-      dispatch(setCustomers(storedCustomers))
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await customerService.getAll();
+      const customerData = response.data?.data || response.data || [];
+      dispatch(setCustomers(customerData));
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to load customers",
+        })
+      );
+    } finally {
+      setIsRefreshing(false);
     }
-  }, [dispatch])
+  };
 
-  // IC Lookup handler
-  const handleICLookup = () => {
-    const cleanIC = icLookup.replace(/[-\s]/g, '')
+  // Handle delete
+  const handleDeleteClick = (e, customer) => {
+    e.stopPropagation();
+    // Reset ref when opening modal for new delete
+    isDeleteInProgress.current = false;
+    setCustomerToDelete(customer);
+    setShowDeleteModal(true);
+  };
 
-    if (!cleanIC) {
-      dispatch(addToast({
-        type: 'warning',
-        title: 'IC Required',
-        message: 'Please enter an IC number to search',
-      }))
-      return
-    }
+  const confirmDelete = async () => {
+    // SYNCHRONOUS guard using ref - prevents double calls
+    if (isDeleteInProgress.current) return;
+    if (!customerToDelete) return;
 
-    if (!validateIC(cleanIC)) {
-      dispatch(addToast({
-        type: 'error',
-        title: 'Invalid IC',
-        message: 'Please enter a valid 12-digit IC number',
-      }))
-      return
-    }
+    // Set ref IMMEDIATELY (synchronous)
+    isDeleteInProgress.current = true;
 
-    setIsSearching(true)
+    // Store values BEFORE clearing state
+    const customerId = customerToDelete.id;
+    const customerName = customerToDelete.name;
 
-    // Simulate search delay
-    setTimeout(() => {
-      const found = customers.find(c => c.icNumber.replace(/[-\s]/g, '') === cleanIC)
-      setLookupResult(found || 'not_found')
-      setIsSearching(false)
+    // Close modal and update UI state
+    setIsDeleting(true);
+    setShowDeleteModal(false);
+    setCustomerToDelete(null);
 
-      if (found) {
-        dispatch(addToast({
-          type: 'success',
-          title: 'Customer Found',
-          message: `Found: ${found.name}`,
-        }))
+    try {
+      await customerService.delete(customerId);
+      dispatch(deleteCustomer(customerId));
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Deleted",
+          message: `${customerName} has been deleted`,
+        })
+      );
+      // Refresh list after successful delete
+      fetchCustomers();
+    } catch (error) {
+      const status = error.response?.status;
+      const message = error.response?.data?.message;
+
+      if (status === 404) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Not Found",
+            message: "Customer already deleted. Refreshing list...",
+          })
+        );
+        fetchCustomers();
+      } else if (status === 422) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Cannot Delete",
+            message: message || "Customer has active pledges",
+          })
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: message || "Failed to delete customer",
+          })
+        );
       }
-    }, 500)
-  }
-
-  // Clear lookup
-  const clearLookup = () => {
-    setIcLookup('')
-    setLookupResult(null)
-  }
+    } finally {
+      setIsDeleting(false);
+      // Reset ref after operation complete
+      isDeleteInProgress.current = false;
+    }
+  };
 
   // Filter customers
-  const filteredCustomers = customers.filter(customer => {
+  const filteredCustomers = customers.filter((customer) => {
     // Search filter
-    const matchesSearch = searchQuery === '' ||
-      customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.icNumber.includes(searchQuery) ||
-      customer.phone.includes(searchQuery)
+    const matchesSearch =
+      searchQuery === "" ||
+      customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      customer.ic_number?.includes(searchQuery) ||
+      customer.phone?.includes(searchQuery) ||
+      customer.customer_no?.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Status filter
-    const matchesStatus = filterStatus === 'all' ||
-      (filterStatus === 'active' && customer.activePledges > 0) ||
-      (filterStatus === 'inactive' && customer.activePledges === 0) ||
-      (filterStatus === 'high-risk' && customer.riskLevel === 'high')
+    const matchesStatus =
+      filterStatus === "all" ||
+      (filterStatus === "active" && customer.active_pledges > 0) ||
+      (filterStatus === "with-pledges" && customer.total_pledges > 0);
 
-    return matchesSearch && matchesStatus
-  })
+    return matchesSearch && matchesStatus;
+  });
 
   // Stats
   const stats = {
     total: customers.length,
-    active: customers.filter(c => c.activePledges > 0).length,
-    inactive: customers.filter(c => c.activePledges === 0).length,
-    highRisk: customers.filter(c => c.riskLevel === 'high').length,
-  }
+    active: customers.filter((c) => c.active_pledges > 0).length,
+    withPledges: customers.filter((c) => c.total_pledges > 0).length,
+  };
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05 }
-    }
-  }
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
-  }
-
-  const cardVariants = {
-    hidden: { opacity: 0, scale: 0.95 },
-    visible: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.95 }
-  }
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   return (
     <PageWrapper
       title="Customers"
-      subtitle="Manage customer records and IC lookup"
+      subtitle="Manage customer records and profiles"
       actions={
         <div className="flex items-center gap-3">
-          <Button variant="outline" leftIcon={Download}>Export</Button>
-          <Button variant="accent" leftIcon={Plus} onClick={() => navigate('/customers/new')}>
+          <Button
+            variant="outline"
+            leftIcon={RefreshCw}
+            onClick={fetchCustomers}
+            disabled={isRefreshing}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="accent"
+            leftIcon={Plus}
+            onClick={() => navigate("/customers/new")}
+            className="bg-amber-500 hover:bg-amber-600 text-white"
+          >
             Add Customer
           </Button>
         </div>
@@ -277,363 +207,321 @@ export default function CustomerList() {
     >
       {/* Stats Cards */}
       <motion.div
-        className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        {[
-          { label: 'Total Customers', value: stats.total, icon: Users, color: 'zinc' },
-          { label: 'Active Pledges', value: stats.active, icon: UserCheck, color: 'emerald' },
-          { label: 'No Active Pledge', value: stats.inactive, icon: UserX, color: 'zinc' },
-          { label: 'High Risk', value: stats.highRisk, icon: AlertTriangle, color: 'red' },
-        ].map((stat, index) => (
-          <motion.div key={stat.label} variants={itemVariants}>
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  'w-10 h-10 rounded-lg flex items-center justify-center',
-                  stat.color === 'emerald' && 'bg-emerald-100',
-                  stat.color === 'red' && 'bg-red-100',
-                  stat.color === 'zinc' && 'bg-zinc-100',
-                )}>
-                  <stat.icon className={cn(
-                    'w-5 h-5',
-                    stat.color === 'emerald' && 'text-emerald-600',
-                    stat.color === 'red' && 'text-red-600',
-                    stat.color === 'zinc' && 'text-zinc-600',
-                  )} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-zinc-800">{stat.value}</p>
-                  <p className="text-xs text-zinc-500">{stat.label}</p>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* IC Lookup Section */}
-      <motion.div
+        className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
       >
-        <Card className="mb-6">
-          <div className="p-5 border-b border-zinc-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                <CreditCard className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-zinc-800">IC Lookup</h3>
-                <p className="text-sm text-zinc-500">Search customer by IC number</p>
-              </div>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+              <Users className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-zinc-500">Total Customers</p>
+              <p className="text-2xl font-bold text-zinc-800">{stats.total}</p>
             </div>
           </div>
+        </Card>
 
-          <div className="p-5">
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
-                <Input
-                  placeholder="Enter IC Number (e.g., 880515-14-5678)"
-                  value={icLookup}
-                  onChange={(e) => setIcLookup(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleICLookup()}
-                  className="pr-10"
-                />
-                {icLookup && (
-                  <button
-                    onClick={clearLookup}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <Button
-                variant="primary"
-                leftIcon={Search}
-                onClick={handleICLookup}
-                loading={isSearching}
-              >
-                Fetch
-              </Button>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <UserCheck className="w-6 h-6 text-emerald-600" />
             </div>
+            <div>
+              <p className="text-sm text-zinc-500">Active Customers</p>
+              <p className="text-2xl font-bold text-zinc-800">{stats.active}</p>
+            </div>
+          </div>
+        </Card>
 
-            {/* Lookup Result */}
-            <AnimatePresence mode="wait">
-              {lookupResult && (
-                <motion.div
-                  key={lookupResult === 'not_found' ? 'not-found' : 'found'}
-                  variants={cardVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="mt-4"
-                >
-                  {lookupResult === 'not_found' ? (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                          <UserX className="w-5 h-5 text-amber-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-amber-800">Customer Not Found</h4>
-                          <p className="text-sm text-amber-600 mt-1">
-                            No customer with IC {formatIC(icLookup)} exists in the system.
-                          </p>
-                          <Button
-                            variant="accent"
-                            size="sm"
-                            className="mt-3"
-                            leftIcon={Plus}
-                            onClick={() => navigate(`/customers/new?ic=${icLookup.replace(/[-\s]/g, '')}`)}
-                          >
-                            Create New Customer
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                      <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-                          {lookupResult.name.charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h4 className="font-semibold text-zinc-800 text-lg">{lookupResult.name}</h4>
-                              <p className="text-sm text-zinc-500 font-mono">{formatIC(lookupResult.icNumber)}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="success">Verified</Badge>
-                              {lookupResult.riskLevel === 'high' && (
-                                <Badge variant="danger">High Risk</Badge>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Phone className="w-4 h-4 text-zinc-400" />
-                              <span className="text-zinc-600">{formatPhone(lookupResult.phone)}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <CreditCard className="w-4 h-4 text-zinc-400" />
-                              <span className="text-zinc-600">{lookupResult.activePledges} Active Pledges</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="w-4 h-4 text-zinc-400" />
-                              <span className="text-zinc-600">Last: {formatDate(lookupResult.lastVisit)}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <MapPin className="w-4 h-4 text-zinc-400" />
-                              <span className="text-zinc-600 truncate">{lookupResult.address.split(',')[0]}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-4">
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              leftIcon={Eye}
-                              onClick={() => navigate(`/customers/${lookupResult.id}`)}
-                            >
-                              View Profile
-                            </Button>
-                            <Button
-                              variant="accent"
-                              size="sm"
-                              leftIcon={Plus}
-                              onClick={() => {
-                                dispatch(setSelectedCustomer(lookupResult))
-                                navigate('/pledges/new')
-                              }}
-                            >
-                              New Pledge
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              leftIcon={Edit}
-                              onClick={() => navigate(`/customers/${lookupResult.id}/edit`)}
-                            >
-                              Edit
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+              <CreditCard className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-zinc-500">With Active Pledges</p>
+              <p className="text-2xl font-bold text-zinc-800">
+                {stats.withPledges}
+              </p>
+            </div>
           </div>
         </Card>
       </motion.div>
 
-      {/* Customer List Section */}
+      {/* Customer List Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.1 }}
       >
         <Card>
-          {/* Header */}
-          <div className="p-5 border-b border-zinc-100">
+          {/* Search and Filters */}
+          <div className="p-4 border-b border-zinc-100">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-zinc-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-zinc-800">All Customers</h3>
-                  <p className="text-sm text-zinc-500">{filteredCustomers.length} customers found</p>
-                </div>
+              {/* Search */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, IC, or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                />
               </div>
 
-              <div className="flex items-center gap-3">
-                {/* Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                  <input
-                    type="text"
-                    placeholder="Search name, IC, phone..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-64 pl-10 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
-                  />
-                </div>
-
-                {/* Filter Toggle */}
-                <Button
-                  variant={showFilters ? 'primary' : 'outline'}
-                  size="sm"
-                  leftIcon={Filter}
-                  onClick={() => setShowFilters(!showFilters)}
-                >
-                  Filters
-                </Button>
+              {/* Filter Buttons - Amber Style */}
+              <div className="flex items-center gap-2">
+                {[
+                  { key: "all", label: "All" },
+                  { key: "active", label: "Active" },
+                  { key: "with-pledges", label: "With Pledges" },
+                ].map((filter) => (
+                  <button
+                    key={filter.key}
+                    onClick={() => setFilterStatus(filter.key)}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                      filterStatus === filter.key
+                        ? "bg-amber-500 text-white shadow-sm"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-amber-50 hover:text-amber-600"
+                    )}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
               </div>
             </div>
+          </div>
 
-            {/* Filter Options */}
-            <AnimatePresence>
-              {showFilters && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-100">
-                    <span className="text-sm text-zinc-500">Status:</span>
-                    {['all', 'active', 'inactive', 'high-risk'].map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => setFilterStatus(status)}
-                        className={cn(
-                          'px-3 py-1.5 text-sm rounded-lg transition-all',
-                          filterStatus === status
-                            ? 'bg-zinc-800 text-white'
-                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                        )}
-                      >
-                        {status === 'all' ? 'All' :
-                          status === 'active' ? 'Active Pledges' :
-                            status === 'inactive' ? 'No Pledges' : 'High Risk'}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          {/* Table Header */}
+          <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-zinc-50 border-b border-zinc-100 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+            <div className="col-span-3">Customer</div>
+            <div className="col-span-2">IC Number</div>
+            <div className="col-span-3">Contact</div>
+            <div className="col-span-1">Status</div>
+            <div className="col-span-2">Registered</div>
+            <div className="col-span-1 text-right">Actions</div>
           </div>
 
           {/* Customer List */}
           <div className="divide-y divide-zinc-100">
-            <AnimatePresence>
-              {filteredCustomers.length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="p-12 text-center"
+            {loading || isRefreshing ? (
+              <div className="p-12 text-center">
+                <RefreshCw className="w-8 h-8 text-amber-500 mx-auto mb-3 animate-spin" />
+                <p className="text-zinc-500">Loading customers...</p>
+              </div>
+            ) : filteredCustomers.length === 0 ? (
+              <div className="p-12 text-center">
+                <Users className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                <p className="text-zinc-500 mb-4">No customers found</p>
+                <Button
+                  variant="accent"
+                  size="sm"
+                  leftIcon={Plus}
+                  onClick={() => navigate("/customers/new")}
+                  className="bg-amber-500 hover:bg-amber-600"
                 >
-                  <Users className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                  <p className="text-zinc-500">No customers found</p>
-                  <Button
-                    variant="accent"
-                    size="sm"
-                    className="mt-4"
-                    leftIcon={Plus}
-                    onClick={() => navigate('/customers/new')}
-                  >
-                    Add First Customer
-                  </Button>
-                </motion.div>
-              ) : (
-                filteredCustomers.map((customer, index) => (
-                  <motion.div
-                    key={customer.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ delay: index * 0.03 }}
-                    onClick={() => navigate(`/customers/${customer.id}`)}
-                    className="p-4 hover:bg-zinc-50 cursor-pointer transition-colors group"
-                  >
-                    <div className="flex items-center gap-4">
-                      {/* Avatar */}
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 flex items-center justify-center text-zinc-600 font-semibold text-lg flex-shrink-0 group-hover:from-amber-500 group-hover:to-amber-600 group-hover:text-white transition-all">
-                        {customer.name.charAt(0)}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-zinc-800 truncate">{customer.name}</h4>
-                          {customer.riskLevel === 'high' && (
-                            <Badge variant="danger" size="sm">High Risk</Badge>
+                  Add First Customer
+                </Button>
+              </div>
+            ) : (
+              filteredCustomers.map((customer) => (
+                <div
+                  key={customer.id}
+                  onClick={() => navigate(`/customers/${customer.id}`)}
+                  className="grid grid-cols-12 gap-4 p-4 hover:bg-zinc-50 cursor-pointer transition-colors items-center"
+                >
+                  {/* Customer Info with Avatar */}
+                  <div className="col-span-12 md:col-span-3">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar - Shows image if available, otherwise initial */}
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {customer.selfie_photo ? (
+                          <img
+                            src={getStorageUrl(customer.selfie_photo)}
+                            alt={customer.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                              e.target.nextSibling.style.display = "flex";
+                            }}
+                          />
+                        ) : null}
+                        <span
+                          className={cn(
+                            "text-lg font-semibold text-amber-600",
+                            customer.selfie_photo && "hidden"
                           )}
-                          {customer.riskLevel === 'medium' && (
-                            <Badge variant="warning" size="sm">Medium</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 mt-1">
-                          <span className="text-sm text-zinc-500 font-mono">{formatIC(customer.icNumber)}</span>
-                          <span className="text-sm text-zinc-400">{formatPhone(customer.phone)}</span>
-                        </div>
+                        >
+                          {customer.name?.charAt(0)?.toUpperCase() || "C"}
+                        </span>
                       </div>
-
-                      {/* Stats */}
-                      <div className="hidden md:flex items-center gap-6">
-                        <div className="text-center">
-                          <p className="text-lg font-bold text-zinc-800">{customer.activePledges}</p>
-                          <p className="text-xs text-zinc-500">Active</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-lg font-bold text-zinc-800">{formatCurrency(customer.totalAmount)}</p>
-                          <p className="text-xs text-zinc-500">Total Value</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm font-medium text-zinc-600">{formatDate(customer.lastVisit)}</p>
-                          <p className="text-xs text-zinc-500">Last Visit</p>
-                        </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-zinc-800 truncate">
+                          {customer.name}
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          {customer.customer_no}
+                        </p>
                       </div>
-
-                      {/* Arrow */}
-                      <ChevronRight className="w-5 h-5 text-zinc-300 group-hover:text-amber-500 transition-colors" />
                     </div>
-                  </motion.div>
-                ))
-              )}
-            </AnimatePresence>
+                  </div>
+
+                  {/* IC Number */}
+                  <div className="col-span-6 md:col-span-2">
+                    <p className="text-sm text-zinc-600 font-mono">
+                      {customer.ic_number}
+                    </p>
+                  </div>
+
+                  {/* Contact */}
+                  <div className="col-span-6 md:col-span-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-zinc-600">
+                        <Phone className="w-3.5 h-3.5 text-zinc-400" />
+                        <span>{customer.phone}</span>
+                      </div>
+                      {customer.email && (
+                        <div className="flex items-center gap-2 text-sm text-zinc-500">
+                          <Mail className="w-3.5 h-3.5 text-zinc-400" />
+                          <span className="truncate">{customer.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="col-span-4 md:col-span-1">
+                    <span
+                      className={cn(
+                        "inline-flex px-2.5 py-1 text-xs font-medium rounded-full",
+                        customer.active_pledges > 0
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-zinc-100 text-zinc-600"
+                      )}
+                    >
+                      {customer.active_pledges > 0 ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  {/* Registered Date */}
+                  <div className="col-span-4 md:col-span-2">
+                    <p className="text-sm text-zinc-600">
+                      {formatDate(customer.created_at)}
+                    </p>
+                  </div>
+
+                  {/* Actions - View, Edit, Delete */}
+                  <div className="col-span-4 md:col-span-1">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/customers/${customer.id}`);
+                        }}
+                        className="p-2 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="View"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/customers/${customer.id}/edit`);
+                        }}
+                        className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteClick(e, customer)}
+                        className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
+
+          {/* Footer */}
+          {filteredCustomers.length > 0 && (
+            <div className="px-4 py-3 border-t border-zinc-100 flex items-center justify-between text-sm text-zinc-500">
+              <span>
+                Showing 1 to {filteredCustomers.length} of{" "}
+                {filteredCustomers.length} customers
+              </span>
+              <div className="flex items-center gap-2">
+                <span>Page 1 of 1</span>
+              </div>
+            </div>
+          )}
         </Card>
       </motion.div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setCustomerToDelete(null);
+        }}
+        title="Delete Customer"
+        size="sm"
+      >
+        <div className="p-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <Trash2 className="w-6 h-6 text-red-600" />
+            </div>
+            <div>
+              <p className="font-medium text-zinc-800">
+                Delete "{customerToDelete?.name}"?
+              </p>
+              <p className="text-sm text-zinc-500">
+                This action cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          {customerToDelete?.active_pledges > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+              <p className="text-sm text-amber-800">
+                ⚠️ This customer has {customerToDelete.active_pledges} active
+                pledge(s). You cannot delete customers with active pledges.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setCustomerToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={confirmDelete}
+              disabled={isDeleting || customerToDelete?.active_pledges > 0}
+              leftIcon={isDeleting ? RefreshCw : Trash2}
+              className={isDeleting ? "animate-pulse" : ""}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageWrapper>
-  )
+  );
 }

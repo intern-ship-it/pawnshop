@@ -20,11 +20,10 @@ const getApiUrl = () => {
 
 const API_BASE_URL = getApiUrl()
 
-// Create Axios instance
+// Create Axios instance - DON'T set Content-Type here
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
 })
@@ -41,13 +40,20 @@ export const setToken = (token) => localStorage.setItem(TOKEN_KEY, token)
 // Remove token from storage
 export const removeToken = () => localStorage.removeItem(TOKEN_KEY)
 
-// Request interceptor - Add auth token
+// Request interceptor - Add auth token and handle Content-Type
 api.interceptors.request.use(
   (config) => {
     const token = getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    
+    // Only set Content-Type to JSON if NOT FormData
+    // For FormData, browser will set it automatically with boundary
+    if (!(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json'
+    }
+    
     return config
   },
   (error) => {
@@ -64,7 +70,6 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    // Skip token refresh for auth endpoints (login, refresh, etc.)
     const isAuthEndpoint = originalRequest.url?.includes('auth/login') || 
                            originalRequest.url?.includes('auth/refresh') ||
                            originalRequest.url?.includes('auth/logout')
@@ -114,6 +119,7 @@ api.interceptors.response.use(
       return Promise.reject({
         message: error.response.data?.message || 'Validation failed',
         errors: validationErrors,
+        response: error.response,
       })
     }
 
@@ -127,6 +133,7 @@ api.interceptors.response.use(
       message: error.response?.data?.message || 'An error occurred',
       status: error.response?.status,
       errors: error.response?.data?.errors || {},
+      response: error.response,
     })
   }
 )
@@ -138,12 +145,9 @@ export const apiPut = (url, data = {}) => api.put(url, data)
 export const apiPatch = (url, data = {}) => api.patch(url, data)
 export const apiDelete = (url) => api.delete(url)
 
-// File upload helper
+// File upload helper with progress
 export const apiUpload = (url, formData, onProgress) => {
   return api.post(url, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
     onUploadProgress: (progressEvent) => {
       if (onProgress) {
         const percentCompleted = Math.round(

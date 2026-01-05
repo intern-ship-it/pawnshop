@@ -80,6 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{customer}/pledges', [CustomerController::class, 'pledges']);
         Route::get('/{customer}/active-pledges', [CustomerController::class, 'activePledges']);
         Route::post('/{customer}/blacklist', [CustomerController::class, 'blacklist']);
+        Route::get('/{customer}/statistics', [CustomerController::class, 'statistics']);
     });
     Route::apiResource('customers', CustomerController::class);
 

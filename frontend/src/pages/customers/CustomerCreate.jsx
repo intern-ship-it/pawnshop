@@ -1,15 +1,20 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { addCustomer, setCustomers } from '@/features/customers/customersSlice'
-import { addToast } from '@/features/ui/uiSlice'
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/utils/localStorage'
-import { validateIC, validatePhone, validateEmail } from '@/utils/validators'
-import { formatIC } from '@/utils/formatters'
-import { cn } from '@/lib/utils'
-import { motion, AnimatePresence } from 'framer-motion'
-import PageWrapper from '@/components/layout/PageWrapper'
-import { Card, Button, Input, Select } from '@/components/common'
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { addCustomer, setCustomers } from "@/features/customers/customersSlice";
+import { addToast } from "@/features/ui/uiSlice";
+import {
+  getStorageItem,
+  setStorageItem,
+  STORAGE_KEYS,
+} from "@/utils/localStorage";
+import { validateIC, validatePhone, validateEmail } from "@/utils/validators";
+import { formatIC } from "@/utils/formatters";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import PageWrapper from "@/components/layout/PageWrapper";
+import { Card, Button, Input, Select } from "@/components/common";
+import { customerService } from "@/services";
 import {
   ArrowLeft,
   Save,
@@ -27,307 +32,406 @@ import {
   AlertCircle,
   Image,
   FileText,
-} from 'lucide-react'
+} from "lucide-react";
 
 export default function CustomerCreate() {
-  const navigate = useNavigate()
-  const dispatch = useAppDispatch()
-  const [searchParams] = useSearchParams()
-  const { customers } = useAppSelector((state) => state.customers)
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [searchParams] = useSearchParams();
+  const { customers } = useAppSelector((state) => state.customers);
 
   // File input refs
-  const icFrontRef = useRef(null)
-  const icBackRef = useRef(null)
-  const profilePhotoRef = useRef(null)
+  const icFrontRef = useRef(null);
+  const icBackRef = useRef(null);
+  const profilePhotoRef = useRef(null);
 
   // Form state
   const [formData, setFormData] = useState({
-    name: '',
-    icNumber: searchParams.get('ic') || '',
-    phone: '',
-    whatsapp: '',
-    email: '',
-    address: '',
-    dateOfBirth: '',
-    gender: '',
-    occupation: '',
-  })
+    name: "",
+    icNumber: searchParams.get("ic") || "",
+    phone: "",
+    whatsapp: "",
+    email: "",
+    address: "",
+    city: "",
+    state: "",
+    postcode: "",
+    nationality: "Malaysian",
+    dateOfBirth: "",
+    gender: "",
+    occupation: "",
+  });
 
+  // Malaysian states
+  const malaysianStates = [
+    "Johor",
+    "Kedah",
+    "Kelantan",
+    "Melaka",
+    "Negeri Sembilan",
+    "Pahang",
+    "Perak",
+    "Perlis",
+    "Pulau Pinang",
+    "Sabah",
+    "Sarawak",
+    "Selangor",
+    "Terengganu",
+    "Kuala Lumpur",
+    "Labuan",
+    "Putrajaya",
+  ];
+
+  // Nationality options
+  const nationalityOptions = [
+    "Malaysian",
+    "Singaporean",
+    "Indonesian",
+    "Thai",
+    "Filipino",
+    "Vietnamese",
+    "Indian",
+    "Chinese",
+    "Bangladeshi",
+    "Myanmar",
+    "Other",
+  ];
   // Image states
-  const [icFrontImage, setIcFrontImage] = useState(null)
-  const [icBackImage, setIcBackImage] = useState(null)
-  const [profilePhoto, setProfilePhoto] = useState(null)
+  const [icFrontImage, setIcFrontImage] = useState(null);
+  const [icBackImage, setIcBackImage] = useState(null);
+  const [profilePhoto, setProfilePhoto] = useState(null);
 
+  const [icFrontFile, setIcFrontFile] = useState(null);
+  const [icBackFile, setIcBackFile] = useState(null);
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null);
   // Validation state
-  const [errors, setErrors] = useState({})
-  const [touched, setTouched] = useState({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [sameAsPhone, setSameAsPhone] = useState(true)
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sameAsPhone, setSameAsPhone] = useState(true);
 
   // Load customers on mount
   useEffect(() => {
-    const storedCustomers = getStorageItem(STORAGE_KEYS.CUSTOMERS, [])
-    dispatch(setCustomers(storedCustomers))
-  }, [dispatch])
+    const storedCustomers = getStorageItem(STORAGE_KEYS.CUSTOMERS, []);
+    dispatch(setCustomers(storedCustomers));
+  }, [dispatch]);
 
   // Auto-fill WhatsApp when phone changes
   useEffect(() => {
     if (sameAsPhone) {
-      setFormData(prev => ({ ...prev, whatsapp: prev.phone }))
+      setFormData((prev) => ({ ...prev, whatsapp: prev.phone }));
     }
-  }, [formData.phone, sameAsPhone])
+  }, [formData.phone, sameAsPhone]);
 
   // Extract DOB from IC
   useEffect(() => {
-    const ic = formData.icNumber.replace(/[-\s]/g, '')
+    const ic = formData.icNumber.replace(/[-\s]/g, "");
     if (ic.length >= 6) {
-      const year = ic.substring(0, 2)
-      const month = ic.substring(2, 4)
-      const day = ic.substring(4, 6)
+      const year = ic.substring(0, 2);
+      const month = ic.substring(2, 4);
+      const day = ic.substring(4, 6);
 
       // Determine century (00-30 = 2000s, 31-99 = 1900s)
-      const fullYear = parseInt(year) <= 30 ? `20${year}` : `19${year}`
-      const dob = `${fullYear}-${month}-${day}`
+      const fullYear = parseInt(year) <= 30 ? `20${year}` : `19${year}`;
+      const dob = `${fullYear}-${month}-${day}`;
 
       // Validate date
-      const dateObj = new Date(dob)
+      const dateObj = new Date(dob);
       if (!isNaN(dateObj.getTime())) {
-        setFormData(prev => ({ ...prev, dateOfBirth: dob }))
+        setFormData((prev) => ({ ...prev, dateOfBirth: dob }));
       }
     }
-  }, [formData.icNumber])
+  }, [formData.icNumber]);
 
   // Handle input change
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
 
     // Clear error on change
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }))
+      setErrors((prev) => ({ ...prev, [name]: null }));
     }
-  }
+  };
 
   // Handle blur for validation
   const handleBlur = (e) => {
-    const { name } = e.target
-    setTouched(prev => ({ ...prev, [name]: true }))
-    validateField(name, formData[name])
-  }
+    const { name } = e.target;
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    validateField(name, formData[name]);
+  };
 
   // Validate single field
   const validateField = (name, value) => {
-    let error = null
+    let error = null;
 
     switch (name) {
-      case 'name':
-        if (!value.trim()) error = 'Full name is required'
-        else if (value.trim().length < 3) error = 'Name must be at least 3 characters'
-        break
-      case 'icNumber':
-        const cleanIC = value.replace(/[-\s]/g, '')
-        if (!cleanIC) error = 'IC number is required'
-        else if (!validateIC(cleanIC)) error = 'Invalid IC format (12 digits required)'
+      case "name":
+        if (!value.trim()) error = "Full name is required";
+        else if (value.trim().length < 3)
+          error = "Name must be at least 3 characters";
+        break;
+      case "icNumber":
+        const cleanIC = value.replace(/[-\s]/g, "");
+        if (!cleanIC) error = "IC number is required";
+        else if (!validateIC(cleanIC))
+          error = "Invalid IC format (12 digits required)";
         else {
-          // Check for duplicate
-          const exists = customers.find(c => c.icNumber.replace(/[-\s]/g, '') === cleanIC)
-          if (exists) error = 'Customer with this IC already exists'
+          // Check for duplicate (local check)
+          const exists = customers.find(
+            (c) => c.icNumber?.replace(/[-\s]/g, "") === cleanIC
+          );
+          if (exists) error = "Customer with this IC already exists";
         }
-        break
-      case 'phone':
-        if (!value.trim()) error = 'Phone number is required'
-        else if (!validatePhone(value)) error = 'Invalid phone format'
-        break
-      case 'email':
-        if (value && !validateEmail(value)) error = 'Invalid email format'
-        break
-      case 'address':
-        if (!value.trim()) error = 'Address is required'
-        break
+        break;
+      case "phone":
+        if (!value.trim()) error = "Phone number is required";
+        else if (!validatePhone(value)) error = "Invalid phone format";
+        break;
+      case "email":
+        if (value && !validateEmail(value)) error = "Invalid email format";
+        break;
+      case "address":
+        if (!value.trim()) error = "Address is required";
+        break;
     }
 
-    setErrors(prev => ({ ...prev, [name]: error }))
-    return !error
-  }
+    setErrors((prev) => ({ ...prev, [name]: error }));
+    return !error;
+  };
 
   // Validate all fields
   const validateAll = () => {
-    const fieldsToValidate = ['name', 'icNumber', 'phone', 'address']
-    let isValid = true
+    const fieldsToValidate = ["name", "icNumber", "phone", "address"];
+    let isValid = true;
 
-    fieldsToValidate.forEach(field => {
+    fieldsToValidate.forEach((field) => {
       if (!validateField(field, formData[field])) {
-        isValid = false
+        isValid = false;
       }
-      setTouched(prev => ({ ...prev, [field]: true }))
-    })
+      setTouched((prev) => ({ ...prev, [field]: true }));
+    });
 
     // Check IC images (KPKT requirement)
     if (!icFrontImage) {
-      setErrors(prev => ({ ...prev, icFront: 'IC front image is required' }))
-      isValid = false
+      setErrors((prev) => ({ ...prev, icFront: "IC front image is required" }));
+      isValid = false;
     }
     if (!icBackImage) {
-      setErrors(prev => ({ ...prev, icBack: 'IC back image is required' }))
-      isValid = false
+      setErrors((prev) => ({ ...prev, icBack: "IC back image is required" }));
+      isValid = false;
     }
 
-    return isValid
-  }
+    return isValid;
+  };
 
   // Handle image upload
   const handleImageUpload = (e, type) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
-      dispatch(addToast({
-        type: 'error',
-        title: 'Invalid File',
-        message: 'Please upload an image file',
-      }))
-      return
+    if (!file.type.startsWith("image/")) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Invalid File",
+          message: "Please upload an image file",
+        })
+      );
+      return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      dispatch(addToast({
-        type: 'error',
-        title: 'File Too Large',
-        message: 'Image must be less than 5MB',
-      }))
-      return
+      dispatch(
+        addToast({
+          type: "error",
+          title: "File Too Large",
+          message: "Image must be less than 5MB",
+        })
+      );
+      return;
     }
 
-    // Convert to base64
-    const reader = new FileReader()
+    // Convert to base64 for preview
+    const reader = new FileReader();
     reader.onloadend = () => {
-      const base64 = reader.result
+      const base64 = reader.result;
 
       switch (type) {
-        case 'icFront':
-          setIcFrontImage(base64)
-          setErrors(prev => ({ ...prev, icFront: null }))
-          break
-        case 'icBack':
-          setIcBackImage(base64)
-          setErrors(prev => ({ ...prev, icBack: null }))
-          break
-        case 'profile':
-          setProfilePhoto(base64)
-          break
+        case "icFront":
+          setIcFrontImage(base64);
+          setIcFrontFile(file); // ADD: Store file object
+          setErrors((prev) => ({ ...prev, icFront: null }));
+          break;
+        case "icBack":
+          setIcBackImage(base64);
+          setIcBackFile(file); // ADD: Store file object
+          setErrors((prev) => ({ ...prev, icBack: null }));
+          break;
+        case "profile":
+          setProfilePhoto(base64);
+          setProfilePhotoFile(file); // ADD: Store file object
+          break;
       }
 
-      dispatch(addToast({
-        type: 'success',
-        title: 'Image Uploaded',
-        message: `${type === 'icFront' ? 'IC Front' : type === 'icBack' ? 'IC Back' : 'Profile Photo'} uploaded successfully`,
-      }))
-    }
-    reader.readAsDataURL(file)
-  }
-
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Image Uploaded",
+          message: `${
+            type === "icFront"
+              ? "IC Front"
+              : type === "icBack"
+              ? "IC Back"
+              : "Profile Photo"
+          } uploaded successfully`,
+        })
+      );
+    };
+    reader.readAsDataURL(file);
+  };
   // Remove image
   const removeImage = (type) => {
     switch (type) {
-      case 'icFront':
-        setIcFrontImage(null)
-        if (icFrontRef.current) icFrontRef.current.value = ''
-        break
-      case 'icBack':
-        setIcBackImage(null)
-        if (icBackRef.current) icBackRef.current.value = ''
-        break
-      case 'profile':
-        setProfilePhoto(null)
-        if (profilePhotoRef.current) profilePhotoRef.current.value = ''
-        break
+      case "icFront":
+        setIcFrontImage(null);
+        setIcFrontFile(null); // ADD
+        if (icFrontRef.current) icFrontRef.current.value = "";
+        break;
+      case "icBack":
+        setIcBackImage(null);
+        setIcBackFile(null); // ADD
+        if (icBackRef.current) icBackRef.current.value = "";
+        break;
+      case "profile":
+        setProfilePhoto(null);
+        setProfilePhotoFile(null); // ADD
+        if (profilePhotoRef.current) profilePhotoRef.current.value = "";
+        break;
     }
-  }
+  };
 
-  // Handle form submit
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  // Handle form submit - API INTEGRATED
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
     if (!validateAll()) {
-      dispatch(addToast({
-        type: 'error',
-        title: 'Validation Error',
-        message: 'Please fix the errors before submitting',
-      }))
-      return
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Validation Error",
+          message: "Please fix the errors before submitting",
+        })
+      );
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
 
-    // Simulate save delay
-    setTimeout(() => {
-      // Generate customer ID
-      const existingCustomers = getStorageItem(STORAGE_KEYS.CUSTOMERS, [])
-      const newId = `CUS${String(existingCustomers.length + 1).padStart(3, '0')}`
-
-      // Create new customer object
-      const newCustomer = {
-        id: newId,
+    try {
+      // Prepare data for API
+      const customerData = {
         name: formData.name.trim(),
-        icNumber: formData.icNumber.replace(/[-\s]/g, ''),
+        ic_number: formData.icNumber.replace(/[-\s]/g, ""),
+        ic_type: "mykad",
         phone: formData.phone.trim(),
         whatsapp: formData.whatsapp.trim() || formData.phone.trim(),
-        email: formData.email.trim(),
+        email: formData.email.trim() || null,
         address: formData.address.trim(),
-        dateOfBirth: formData.dateOfBirth,
-        gender: formData.gender,
-        occupation: formData.occupation.trim(),
-        icFrontImage,
-        icBackImage,
-        profilePhoto,
-        activePledges: 0,
-        totalPledges: 0,
-        totalAmount: 0,
-        lastVisit: new Date().toISOString().split('T')[0],
-        riskLevel: 'low',
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        city: formData.city.trim() || null, // ADD
+        state: formData.state || null, // ADD
+        postcode: formData.postcode.trim() || null, // ADD
+        nationality: formData.nationality || "Malaysian", // ADD
+        date_of_birth: formData.dateOfBirth || null,
+        gender: formData.gender || null,
+        occupation: formData.occupation.trim() || null,
+      };
+
+      // ADD: Only add files if they exist
+      if (icFrontFile) {
+        customerData.ic_front_image = icFrontFile;
+      }
+      if (icBackFile) {
+        customerData.ic_back_image = icBackFile;
+      }
+      if (profilePhotoFile) {
+        customerData.profile_photo = profilePhotoFile;
       }
 
-      // Save to localStorage
-      const updatedCustomers = [...existingCustomers, newCustomer]
-      setStorageItem(STORAGE_KEYS.CUSTOMERS, updatedCustomers)
-      dispatch(setCustomers(updatedCustomers))
+      // Call API
+      const response = await customerService.create(customerData);
+      const newCustomer = response.data || response;
 
-      dispatch(addToast({
-        type: 'success',
-        title: 'Customer Created',
-        message: `${newCustomer.name} has been added successfully`,
-      }))
+      // Update Redux store
+      dispatch(addCustomer(newCustomer));
 
-      setIsSubmitting(false)
-      navigate(`/customers/${newId}`)
-    }, 800)
-  }
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Customer Created",
+          message: `${formData.name} has been added successfully`,
+        })
+      );
+
+      // Navigate to customer detail
+      navigate(`/customers/${newCustomer.id}`);
+    } catch (error) {
+      console.error("Error creating customer:", error);
+
+      // Handle validation errors from API
+      if (error.response?.data?.errors) {
+        const apiErrors = error.response.data.errors;
+        const formattedErrors = {};
+        Object.keys(apiErrors).forEach((key) => {
+          const fieldMap = {
+            ic_number: "icNumber",
+            date_of_birth: "dateOfBirth",
+            ic_type: "icType",
+          };
+          const formField = fieldMap[key] || key;
+          formattedErrors[formField] = apiErrors[key][0];
+        });
+        setErrors(formattedErrors);
+      }
+
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.response?.data?.message || "Failed to create customer",
+        })
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  }
+      transition: { staggerChildren: 0.1 },
+    },
+  };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
-  }
+    visible: { opacity: 1, y: 0 },
+  };
 
   return (
     <PageWrapper
       title="Add New Customer"
       subtitle="Register a new customer in the system"
       actions={
-        <Button variant="outline" leftIcon={ArrowLeft} onClick={() => navigate('/customers')}>
+        <Button
+          variant="outline"
+          leftIcon={ArrowLeft}
+          onClick={() => navigate("/customers")}
+        >
           Back to List
         </Button>
       }
@@ -340,7 +444,10 @@ export default function CustomerCreate() {
           animate="visible"
         >
           {/* Main Form - Left Column */}
-          <motion.div className="lg:col-span-2 space-y-6" variants={itemVariants}>
+          <motion.div
+            className="lg:col-span-2 space-y-6"
+            variants={itemVariants}
+          >
             {/* Personal Information */}
             <Card>
               <div className="p-5 border-b border-zinc-100">
@@ -349,8 +456,12 @@ export default function CustomerCreate() {
                     <User className="w-5 h-5 text-amber-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-zinc-800">Personal Information</h3>
-                    <p className="text-sm text-zinc-500">Basic customer details</p>
+                    <h3 className="font-semibold text-zinc-800">
+                      Personal Information
+                    </h3>
+                    <p className="text-sm text-zinc-500">
+                      Basic customer details
+                    </p>
                   </div>
                 </div>
               </div>
@@ -414,9 +525,9 @@ export default function CustomerCreate() {
                       value={formData.gender}
                       onChange={handleChange}
                       options={[
-                        { value: '', label: 'Select Gender' },
-                        { value: 'male', label: 'Male' },
-                        { value: 'female', label: 'Female' },
+                        { value: "", label: "Select Gender" },
+                        { value: "male", label: "Male" },
+                        { value: "female", label: "Female" },
                       ]}
                     />
                   </div>
@@ -444,8 +555,12 @@ export default function CustomerCreate() {
                     <Phone className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-zinc-800">Contact Information</h3>
-                    <p className="text-sm text-zinc-500">Phone, email, and address</p>
+                    <h3 className="font-semibold text-zinc-800">
+                      Contact Information
+                    </h3>
+                    <p className="text-sm text-zinc-500">
+                      Phone, email, and address
+                    </p>
                   </div>
                 </div>
               </div>
@@ -485,7 +600,9 @@ export default function CustomerCreate() {
                         onChange={(e) => setSameAsPhone(e.target.checked)}
                         className="w-4 h-4 rounded border-zinc-300 text-amber-500 focus:ring-amber-500"
                       />
-                      <span className="text-sm text-zinc-600">Same as phone number</span>
+                      <span className="text-sm text-zinc-600">
+                        Same as phone number
+                      </span>
                     </label>
                   </div>
 
@@ -519,6 +636,59 @@ export default function CustomerCreate() {
                       multiline
                     />
                   </div>
+                  {/* City */}
+                  <div>
+                    <Input
+                      label="City"
+                      name="city"
+                      placeholder="Enter city"
+                      value={formData.city}
+                      onChange={handleChange}
+                    />
+                  </div>
+
+                  {/* Postcode */}
+                  <div>
+                    <Input
+                      label="Postcode"
+                      name="postcode"
+                      placeholder="e.g., 50000"
+                      value={formData.postcode}
+                      onChange={handleChange}
+                      maxLength={5}
+                    />
+                  </div>
+
+                  {/* State */}
+                  <div>
+                    <Select
+                      label="State"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleChange}
+                      options={[
+                        { value: "", label: "Select State" },
+                        ...malaysianStates.map((s) => ({ value: s, label: s })),
+                      ]}
+                    />
+                  </div>
+
+                  {/* Nationality */}
+                  <div>
+                    <Select
+                      label="Nationality"
+                      name="nationality"
+                      value={formData.nationality}
+                      onChange={handleChange}
+                      options={[
+                        { value: "", label: "Select Nationality" },
+                        ...nationalityOptions.map((n) => ({
+                          value: n,
+                          label: n,
+                        })),
+                      ]}
+                    />
+                  </div>
                 </div>
               </div>
             </Card>
@@ -531,8 +701,12 @@ export default function CustomerCreate() {
                     <FileText className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-zinc-800">IC Copy (KPKT Requirement)</h3>
-                    <p className="text-sm text-zinc-500">Upload front and back of IC</p>
+                    <h3 className="font-semibold text-zinc-800">
+                      IC Copy (KPKT Requirement)
+                    </h3>
+                    <p className="text-sm text-zinc-500">
+                      Upload front and back of IC
+                    </p>
                   </div>
                 </div>
               </div>
@@ -548,7 +722,7 @@ export default function CustomerCreate() {
                       ref={icFrontRef}
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handleImageUpload(e, 'icFront')}
+                      onChange={(e) => handleImageUpload(e, "icFront")}
                       className="hidden"
                     />
                     <AnimatePresence mode="wait">
@@ -567,7 +741,7 @@ export default function CustomerCreate() {
                           />
                           <button
                             type="button"
-                            onClick={() => removeImage('icFront')}
+                            onClick={() => removeImage("icFront")}
                             className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                           >
                             <X className="w-4 h-4" />
@@ -586,15 +760,19 @@ export default function CustomerCreate() {
                           exit={{ opacity: 0, scale: 0.9 }}
                           onClick={() => icFrontRef.current?.click()}
                           className={cn(
-                            'w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors',
+                            "w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors",
                             errors.icFront
-                              ? 'border-red-300 bg-red-50 text-red-500'
-                              : 'border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500'
+                              ? "border-red-300 bg-red-50 text-red-500"
+                              : "border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500"
                           )}
                         >
                           <Upload className="w-8 h-8" />
-                          <span className="text-sm font-medium">Upload IC Front</span>
-                          <span className="text-xs">Click or drag file here</span>
+                          <span className="text-sm font-medium">
+                            Upload IC Front
+                          </span>
+                          <span className="text-xs">
+                            Click or drag file here
+                          </span>
                         </motion.button>
                       )}
                     </AnimatePresence>
@@ -615,7 +793,7 @@ export default function CustomerCreate() {
                       ref={icBackRef}
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handleImageUpload(e, 'icBack')}
+                      onChange={(e) => handleImageUpload(e, "icBack")}
                       className="hidden"
                     />
                     <AnimatePresence mode="wait">
@@ -634,7 +812,7 @@ export default function CustomerCreate() {
                           />
                           <button
                             type="button"
-                            onClick={() => removeImage('icBack')}
+                            onClick={() => removeImage("icBack")}
                             className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                           >
                             <X className="w-4 h-4" />
@@ -653,15 +831,19 @@ export default function CustomerCreate() {
                           exit={{ opacity: 0, scale: 0.9 }}
                           onClick={() => icBackRef.current?.click()}
                           className={cn(
-                            'w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors',
+                            "w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors",
                             errors.icBack
-                              ? 'border-red-300 bg-red-50 text-red-500'
-                              : 'border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500'
+                              ? "border-red-300 bg-red-50 text-red-500"
+                              : "border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500"
                           )}
                         >
                           <Upload className="w-8 h-8" />
-                          <span className="text-sm font-medium">Upload IC Back</span>
-                          <span className="text-xs">Click or drag file here</span>
+                          <span className="text-sm font-medium">
+                            Upload IC Back
+                          </span>
+                          <span className="text-xs">
+                            Click or drag file here
+                          </span>
                         </motion.button>
                       )}
                     </AnimatePresence>
@@ -687,7 +869,9 @@ export default function CustomerCreate() {
                     <Camera className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-zinc-800">Profile Photo</h3>
+                    <h3 className="font-semibold text-zinc-800">
+                      Profile Photo
+                    </h3>
                     <p className="text-sm text-zinc-500">Optional</p>
                   </div>
                 </div>
@@ -698,7 +882,7 @@ export default function CustomerCreate() {
                   ref={profilePhotoRef}
                   type="file"
                   accept="image/*"
-                  onChange={(e) => handleImageUpload(e, 'profile')}
+                  onChange={(e) => handleImageUpload(e, "profile")}
                   className="hidden"
                 />
                 <AnimatePresence mode="wait">
@@ -717,7 +901,7 @@ export default function CustomerCreate() {
                       />
                       <button
                         type="button"
-                        onClick={() => removeImage('profile')}
+                        onClick={() => removeImage("profile")}
                         className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                       >
                         <X className="w-4 h-4" />
@@ -757,21 +941,21 @@ export default function CustomerCreate() {
                   leftIcon={Save}
                   loading={isSubmitting}
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Customer'}
+                  {isSubmitting ? "Saving..." : "Save Customer"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="lg"
                   fullWidth
-                  onClick={() => navigate('/customers')}
+                  onClick={() => navigate("/customers")}
                 >
                   Cancel
                 </Button>
               </div>
 
               {/* Validation Summary */}
-              {Object.keys(errors).some(key => errors[key]) && (
+              {Object.keys(errors).some((key) => errors[key]) && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -782,10 +966,8 @@ export default function CustomerCreate() {
                     Please fix the following errors:
                   </p>
                   <ul className="mt-2 text-xs text-red-600 space-y-1">
-                    {Object.keys(errors).map(key =>
-                      errors[key] && (
-                        <li key={key}>• {errors[key]}</li>
-                      )
+                    {Object.keys(errors).map(
+                      (key) => errors[key] && <li key={key}>• {errors[key]}</li>
                     )}
                   </ul>
                 </motion.div>
@@ -805,5 +987,5 @@ export default function CustomerCreate() {
         </motion.div>
       </form>
     </PageWrapper>
-  )
+  );
 }

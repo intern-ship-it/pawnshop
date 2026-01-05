@@ -54,10 +54,12 @@ class CustomerController extends Controller
 
         $customer = Customer::where('branch_id', $branchId)
             ->where('ic_number', $icNumber)
-            ->with(['activePledges' => function ($query) {
-                $query->select('id', 'customer_id', 'pledge_no', 'receipt_no', 'loan_amount', 'status', 'due_date')
-                    ->with('items:id,pledge_id,category_id,net_weight,net_value');
-            }])
+            ->with([
+                'activePledges' => function ($query) {
+                    $query->select('id', 'customer_id', 'pledge_no', 'receipt_no', 'loan_amount', 'status', 'due_date')
+                        ->with('items:id,pledge_id,category_id,net_weight,net_value');
+                }
+            ])
             ->first();
 
         if (!$customer) {
@@ -73,13 +75,16 @@ class CustomerController extends Controller
     /**
      * Create new customer
      */
+    /**
+     * Create new customer
+     */
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'ic_number' => 'required|string|max:20',
+            'ic_number' => 'required|string|max:20|unique:customers,ic_number',
             'ic_type' => 'required|in:mykad,passport,other',
-            'gender' => 'required|in:male,female',
+            'gender' => 'nullable|in:male,female',
             'date_of_birth' => 'nullable|date',
             'nationality' => 'nullable|string|max:50',
             'phone' => 'required|string|max:20',
@@ -91,29 +96,65 @@ class CustomerController extends Controller
             'state' => 'nullable|string|max:100',
             'postcode' => 'nullable|string|max:10',
             'notes' => 'nullable|string',
+            // File validations
+            'ic_front_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
+            'ic_back_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
+            'selfie_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
         ]);
 
         $branchId = $request->user()->branch_id;
+        $userId = $request->user()->id;
 
-        // Check if IC already exists in branch
-        $exists = Customer::where('branch_id', $branchId)
-            ->where('ic_number', $validated['ic_number'])
-            ->exists();
+        // Generate customer number
+        $customerNo = Customer::generateCustomerNo($branchId);
 
-        if ($exists) {
-            return $this->error('Customer with this IC already exists.', 422);
-        }
-
-        // Calculate age if DOB provided
+        // Calculate age from DOB
+        $age = null;
         if (!empty($validated['date_of_birth'])) {
-            $validated['age'] = now()->diffInYears($validated['date_of_birth']);
+            $age = \Carbon\Carbon::parse($validated['date_of_birth'])->age;
         }
 
-        $validated['branch_id'] = $branchId;
-        $validated['customer_no'] = Customer::generateCustomerNo($branchId);
-        $validated['created_by'] = $request->user()->id;
+        // Handle file uploads
+        $icFrontPath = null;
+        $icBackPath = null;
+        $selfiePath = null;
 
-        $customer = Customer::create($validated);
+        if ($request->hasFile('ic_front_photo')) {
+            $icFrontPath = $request->file('ic_front_photo')->store('customers/ic', 'public');
+        }
+
+        if ($request->hasFile('ic_back_photo')) {
+            $icBackPath = $request->file('ic_back_photo')->store('customers/ic', 'public');
+        }
+
+        if ($request->hasFile('selfie_photo')) {
+            $selfiePath = $request->file('selfie_photo')->store('customers/selfie', 'public');
+        }
+
+        $customer = Customer::create([
+            'branch_id' => $branchId,
+            'customer_no' => $customerNo,
+            'name' => $validated['name'],
+            'ic_number' => $validated['ic_number'],
+            'ic_type' => $validated['ic_type'],
+            'gender' => $validated['gender'] ?? null,
+            'date_of_birth' => $validated['date_of_birth'] ?? null,
+            'age' => $age,
+            'nationality' => $validated['nationality'] ?? 'Malaysian',
+            'phone' => $validated['phone'],
+            'phone_alt' => $validated['phone_alt'] ?? null,
+            'email' => $validated['email'] ?? null,
+            'address_line1' => $validated['address_line1'] ?? null,
+            'address_line2' => $validated['address_line2'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'state' => $validated['state'] ?? null,
+            'postcode' => $validated['postcode'] ?? null,
+            'ic_front_photo' => $icFrontPath,
+            'ic_back_photo' => $icBackPath,
+            'selfie_photo' => $selfiePath,
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => $userId,
+        ]);
 
         return $this->success($customer, 'Customer created successfully', 201);
     }
@@ -136,14 +177,23 @@ class CustomerController extends Controller
     /**
      * Update customer
      */
+    /**
+     * Update customer
+     */
     public function update(Request $request, Customer $customer): JsonResponse
     {
+        // Check branch access
         if ($customer->branch_id !== $request->user()->branch_id) {
             return $this->error('Unauthorized', 403);
         }
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:100',
+            'ic_number' => 'sometimes|string|max:20|unique:customers,ic_number,' . $customer->id,
+            'ic_type' => 'sometimes|in:mykad,passport,other',
+            'gender' => 'nullable|in:male,female',
+            'date_of_birth' => 'nullable|date',
+            'nationality' => 'nullable|string|max:50',
             'phone' => 'sometimes|string|max:20',
             'phone_alt' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:100',
@@ -153,7 +203,38 @@ class CustomerController extends Controller
             'state' => 'nullable|string|max:100',
             'postcode' => 'nullable|string|max:10',
             'notes' => 'nullable|string',
+            'ic_front_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
+            'ic_back_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
+            'selfie_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
         ]);
+
+        // Calculate age if DOB changed
+        if (isset($validated['date_of_birth'])) {
+            $validated['age'] = \Carbon\Carbon::parse($validated['date_of_birth'])->age;
+        }
+
+        // Handle file uploads
+        if ($request->hasFile('ic_front_photo')) {
+            // Delete old file if exists
+            if ($customer->ic_front_photo) {
+                \Storage::disk('public')->delete($customer->ic_front_photo);
+            }
+            $validated['ic_front_photo'] = $request->file('ic_front_photo')->store('customers/ic', 'public');
+        }
+
+        if ($request->hasFile('ic_back_photo')) {
+            if ($customer->ic_back_photo) {
+                \Storage::disk('public')->delete($customer->ic_back_photo);
+            }
+            $validated['ic_back_photo'] = $request->file('ic_back_photo')->store('customers/ic', 'public');
+        }
+
+        if ($request->hasFile('selfie_photo')) {
+            if ($customer->selfie_photo) {
+                \Storage::disk('public')->delete($customer->selfie_photo);
+            }
+            $validated['selfie_photo'] = $request->file('selfie_photo')->store('customers/selfie', 'public');
+        }
 
         $customer->update($validated);
 
@@ -214,6 +295,28 @@ class CustomerController extends Controller
         return $this->success($pledges);
     }
 
+
+    /**
+     * Get customer statistics
+     */
+    public function statistics(Request $request, Customer $customer): JsonResponse
+    {
+        if ($customer->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $stats = [
+            'total_pledges' => $customer->total_pledges ?? $customer->pledges()->count(),
+            'active_pledges' => $customer->active_pledges ?? $customer->pledges()->where('status', 'active')->count(),
+            'total_loan_amount' => $customer->total_loan_amount ?? $customer->pledges()->where('status', 'active')->sum('loan_amount'),
+            'total_renewals' => $customer->pledges()->withCount('renewals')->get()->sum('renewals_count'),
+            'total_redemptions' => $customer->pledges()->where('status', 'redeemed')->count(),
+            'overdue_pledges' => $customer->pledges()->where('status', 'overdue')->count(),
+        ];
+
+        return $this->success($stats);
+    }
+
     /**
      * Blacklist customer
      */
@@ -233,8 +336,8 @@ class CustomerController extends Controller
             'blacklist_reason' => $validated['reason'] ?? null,
         ]);
 
-        $message = $validated['is_blacklisted'] 
-            ? 'Customer has been blacklisted' 
+        $message = $validated['is_blacklisted']
+            ? 'Customer has been blacklisted'
             : 'Customer has been removed from blacklist';
 
         return $this->success($customer, $message);
