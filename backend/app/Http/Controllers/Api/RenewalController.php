@@ -110,46 +110,53 @@ class RenewalController extends Controller
 
         $branchId = $request->user()->branch_id;
 
-        $pledge = Pledge::where('id', $validated['pledge_id'])
+        // Cast to integer (GET params come as strings)
+        $renewalMonths = (int) $validated['renewal_months'];
+        $pledgeId = (int) $validated['pledge_id'];
+
+        $pledge = Pledge::where('id', $pledgeId)
             ->where('branch_id', $branchId)
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'overdue']) // Allow overdue pledges too
             ->first();
 
         if (!$pledge) {
             return $this->error('Active pledge not found', 404);
         }
 
-        // Calculate current month
-        $currentMonth = $pledge->renewal_count * 6 + $pledge->months_elapsed;
+        // Calculate current month based on pledge date
+        $pledgeDate = Carbon::parse($pledge->pledge_date);
+        $now = Carbon::now();
+        $monthsElapsed = $pledgeDate->diffInMonths($now);
+        $currentMonth = max(1, $monthsElapsed);
 
         // Calculate renewal interest
         $calculation = $this->interestService->calculateRenewalInterest(
-            $pledge->loan_amount,
+            (float) $pledge->loan_amount,
             $currentMonth,
-            $validated['renewal_months'],
-            $pledge->interest_rate,
-            $pledge->interest_rate_extended
+            $renewalMonths,
+            (float) $pledge->interest_rate,
+            (float) $pledge->interest_rate_extended
         );
 
-        $handlingFee = config('pawnsys.handling_fee.amount', 0.50);
+        $handlingFee = (float) config('pawnsys.handling_fee.amount', 0.50);
         $totalPayable = $calculation['total_interest'] + $handlingFee;
 
         return $this->success([
             'pledge' => [
                 'id' => $pledge->id,
                 'pledge_no' => $pledge->pledge_no,
-                'loan_amount' => $pledge->loan_amount,
+                'loan_amount' => (float) $pledge->loan_amount,
                 'current_due_date' => $pledge->due_date->toDateString(),
-                'renewal_count' => $pledge->renewal_count,
+                'renewal_count' => (int) $pledge->renewal_count,
             ],
             'renewal' => [
-                'months' => $validated['renewal_months'],
-                'new_due_date' => $pledge->due_date->copy()->addMonths($validated['renewal_months'])->toDateString(),
+                'months' => $renewalMonths,
+                'new_due_date' => $pledge->due_date->copy()->addMonths($renewalMonths)->toDateString(),
             ],
             'calculation' => [
                 'interest_breakdown' => $calculation['breakdown'],
-                'interest_amount' => $calculation['total_interest'],
-                'handling_fee' => $handlingFee,
+                'interest_amount' => round($calculation['total_interest'], 2),
+                'handling_fee' => round($handlingFee, 2),
                 'total_payable' => round($totalPayable, 2),
             ],
         ]);
@@ -164,20 +171,24 @@ class RenewalController extends Controller
             'pledge_id' => 'required|exists:pledges,id',
             'renewal_months' => 'required|integer|min:1|max:6',
             'payment_method' => 'required|in:cash,transfer,partial',
-            'cash_amount' => 'required_if:payment_method,cash,partial|numeric|min:0',
-            'transfer_amount' => 'required_if:payment_method,transfer,partial|numeric|min:0',
-            'bank_id' => 'required_if:payment_method,transfer,partial|exists:banks,id',
+            'cash_amount' => 'nullable|numeric|min:0',
+            'transfer_amount' => 'nullable|numeric|min:0',
+            'bank_id' => 'nullable|exists:banks,id',
             'reference_no' => 'nullable|string|max:50',
             'customer_signature' => 'nullable|string',
-            'terms_accepted' => 'required|boolean|accepted',
+            'terms_accepted' => 'required|boolean',
         ]);
 
         $branchId = $request->user()->branch_id;
         $userId = $request->user()->id;
 
-        $pledge = Pledge::where('id', $validated['pledge_id'])
+        // Cast to proper types
+        $renewalMonths = (int) $validated['renewal_months'];
+        $pledgeId = (int) $validated['pledge_id'];
+
+        $pledge = Pledge::where('id', $pledgeId)
             ->where('branch_id', $branchId)
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'overdue'])
             ->first();
 
         if (!$pledge) {
@@ -187,25 +198,34 @@ class RenewalController extends Controller
         DB::beginTransaction();
 
         try {
-            // Calculate
-            $currentMonth = $pledge->renewal_count * 6 + $pledge->months_elapsed;
+            // Calculate current month
+            $pledgeDate = Carbon::parse($pledge->pledge_date);
+            $now = Carbon::now();
+            $monthsElapsed = $pledgeDate->diffInMonths($now);
+            $currentMonth = max(1, $monthsElapsed);
+
+            // Calculate interest
             $calculation = $this->interestService->calculateRenewalInterest(
-                $pledge->loan_amount,
+                (float) $pledge->loan_amount,
                 $currentMonth,
-                $validated['renewal_months'],
-                $pledge->interest_rate,
-                $pledge->interest_rate_extended
+                $renewalMonths,
+                (float) $pledge->interest_rate,
+                (float) $pledge->interest_rate_extended
             );
 
-            $handlingFee = config('pawnsys.handling_fee.amount', 0.50);
+            $handlingFee = (float) config('pawnsys.handling_fee.amount', 0.50);
             $totalPayable = $calculation['total_interest'] + $handlingFee;
 
             // Generate renewal number
-            $renewalNo = sprintf('RNW-%s-%s-%04d',
+            $renewalNo = sprintf(
+                'RNW-%s-%s-%04d',
                 $pledge->branch->code,
                 date('Y'),
                 Renewal::where('branch_id', $branchId)->whereYear('created_at', date('Y'))->count() + 1
             );
+
+            // Calculate new due date
+            $newDueDate = $pledge->due_date->copy()->addMonths($renewalMonths);
 
             // Create renewal
             $renewal = Renewal::create([
@@ -213,16 +233,16 @@ class RenewalController extends Controller
                 'pledge_id' => $pledge->id,
                 'renewal_no' => $renewalNo,
                 'renewal_count' => $pledge->renewal_count + 1,
-                'renewal_months' => $validated['renewal_months'],
+                'renewal_months' => $renewalMonths,
                 'previous_due_date' => $pledge->due_date,
-                'new_due_date' => $pledge->due_date->copy()->addMonths($validated['renewal_months']),
+                'new_due_date' => $newDueDate,
                 'interest_rate' => $pledge->interest_rate,
                 'interest_amount' => $calculation['total_interest'],
                 'handling_fee' => $handlingFee,
                 'total_payable' => $totalPayable,
                 'payment_method' => $validated['payment_method'],
-                'cash_amount' => $validated['cash_amount'] ?? 0,
-                'transfer_amount' => $validated['transfer_amount'] ?? 0,
+                'cash_amount' => (float) ($validated['cash_amount'] ?? 0),
+                'transfer_amount' => (float) ($validated['transfer_amount'] ?? 0),
                 'bank_id' => $validated['bank_id'] ?? null,
                 'reference_no' => $validated['reference_no'] ?? null,
                 'terms_accepted' => true,
@@ -243,14 +263,11 @@ class RenewalController extends Controller
 
             // Update pledge
             $pledge->update([
-                'due_date' => $renewal->new_due_date,
-                'grace_end_date' => $renewal->new_due_date->copy()->addDays(7),
+                'due_date' => $newDueDate,
+                'grace_end_date' => $newDueDate->copy()->addDays(7),
                 'renewal_count' => $pledge->renewal_count + 1,
-                'status' => 'renewed',
+                'status' => 'active',
             ]);
-
-            // Set status back to active
-            $pledge->update(['status' => 'active']);
 
             DB::commit();
 
@@ -263,6 +280,7 @@ class RenewalController extends Controller
             return $this->error('Failed to process renewal: ' . $e->getMessage(), 500);
         }
     }
+
 
     /**
      * Get renewal details
