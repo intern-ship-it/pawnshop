@@ -29,6 +29,12 @@ import {
   Clock,
   DollarSign,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Package,
+  Scale,
+  TrendingUp,
+  Calendar,
 } from "lucide-react";
 
 // Status config
@@ -53,6 +59,7 @@ export default function CustomerDetail() {
   const [isPledgesLoading, setIsPledgesLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("active");
+  const [expandedPledge, setExpandedPledge] = useState(null);
 
   // Fetch customer data
   const fetchCustomer = async () => {
@@ -515,84 +522,344 @@ export default function CustomerDetail() {
                   </Button>
                 </div>
               ) : (
-                <table className="w-full">
-                  <thead className="bg-zinc-50 border-b border-zinc-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">
-                        Pledge No
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">
-                        Date
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">
-                        Items
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500 uppercase">
-                        Loan Amount
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">
-                        Due Date
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-500 uppercase">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
-                    {filteredPledges.map((pledge) => {
-                      const config =
-                        statusConfig[pledge.status] || statusConfig.active;
-                      return (
-                        <tr
-                          key={pledge.id}
-                          className="hover:bg-zinc-50 transition-colors"
+                <div className="divide-y divide-zinc-100">
+                  {filteredPledges.map((pledge) => {
+                    const config =
+                      statusConfig[pledge.status] || statusConfig.active;
+                    const isExpanded = expandedPledge === pledge.id;
+                    const items = pledge.items || [];
+
+                    // Calculate interest (if available from API)
+                    const principal = parseFloat(
+                      pledge.loan_amount || pledge.principal_amount || 0
+                    );
+                    const interestRate = parseFloat(
+                      pledge.interest_rate || 0.5
+                    );
+                    const monthsElapsed = pledge.months_elapsed || 1;
+                    const accruedInterest =
+                      pledge.accrued_interest ||
+                      principal * (interestRate / 100) * monthsElapsed;
+                    const totalPayable =
+                      pledge.total_payable || principal + accruedInterest;
+
+                    return (
+                      <div key={pledge.id} className="bg-white">
+                        {/* Main Row - Clickable to expand */}
+                        <div
+                          className="flex items-center justify-between p-4 hover:bg-zinc-50 cursor-pointer transition-colors"
+                          onClick={() =>
+                            setExpandedPledge(isExpanded ? null : pledge.id)
+                          }
                         >
-                          <td className="px-4 py-4">
-                            <span className="font-mono text-amber-600 font-medium">
-                              {pledge.pledge_number || pledge.id}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-zinc-600">
-                            {formatDate(
-                              pledge.pledge_date || pledge.created_at
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-zinc-600">
-                            {pledge.items_count || pledge.items?.length || 0}{" "}
-                            items
-                          </td>
-                          <td className="px-4 py-4 text-right text-zinc-800 font-medium">
-                            {formatCurrency(
-                              pledge.loan_amount || pledge.principal_amount
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-zinc-600">
-                            {formatDate(
-                              pledge.due_date || pledge.maturity_date
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
+                          <div className="flex items-center gap-4 flex-1">
+                            {/* Expand Icon */}
+                            <button className="p-1 text-zinc-400 hover:text-zinc-600">
+                              {isExpanded ? (
+                                <ChevronUp className="w-5 h-5" />
+                              ) : (
+                                <ChevronDown className="w-5 h-5" />
+                              )}
+                            </button>
+
+                            {/* Pledge Info */}
+                            <div className="min-w-[120px]">
+                              <p className="font-mono text-amber-600 font-medium">
+                                {pledge.pledge_no ||
+                                  pledge.pledge_number ||
+                                  pledge.id}
+                              </p>
+                              <p className="text-xs text-zinc-500">
+                                {formatDate(
+                                  pledge.pledge_date || pledge.created_at
+                                )}
+                              </p>
+                            </div>
+
+                            {/* Items Count */}
+                            <div className="min-w-[80px]">
+                              <div className="flex items-center gap-1.5">
+                                <Package className="w-4 h-4 text-zinc-400" />
+                                <span className="text-zinc-600">
+                                  {pledge.items_count || items.length || 0}{" "}
+                                  items
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Loan Amount */}
+                            <div className="min-w-[120px]">
+                              <p className="text-xs text-zinc-500">Principal</p>
+                              <p className="font-semibold text-zinc-800">
+                                {formatCurrency(principal)}
+                              </p>
+                            </div>
+
+                            {/* Interest */}
+                            <div className="min-w-[100px]">
+                              <p className="text-xs text-zinc-500">
+                                Interest ({interestRate}%)
+                              </p>
+                              <p className="font-medium text-amber-600">
+                                {formatCurrency(accruedInterest)}
+                              </p>
+                            </div>
+
+                            {/* Total Payable */}
+                            <div className="min-w-[120px]">
+                              <p className="text-xs text-zinc-500">
+                                Total Payable
+                              </p>
+                              <p className="font-bold text-emerald-600">
+                                {formatCurrency(totalPayable)}
+                              </p>
+                            </div>
+
+                            {/* Due Date */}
+                            <div className="min-w-[100px]">
+                              <p className="text-xs text-zinc-500">Due Date</p>
+                              <p
+                                className={cn(
+                                  "text-sm font-medium",
+                                  pledge.status === "overdue"
+                                    ? "text-red-600"
+                                    : "text-zinc-700"
+                                )}
+                              >
+                                {formatDate(
+                                  pledge.due_date || pledge.maturity_date
+                                )}
+                              </p>
+                            </div>
+
+                            {/* Status */}
                             <Badge variant={config.variant}>
                               {config.label}
                             </Badge>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewPledge(pledge.id)}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+
+                          {/* View Button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewPledge(pledge.id);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        {/* Expanded Content - Items List & Interest Breakdown */}
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="px-4 pb-4 bg-zinc-50 border-t border-zinc-100"
+                          >
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
+                              {/* Items List */}
+                              <div>
+                                <h4 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
+                                  <Package className="w-4 h-4 text-amber-500" />
+                                  Pledged Items
+                                </h4>
+                                {items.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {items.map((item, idx) => {
+                                      const itemPhoto =
+                                        item.photo ||
+                                        item.photo_url ||
+                                        item.image ||
+                                        null;
+                                      return (
+                                        <div
+                                          key={item.id || idx}
+                                          className="flex items-center gap-3 p-3 bg-white rounded-lg border border-zinc-200"
+                                        >
+                                          {/* Item Photo */}
+                                          {itemPhoto ? (
+                                            <img
+                                              src={itemPhoto}
+                                              alt={item.description || "Item"}
+                                              className="w-10 h-10 rounded-lg object-cover border border-zinc-200"
+                                            />
+                                          ) : (
+                                            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                                              <Package className="w-5 h-5 text-amber-600" />
+                                            </div>
+                                          )}
+
+                                          {/* Item Details */}
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-zinc-800 truncate">
+                                              {item.description ||
+                                                item.category?.name ||
+                                                item.category_name ||
+                                                "Gold Item"}
+                                            </p>
+                                            <p className="text-xs text-zinc-500">
+                                              {item.purity?.code ||
+                                                item.purity?.name ||
+                                                item.purity_name ||
+                                                item.purity}{" "}
+                                              •{" "}
+                                              {parseFloat(
+                                                item.net_weight ||
+                                                  item.weight ||
+                                                  0
+                                              ).toFixed(2)}
+                                              g
+                                            </p>
+                                          </div>
+
+                                          {/* Item Value */}
+                                          <div className="text-right">
+                                            <p className="text-sm font-semibold text-zinc-800">
+                                              {formatCurrency(
+                                                item.net_value ||
+                                                  item.value ||
+                                                  0
+                                              )}
+                                            </p>
+                                            <p className="text-xs text-zinc-500">
+                                              Loan:{" "}
+                                              {formatCurrency(
+                                                item.loan_amount || 0
+                                              )}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-zinc-500 italic">
+                                    No items data available
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Interest Breakdown */}
+                              <div>
+                                <h4 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
+                                  <TrendingUp className="w-4 h-4 text-amber-500" />
+                                  Interest Calculation
+                                </h4>
+                                <div className="bg-white rounded-lg border border-zinc-200 p-4 space-y-3">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-zinc-500">
+                                      Principal Amount
+                                    </span>
+                                    <span className="font-medium text-zinc-800">
+                                      {formatCurrency(principal)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-zinc-500">
+                                      Interest Rate
+                                    </span>
+                                    <span className="font-medium text-zinc-800">
+                                      {interestRate}% / month
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-zinc-500">
+                                      Duration
+                                    </span>
+                                    <span className="font-medium text-zinc-800">
+                                      {monthsElapsed} month(s)
+                                    </span>
+                                  </div>
+
+                                  {/* Monthly Breakdown (if available) */}
+                                  {pledge.interest_breakdown &&
+                                    pledge.interest_breakdown.length > 0 && (
+                                      <div className="pt-2 border-t border-zinc-100">
+                                        <p className="text-xs font-medium text-zinc-500 mb-2">
+                                          Monthly Breakdown
+                                        </p>
+                                        {pledge.interest_breakdown.map(
+                                          (month, idx) => (
+                                            <div
+                                              key={idx}
+                                              className="flex justify-between text-xs py-1"
+                                            >
+                                              <span className="text-zinc-500">
+                                                Month {month.month} (
+                                                {month.rate}%)
+                                              </span>
+                                              <span className="text-zinc-700">
+                                                {formatCurrency(month.interest)}
+                                              </span>
+                                            </div>
+                                          )
+                                        )}
+                                      </div>
+                                    )}
+
+                                  <div className="flex justify-between text-sm pt-2 border-t border-zinc-200">
+                                    <span className="text-zinc-500">
+                                      Accrued Interest
+                                    </span>
+                                    <span className="font-medium text-amber-600">
+                                      {formatCurrency(accruedInterest)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm font-bold pt-2 border-t border-zinc-200">
+                                    <span className="text-zinc-800">
+                                      Total Payable
+                                    </span>
+                                    <span className="text-emerald-600">
+                                      {formatCurrency(totalPayable)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Quick Actions */}
+                                <div className="flex gap-2 mt-3">
+                                  {(pledge.status === "active" ||
+                                    pledge.status === "overdue") && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() =>
+                                          navigate(
+                                            `/renewals?pledge=${pledge.id}`
+                                          )
+                                        }
+                                      >
+                                        <RefreshCw className="w-4 h-4 mr-1" />
+                                        Renew
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() =>
+                                          navigate(
+                                            `/redemptions?pledge=${pledge.id}`
+                                          )
+                                        }
+                                      >
+                                        <CheckCircle className="w-4 h-4 mr-1" />
+                                        Redeem
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </Card>

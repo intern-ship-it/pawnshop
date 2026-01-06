@@ -17,9 +17,9 @@ import { motion } from "framer-motion";
 const demoAccounts = [
   { username: "superadmin", password: "password123", role: "Super Admin" },
   { username: "admin", password: "password123", role: "Administrator" },
-  { username: "manager", password: "password123", role: "Manager" },
-  { username: "cashier", password: "password123", role: "Cashier" },
-  { username: "auditor", password: "password123", role: "Auditor" },
+  // { username: "manager", password: "password123", role: "Manager" },
+  // { username: "cashier", password: "password123", role: "Cashier" },
+  // { username: "auditor", password: "password123", role: "Auditor" },
 ];
 
 const features = [
@@ -390,28 +390,31 @@ export default function Login() {
             </form>
 
             {/* Demo Accounts */}
-            <div className="mt-8 pt-6 border-t border-zinc-200">
-              <p className="text-xs text-zinc-500 text-center mb-3">
-                Demo Accounts (Click to autofill)
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {demoAccounts.map((account) => (
-                  <button
-                    key={account.username}
-                    type="button"
-                    onClick={() => handleDemoLogin(account)}
-                    className={cn(
-                      "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
-                      "border-zinc-200 hover:border-amber-300 hover:bg-amber-50",
-                      formData.username === account.username &&
-                        "border-amber-400 bg-amber-50"
-                    )}
-                  >
-                    <span className="text-zinc-700">{account.role}</span>
-                  </button>
-                ))}
+
+            {demoAccounts.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-zinc-200">
+                <p className="text-xs text-zinc-500 text-center mb-3">
+                  Demo Accounts (Click to autofill)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {demoAccounts.map((account) => (
+                    <button
+                      key={account.username}
+                      type="button"
+                      onClick={() => handleDemoLogin(account)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
+                        "border-zinc-200 hover:border-amber-300 hover:bg-amber-50",
+                        formData.username === account.username &&
+                          "border-amber-400 bg-amber-50"
+                      )}
+                    >
+                      <span className="text-zinc-700">{account.role}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </motion.div>
 
           <motion.p

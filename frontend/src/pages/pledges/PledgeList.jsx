@@ -47,7 +47,8 @@ export default function PledgeList() {
   // State
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -307,22 +308,21 @@ export default function PledgeList() {
       if (statusFilter !== "all" && pledge.status !== statusFilter)
         return false;
 
-      // Date filter
-      if (dateFilter !== "all") {
-        const createdAt = new Date(pledge.createdAt);
-        const now = new Date();
-        switch (dateFilter) {
-          case "today":
-            if (createdAt.toDateString() !== now.toDateString()) return false;
-            break;
-          case "week":
-            const weekAgo = new Date(now.setDate(now.getDate() - 7));
-            if (createdAt < weekAgo) return false;
-            break;
-          case "month":
-            const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-            if (createdAt < monthAgo) return false;
-            break;
+      // Date filter (From/To)
+      if (dateFrom || dateTo) {
+        const pledgeDate = new Date(pledge.pledgeDate || pledge.createdAt);
+        pledgeDate.setHours(0, 0, 0, 0);
+
+        if (dateFrom) {
+          const fromDate = new Date(dateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (pledgeDate < fromDate) return false;
+        }
+
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (pledgeDate > toDate) return false;
         }
       }
 
@@ -487,18 +487,36 @@ export default function PledgeList() {
             className="w-40"
           />
 
-          {/* Date Filter */}
-          <Select
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            options={[
-              { value: "all", label: "All Time" },
-              { value: "today", label: "Today" },
-              { value: "week", label: "This Week" },
-              { value: "month", label: "This Month" },
-            ]}
-            className="w-40"
-          />
+          {/* Date Filter - From/To */}
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-zinc-400" />
+            <span className="text-sm text-zinc-500">From:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-sm text-zinc-500">To:</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            {(dateFrom || dateTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+              >
+                <XCircle className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
 
           {/* Sort */}
           <Select

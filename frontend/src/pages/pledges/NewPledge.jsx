@@ -32,6 +32,10 @@ import {
   Scale,
   Gem,
   X,
+  FileText,
+  Receipt,
+  ExternalLink,
+  AlertTriangle,
   CreditCard,
   Building2,
   RefreshCw,
@@ -162,7 +166,7 @@ export default function NewPledge() {
   const [isSearching, setIsSearching] = useState(false);
   const [customer, setCustomer] = useState(null);
   const [customerSearchResult, setCustomerSearchResult] = useState(null);
-
+  const [customerPledges, setCustomerPledges] = useState([]);
   // Step 2: Items state
   const [items, setItems] = useState([{ ...emptyItem, id: "item-1" }]);
 
@@ -445,16 +449,35 @@ export default function NewPledge() {
 
     setIsSearching(true);
     setCustomerSearchResult(null);
+    setCustomerPledges([]); // Reset pledges
 
     try {
       const response = await customerService.searchByIC(cleanIC);
-      // Handle nested response: data.data.customer or data.customer or data
       const responseData = response.data?.data || response.data;
       const customerData = responseData?.customer || responseData;
 
       if (customerData && customerData.name) {
         setCustomerSearchResult(customerData);
         setCustomer(customerData);
+
+        // Extract pledges from response - they come as customer.active_pledges array or existing_pledges
+        let pledgesArray = [];
+        if (Array.isArray(customerData.active_pledges)) {
+          pledgesArray = customerData.active_pledges;
+        } else if (Array.isArray(responseData.existing_pledges)) {
+          pledgesArray = responseData.existing_pledges;
+        }
+
+        // Filter to only active/overdue
+        pledgesArray = pledgesArray.filter(
+          (p) =>
+            p &&
+            typeof p === "object" &&
+            ["active", "overdue"].includes(p.status)
+        );
+
+        setCustomerPledges(pledgesArray);
+
         dispatch(
           addToast({
             type: "success",
@@ -465,12 +488,14 @@ export default function NewPledge() {
       } else {
         setCustomerSearchResult("not_found");
         setCustomer(null);
+        setCustomerPledges([]);
       }
     } catch (error) {
       console.error("Search error:", error);
       if (error.response?.status === 404) {
         setCustomerSearchResult("not_found");
         setCustomer(null);
+        setCustomerPledges([]);
       } else {
         dispatch(
           addToast({
@@ -484,7 +509,6 @@ export default function NewPledge() {
       setIsSearching(false);
     }
   };
-
   // Item handlers
   const addItem = () => {
     const defaultPurity = "916";
@@ -1044,51 +1068,158 @@ export default function NewPledge() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl">
-                        {customer.name?.charAt(0) || "?"}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-zinc-800">
-                            {customer.name || "Unknown"}
-                          </h4>
-                          <Badge variant="success">Selected</Badge>
+                    {/* Customer Info Card */}
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl">
+                          {customer.name?.charAt(0) || "?"}
                         </div>
-                        <p className="text-sm text-zinc-500 font-mono">
-                          {formatIC(
-                            customer.ic_number || customer.icNumber || ""
-                          )}
-                        </p>
-                        <p className="text-sm text-zinc-500">
-                          {formatPhone(customer.phone || "")}
-                        </p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-zinc-800">
+                              {customer.name || "Unknown"}
+                            </h4>
+                            <Badge variant="success">Selected</Badge>
+                          </div>
+                          <p className="text-sm text-zinc-500 font-mono">
+                            {formatIC(
+                              customer.ic_number || customer.icNumber || ""
+                            )}
+                          </p>
+                          <p className="text-sm text-zinc-500">
+                            {formatPhone(customer.phone || "")}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-zinc-500">
+                            Active Pledges
+                          </p>
+                          <p className="text-xl font-bold text-zinc-800">
+                            {Array.isArray(customer.active_pledges)
+                              ? customer.active_pledges.length
+                              : customer.total_pledges ||
+                                customerPledges.length ||
+                                0}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => {
+                            setCustomer(null);
+                            setCustomerSearchResult(null);
+                            setCustomerPledges([]);
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-zinc-500">Active Pledges</p>
-                        <p className="text-xl font-bold text-zinc-800">
-                          {Array.isArray(customer.active_pledges)
-                            ? customer.active_pledges.length
-                            : Array.isArray(customer.activePledges)
-                            ? customer.activePledges.length
-                            : customer.active_pledges ||
-                              customer.activePledges ||
-                              0}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => {
-                          setCustomer(null);
-                          setCustomerSearchResult(null);
-                        }}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
                     </div>
+
+                    {/* Customer's Existing Pledges List */}
+                    {customerPledges.length > 0 && (
+                      <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FileText className="w-4 h-4 text-amber-600" />
+                          <h4 className="font-semibold text-amber-800">
+                            Existing Active Pledges ({customerPledges.length})
+                          </h4>
+                        </div>
+
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {customerPledges.map((pledge) => {
+                            const receiptNo =
+                              pledge.receipt_no ||
+                              pledge.pledge_no ||
+                              `PLG-${pledge.id}`;
+                            const amount = parseFloat(pledge.loan_amount) || 0;
+                            const status = (
+                              pledge.status || "active"
+                            ).toLowerCase();
+                            const dueDate = pledge.due_date
+                              ? new Date(pledge.due_date).toLocaleDateString(
+                                  "en-MY",
+                                  {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  }
+                                )
+                              : "N/A";
+
+                            return (
+                              <div
+                                key={pledge.id}
+                                className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-100 hover:border-amber-300 transition-colors"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                                    <Receipt className="w-4 h-4 text-amber-600" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-zinc-800 text-sm">
+                                      {receiptNo}
+                                    </p>
+                                    <p className="text-xs text-zinc-500">
+                                      Due: {dueDate}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                  <div className="text-right">
+                                    <p className="font-semibold text-zinc-800">
+                                      {formatCurrency(amount)}
+                                    </p>
+                                    <span
+                                      className={cn(
+                                        "text-xs px-2 py-0.5 rounded-full font-medium",
+                                        status === "overdue"
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-emerald-100 text-emerald-700"
+                                      )}
+                                    >
+                                      {status === "overdue"
+                                        ? "Overdue"
+                                        : "Active"}
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      window.open(
+                                        `/pledges/${pledge.id}`,
+                                        "_blank"
+                                      );
+                                    }}
+                                    className="p-1.5 text-zinc-400 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors"
+                                    title="View Pledge Details"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Warning if customer has overdue pledges */}
+                        {customerPledges.some(
+                          (p) => (p.status || "").toLowerCase() === "overdue"
+                        ) && (
+                          <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            <p className="text-xs text-red-700">
+                              Customer has overdue pledge(s). Please verify
+                              before creating new pledge.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
@@ -2231,6 +2362,7 @@ export default function NewPledge() {
                 setCustomer(null);
                 setIcSearch("");
                 setCustomerSearchResult(null);
+                setCustomerPledges([]);
                 setItems([{ ...emptyItem, id: "item-1" }]);
                 setSignature(null);
                 setAgreedToTerms(false);

@@ -8,7 +8,7 @@ import { useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
-import { pledgeService, redemptionService } from "@/services";
+import { pledgeService, redemptionService, settingsService } from "@/services";
 import {
   formatCurrency,
   formatDate,
@@ -64,9 +64,11 @@ export default function RedemptionScreen() {
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [amountReceived, setAmountReceived] = useState("");
+  const [cashAmount, setCashAmount] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
+  const [banks, setBanks] = useState([]);
   const [bankId, setBankId] = useState("");
-
   // Verification state
   const [verifiedIC, setVerifiedIC] = useState(false);
   const [verifiedItems, setVerifiedItems] = useState(false);
@@ -75,6 +77,20 @@ export default function RedemptionScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
+
+  // Fetch banks on mount
+  useEffect(() => {
+    const fetchBanks = async () => {
+      try {
+        const response = await settingsService.getBanks();
+        const banksData = response.data?.data || response.data || [];
+        setBanks(banksData);
+      } catch (error) {
+        console.error("Failed to fetch banks:", error);
+      }
+    };
+    fetchBanks();
+  }, []);
 
   // Load pre-selected pledge
   useEffect(() => {
@@ -230,15 +246,25 @@ export default function RedemptionScreen() {
       return;
     }
 
-    const received = parseFloat(amountReceived) || 0;
-    const totalPayable = calculation?.total_payable || 0;
+    const totalPayableAmount = calculation?.total_payable || 0;
 
-    if (received < totalPayable) {
+    // Calculate received based on payment method
+    let totalReceived = 0;
+    if (paymentMethod === "partial") {
+      totalReceived =
+        (parseFloat(cashAmount) || 0) + (parseFloat(transferAmount) || 0);
+    } else {
+      totalReceived = parseFloat(amountReceived) || 0;
+    }
+
+    if (totalReceived < totalPayableAmount) {
       dispatch(
         addToast({
           type: "error",
           title: "Insufficient",
-          message: `Amount must be at least ${formatCurrency(totalPayable)}`,
+          message: `Amount must be at least ${formatCurrency(
+            totalPayableAmount
+          )}`,
         })
       );
       return;
@@ -252,12 +278,16 @@ export default function RedemptionScreen() {
         pledge_id: pledge.id,
         payment_method: paymentMethod,
         cash_amount:
-          paymentMethod === "cash" || paymentMethod === "partial"
-            ? received
+          paymentMethod === "cash"
+            ? totalReceived
+            : paymentMethod === "partial"
+            ? parseFloat(cashAmount) || 0
             : 0,
         transfer_amount:
-          paymentMethod === "transfer" || paymentMethod === "partial"
-            ? received
+          paymentMethod === "transfer"
+            ? totalReceived
+            : paymentMethod === "partial"
+            ? parseFloat(transferAmount) || 0
             : 0,
         bank_id: paymentMethod !== "cash" && bankId ? parseInt(bankId) : null,
         reference_no: referenceNo || null,
@@ -275,8 +305,11 @@ export default function RedemptionScreen() {
           customerName: pledge.customerName,
           principal: calculation.principal,
           interest: calculation.total_interest,
-          totalPaid: totalPayable,
-          change: received - totalPayable,
+          totalPaid: totalPayableAmount,
+          change:
+            paymentMethod !== "partial"
+              ? totalReceived - totalPayableAmount
+              : 0,
           items: items,
           paymentMethod,
         });
@@ -537,35 +570,71 @@ export default function RedemptionScreen() {
 
                 <div className="space-y-3">
                   {(items.length > 0 ? items : pledge.items || []).map(
-                    (item, idx) => (
-                      <div
-                        key={item.id || idx}
-                        className="p-3 bg-zinc-50 rounded-lg flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                            <Package className="w-5 h-5 text-amber-600" />
+                    (item, idx) => {
+                      const itemPhoto =
+                        item.photo || item.photo_url || item.image || null;
+
+                      return (
+                        <div
+                          key={item.id || idx}
+                          className="p-3 bg-zinc-50 rounded-lg flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Item Photo or Default Icon */}
+                            {itemPhoto ? (
+                              <img
+                                src={itemPhoto}
+                                alt={item.description || "Item"}
+                                className="w-12 h-12 rounded-lg object-cover border border-zinc-200"
+                                onError={(e) => {
+                                  e.target.style.display = "none";
+                                  e.target.nextSibling.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className={cn(
+                                "w-12 h-12 bg-amber-100 rounded-lg items-center justify-center",
+                                itemPhoto ? "hidden" : "flex"
+                              )}
+                            >
+                              <Package className="w-6 h-6 text-amber-600" />
+                            </div>
+
+                            <div>
+                              <p className="font-medium text-zinc-800">
+                                {item.description ||
+                                  item.category?.name ||
+                                  item.category_name ||
+                                  "Gold Item"}
+                              </p>
+                              <p className="text-sm text-zinc-500">
+                                {item.purity?.code ||
+                                  item.purity?.name ||
+                                  item.purity_name ||
+                                  item.purity}{" "}
+                                •{" "}
+                                {parseFloat(
+                                  item.net_weight || item.netWeight || 0
+                                ).toFixed(2)}
+                                g
+                              </p>
+                              {/* Show barcode/item code if available */}
+                              {(item.barcode || item.item_code) && (
+                                <p className="text-xs text-zinc-400 font-mono">
+                                  {item.barcode || item.item_code}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-zinc-800">
-                              {item.description ||
-                                item.category?.name ||
-                                "Gold Item"}
-                            </p>
-                            <p className="text-sm text-zinc-500">
-                              {item.purity?.name || item.purity_name} •{" "}
-                              {parseFloat(
-                                item.net_weight || item.netWeight || 0
-                              ).toFixed(2)}
-                              g
-                            </p>
-                          </div>
+                          <p className="font-bold text-zinc-800">
+                            {formatCurrency(
+                              item.net_value || item.netValue || 0
+                            )}
+                          </p>
                         </div>
-                        <p className="font-bold text-zinc-800">
-                          {formatCurrency(item.net_value || item.netValue || 0)}
-                        </p>
-                      </div>
-                    )
+                      );
+                    }
                   )}
                 </div>
               </Card>
@@ -697,45 +766,125 @@ export default function RedemptionScreen() {
                   </div>
                 </div>
 
-                {/* Amount Received */}
-                <div className="mb-4">
-                  <label className="text-sm text-zinc-600 mb-2 block">
-                    Amount Received (RM)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="0.00"
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    leftIcon={DollarSign}
-                  />
-                </div>
-
-                {/* Reference No (for transfer) */}
-                {paymentMethod !== "cash" && (
+                {/* Amount Received - Different UI for partial vs single method */}
+                {paymentMethod === "partial" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Cash Amount (RM)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          value={cashAmount}
+                          onChange={(e) => setCashAmount(e.target.value)}
+                          leftIcon={Wallet}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Transfer Amount (RM)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          value={transferAmount}
+                          onChange={(e) => setTransferAmount(e.target.value)}
+                          leftIcon={Building2}
+                        />
+                      </div>
+                    </div>
+                    {/* Partial Payment Validation */}
+                    <div
+                      className={cn(
+                        "mb-4 p-3 rounded-lg flex justify-between items-center",
+                        Math.abs(
+                          (parseFloat(cashAmount) || 0) +
+                            (parseFloat(transferAmount) || 0) -
+                            totalPayable
+                        ) < 0.01
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-red-50 text-red-700"
+                      )}
+                    >
+                      <span>Cash + Transfer</span>
+                      <span className="font-bold">
+                        {formatCurrency(
+                          (parseFloat(cashAmount) || 0) +
+                            (parseFloat(transferAmount) || 0)
+                        )}
+                        {Math.abs(
+                          (parseFloat(cashAmount) || 0) +
+                            (parseFloat(transferAmount) || 0) -
+                            totalPayable
+                        ) < 0.01
+                          ? " ✓"
+                          : ` (need ${formatCurrency(totalPayable)})`}
+                      </span>
+                    </div>
+                  </>
+                ) : (
                   <div className="mb-4">
                     <label className="text-sm text-zinc-600 mb-2 block">
-                      Reference No
+                      Amount Received (RM)
                     </label>
                     <Input
-                      placeholder="Transfer reference number"
-                      value={referenceNo}
-                      onChange={(e) => setReferenceNo(e.target.value)}
+                      type="number"
+                      placeholder="0.00"
+                      value={amountReceived}
+                      onChange={(e) => setAmountReceived(e.target.value)}
+                      leftIcon={DollarSign}
                     />
                   </div>
                 )}
 
-                {/* Change */}
-                {parseFloat(amountReceived) > totalPayable && (
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg flex justify-between items-center">
-                    <span className="text-blue-700">Change</span>
-                    <span className="font-bold text-blue-700">
-                      {formatCurrency(
-                        parseFloat(amountReceived) - totalPayable
-                      )}
-                    </span>
-                  </div>
+                {/* Bank Selection & Reference No (for transfer, or partial with transfer amount) */}
+                {(paymentMethod === "transfer" ||
+                  (paymentMethod === "partial" &&
+                    parseFloat(transferAmount) > 0)) && (
+                  <>
+                    <div className="mb-4">
+                      <label className="text-sm text-zinc-600 mb-2 block">
+                        Bank
+                      </label>
+                      <Select
+                        value={bankId}
+                        onChange={(e) => setBankId(e.target.value)}
+                        options={[
+                          { value: "", label: "Select Bank..." },
+                          ...banks.map((bank) => ({
+                            value: String(bank.id),
+                            label: bank.name,
+                          })),
+                        ]}
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="text-sm text-zinc-600 mb-2 block">
+                        Reference No
+                      </label>
+                      <Input
+                        placeholder="Transfer reference number"
+                        value={referenceNo}
+                        onChange={(e) => setReferenceNo(e.target.value)}
+                      />
+                    </div>
+                  </>
                 )}
+
+                {/* Change - only for non-partial payments */}
+                {paymentMethod !== "partial" &&
+                  parseFloat(amountReceived) > totalPayable && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg flex justify-between items-center">
+                      <span className="text-blue-700">Change</span>
+                      <span className="font-bold text-blue-700">
+                        {formatCurrency(
+                          parseFloat(amountReceived) - totalPayable
+                        )}
+                      </span>
+                    </div>
+                  )}
 
                 {/* Process Button */}
                 <Button
@@ -746,11 +895,17 @@ export default function RedemptionScreen() {
                   onClick={handleProcessRedemption}
                   loading={isProcessing}
                   disabled={
-                    !amountReceived ||
-                    parseFloat(amountReceived) < totalPayable ||
+                    isCalculating ||
                     !verifiedIC ||
                     !verifiedItems ||
-                    isCalculating
+                    (paymentMethod === "partial"
+                      ? Math.abs(
+                          (parseFloat(cashAmount) || 0) +
+                            (parseFloat(transferAmount) || 0) -
+                            totalPayable
+                        ) >= 0.01
+                      : !amountReceived ||
+                        parseFloat(amountReceived) < totalPayable)
                   }
                 >
                   Process Redemption & Release Items -{" "}
@@ -884,6 +1039,10 @@ export default function RedemptionScreen() {
                 setSearchQuery("");
                 setPledge(null);
                 setAmountReceived("");
+                setCashAmount("");
+                setTransferAmount("");
+                setBankId("");
+                setReferenceNo("");
                 setVerifiedIC(false);
                 setVerifiedItems(false);
                 setCalculation(null);

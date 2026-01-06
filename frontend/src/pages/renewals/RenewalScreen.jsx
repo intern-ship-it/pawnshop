@@ -8,7 +8,7 @@ import { useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
-import { pledgeService, renewalService } from "@/services";
+import { pledgeService, renewalService, settingsService } from "@/services";
 import {
   formatCurrency,
   formatDate,
@@ -41,6 +41,9 @@ import {
   Info,
   X,
   Loader2,
+  Filter,
+  Eye,
+  List,
 } from "lucide-react";
 
 export default function RenewalScreen() {
@@ -57,8 +60,11 @@ export default function RenewalScreen() {
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [amountReceived, setAmountReceived] = useState("");
+  const [cashAmount, setCashAmount] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
   const [bankId, setBankId] = useState("");
+  const [banks, setBanks] = useState([]);
 
   // Extension state
   const [extensionMonths, setExtensionMonths] = useState(1);
@@ -67,10 +73,60 @@ export default function RenewalScreen() {
   const [calculation, setCalculation] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
 
+  // Date filter state
+  const [dateFrom, setDateFrom] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [dueList, setDueList] = useState([]);
+  const [isLoadingDueList, setIsLoadingDueList] = useState(false);
+
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [renewalResult, setRenewalResult] = useState(null);
+
+  // Fetch banks on mount
+  useEffect(() => {
+    const fetchBanks = async () => {
+      try {
+        const response = await settingsService.getBanks();
+        const banksData = response.data?.data || response.data || [];
+        setBanks(banksData);
+      } catch (error) {
+        console.error("Failed to fetch banks:", error);
+      }
+    };
+    fetchBanks();
+  }, []);
+
+  // Fetch due list when dates change
+  useEffect(() => {
+    const fetchDueList = async () => {
+      setIsLoadingDueList(true);
+      try {
+        const response = await renewalService.getDueList({
+          date_from: dateFrom,
+          date_to: dateTo,
+        });
+        const data = response.data?.data || response.data || [];
+        setDueList(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Failed to fetch due list:", error);
+        setDueList([]);
+      } finally {
+        setIsLoadingDueList(false);
+      }
+    };
+
+    if (dateFrom && dateTo) {
+      fetchDueList();
+    }
+  }, [dateFrom, dateTo]);
 
   // Load pre-selected pledge
   useEffect(() => {
@@ -213,15 +269,25 @@ export default function RenewalScreen() {
   const handleProcessRenewal = async () => {
     if (!pledge || !calculation) return;
 
-    const received = parseFloat(amountReceived) || 0;
-    const totalPayable = calculation?.calculation?.total_payable || 0;
+    const totalPayableAmount = calculation?.calculation?.total_payable || 0;
 
-    if (received < totalPayable) {
+    // Calculate received based on payment method
+    let totalReceived = 0;
+    if (paymentMethod === "partial") {
+      totalReceived =
+        (parseFloat(cashAmount) || 0) + (parseFloat(transferAmount) || 0);
+    } else {
+      totalReceived = parseFloat(amountReceived) || 0;
+    }
+
+    if (totalReceived < totalPayableAmount) {
       dispatch(
         addToast({
           type: "error",
           title: "Insufficient",
-          message: `Amount must be at least ${formatCurrency(totalPayable)}`,
+          message: `Amount must be at least ${formatCurrency(
+            totalPayableAmount
+          )}`,
         })
       );
       return;
@@ -236,12 +302,16 @@ export default function RenewalScreen() {
         renewal_months: extensionMonths,
         payment_method: paymentMethod,
         cash_amount:
-          paymentMethod === "cash" || paymentMethod === "partial"
-            ? received
+          paymentMethod === "cash"
+            ? totalReceived
+            : paymentMethod === "partial"
+            ? parseFloat(cashAmount) || 0
             : 0,
         transfer_amount:
-          paymentMethod === "transfer" || paymentMethod === "partial"
-            ? received
+          paymentMethod === "transfer"
+            ? totalReceived
+            : paymentMethod === "partial"
+            ? parseFloat(transferAmount) || 0
             : 0,
         bank_id: paymentMethod !== "cash" && bankId ? parseInt(bankId) : null,
         reference_no: referenceNo || null,
@@ -257,8 +327,11 @@ export default function RenewalScreen() {
           renewalId: data.renewal_no || data.id,
           pledgeId: pledge.pledgeNo,
           customerName: pledge.customerName,
-          amountPaid: totalPayable,
-          change: received - totalPayable,
+          amountPaid: totalPayableAmount,
+          change:
+            paymentMethod !== "partial"
+              ? totalReceived - totalPayableAmount
+              : 0,
           newDueDate: data.new_due_date || calculation?.renewal?.new_due_date,
           extensionMonths,
         });
@@ -332,10 +405,11 @@ export default function RenewalScreen() {
         initial="hidden"
         animate="visible"
       >
-        {/* Search Section */}
+        {/* Search & Filter Section */}
         <motion.div variants={itemVariants}>
           <Card className="p-6 mb-6">
-            <div className="flex items-center gap-4">
+            {/* Search Row */}
+            <div className="flex items-center gap-4 mb-4">
               <div className="flex-1">
                 <Input
                   placeholder="Enter Pledge No, Receipt No, or IC Number..."
@@ -354,6 +428,41 @@ export default function RenewalScreen() {
               </Button>
             </div>
 
+            {/* Date Filter Row */}
+            <div className="flex items-center gap-4 p-4 bg-zinc-50 rounded-lg">
+              <Filter className="w-5 h-5 text-zinc-400" />
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-zinc-600">From:</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-zinc-600">To:</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const today = new Date().toISOString().split("T")[0];
+                  setDateFrom(today);
+                  setDateTo(today);
+                }}
+              >
+                Today
+              </Button>
+            </div>
+
+            {/* Search Result Messages */}
             <AnimatePresence>
               {searchResult === "not_found" && (
                 <motion.div
@@ -399,6 +508,140 @@ export default function RenewalScreen() {
             </AnimatePresence>
           </Card>
         </motion.div>
+
+        {/* Due for Renewal List */}
+        {!pledge && (
+          <motion.div variants={itemVariants}>
+            <Card className="p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold text-zinc-800 flex items-center gap-2">
+                  <List className="w-5 h-5 text-amber-500" />
+                  Pledges Due for Renewal
+                  {isLoadingDueList && (
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                  )}
+                </h4>
+                <Badge variant="warning">{dueList.length} pledge(s)</Badge>
+              </div>
+
+              {dueList.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200">
+                        <th className="text-left py-3 px-2 font-medium text-zinc-600">
+                          Pledge ID
+                        </th>
+                        <th className="text-left py-3 px-2 font-medium text-zinc-600">
+                          Customer
+                        </th>
+                        <th className="text-left py-3 px-2 font-medium text-zinc-600">
+                          IC Number
+                        </th>
+                        <th className="text-left py-3 px-2 font-medium text-zinc-600">
+                          Due Date
+                        </th>
+                        <th className="text-right py-3 px-2 font-medium text-zinc-600">
+                          Loan Amount
+                        </th>
+                        <th className="text-center py-3 px-2 font-medium text-zinc-600">
+                          Status
+                        </th>
+                        <th className="text-center py-3 px-2 font-medium text-zinc-600">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dueList.map((item) => {
+                        const isOverdue = new Date(item.due_date) < new Date();
+                        return (
+                          <tr
+                            key={item.id}
+                            className="border-b border-zinc-100 hover:bg-zinc-50"
+                          >
+                            <td className="py-3 px-2 font-mono font-medium">
+                              {item.pledge_no}
+                            </td>
+                            <td className="py-3 px-2">
+                              {item.customer?.name || "N/A"}
+                            </td>
+                            <td className="py-3 px-2 font-mono">
+                              {formatIC(item.customer?.ic_number || "")}
+                            </td>
+                            <td className="py-3 px-2">
+                              {formatDate(item.due_date)}
+                            </td>
+                            <td className="py-3 px-2 text-right font-medium">
+                              {formatCurrency(item.loan_amount)}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <Badge
+                                variant={isOverdue ? "error" : "warning"}
+                                size="sm"
+                              >
+                                {isOverdue ? "Overdue" : "Due"}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                leftIcon={RefreshCw}
+                                onClick={() => {
+                                  setSearchQuery(item.pledge_no);
+                                  // Transform and set pledge data
+                                  const pledgeData = {
+                                    id: item.id,
+                                    pledgeNo: item.pledge_no,
+                                    receiptNo: item.receipt_no,
+                                    customerId: item.customer_id,
+                                    customerName:
+                                      item.customer?.name || "Unknown",
+                                    customerIC: item.customer?.ic_number || "",
+                                    customerPhone: item.customer?.phone || "",
+                                    totalWeight:
+                                      parseFloat(item.total_weight) || 0,
+                                    loanAmount:
+                                      parseFloat(item.loan_amount) || 0,
+                                    dueDate: item.due_date,
+                                    status: item.status,
+                                    renewalCount: item.renewal_count || 0,
+                                    itemsCount: item.items?.length || 0,
+                                    items: item.items || [],
+                                  };
+                                  setPledge(pledgeData);
+                                  setSearchResult("found");
+                                  fetchCalculation(item.id, extensionMonths);
+                                }}
+                              >
+                                Process
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-zinc-500">
+                  {isLoadingDueList ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Calendar className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
+                      <p>No pledges due for renewal in selected date range</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        )}
 
         {/* Pledge Details */}
         <AnimatePresence>
@@ -525,6 +768,99 @@ export default function RenewalScreen() {
                 )}
               </Card>
 
+              {/* Pledged Items Card */}
+              <Card className="p-6">
+                <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-amber-500" />
+                  Pledged Items (
+                  {pledge.items?.length || pledge.itemsCount || 0})
+                </h4>
+
+                <div className="space-y-3">
+                  {(pledge.items || []).map((item, idx) => {
+                    const itemPhoto =
+                      item.photo || item.photo_url || item.image || null;
+
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className="p-3 bg-zinc-50 rounded-lg flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Item Photo or Default Icon */}
+                          {itemPhoto ? (
+                            <img
+                              src={itemPhoto}
+                              alt={item.description || "Item"}
+                              className="w-12 h-12 rounded-lg object-cover border border-zinc-200"
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                                e.target.nextSibling.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className={cn(
+                              "w-12 h-12 bg-amber-100 rounded-lg items-center justify-center",
+                              itemPhoto ? "hidden" : "flex"
+                            )}
+                          >
+                            <Package className="w-6 h-6 text-amber-600" />
+                          </div>
+
+                          <div>
+                            <p className="font-medium text-zinc-800">
+                              {item.description ||
+                                item.category?.name ||
+                                item.category_name ||
+                                "Gold Item"}
+                            </p>
+                            <p className="text-sm text-zinc-500">
+                              {item.purity?.code ||
+                                item.purity?.name ||
+                                item.purity_name ||
+                                item.purity}{" "}
+                              •{" "}
+                              {parseFloat(
+                                item.net_weight || item.netWeight || 0
+                              ).toFixed(2)}
+                              g
+                            </p>
+                            {/* Show barcode/item code if available */}
+                            {(item.barcode || item.item_code) && (
+                              <p className="text-xs text-zinc-400 font-mono">
+                                {item.barcode || item.item_code}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-zinc-800">
+                            {formatCurrency(
+                              item.net_value || item.netValue || 0
+                            )}
+                          </p>
+                          <p className="text-xs text-zinc-500">
+                            Loan:{" "}
+                            {formatCurrency(
+                              item.loan_amount || item.loanAmount || 0
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Items Summary */}
+                <div className="mt-4 pt-4 border-t border-zinc-200 flex justify-between">
+                  <span className="text-zinc-600">Total Items Value</span>
+                  <span className="font-bold text-zinc-800">
+                    {formatCurrency(pledge.netValue)}
+                  </span>
+                </div>
+              </Card>
+
               {/* Interest Calculation Card */}
               <Card className="p-6">
                 <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
@@ -637,45 +973,121 @@ export default function RenewalScreen() {
                   </div>
                 </div>
 
-                {/* Amount Received */}
-                <div className="mb-4">
-                  <label className="text-sm text-zinc-600 mb-2 block">
-                    Amount Received (RM)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="0.00"
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    leftIcon={DollarSign}
-                  />
-                </div>
-
-                {/* Reference No (for transfer) */}
-                {paymentMethod !== "cash" && (
+                {/* Amount Received - Different UI for partial vs single method */}
+                {paymentMethod === "partial" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Cash Amount (RM)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          value={cashAmount}
+                          onChange={(e) => setCashAmount(e.target.value)}
+                          leftIcon={Wallet}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Transfer Amount (RM)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          value={transferAmount}
+                          onChange={(e) => setTransferAmount(e.target.value)}
+                          leftIcon={Building2}
+                        />
+                      </div>
+                    </div>
+                    {/* Partial Payment Validation */}
+                    <div
+                      className={cn(
+                        "mb-4 p-3 rounded-lg flex justify-between items-center",
+                        (parseFloat(cashAmount) || 0) +
+                          (parseFloat(transferAmount) || 0) >=
+                          totalPayable
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-red-50 text-red-700"
+                      )}
+                    >
+                      <span>Cash + Transfer</span>
+                      <span className="font-bold">
+                        {formatCurrency(
+                          (parseFloat(cashAmount) || 0) +
+                            (parseFloat(transferAmount) || 0)
+                        )}
+                        {(parseFloat(cashAmount) || 0) +
+                          (parseFloat(transferAmount) || 0) >=
+                        totalPayable
+                          ? " ✓"
+                          : ` (need ${formatCurrency(totalPayable)})`}
+                      </span>
+                    </div>
+                  </>
+                ) : (
                   <div className="mb-4">
                     <label className="text-sm text-zinc-600 mb-2 block">
-                      Reference No
+                      Amount Received (RM)
                     </label>
                     <Input
-                      placeholder="Transfer reference number"
-                      value={referenceNo}
-                      onChange={(e) => setReferenceNo(e.target.value)}
+                      type="number"
+                      placeholder="0.00"
+                      value={amountReceived}
+                      onChange={(e) => setAmountReceived(e.target.value)}
+                      leftIcon={DollarSign}
                     />
                   </div>
                 )}
 
-                {/* Change */}
-                {parseFloat(amountReceived) > totalPayable && (
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg flex justify-between items-center">
-                    <span className="text-blue-700">Change</span>
-                    <span className="font-bold text-blue-700">
-                      {formatCurrency(
-                        parseFloat(amountReceived) - totalPayable
-                      )}
-                    </span>
-                  </div>
+                {/* Bank Selection & Reference No (for transfer, or partial with transfer amount) */}
+                {(paymentMethod === "transfer" ||
+                  (paymentMethod === "partial" &&
+                    parseFloat(transferAmount) > 0)) && (
+                  <>
+                    <div className="mb-4">
+                      <label className="text-sm text-zinc-600 mb-2 block">
+                        Bank
+                      </label>
+                      <Select
+                        value={bankId}
+                        onChange={(e) => setBankId(e.target.value)}
+                        options={[
+                          { value: "", label: "Select Bank..." },
+                          ...banks.map((bank) => ({
+                            value: String(bank.id),
+                            label: bank.name,
+                          })),
+                        ]}
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="text-sm text-zinc-600 mb-2 block">
+                        Reference No
+                      </label>
+                      <Input
+                        placeholder="Transfer reference number"
+                        value={referenceNo}
+                        onChange={(e) => setReferenceNo(e.target.value)}
+                      />
+                    </div>
+                  </>
                 )}
+
+                {/* Change - only for non-partial payments */}
+                {paymentMethod !== "partial" &&
+                  parseFloat(amountReceived) > totalPayable && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg flex justify-between items-center">
+                      <span className="text-blue-700">Change</span>
+                      <span className="font-bold text-blue-700">
+                        {formatCurrency(
+                          parseFloat(amountReceived) - totalPayable
+                        )}
+                      </span>
+                    </div>
+                  )}
 
                 {/* New Due Date Preview */}
                 <div className="mb-6 p-4 bg-green-50 rounded-lg">
@@ -701,9 +1113,13 @@ export default function RenewalScreen() {
                   onClick={handleProcessRenewal}
                   loading={isProcessing}
                   disabled={
-                    !amountReceived ||
-                    parseFloat(amountReceived) < totalPayable ||
-                    isCalculating
+                    isCalculating ||
+                    (paymentMethod === "partial"
+                      ? (parseFloat(cashAmount) || 0) +
+                          (parseFloat(transferAmount) || 0) <
+                        totalPayable
+                      : !amountReceived ||
+                        parseFloat(amountReceived) < totalPayable)
                   }
                 >
                   Process Renewal - {formatCurrency(totalPayable)}
@@ -821,6 +1237,10 @@ export default function RenewalScreen() {
                 setSearchQuery("");
                 setPledge(null);
                 setAmountReceived("");
+                setCashAmount("");
+                setTransferAmount("");
+                setBankId("");
+                setReferenceNo("");
                 setExtensionMonths(1);
                 setCalculation(null);
               }}
