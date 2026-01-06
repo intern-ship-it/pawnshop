@@ -98,3 +98,13 @@ frontend/coverage/
 
 # Misc
 frontend/.eslintcache
+
+
+# ===========================
+# FRONTEND BUILD OUTPUT (in backend/public)
+# ===========================
+backend/public/assets/
+backend/public/build/
+backend/public/*.js
+backend/public/*.css
+!backend/public/.htaccess
