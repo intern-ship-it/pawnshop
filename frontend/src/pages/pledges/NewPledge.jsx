@@ -1069,9 +1069,13 @@ export default function NewPledge() {
                       <div className="text-right">
                         <p className="text-sm text-zinc-500">Active Pledges</p>
                         <p className="text-xl font-bold text-zinc-800">
-                          {customer.active_pledges ||
-                            customer.activePledges ||
-                            0}
+                          {Array.isArray(customer.active_pledges)
+                            ? customer.active_pledges.length
+                            : Array.isArray(customer.activePledges)
+                            ? customer.activePledges.length
+                            : customer.active_pledges ||
+                              customer.activePledges ||
+                              0}
                         </p>
                       </div>
                       <Button

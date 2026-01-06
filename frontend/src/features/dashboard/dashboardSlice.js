@@ -1,6 +1,8 @@
 /**
  * Dashboard Slice - Async thunks for dashboard API data
  * Connected to Laravel backend API
+ * 
+ * UPDATED: Added cash/transfer split per activity (pledges, renewals, redemptions)
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
@@ -31,10 +33,11 @@ export const fetchDashboardSummary = createAsyncThunk(
         totalCustomers: data.total_customers || 0,
         totalOutstanding: data.today?.pledges?.total || 0,
         totalOverdue: data.overdue_pledges || 0,
+        overdueAmount: data.overdue_amount || 0,
         monthlyRevenue: (data.today?.pledges?.total || 0) + 
                         (data.today?.renewals?.total || 0) + 
                         (data.today?.redemptions?.total || 0),
-        monthlyGrowth: 0, // Would need historical data to calculate
+        monthlyGrowth: data.monthly_growth || 0,
         today: data.today || {},
       }
     } catch (error) {
@@ -51,18 +54,25 @@ export const fetchTodayStats = createAsyncThunk(
       const data = normalizeResponse(response)
       
       // Map backend response to frontend expected structure
+      // NOW INCLUDES cash/transfer per activity for payment split bars
       return {
         newPledges: { 
           count: data.pledges?.count || 0, 
-          amount: data.pledges?.total || 0 
+          amount: data.pledges?.total || 0,
+          cash: data.pledges?.cash || 0,
+          transfer: data.pledges?.transfer || 0,
         },
         renewals: { 
           count: data.renewals?.count || 0, 
-          amount: data.renewals?.total || 0 
+          amount: data.renewals?.total || 0,
+          cash: data.renewals?.cash || 0,
+          transfer: data.renewals?.transfer || 0,
         },
         redemptions: { 
           count: data.redemptions?.count || 0, 
-          amount: data.redemptions?.total || 0 
+          amount: data.redemptions?.total || 0,
+          cash: data.redemptions?.cash || 0,
+          transfer: data.redemptions?.transfer || 0,
         },
         totalTransactions: (data.pledges?.count || 0) + 
                           (data.renewals?.count || 0) + 
@@ -93,7 +103,7 @@ export const fetchPaymentSplit = createAsyncThunk(
       
       return {
         cash: { 
-          count: 0, // Backend doesn't provide count, would need separate query
+          count: 0,
           amount: totalCash, 
           percentage: grandTotal > 0 ? Math.round((totalCash / grandTotal) * 100) : 0 
         },
@@ -144,7 +154,7 @@ export const fetchDueReminders = createAsyncThunk(
         sevenDays,
         threeDays,
         oneDay,
-        overdue: [], // Overdue is fetched separately
+        overdue: [],
         counts: data.counts || {},
       }
     } catch (error) {
@@ -159,8 +169,6 @@ export const fetchOverduePledges = createAsyncThunk(
     try {
       const response = await dashboardService.getOverduePledges(params)
       const data = normalizeResponse(response)
-      
-      // Backend returns paginated data
       return data.data || data || []
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch overdue pledges')
@@ -175,18 +183,12 @@ export const fetchGoldPrices = createAsyncThunk(
       const response = await dashboardService.getGoldPrices()
       const data = normalizeResponse(response)
       
-      // Map backend response (prices.999, prices.916) to frontend expected format
-      const prices = data.prices || {}
-      
       return {
-        price_999: prices['999'] || 0,
-        price_916: prices['916'] || 0,
-        price_875: prices['875'] || 0,
-        price_750: prices['750'] || 0,
-        price_585: prices['585'] || 0,
-        price_375: prices['375'] || 0,
-        updated_at: data.price_date || null,
-        source: data.source || 'manual',
+        price_999: data.price_999 || data.price999 || 0,
+        price_916: data.price_916 || data.price916 || 0,
+        price_875: data.price_875 || data.price875 || 0,
+        price_750: data.price_750 || data.price750 || 0,
+        updated_at: data.updated_at || null,
       }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch gold prices')
@@ -216,21 +218,23 @@ export const fetchAllDashboardData = createAsyncThunk(
   }
 )
 
-// Initial state
+// Initial state - UPDATED with cash/transfer per activity
 const initialState = {
   summary: {
     totalPledges: 0,
     totalCustomers: 0,
     totalOutstanding: 0,
     totalOverdue: 0,
+    overdueAmount: 0,
     monthlyRevenue: 0,
     monthlyGrowth: 0,
   },
   todayStats: {
-    newPledges: { count: 0, amount: 0 },
-    renewals: { count: 0, amount: 0 },
-    redemptions: { count: 0, amount: 0 },
+    newPledges: { count: 0, amount: 0, cash: 0, transfer: 0 },
+    renewals: { count: 0, amount: 0, cash: 0, transfer: 0 },
+    redemptions: { count: 0, amount: 0, cash: 0, transfer: 0 },
     totalTransactions: 0,
+    totals: { cash: 0, transfer: 0 },
   },
   paymentSplit: {
     cash: { count: 0, amount: 0, percentage: 0 },

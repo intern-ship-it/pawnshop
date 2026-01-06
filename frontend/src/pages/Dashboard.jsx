@@ -1,6 +1,8 @@
 /**
  * Dashboard Page - Connected to Laravel API
  * Displays real-time data from backend
+ *
+ * UPDATED: Added Payment Split bar inside each summary card (Pledges/Renewals/Redemptions)
  */
 
 import { useEffect } from "react";
@@ -38,6 +40,63 @@ import {
   Building2,
 } from "lucide-react";
 
+// Payment Split Mini Bar Component
+const PaymentSplitBar = ({
+  cash = 0,
+  transfer = 0,
+  cashAmount = 0,
+  transferAmount = 0,
+  size = "sm",
+}) => {
+  const total = cash + transfer;
+  const cashPercent = total > 0 ? Math.round((cash / total) * 100) : 0;
+  const transferPercent = total > 0 ? 100 - cashPercent : 0;
+
+  return (
+    <div
+      className={cn(
+        "mt-3 pt-3 border-t border-zinc-100",
+        size === "lg" && "mt-4 pt-4"
+      )}
+    >
+      <div className="flex items-center justify-between text-xs mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <Banknote className="w-3 h-3 text-emerald-500" />
+          <span className="text-zinc-500">Cash</span>
+          <span className="font-semibold text-zinc-700">{cashPercent}%</span>
+          {cashAmount > 0 && (
+            <span className="text-zinc-400">
+              ({formatCurrency(cashAmount)})
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Building2 className="w-3 h-3 text-blue-500" />
+          <span className="text-zinc-500">Transfer</span>
+          <span className="font-semibold text-zinc-700">
+            {transferPercent}%
+          </span>
+          {transferAmount > 0 && (
+            <span className="text-zinc-400">
+              ({formatCurrency(transferAmount)})
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden flex">
+        <div
+          className="h-full bg-emerald-500 transition-all duration-500"
+          style={{ width: `${cashPercent}%` }}
+        />
+        <div
+          className="h-full bg-blue-500 transition-all duration-500"
+          style={{ width: `${transferPercent}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -72,6 +131,8 @@ export default function Dashboard() {
     todayPledges: {
       count: todayStats?.newPledges?.count || 0,
       amount: todayStats?.newPledges?.amount || 0,
+      cash: todayStats?.newPledges?.cash || 0,
+      transfer: todayStats?.newPledges?.transfer || 0,
       trend:
         summary?.monthlyGrowth > 0
           ? `+${summary?.monthlyGrowth}%`
@@ -80,14 +141,20 @@ export default function Dashboard() {
     renewals: {
       amount: todayStats?.renewals?.amount || 0,
       transactions: todayStats?.renewals?.count || 0,
+      cash: todayStats?.renewals?.cash || 0,
+      transfer: todayStats?.renewals?.transfer || 0,
     },
     redemptions: {
       count: todayStats?.redemptions?.count || 0,
       amount: todayStats?.redemptions?.amount || 0,
+      cash: todayStats?.redemptions?.cash || 0,
+      transfer: todayStats?.redemptions?.transfer || 0,
     },
     paymentSplit: {
       cash: paymentSplit?.cash?.percentage || 0,
       online: paymentSplit?.transfer?.percentage || 0,
+      cashAmount: paymentSplit?.cash?.amount || 0,
+      transferAmount: paymentSplit?.transfer?.amount || 0,
     },
     overdue: {
       count: dueReminders?.overdue?.length || summary?.totalOverdue || 0,
@@ -200,9 +267,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats Cards Row - DATA FROM API */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Today's Pledges */}
+      {/* Stats Cards Row - DATA FROM API with Payment Split in each card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Today's Pledges - WITH PAYMENT SPLIT */}
         <div
           onClick={() => navigate("/pledges")}
           className="bg-white rounded-xl border border-zinc-200 border-l-4 border-l-zinc-900 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
@@ -230,9 +297,17 @@ export default function Dashboard() {
           <p className="text-sm font-semibold text-zinc-700 mt-1">
             {formatCurrency(stats.todayPledges.amount)}
           </p>
+
+          {/* Payment Split Bar for Pledges */}
+          <PaymentSplitBar
+            cash={stats.todayPledges.cash}
+            transfer={stats.todayPledges.transfer}
+            cashAmount={stats.todayPledges.cash}
+            transferAmount={stats.todayPledges.transfer}
+          />
         </div>
 
-        {/* Renewals */}
+        {/* Renewals - WITH PAYMENT SPLIT */}
         <div
           onClick={() => navigate("/renewals")}
           className="bg-white rounded-xl border border-zinc-200 border-l-4 border-l-amber-500 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
@@ -249,9 +324,17 @@ export default function Dashboard() {
           <p className="text-sm text-zinc-500 mt-1">
             {stats.renewals.transactions} transactions today
           </p>
+
+          {/* Payment Split Bar for Renewals */}
+          <PaymentSplitBar
+            cash={stats.renewals.cash}
+            transfer={stats.renewals.transfer}
+            cashAmount={stats.renewals.cash}
+            transferAmount={stats.renewals.transfer}
+          />
         </div>
 
-        {/* Redemptions */}
+        {/* Redemptions - WITH PAYMENT SPLIT */}
         <div
           onClick={() => navigate("/redemptions")}
           className="bg-white rounded-xl border border-zinc-200 border-l-4 border-l-emerald-500 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
@@ -269,36 +352,14 @@ export default function Dashboard() {
           <p className="text-sm font-semibold text-emerald-600 mt-1">
             {formatCurrency(stats.redemptions.amount)}
           </p>
-        </div>
 
-        {/* Payment Split */}
-        <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm">
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-blue-600" />
-            </div>
-          </div>
-          <p className="text-sm text-zinc-500 mb-3">Payment Split</p>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span className="text-sm text-zinc-600">
-                Cash {stats.paymentSplit.cash}%
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-              <span className="text-sm text-zinc-600">
-                Online {stats.paymentSplit.online}%
-              </span>
-            </div>
-          </div>
-          <div className="mt-2 h-2 bg-zinc-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-500 rounded-full transition-all duration-500"
-              style={{ width: `${stats.paymentSplit.cash}%` }}
-            ></div>
-          </div>
+          {/* Payment Split Bar for Redemptions */}
+          <PaymentSplitBar
+            cash={stats.redemptions.cash}
+            transfer={stats.redemptions.transfer}
+            cashAmount={stats.redemptions.cash}
+            transferAmount={stats.redemptions.transfer}
+          />
         </div>
 
         {/* Overdue Alerts */}
@@ -319,6 +380,82 @@ export default function Dashboard() {
           <p className="text-sm text-red-500 mt-1 flex items-center gap-1 group-hover:underline">
             View overdue items <ArrowRight className="w-3 h-3" />
           </p>
+
+          {/* Total Overdue Amount (if available) */}
+          <div className="mt-3 pt-3 border-t border-zinc-100">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-500">Total Outstanding</span>
+              <span className="font-semibold text-red-600">
+                {formatCurrency(summary?.overdueAmount || 0)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Overall Payment Split Card - Kept for total overview */}
+      <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-zinc-800">
+                Today's Total Payment Split
+              </h3>
+              <p className="text-xs text-zinc-500">All transactions combined</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-bold text-zinc-800">
+              {formatCurrency(
+                stats.paymentSplit.cashAmount +
+                  stats.paymentSplit.transferAmount
+              )}
+            </p>
+            <p className="text-xs text-zinc-500">Total collected</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="bg-emerald-50 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Banknote className="w-4 h-4 text-emerald-600" />
+              <span className="text-sm font-medium text-emerald-700">Cash</span>
+            </div>
+            <p className="text-xl font-bold text-emerald-700">
+              {formatCurrency(stats.paymentSplit.cashAmount)}
+            </p>
+            <p className="text-xs text-emerald-600">
+              {stats.paymentSplit.cash}% of total
+            </p>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Building2 className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-700">
+                Online Transfer
+              </span>
+            </div>
+            <p className="text-xl font-bold text-blue-700">
+              {formatCurrency(stats.paymentSplit.transferAmount)}
+            </p>
+            <p className="text-xs text-blue-600">
+              {stats.paymentSplit.online}% of total
+            </p>
+          </div>
+        </div>
+
+        <div className="h-3 bg-zinc-100 rounded-full overflow-hidden flex">
+          <div
+            className="h-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${stats.paymentSplit.cash}%` }}
+          />
+          <div
+            className="h-full bg-blue-500 transition-all duration-500"
+            style={{ width: `${stats.paymentSplit.online}%` }}
+          />
         </div>
       </div>
 
