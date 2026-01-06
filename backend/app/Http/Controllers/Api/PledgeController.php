@@ -32,7 +32,8 @@ class PledgeController extends Controller
         $branchId = $request->user()->branch_id;
 
         $query = Pledge::where('branch_id', $branchId)
-            ->with(['customer:id,name,ic_number,phone']);
+            ->with(['customer:id,name,ic_number,phone'])
+            ->withCount('items');
 
         // Search
         if ($search = $request->get('search')) {
@@ -103,8 +104,8 @@ class PledgeController extends Controller
 
         // Get today's gold prices
         $goldPrices = GoldPrice::where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->orderBy('price_date', 'desc')
             ->first();
 
@@ -145,7 +146,7 @@ class PledgeController extends Controller
 
             $netWeight = $grossWeight - $deductionWeight;
             $grossValue = $grossWeight * $pricePerGram;
-            
+
             if ($stoneDeductionType === 'amount') {
                 $netValue = $grossValue - $deductionAmount;
                 $deductionAmountCalc = $deductionAmount;
@@ -257,8 +258,8 @@ class PledgeController extends Controller
 
         // Get gold prices
         $goldPrices = GoldPrice::where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->orderBy('price_date', 'desc')
             ->first();
 
@@ -278,7 +279,7 @@ class PledgeController extends Controller
             foreach ($validated['items'] as $item) {
                 $purity = \App\Models\Purity::find($item['purity_id']);
                 $pricePerGram = $goldPrices->getPriceForPurity($purity->code);
-                
+
                 $gw = $item['gross_weight'];
                 $deductionWeight = 0;
                 $deductionAmt = 0;

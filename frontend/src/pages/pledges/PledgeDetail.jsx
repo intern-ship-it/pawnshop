@@ -1,14 +1,19 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router'
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { setPledges, setSelectedPledge } from '@/features/pledges/pledgesSlice'
-import { addToast } from '@/features/ui/uiSlice'
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/utils/localStorage'
-import { formatCurrency, formatDate, formatIC, formatPhone } from '@/utils/formatters'
-import { cn } from '@/lib/utils'
-import { motion, AnimatePresence } from 'framer-motion'
-import PageWrapper from '@/components/layout/PageWrapper'
-import { Card, Button, Badge, Modal, Input } from '@/components/common'
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router";
+import { useAppDispatch } from "@/app/hooks";
+import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
+import { addToast } from "@/features/ui/uiSlice";
+import { pledgeService } from "@/services";
+import {
+  formatCurrency,
+  formatDate,
+  formatIC,
+  formatPhone,
+} from "@/utils/formatters";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import PageWrapper from "@/components/layout/PageWrapper";
+import { Card, Button, Badge, Modal, Input } from "@/components/common";
 import {
   ArrowLeft,
   User,
@@ -41,675 +46,845 @@ import {
   History,
   AlertCircle,
   Info,
-} from 'lucide-react'
+  Loader2,
+} from "lucide-react";
 
 // Status config
 const statusConfig = {
-  active: { label: 'Active', color: 'emerald', icon: CheckCircle },
-  overdue: { label: 'Overdue', color: 'red', icon: AlertTriangle },
-  redeemed: { label: 'Redeemed', color: 'blue', icon: DollarSign },
-  forfeited: { label: 'Forfeited', color: 'amber', icon: XCircle },
-  auctioned: { label: 'Auctioned', color: 'zinc', icon: Package },
-}
+  active: { label: "Active", color: "emerald", icon: CheckCircle },
+  overdue: { label: "Overdue", color: "red", icon: AlertTriangle },
+  redeemed: { label: "Redeemed", color: "blue", icon: DollarSign },
+  forfeited: { label: "Forfeited", color: "amber", icon: XCircle },
+  auctioned: { label: "Auctioned", color: "zinc", icon: Package },
+};
 
 // Tabs
 const tabs = [
-  { id: 'overview', label: 'Overview', icon: FileText },
-  { id: 'items', label: 'Items', icon: Package },
-  { id: 'history', label: 'History', icon: History },
-]
+  { id: "overview", label: "Overview", icon: FileText },
+  { id: "items", label: "Items", icon: Package },
+  { id: "history", label: "History", icon: History },
+];
 
 export default function PledgeDetail() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const dispatch = useAppDispatch()
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   // State
-  const [pledge, setPledge] = useState(null)
-  const [activeTab, setActiveTab] = useState('overview')
-  const [showImageModal, setShowImageModal] = useState(false)
-  const [selectedImage, setSelectedImage] = useState(null)
-  const [showRackModal, setShowRackModal] = useState(false)
-  const [rackLocation, setRackLocation] = useState('')
+  const [pledge, setPledge] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [showRackModal, setShowRackModal] = useState(false);
+  const [rackLocation, setRackLocation] = useState("");
+  const [interestBreakdown, setInterestBreakdown] = useState(null);
 
-  // Load pledge on mount
+  // Fetch pledge from API
   useEffect(() => {
-    const storedPledges = getStorageItem(STORAGE_KEYS.PLEDGES, [])
-    const found = storedPledges.find(p => p.id === id)
+    const fetchPledge = async () => {
+      try {
+        setLoading(true);
+        const response = await pledgeService.getById(id);
+        const responseData = response.data?.data || response.data;
 
-    if (found) {
-      // Check if overdue
-      const now = new Date()
-      if (found.status === 'active' && new Date(found.dueDate) < now) {
-        found.status = 'overdue'
+        // Backend returns { pledge: {...}, interest_breakdown: [...], ... }
+        const data = responseData?.pledge || responseData;
+
+        // Transform API response to frontend format
+        const transformedPledge = {
+          id: data.id,
+          pledgeNo: data.pledge_no,
+          receiptNo: data.receipt_no,
+          customerId: data.customer_id,
+          customerName: data.customer?.name || "Unknown",
+          customerIC: data.customer?.ic_number || "",
+          customerPhone: data.customer?.phone || "",
+          customerAddress: data.customer?.address || "",
+          totalWeight: parseFloat(data.total_weight) || 0,
+          grossValue: parseFloat(data.gross_value) || 0,
+          totalDeduction: parseFloat(data.total_deduction) || 0,
+          netValue: parseFloat(data.net_value) || 0,
+          loanPercentage: parseFloat(data.loan_percentage) || 0,
+          loanAmount: parseFloat(data.loan_amount) || 0,
+          interestRate: parseFloat(data.interest_rate) || 0.5,
+          interestRateExtended: parseFloat(data.interest_rate_extended) || 1.5,
+          interestRateOverdue: parseFloat(data.interest_rate_overdue) || 2.0,
+          pledgeDate: data.pledge_date,
+          dueDate: data.due_date,
+          graceEndDate: data.grace_end_date,
+          status: data.status,
+          renewalCount: data.renewal_count || 0,
+          goldPrice999: parseFloat(data.gold_price_999) || 0,
+          goldPrice916: parseFloat(data.gold_price_916) || 0,
+          goldPrice875: parseFloat(data.gold_price_875) || 0,
+          goldPrice750: parseFloat(data.gold_price_750) || 0,
+          items: (data.items || []).map((item) => ({
+            id: item.id,
+            itemNo: item.item_no,
+            barcode: item.barcode,
+            category:
+              item.category?.name_en || item.category?.name || "Unknown",
+            categoryMs: item.category?.name_ms || "",
+            purity: item.purity?.code || "",
+            purityName: item.purity?.name || "",
+            grossWeight: parseFloat(item.gross_weight) || 0,
+            netWeight: parseFloat(item.net_weight) || 0,
+            stoneDeductionType: item.stone_deduction_type,
+            stoneDeductionValue: parseFloat(item.stone_deduction_value) || 0,
+            pricePerGram: parseFloat(item.price_per_gram) || 0,
+            grossValue: parseFloat(item.gross_value) || 0,
+            deductionAmount: parseFloat(item.deduction_amount) || 0,
+            netValue: parseFloat(item.net_value) || 0,
+            description: item.description || "",
+            photo: item.photo,
+            vaultId: item.vault_id,
+            boxId: item.box_id,
+            slotId: item.slot_id,
+            location:
+              item.location_string ||
+              (item.vault
+                ? `${item.vault.code} / Box ${item.box?.box_number} / Slot ${item.slot?.slot_number}`
+                : "Not Assigned"),
+          })),
+          payments: (data.payments || []).map((payment) => ({
+            id: payment.id,
+            totalAmount: parseFloat(payment.total_amount) || 0,
+            cashAmount: parseFloat(payment.cash_amount) || 0,
+            transferAmount: parseFloat(payment.transfer_amount) || 0,
+            bankName: payment.bank?.name || "",
+            referenceNo: payment.reference_no,
+            paymentMethod: payment.payment_method,
+            paymentDate: payment.payment_date,
+          })),
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+          createdBy: data.created_by_user?.name || "",
+        };
+
+        setPledge(transformedPledge);
+        dispatch(setSelectedPledge(transformedPledge));
+
+        // Use interest breakdown from response if available
+        if (responseData?.interest_breakdown) {
+          setInterestBreakdown(responseData.interest_breakdown);
+        } else {
+          // Fetch interest breakdown separately as fallback
+          try {
+            const interestResponse = await pledgeService.getInterestBreakdown(
+              id
+            );
+            setInterestBreakdown(
+              interestResponse.data?.data || interestResponse.data
+            );
+          } catch (err) {
+            console.log("Interest breakdown not available");
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching pledge:", error);
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: error.response?.data?.message || "Failed to load pledge",
+          })
+        );
+        setPledge(null);
+      } finally {
+        setLoading(false);
       }
-      setPledge(found)
-      setRackLocation(found.rackLocation || '')
-    }
-  }, [id])
+    };
 
-  // Calculate interest
+    if (id) {
+      fetchPledge();
+    }
+  }, [id, dispatch]);
+
+  // Calculate interest (fallback if API doesn't provide)
   const calculateInterest = () => {
-    if (!pledge) return { months: 0, rate: 0, amount: 0, total: 0 }
+    if (!pledge) return { months: 0, rate: 0, amount: 0, total: 0 };
 
-    const createdDate = new Date(pledge.createdAt)
-    const now = new Date()
-    const months = Math.max(1, Math.ceil((now - createdDate) / (1000 * 60 * 60 * 24 * 30)))
+    const createdDate = new Date(pledge.pledgeDate || pledge.createdAt);
+    const now = new Date();
+    const months = Math.max(
+      1,
+      Math.ceil((now - createdDate) / (1000 * 60 * 60 * 24 * 30))
+    );
 
-    // Interest calculation based on tenure
-    let totalInterest = 0
+    let totalInterest = 0;
     for (let i = 1; i <= months; i++) {
-      const rate = i <= 6 ? 0.5 : 1.5 // 0.5% first 6 months, 1.5% after
-      totalInterest += pledge.loanAmount * (rate / 100)
+      const rate = i <= 6 ? pledge.interestRate : pledge.interestRateExtended;
+      totalInterest += pledge.loanAmount * (rate / 100);
     }
 
-    const currentRate = months <= 6 ? 0.5 : 1.5
-    const totalDue = pledge.loanAmount + totalInterest
+    return {
+      principal: pledge.loanAmount,
+      interest: totalInterest,
+      total: pledge.loanAmount + totalInterest,
+      months,
+      rate: months <= 6 ? pledge.interestRate : pledge.interestRateExtended,
+    };
+  };
 
-    return { months, rate: currentRate, amount: totalInterest, total: totalDue }
-  }
+  const interest = calculateInterest();
 
-  const interest = calculateInterest()
+  // Handle print - downloads PDF from PrintController
+  const handlePrint = async (copyType = "customer") => {
+    try {
+      const token = localStorage.getItem("pawnsys_token"); // ← FIXED!
 
-  // Days until due
+      if (!token) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Please login again",
+          })
+        );
+        return;
+      }
+
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+
+      const response = await fetch(
+        `${apiUrl}/print/pledge-receipt/${pledge.id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/pdf",
+          },
+          body: JSON.stringify({ copy_type: copyType }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to generate receipt");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      window.open(url, "_blank");
+
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipt Generated",
+          message: "PDF opened in new tab",
+        })
+      );
+    } catch (error) {
+      console.error("Print error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Failed",
+          message: error.message || "Failed to generate receipt",
+        })
+      );
+    }
+  };
+
+  // Handle WhatsApp
+  const handleWhatsApp = async () => {
+    try {
+      await pledgeService.sendWhatsApp(pledge.id);
+      dispatch(
+        addToast({
+          type: "success",
+          title: "WhatsApp",
+          message: "Sent to customer",
+        })
+      );
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to send WhatsApp",
+        })
+      );
+    }
+  };
+
+  // Get days until due
   const getDaysUntilDue = () => {
-    if (!pledge) return 0
-    const now = new Date()
-    const due = new Date(pledge.dueDate)
-    return Math.ceil((due - now) / (1000 * 60 * 60 * 24))
-  }
+    if (!pledge?.dueDate) return 0;
+    const now = new Date();
+    const due = new Date(pledge.dueDate);
+    return Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+  };
 
-  const daysUntilDue = getDaysUntilDue()
-
-  // Save rack location
-  const handleSaveRack = () => {
-    if (!pledge) return
-
-    const storedPledges = getStorageItem(STORAGE_KEYS.PLEDGES, [])
-    const updatedPledges = storedPledges.map(p =>
-      p.id === id ? { ...p, rackLocation } : p
-    )
-    setStorageItem(STORAGE_KEYS.PLEDGES, updatedPledges)
-    dispatch(setPledges(updatedPledges))
-    setPledge({ ...pledge, rackLocation })
-    setShowRackModal(false)
-
-    dispatch(addToast({
-      type: 'success',
-      title: 'Saved',
-      message: `Rack location updated to ${rackLocation}`,
-    }))
-  }
-
-  // Action handlers
-  const handleRenewal = () => {
-    dispatch(setSelectedPledge(pledge))
-    navigate('/renewals')
-  }
-
-  const handleRedemption = () => {
-    dispatch(setSelectedPledge(pledge))
-    navigate('/redemptions')
-  }
-
-  const handlePrint = () => {
-    dispatch(addToast({ type: 'info', title: 'Print', message: 'Opening print dialog...' }))
-  }
-
-  const handleWhatsApp = () => {
-    if (!pledge?.customerPhone) {
-      dispatch(addToast({ type: 'warning', title: 'No Phone', message: 'Customer phone not available' }))
-      return
-    }
-    const message = `Hi ${pledge?.customerName}, your pledge ${pledge?.id} is due on ${formatDate(pledge?.dueDate)}. Total amount due: ${formatCurrency(interest.total)}`
-    window.open(`https://wa.me/${pledge?.customerPhone?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank')
-  }
-
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  }
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
+  // Loading state
+  if (loading) {
+    return (
+      <PageWrapper title="Pledge Details">
+        <Card className="p-8">
+          <div className="flex items-center justify-center gap-3 text-zinc-500">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            <span>Loading pledge details...</span>
+          </div>
+        </Card>
+      </PageWrapper>
+    );
   }
 
   // Not found state
   if (!pledge) {
     return (
       <PageWrapper title="Pledge Not Found">
-        <Card className="p-12 text-center">
-          <Package className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-zinc-800 mb-2">Pledge Not Found</h3>
-          <p className="text-zinc-500 mb-4">The pledge you're looking for doesn't exist.</p>
-          <Button variant="accent" onClick={() => navigate('/pledges')}>
+        <Card className="p-8 text-center">
+          <Package className="w-16 h-16 mx-auto mb-4 text-zinc-300" />
+          <h2 className="text-xl font-semibold text-zinc-700 mb-2">
+            Pledge Not Found
+          </h2>
+          <p className="text-zinc-500 mb-4">
+            The pledge you're looking for doesn't exist.
+          </p>
+          <Button variant="primary" onClick={() => navigate("/pledges")}>
             Back to Pledges
           </Button>
         </Card>
       </PageWrapper>
-    )
+    );
   }
 
-  const status = statusConfig[pledge.status] || statusConfig.active
-  const StatusIcon = status.icon
+  const status = statusConfig[pledge.status] || statusConfig.active;
+  const StatusIcon = status.icon;
+  const daysUntilDue = getDaysUntilDue();
 
   return (
     <PageWrapper
-      title={`Pledge: ${pledge.id}`}
-      subtitle={`Created on ${formatDate(pledge.createdAt)}`}
-      actions={
+      title={
         <div className="flex items-center gap-3">
-          <Button variant="outline" leftIcon={ArrowLeft} onClick={() => navigate('/pledges')}>
-            Back
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => navigate("/pledges")}
+          >
+            <ArrowLeft className="w-5 h-5" />
           </Button>
-          <Button variant="outline" leftIcon={Printer} onClick={handlePrint}>
-            Print
-          </Button>
-          <Button variant="outline" leftIcon={MessageSquare} onClick={handleWhatsApp}>
+          <span>Pledge {pledge.receiptNo}</span>
+        </div>
+      }
+      actions={
+        <div className="flex items-center gap-2">
+          <div className="relative group">
+            <Button
+              variant="outline"
+              leftIcon={Printer}
+              onClick={() => handlePrint("customer")}
+            >
+              Print
+            </Button>
+            {/* Dropdown for print options */}
+            <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-zinc-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <button
+                className="w-full px-4 py-2 text-left text-sm hover:bg-zinc-50 rounded-t-lg"
+                onClick={() => handlePrint("customer")}
+              >
+                Customer Copy
+              </button>
+              <button
+                className="w-full px-4 py-2 text-left text-sm hover:bg-zinc-50 rounded-b-lg"
+                onClick={() => handlePrint("office")}
+              >
+                Office Copy
+              </button>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            leftIcon={MessageSquare}
+            onClick={handleWhatsApp}
+          >
             WhatsApp
           </Button>
+          {(pledge.status === "active" || pledge.status === "overdue") && (
+            <>
+              <Button
+                variant="primary"
+                leftIcon={RefreshCw}
+                onClick={() => navigate("/renewals")}
+              >
+                Renew
+              </Button>
+              <Button
+                variant="accent"
+                leftIcon={DollarSign}
+                onClick={() => navigate("/redemptions")}
+              >
+                Redeem
+              </Button>
+            </>
+          )}
         </div>
       }
     >
-      <motion.div
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Status Banner */}
-          <motion.div variants={itemVariants}>
-            <Card className={cn(
-              'p-4 border-l-4',
-              status.color === 'emerald' && 'border-l-emerald-500 bg-emerald-50',
-              status.color === 'red' && 'border-l-red-500 bg-red-50',
-              status.color === 'blue' && 'border-l-blue-500 bg-blue-50',
-              status.color === 'amber' && 'border-l-amber-500 bg-amber-50',
-              status.color === 'zinc' && 'border-l-zinc-500 bg-zinc-50',
-            )}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <StatusIcon className={cn(
-                    'w-6 h-6',
-                    status.color === 'emerald' && 'text-emerald-600',
-                    status.color === 'red' && 'text-red-600',
-                    status.color === 'blue' && 'text-blue-600',
-                    status.color === 'amber' && 'text-amber-600',
-                    status.color === 'zinc' && 'text-zinc-600',
-                  )} />
-                  <div>
-                    <p className="font-semibold text-zinc-800">{status.label}</p>
-                    {(pledge.status === 'active' || pledge.status === 'overdue') && (
-                      <p className="text-sm text-zinc-600">
-                        {daysUntilDue > 0
-                          ? `Due in ${daysUntilDue} days (${formatDate(pledge.dueDate)})`
-                          : daysUntilDue === 0
-                            ? 'Due today!'
-                            : `Overdue by ${Math.abs(daysUntilDue)} days`
-                        }
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {(pledge.status === 'active' || pledge.status === 'overdue') && (
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" leftIcon={RefreshCw} onClick={handleRenewal}>
-                      Renew
-                    </Button>
-                    <Button variant="success" size="sm" leftIcon={DollarSign} onClick={handleRedemption}>
-                      Redeem
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Tabs */}
-          <motion.div variants={itemVariants}>
-            <Card>
-              {/* Tab Headers */}
-              <div className="flex border-b border-zinc-200">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={cn(
-                        'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-                        activeTab === tab.id
-                          ? 'border-amber-500 text-amber-600'
-                          : 'border-transparent text-zinc-500 hover:text-zinc-700'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {tab.label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Tab Content */}
-              <AnimatePresence mode="wait">
-                {/* Overview Tab */}
-                {activeTab === 'overview' && (
-                  <motion.div
-                    key="overview"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="p-5"
-                  >
-                    <div className="grid grid-cols-2 gap-6">
-                      {/* Customer Info */}
-                      <div>
-                        <h4 className="text-sm font-semibold text-zinc-500 uppercase mb-3">Customer</h4>
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-lg">
-                            {pledge.customerName?.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-zinc-800">{pledge.customerName}</p>
-                            <p className="text-sm text-zinc-500 font-mono">{formatIC(pledge.customerIC)}</p>
-                          </div>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center gap-2 text-zinc-600">
-                            <Phone className="w-4 h-4 text-zinc-400" />
-                            {pledge.customerPhone ? formatPhone(pledge.customerPhone) : 'N/A'}
-                          </div>
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="p-0"
-                            onClick={() => navigate(`/customers/${pledge.customerId}`)}
-                          >
-                            View Customer Profile →
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Loan Summary */}
-                      <div>
-                        <h4 className="text-sm font-semibold text-zinc-500 uppercase mb-3">Loan Details</h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-zinc-500">Principal</span>
-                            <span className="font-medium">{formatCurrency(pledge.loanAmount)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-zinc-500">Interest ({interest.months} mo @ {interest.rate}%)</span>
-                            <span className="font-medium text-amber-600">{formatCurrency(interest.amount)}</span>
-                          </div>
-                          <div className="flex justify-between pt-2 border-t border-zinc-200">
-                            <span className="text-zinc-800 font-semibold">Total Due</span>
-                            <span className="text-lg font-bold text-emerald-600">{formatCurrency(interest.total)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Payout Info */}
-                      <div>
-                        <h4 className="text-sm font-semibold text-zinc-500 uppercase mb-3">Payout Method</h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            {pledge.payoutMethod === 'cash' && <Wallet className="w-4 h-4 text-emerald-500" />}
-                            {pledge.payoutMethod === 'transfer' && <Building2 className="w-4 h-4 text-blue-500" />}
-                            {pledge.payoutMethod === 'partial' && <RefreshCw className="w-4 h-4 text-amber-500" />}
-                            <span className="capitalize font-medium">{pledge.payoutMethod}</span>
-                          </div>
-                          {(pledge.cashAmount > 0) && (
-                            <p className="text-zinc-500">Cash: {formatCurrency(pledge.cashAmount)}</p>
-                          )}
-                          {(pledge.transferAmount > 0) && (
-                            <div className="text-zinc-500">
-                              <p>Transfer: {formatCurrency(pledge.transferAmount)}</p>
-                              {pledge.bankName && <p>Bank: {pledge.bankName}</p>}
-                              {pledge.accountNumber && <p>A/C: {pledge.accountNumber}</p>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Gold Price Used */}
-                      <div>
-                        <h4 className="text-sm font-semibold text-zinc-500 uppercase mb-3">Gold Price (at time)</h4>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div className="p-2 bg-zinc-50 rounded">
-                            <p className="text-xs text-zinc-500">999 (24K)</p>
-                            <p className="font-medium">{formatCurrency(pledge.goldPriceUsed?.price999)}</p>
-                          </div>
-                          <div className="p-2 bg-zinc-50 rounded">
-                            <p className="text-xs text-zinc-500">916 (22K)</p>
-                            <p className="font-medium">{formatCurrency(pledge.goldPriceUsed?.price916)}</p>
-                          </div>
-                          <div className="p-2 bg-zinc-50 rounded">
-                            <p className="text-xs text-zinc-500">875 (21K)</p>
-                            <p className="font-medium">{formatCurrency(pledge.goldPriceUsed?.price875)}</p>
-                          </div>
-                          <div className="p-2 bg-zinc-50 rounded">
-                            <p className="text-xs text-zinc-500">750 (18K)</p>
-                            <p className="font-medium">{formatCurrency(pledge.goldPriceUsed?.price750)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Signature */}
-                    {pledge.signature && (
-                      <div className="mt-6 pt-6 border-t border-zinc-200">
-                        <h4 className="text-sm font-semibold text-zinc-500 uppercase mb-3">Customer Signature</h4>
-                        <img
-                          src={pledge.signature}
-                          alt="Signature"
-                          className="h-20 border border-zinc-200 rounded-lg bg-white"
-                        />
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* Items Tab */}
-                {activeTab === 'items' && (
-                  <motion.div
-                    key="items"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="p-5"
-                  >
-                    <div className="space-y-4">
-                      {pledge.items?.map((item, index) => (
-                        <div
-                          key={item.barcode || index}
-                          className="p-4 border border-zinc-200 rounded-xl hover:border-amber-300 transition-colors"
-                        >
-                          <div className="flex items-start gap-4">
-                            {/* Item Photo */}
-                            {item.photo ? (
-                              <img
-                                src={item.photo}
-                                alt={item.description}
-                                className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => {
-                                  setSelectedImage(item.photo)
-                                  setShowImageModal(true)
-                                }}
-                              />
-                            ) : (
-                              <div className="w-20 h-20 bg-zinc-100 rounded-lg flex items-center justify-center">
-                                <Package className="w-8 h-8 text-zinc-300" />
-                              </div>
-                            )}
-
-                            {/* Item Details */}
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline">{item.purity} Gold</Badge>
-                                  <span className="text-sm text-zinc-500 capitalize">{item.category}</span>
-                                </div>
-                                <span className="font-mono text-xs text-zinc-400">{item.barcode}</span>
-                              </div>
-
-                              <p className="text-zinc-800 font-medium mb-2">
-                                {item.description || `${item.category} - ${item.purity} Gold`}
-                              </p>
-
-                              <div className="grid grid-cols-4 gap-4 text-sm">
-                                <div>
-                                  <p className="text-zinc-500">Weight</p>
-                                  <p className="font-medium">{parseFloat(item.weight).toFixed(2)}g</p>
-                                </div>
-                                <div>
-                                  <p className="text-zinc-500">Gross Value</p>
-                                  <p className="font-medium">{formatCurrency(item.grossValue)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-zinc-500">Deduction</p>
-                                  <p className="font-medium text-red-500">-{formatCurrency(item.deduction)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-zinc-500">Net Value</p>
-                                  <p className="font-semibold text-emerald-600">{formatCurrency(item.netValue)}</p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Items Summary */}
-                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                      <div className="grid grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <p className="text-amber-700">Total Items</p>
-                          <p className="text-xl font-bold text-zinc-800">{pledge.items?.length}</p>
-                        </div>
-                        <div>
-                          <p className="text-amber-700">Total Weight</p>
-                          <p className="text-xl font-bold text-zinc-800">{pledge.totalWeight?.toFixed(2)}g</p>
-                        </div>
-                        <div>
-                          <p className="text-amber-700">Net Value</p>
-                          <p className="text-xl font-bold text-zinc-800">{formatCurrency(pledge.netValue)}</p>
-                        </div>
-                        <div>
-                          <p className="text-amber-700">Loan @ {pledge.loanPercentage}%</p>
-                          <p className="text-xl font-bold text-emerald-600">{formatCurrency(pledge.loanAmount)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* History Tab */}
-                {activeTab === 'history' && (
-                  <motion.div
-                    key="history"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="p-5"
-                  >
-                    <div className="space-y-4">
-                      {/* Created Event */}
-                      <div className="flex gap-4">
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-5 h-5 text-emerald-600" />
-                        </div>
-                        <div className="flex-1 pb-4 border-b border-zinc-100">
-                          <p className="font-medium text-zinc-800">Pledge Created</p>
-                          <p className="text-sm text-zinc-500">{formatDate(pledge.createdAt)}</p>
-                          <p className="text-sm text-zinc-600 mt-1">
-                            Loan amount: {formatCurrency(pledge.loanAmount)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Renewals */}
-                      {pledge.renewals?.map((renewal, index) => (
-                        <div key={index} className="flex gap-4">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <RefreshCw className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div className="flex-1 pb-4 border-b border-zinc-100">
-                            <p className="font-medium text-zinc-800">Renewal Payment</p>
-                            <p className="text-sm text-zinc-500">{formatDate(renewal.date)}</p>
-                            <p className="text-sm text-zinc-600 mt-1">
-                              Interest paid: {formatCurrency(renewal.amount)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-
-                      {/* Redemption */}
-                      {pledge.status === 'redeemed' && pledge.redeemedAt && (
-                        <div className="flex gap-4">
-                          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                            <DollarSign className="w-5 h-5 text-amber-600" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-zinc-800">Pledge Redeemed</p>
-                            <p className="text-sm text-zinc-500">{formatDate(pledge.redeemedAt)}</p>
-                            <p className="text-sm text-zinc-600 mt-1">
-                              Total paid: {formatCurrency(pledge.redemptionAmount)}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* No History */}
-                      {!pledge.renewals?.length && pledge.status !== 'redeemed' && (
-                        <div className="text-center py-8">
-                          <History className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                          <p className="text-zinc-500">No renewal history yet</p>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Quick Stats */}
-          <motion.div variants={itemVariants}>
-            <Card className="p-5">
-              <h3 className="font-semibold text-zinc-800 mb-4">Quick Summary</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-zinc-400" />
-                    <span className="text-zinc-600">Principal</span>
-                  </div>
-                  <span className="font-semibold">{formatCurrency(pledge.loanAmount)}</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-amber-500" />
-                    <span className="text-amber-700">Interest</span>
-                  </div>
-                  <span className="font-semibold text-amber-600">{formatCurrency(interest.amount)}</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-emerald-500" />
-                    <span className="text-emerald-700">Total Due</span>
-                  </div>
-                  <span className="font-bold text-emerald-600">{formatCurrency(interest.total)}</span>
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Rack Location */}
-          <motion.div variants={itemVariants}>
-            <Card className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-zinc-800">Storage Location</h3>
-                <Button variant="ghost" size="icon-sm" onClick={() => setShowRackModal(true)}>
-                  <Edit className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {pledge.rackLocation ? (
-                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <MapPin className="w-5 h-5 text-blue-600" />
-                  <div>
-                    <p className="font-semibold text-blue-800">{pledge.rackLocation}</p>
-                    <p className="text-xs text-blue-600">Rack / Shelf Location</p>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowRackModal(true)}
-                  className="w-full p-3 border-2 border-dashed border-zinc-300 rounded-lg text-zinc-500 hover:border-amber-500 hover:text-amber-600 transition-colors"
-                >
-                  + Assign Location
-                </button>
+      {/* Header Card */}
+      <Card className="p-6 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div
+              className={cn(
+                "w-16 h-16 rounded-xl flex items-center justify-center",
+                `bg-${status.color}-100`
               )}
-            </Card>
-          </motion.div>
-
-          {/* Quick Actions */}
-          <motion.div variants={itemVariants}>
-            <Card className="p-5">
-              <h3 className="font-semibold text-zinc-800 mb-4">Quick Actions</h3>
-              <div className="space-y-2">
-                {(pledge.status === 'active' || pledge.status === 'overdue') && (
-                  <>
-                    <Button variant="outline" fullWidth leftIcon={RefreshCw} onClick={handleRenewal}>
-                      Process Renewal
-                    </Button>
-                    <Button variant="success" fullWidth leftIcon={DollarSign} onClick={handleRedemption}>
-                      Process Redemption
-                    </Button>
-                  </>
-                )}
-                <Button variant="outline" fullWidth leftIcon={Printer} onClick={handlePrint}>
-                  Print Ticket
-                </Button>
-                <Button variant="outline" fullWidth leftIcon={MessageSquare} onClick={handleWhatsApp}>
-                  Send WhatsApp
-                </Button>
-                <Button variant="outline" fullWidth leftIcon={QrCode}>
-                  Print Barcode
-                </Button>
+            >
+              <StatusIcon
+                className={cn("w-8 h-8", `text-${status.color}-600`)}
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-zinc-800">
+                  {pledge.receiptNo}
+                </h2>
+                <Badge
+                  variant={
+                    status.color === "emerald"
+                      ? "success"
+                      : status.color === "red"
+                      ? "error"
+                      : "default"
+                  }
+                >
+                  {status.label}
+                </Badge>
               </div>
-            </Card>
-          </motion.div>
+              <p className="text-zinc-500">
+                Created {formatDate(pledge.pledgeDate || pledge.createdAt)}
+              </p>
+            </div>
+          </div>
 
-          {/* Important Dates */}
-          <motion.div variants={itemVariants}>
-            <Card className="p-5">
-              <h3 className="font-semibold text-zinc-800 mb-4">Important Dates</h3>
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <p className="text-sm text-zinc-500">Loan Amount</p>
+              <p className="text-2xl font-bold text-amber-600">
+                {formatCurrency(pledge.loanAmount)}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-zinc-500">Due Date</p>
+              <p className="text-lg font-semibold text-zinc-800">
+                {formatDate(pledge.dueDate)}
+              </p>
+              {pledge.status === "active" && (
+                <p
+                  className={cn(
+                    "text-xs",
+                    daysUntilDue <= 7
+                      ? "text-red-500"
+                      : daysUntilDue <= 30
+                      ? "text-amber-500"
+                      : "text-zinc-400"
+                  )}
+                >
+                  {daysUntilDue > 0
+                    ? `${daysUntilDue} days left`
+                    : daysUntilDue === 0
+                    ? "Due today"
+                    : `${Math.abs(daysUntilDue)} days overdue`}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-zinc-200 pb-2">
+        {tabs.map((tab) => {
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
+                activeTab === tab.id
+                  ? "bg-amber-100 text-amber-700"
+                  : "text-zinc-500 hover:bg-zinc-100"
+              )}
+            >
+              <TabIcon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Content */}
+      <AnimatePresence mode="wait">
+        {activeTab === "overview" && (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+          >
+            {/* Customer Info */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+                <User className="w-5 h-5 text-zinc-400" />
+                Customer
+              </h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-zinc-400" />
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                    <span className="text-lg font-semibold text-amber-600">
+                      {pledge.customerName?.charAt(0) || "?"}
+                    </span>
+                  </div>
                   <div>
-                    <p className="text-xs text-zinc-500">Created</p>
-                    <p className="text-sm font-medium">{formatDate(pledge.createdAt)}</p>
+                    <p className="font-semibold text-zinc-800">
+                      {pledge.customerName}
+                    </p>
+                    <p className="text-sm text-zinc-500 font-mono">
+                      {formatIC(pledge.customerIC)}
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Clock className={cn(
-                    'w-5 h-5',
-                    daysUntilDue <= 7 ? 'text-red-500' :
-                      daysUntilDue <= 30 ? 'text-amber-500' :
-                        'text-emerald-500'
-                  )} />
-                  <div>
-                    <p className="text-xs text-zinc-500">Due Date</p>
-                    <p className="text-sm font-medium">{formatDate(pledge.dueDate)}</p>
-                    {pledge.status === 'active' && (
-                      <p className={cn(
-                        'text-xs',
-                        daysUntilDue <= 7 ? 'text-red-500' :
-                          daysUntilDue <= 30 ? 'text-amber-500' :
-                            'text-emerald-500'
-                      )}>
-                        {daysUntilDue > 0 ? `${daysUntilDue} days remaining` : 'Due today!'}
+                <div className="flex items-center gap-2 text-zinc-600">
+                  <Phone className="w-4 h-4 text-zinc-400" />
+                  {formatPhone(pledge.customerPhone)}
+                </div>
+                {pledge.customerAddress && (
+                  <div className="flex items-start gap-2 text-zinc-600">
+                    <MapPin className="w-4 h-4 text-zinc-400 mt-0.5" />
+                    <span className="text-sm">{pledge.customerAddress}</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Loan Summary */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-zinc-400" />
+                Loan Summary
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Principal</span>
+                  <span className="font-semibold">
+                    {formatCurrency(pledge.loanAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Interest Rate</span>
+                  <span className="font-semibold">
+                    {pledge.interestRate}% / month
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Current Interest</span>
+                  <span className="font-semibold text-amber-600">
+                    {formatCurrency(interest.interest)}
+                  </span>
+                </div>
+                <div className="border-t border-zinc-200 pt-3 flex justify-between">
+                  <span className="font-semibold text-zinc-700">
+                    Total Payable
+                  </span>
+                  <span className="font-bold text-lg text-emerald-600">
+                    {formatCurrency(interest.total)}
+                  </span>
+                </div>
+              </div>
+            </Card>
+
+            {/* Item Summary */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+                <Scale className="w-5 h-5 text-zinc-400" />
+                Item Summary
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Total Items</span>
+                  <span className="font-semibold">
+                    {pledge.items?.length || 0}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Total Weight</span>
+                  <span className="font-semibold">
+                    {pledge.totalWeight?.toFixed(3)}g
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Gross Value</span>
+                  <span className="font-semibold">
+                    {formatCurrency(pledge.grossValue)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Deductions</span>
+                  <span className="font-semibold text-red-500">
+                    -{formatCurrency(pledge.totalDeduction)}
+                  </span>
+                </div>
+                <div className="border-t border-zinc-200 pt-3 flex justify-between">
+                  <span className="font-semibold text-zinc-700">Net Value</span>
+                  <span className="font-bold text-emerald-600">
+                    {formatCurrency(pledge.netValue)}
+                  </span>
+                </div>
+              </div>
+            </Card>
+
+            {/* Gold Prices Used */}
+            <Card className="p-6 lg:col-span-3">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-zinc-400" />
+                Gold Prices at Time of Pledge
+              </h3>
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { label: "999 (24K)", value: pledge.goldPrice999 },
+                  { label: "916 (22K)", value: pledge.goldPrice916 },
+                  { label: "875 (21K)", value: pledge.goldPrice875 },
+                  { label: "750 (18K)", value: pledge.goldPrice750 },
+                ].map((price) => (
+                  <div
+                    key={price.label}
+                    className="text-center p-3 bg-zinc-50 rounded-lg"
+                  >
+                    <p className="text-sm text-zinc-500">{price.label}</p>
+                    <p className="font-semibold text-zinc-800">
+                      {formatCurrency(price.value)}/g
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {activeTab === "items" && (
+          <motion.div
+            key="items"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-zinc-200 bg-zinc-50">
+                      <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                        #
+                      </th>
+                      <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                        Item
+                      </th>
+                      <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                        Purity
+                      </th>
+                      <th className="text-right p-4 text-sm font-semibold text-zinc-600">
+                        Weight
+                      </th>
+                      <th className="text-right p-4 text-sm font-semibold text-zinc-600">
+                        Value
+                      </th>
+                      <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                        Location
+                      </th>
+                      <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                        Barcode
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pledge.items?.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="p-8 text-center text-zinc-500"
+                        >
+                          No items found
+                        </td>
+                      </tr>
+                    ) : (
+                      pledge.items?.map((item, idx) => (
+                        <tr
+                          key={item.id}
+                          className="border-b border-zinc-100 hover:bg-zinc-50"
+                        >
+                          <td className="p-4 text-zinc-500">{idx + 1}</td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              {item.photo ? (
+                                <img
+                                  src={item.photo}
+                                  alt={item.category}
+                                  className="w-10 h-10 rounded-lg object-cover cursor-pointer"
+                                  onClick={() => {
+                                    setSelectedImage(item.photo);
+                                    setShowImageModal(true);
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
+                                  <Gem className="w-5 h-5 text-zinc-400" />
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-medium text-zinc-800">
+                                  {item.category}
+                                </p>
+                                <p className="text-xs text-zinc-500">
+                                  {item.description}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <Badge variant="default">{item.purity}</Badge>
+                          </td>
+                          <td className="p-4 text-right">
+                            <p className="font-medium">
+                              {item.netWeight?.toFixed(3)}g
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              Gross: {item.grossWeight?.toFixed(3)}g
+                            </p>
+                          </td>
+                          <td className="p-4 text-right">
+                            <p className="font-semibold text-zinc-800">
+                              {formatCurrency(item.netValue)}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              @{formatCurrency(item.pricePerGram)}/g
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <p className="text-sm text-zinc-600">
+                              {item.location || "Not Assigned"}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <QrCode className="w-4 h-4 text-zinc-400" />
+                              <span className="text-sm font-mono">
+                                {item.barcode || item.itemNo}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {activeTab === "history" && (
+          <motion.div
+            key="history"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-4">
+                Transaction History
+              </h3>
+
+              {/* Timeline */}
+              <div className="space-y-4">
+                {/* Pledge Created */}
+                <div className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div className="w-px h-full bg-zinc-200" />
+                  </div>
+                  <div className="pb-6">
+                    <p className="font-semibold text-zinc-800">
+                      Pledge Created
+                    </p>
+                    <p className="text-sm text-zinc-500">
+                      {formatDate(pledge.pledgeDate || pledge.createdAt)}
+                    </p>
+                    <p className="text-sm text-zinc-600 mt-1">
+                      Loan amount: {formatCurrency(pledge.loanAmount)} (
+                      {pledge.items?.length || 0} items)
+                    </p>
+                    {pledge.createdBy && (
+                      <p className="text-xs text-zinc-400">
+                        By: {pledge.createdBy}
                       </p>
                     )}
                   </div>
                 </div>
+
+                {/* Payment Info */}
+                {pledge.payments?.length > 0 &&
+                  pledge.payments.map((payment, idx) => (
+                    <div key={idx} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                          <CreditCard className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="w-px h-full bg-zinc-200" />
+                      </div>
+                      <div className="pb-6">
+                        <p className="font-semibold text-zinc-800">
+                          Payout - {payment.paymentMethod}
+                        </p>
+                        <p className="text-sm text-zinc-500">
+                          {formatDate(payment.paymentDate)}
+                        </p>
+                        <div className="text-sm text-zinc-600 mt-1">
+                          {payment.cashAmount > 0 && (
+                            <p>Cash: {formatCurrency(payment.cashAmount)}</p>
+                          )}
+                          {payment.transferAmount > 0 && (
+                            <p>
+                              Transfer: {formatCurrency(payment.transferAmount)}{" "}
+                              ({payment.bankName})
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                {/* Renewal count indicator */}
+                {pledge.renewalCount > 0 && (
+                  <div className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                        <RefreshCw className="w-5 h-5 text-amber-600" />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-zinc-800">
+                        Renewed {pledge.renewalCount} time(s)
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
           </motion.div>
-        </div>
-      </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Image Modal */}
       <Modal
@@ -718,42 +893,10 @@ export default function PledgeDetail() {
         title="Item Photo"
         size="lg"
       >
-        <div className="p-4">
-          {selectedImage && (
-            <img
-              src={selectedImage}
-              alt="Item"
-              className="w-full max-h-[70vh] object-contain rounded-lg"
-            />
-          )}
-        </div>
-      </Modal>
-
-      {/* Rack Location Modal */}
-      <Modal
-        isOpen={showRackModal}
-        onClose={() => setShowRackModal(false)}
-        title="Set Storage Location"
-        size="sm"
-      >
-        <div className="p-5">
-          <Input
-            label="Rack / Shelf Location"
-            placeholder="e.g., A1-S3, Rack B Row 2"
-            value={rackLocation}
-            onChange={(e) => setRackLocation(e.target.value)}
-            leftIcon={MapPin}
-          />
-          <div className="flex gap-3 mt-4">
-            <Button variant="outline" fullWidth onClick={() => setShowRackModal(false)}>
-              Cancel
-            </Button>
-            <Button variant="accent" fullWidth onClick={handleSaveRack}>
-              Save Location
-            </Button>
-          </div>
-        </div>
+        {selectedImage && (
+          <img src={selectedImage} alt="Item" className="w-full rounded-lg" />
+        )}
       </Modal>
     </PageWrapper>
-  )
+  );
 }

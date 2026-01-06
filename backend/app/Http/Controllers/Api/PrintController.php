@@ -15,63 +15,106 @@ use Picqer\Barcode\BarcodeGeneratorPNG;
 
 class PrintController extends Controller
 {
+
     /**
      * Print pledge receipt
      */
     public function pledgeReceipt(Request $request, Pledge $pledge)
     {
-        if ($pledge->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
+        try {
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            $validated = $request->validate([
+                'copy_type' => 'required|in:office,customer',
+            ]);
+
+            $pledge->load([
+                'customer',
+                'items.category',
+                'items.purity',
+                'payments.bank',
+                'branch',
+                'createdBy:id,name',
+            ]);
+
+            // Get company settings from Setting model (key-value structure)
+            $settings = [];
+
+            // Query company settings
+            $companySettings = \App\Models\Setting::where('category', 'company')->get();
+
+            // Convert to associative array
+            $settingsMap = [];
+            foreach ($companySettings as $setting) {
+                $settingsMap[$setting->key_name] = $setting->value;
+            }
+
+            // Build settings array with fallbacks
+            $settings = [
+                'company_name' => $settingsMap['name'] ?? $pledge->branch->name ?? 'PAJAK GADAI SDN BHD',
+                'registration_no' => $settingsMap['registration_no'] ?? '',
+                'license_no' => $settingsMap['license_no'] ?? $pledge->branch->license_no ?? '',
+                'address' => $settingsMap['address'] ?? $pledge->branch->address ?? '',
+                'phone' => $settingsMap['phone'] ?? $pledge->branch->phone ?? '',
+                'fax' => $settingsMap['fax'] ?? '',
+                'email' => $settingsMap['email'] ?? $pledge->branch->email ?? '',
+                'receipt_header_text' => $settingsMap['receipt_header'] ?? 'PAJAK GADAI BERLESEN',
+                'receipt_footer_text' => $settingsMap['receipt_footer'] ?? 'Terima kasih atas sokongan anda',
+            ];
+
+            // Get terms and conditions (with fallback)
+            $terms = [];
+            try {
+                $terms = \App\Models\TermsCondition::getForActivity('pledge', $pledge->branch_id) ?? [];
+            } catch (\Exception $e) {
+                $terms = [];
+            }
+
+            $data = [
+                'pledge' => $pledge,
+                'copy_type' => $validated['copy_type'],
+                'settings' => $settings,
+                'terms' => $terms,
+                'printed_at' => now(),
+                'printed_by' => $request->user()->name,
+            ];
+
+            $pdf = Pdf::loadView('pdf.pledge-receipt', $data);
+            $pdf->setPaper('a5', 'portrait');
+
+            // Record print (skip if table doesn't exist)
+            try {
+                \App\Models\PledgeReceipt::create([
+                    'pledge_id' => $pledge->id,
+                    'print_type' => $pledge->receipt_printed ? 'reprint' : 'original',
+                    'copy_type' => $validated['copy_type'],
+                    'is_chargeable' => $pledge->receipt_printed ?? false,
+                    'charge_amount' => ($pledge->receipt_printed ?? false) ? 2.00 : 0,
+                    'printed_by' => $request->user()->id,
+                    'printed_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                // Table may not exist, skip
+            }
+
+            $pledge->update([
+                'receipt_printed' => true,
+                'receipt_print_count' => ($pledge->receipt_print_count ?? 0) + 1,
+            ]);
+
+            return $pdf->download("pledge-receipt-{$pledge->receipt_no}.pdf");
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'file' => basename($e->getFile()),
+                'line' => $e->getLine(),
+            ], 500);
         }
-
-        $validated = $request->validate([
-            'copy_type' => 'required|in:office,customer',
-        ]);
-
-        $pledge->load([
-            'customer',
-            'items.category',
-            'items.purity',
-            'payments.bank',
-            'branch',
-            'createdBy:id,name',
-        ]);
-
-        // Get terms and conditions
-        $terms = \App\Models\TermsCondition::getForActivity('pledge', $pledge->branch_id);
-
-        $data = [
-            'pledge' => $pledge,
-            'copy_type' => $validated['copy_type'],
-            'terms' => $terms,
-            'printed_at' => now(),
-            'printed_by' => $request->user()->name,
-        ];
-
-        $pdf = Pdf::loadView('pdf.pledge-receipt', $data);
-        $pdf->setPaper('a5', 'portrait');
-
-        // Record print
-        \App\Models\PledgeReceipt::create([
-            'pledge_id' => $pledge->id,
-            'print_type' => $pledge->receipt_printed ? 'reprint' : 'original',
-            'copy_type' => $validated['copy_type'],
-            'is_chargeable' => $pledge->receipt_printed,
-            'charge_amount' => $pledge->receipt_printed ? config('pawnsys.receipt.reprint_charge', 2.00) : 0,
-            'printed_by' => $request->user()->id,
-            'printed_at' => now(),
-        ]);
-
-        $pledge->update([
-            'receipt_printed' => true,
-            'receipt_print_count' => $pledge->receipt_print_count + 1,
-        ]);
-
-        $filename = "pledge-receipt-{$pledge->receipt_no}.pdf";
-
-        return $pdf->download($filename);
     }
-
     /**
      * Print item barcode
      */
