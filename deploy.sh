@@ -5,19 +5,27 @@ echo "🚀 Starting deployment..."
 # Navigate to project
 cd ~/public_html/pajak-kedai.graspsoftwaresolutions.xyz
 
-# Backup important files
+# Backup important files (to /tmp to avoid conflicts)
 echo "💾 Backing up server-specific files..."
-cp backend/.env backend/.env.backup
-cp backend/public/.htaccess backend/public/.htaccess.backup
+cp backend/.env /tmp/.env.backup
+cp backend/public/.htaccess /tmp/.htaccess.backup
+
+# Remove build assets (will be regenerated after build)
+echo "🗑️ Removing old build assets..."
+rm -rf backend/public/assets/
+
+# Reset any modified tracked files
+echo "🔄 Resetting tracked files..."
+git checkout -- backend/bootstrap/app.php backend/config/cors.php 2>/dev/null
 
 # Pull latest code
 echo "📥 Pulling latest code..."
-git pull origin master
+git pull origin main
 
 # Restore server-specific files
 echo "🔄 Restoring server-specific files..."
-cp backend/.env.backup backend/.env
-cp backend/public/.htaccess.backup backend/public/.htaccess
+cp /tmp/.env.backup backend/.env
+cp /tmp/.htaccess.backup backend/public/.htaccess
 
 # Build Frontend
 echo "📦 Building frontend..."
@@ -50,9 +58,9 @@ echo "🧹 Clearing cache..."
 /opt/cpanel/ea-php82/root/usr/bin/php artisan route:cache
 /opt/cpanel/ea-php82/root/usr/bin/php artisan view:cache
 
-# Cleanup backups
-rm -f backend/.env.backup
-rm -f backend/public/.htaccess.backup
+# Cleanup temp backups
+rm -f /tmp/.env.backup
+rm -f /tmp/.htaccess.backup
 
 echo "✅ Deployment completed!"
 echo "🌐 Visit: https://pajak-kedai.graspsoftwaresolutions.xyz"
