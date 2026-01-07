@@ -60,6 +60,7 @@ export default function UserForm() {
     username: "",
     password: "",
     confirmPassword: "",
+    passkey: "",
     name: "",
     email: "",
     phone: "",
@@ -326,6 +327,11 @@ export default function UserForm() {
       newErrors.role_id = "Role is required";
     }
 
+    // ADD THIS - Passkey validation
+    if (formData.passkey && formData.passkey.length !== 6) {
+      newErrors.passkey = "Passkey must be exactly 6 digits";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -360,6 +366,11 @@ export default function UserForm() {
       // Only include password if provided
       if (formData.password) {
         payload.password = formData.password;
+      }
+
+      // ADD THIS - Include passkey if provided
+      if (formData.passkey) {
+        payload.passkey = formData.passkey;
       }
 
       let response;
@@ -620,6 +631,25 @@ export default function UserForm() {
                   placeholder="Confirm password"
                   error={errors.confirmPassword}
                   leftIcon={Key}
+                />
+              </div>
+
+              {/* Passkey (6-digit PIN) */}
+              <div>
+                <Input
+                  label="Passkey (6-digit PIN)"
+                  type="password"
+                  value={formData.passkey}
+                  onChange={(e) => {
+                    // Only allow numbers, max 6 digits
+                    const value = e.target.value.replace(/\D/g, "").slice(0, 6);
+                    handleChange("passkey", value);
+                  }}
+                  placeholder="Enter 6-digit passkey"
+                  leftIcon={Key}
+                  maxLength={6}
+                  error={errors.passkey}
+                  helperText="Used for sensitive actions (override, reprint, etc.)"
                 />
               </div>
             </Card>

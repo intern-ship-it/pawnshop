@@ -1,358 +1,868 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router'
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { setPledges } from '@/features/pledges/pledgesSlice'
-import { addToast } from '@/features/ui/uiSlice'
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/utils/localStorage'
-import { formatCurrency, formatDate } from '@/utils/formatters'
-import { cn } from '@/lib/utils'
-import { motion, AnimatePresence } from 'framer-motion'
-import PageWrapper from '@/components/layout/PageWrapper'
-import { Card, Button, Input, Select, Badge, Modal } from '@/components/common'
+/**
+ * Inventory List - Fully API Integrated
+ * NO localStorage - All data from backend API
+ * Working Print Labels + Actions
+ */
+
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router";
+import { useAppDispatch } from "@/app/hooks";
+import { addToast } from "@/features/ui/uiSlice";
+import inventoryService from "@/services/inventoryService";
+import { formatCurrency } from "@/utils/formatters";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import PageWrapper from "@/components/layout/PageWrapper";
+import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import RackMap from "./RackMap";
 import {
-  Package,
   Search,
   Filter,
-  MapPin,
-  Scale,
-  Gem,
-  Eye,
-  CheckCircle,
-  AlertTriangle,
-  Clock,
-  Download,
-  Printer,
-  Grid3X3,
   List,
-  X,
-  Save,
-  Box,
-  Barcode,
+  Grid3X3,
+  Map,
+  Package,
+  Eye,
+  Printer,
+  MapPin,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Scale,
+  DollarSign,
+  Gem,
+  RotateCcw,
   CheckSquare,
   Square,
-  RotateCcw,
-} from 'lucide-react'
+  Loader2,
+  Download,
+  Barcode,
+  RefreshCw,
+} from "lucide-react";
 
 // Purity labels
 const purityLabels = {
-  '999': '999 (24K)',
-  '916': '916 (22K)',
-  '875': '875 (21K)',
-  '750': '750 (18K)',
-  '585': '585 (14K)',
-  '375': '375 (9K)',
-}
+  999: "999 (24K)",
+  916: "916 (22K)",
+  875: "875 (21K)",
+  750: "750 (18K)",
+  585: "585 (14K)",
+  375: "375 (9K)",
+};
 
 // Status config
-const statusConfig = {
-  active: { label: 'In Storage', variant: 'success', icon: CheckCircle, color: 'emerald' },
-  overdue: { label: 'Overdue', variant: 'error', icon: AlertTriangle, color: 'red' },
-  redeemed: { label: 'Released', variant: 'secondary', icon: Package, color: 'zinc' },
-  forfeited: { label: 'Forfeited', variant: 'warning', icon: Clock, color: 'amber' },
-}
-
-// Label sizes
-const labelSizes = [
-  { id: 'small', name: 'Small (25x15mm)', width: 25, height: 15 },
-  { id: 'medium', name: 'Medium (50x25mm)', width: 50, height: 25 },
-  { id: 'large', name: 'Large (70x35mm)', width: 70, height: 35 },
-  { id: 'sticker', name: 'Item Sticker (40x20mm)', width: 40, height: 20 },
-]
+const getStatusConfig = (status) => {
+  switch (status) {
+    case "active":
+      return { label: "In Storage", variant: "success", icon: CheckCircle };
+    case "overdue":
+      return { label: "Overdue", variant: "error", icon: AlertTriangle };
+    case "expiring":
+      return { label: "Expiring", variant: "warning", icon: Clock };
+    case "redeemed":
+      return { label: "Released", variant: "info", icon: Clock };
+    case "defaulted":
+      return { label: "Defaulted", variant: "error", icon: AlertTriangle };
+    default:
+      return { label: status || "Unknown", variant: "default", icon: Package };
+  }
+};
 
 export default function InventoryList() {
-  const navigate = useNavigate()
-  const dispatch = useAppDispatch()
-  const { pledges } = useAppSelector((state) => state.pledges)
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
-  // State
-  const [searchQuery, setSearchQuery] = useState('')
-  const [purityFilter, setPurityFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('active')
-  const [rackFilter, setRackFilter] = useState('all')
-  const [viewMode, setViewMode] = useState('table')
-  const [showFilters, setShowFilters] = useState(false)
+  // View State
+  const [viewMode, setViewMode] = useState("table");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Selection state
-  const [selectedItems, setSelectedItems] = useState([])
-  const [selectAll, setSelectAll] = useState(false)
+  // Data State
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [inventorySummary, setInventorySummary] = useState({});
 
-  // Modal state
-  const [showRackModal, setShowRackModal] = useState(false)
-  const [selectedItem, setSelectedItem] = useState(null)
-  const [rackLocation, setRackLocation] = useState('')
-  const [showImageModal, setShowImageModal] = useState(false)
-  const [selectedImage, setSelectedImage] = useState(null)
+  // Filter State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [purityFilter, setPurityFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Print modal state
-  const [showPrintModal, setShowPrintModal] = useState(false)
-  const [labelSize, setLabelSize] = useState('medium')
-  const [printQuantity, setPrintQuantity] = useState(1)
+  // Selection State
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
-  // Load pledges on mount
+  // Modal State
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [newLocation, setNewLocation] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  // Load data on mount
   useEffect(() => {
-    const storedPledges = getStorageItem(STORAGE_KEYS.PLEDGES, [])
-    dispatch(setPledges(storedPledges))
-  }, [dispatch])
+    fetchInventory();
+    fetchSummary();
+  }, []);
 
-  // Flatten all items from pledges
-  const allItems = useMemo(() => {
-    return pledges.flatMap(pledge =>
-      (pledge.items || []).map((item, idx) => ({
-        ...item,
-        itemIndex: idx,
-        pledgeId: pledge.id,
-        pledgeNo: pledge.pledgeNo || pledge.id,
-        pledgeStatus: pledge.status,
-        customerName: pledge.customerName,
-        customerIC: pledge.customerIC,
-        createdAt: pledge.createdAt,
-        dueDate: pledge.dueDate,
-        rackLocation: pledge.rackLocation || item.rackLocation,
-        loanAmount: pledge.loanAmount,
-      }))
-    )
-  }, [pledges])
+  // Refetch when status filter changes
+  useEffect(() => {
+    fetchInventory();
+  }, [statusFilter]);
 
-  // Get unique categories and racks
-  const categories = useMemo(() => [...new Set(allItems.map(item => item.category).filter(Boolean))], [allItems])
-  const racks = useMemo(() => [...new Set(allItems.map(item => item.rackLocation).filter(Boolean))].sort(), [allItems])
+  // Fetch inventory items from API
+  const fetchInventory = async () => {
+    setIsLoading(true);
+    try {
+      const params = { per_page: 500 };
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
+      }
 
-  // Filter items
+      const response = await inventoryService.getAll(params);
+
+      if (response.success && response.data) {
+        const items = response.data.data || response.data;
+        setInventoryItems(Array.isArray(items) ? items : []);
+      } else {
+        setInventoryItems([]);
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Failed to load inventory",
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching inventory:", error);
+      setInventoryItems([]);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to load inventory",
+        })
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch inventory summary from API
+  const fetchSummary = async () => {
+    try {
+      const response = await inventoryService.getSummary();
+      if (response.success && response.data) {
+        setInventorySummary(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching summary:", error);
+    }
+  };
+
+  // Search by barcode via API
+  const handleBarcodeSearch = async () => {
+    if (!searchQuery.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const response = await inventoryService.searchByBarcode(
+        searchQuery.trim()
+      );
+      if (response.success && response.data) {
+        setInventoryItems([response.data]);
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Found",
+            message: `Item found: ${response.data.barcode}`,
+          })
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Not Found",
+            message: "No item found with this barcode",
+          })
+        );
+      }
+    } catch (error) {
+      console.log("Barcode search failed, using filter instead");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Format location display
+  const formatLocation = (item) => {
+    if (item.slot?.box?.vault) {
+      return `${item.slot.box.vault.name} → ${item.slot.box.name} → Slot ${item.slot.slot_number}`;
+    }
+    if (item.storage_location) {
+      return item.storage_location;
+    }
+    return null;
+  };
+
+  // Get category name from object or string
+  const getCategoryName = (category) => {
+    if (!category) return "Gold";
+    if (typeof category === "string") return category;
+    return category.name_en || category.name || category.code || "Gold";
+  };
+
+  // Get purity name from object or string
+  const getPurityName = (purity) => {
+    if (!purity) return "916";
+    if (typeof purity === "string") return purity;
+    return purity.name_en || purity.name || purity.code || "916";
+  };
+
+  // Get unique categories
+  const categories = useMemo(() => {
+    const cats = new Set();
+    inventoryItems.forEach((item) => {
+      const cat = getCategoryName(item.category);
+      if (cat) cats.add(cat);
+    });
+    return Array.from(cats);
+  }, [inventoryItems]);
+
+  // Get unique locations
+  const locations = useMemo(() => {
+    const locs = new Set();
+    inventoryItems.forEach((item) => {
+      const loc = formatLocation(item);
+      if (loc) locs.add(loc);
+    });
+    return Array.from(locs);
+  }, [inventoryItems]);
+
+  // Filter items client-side
   const filteredItems = useMemo(() => {
-    return allItems.filter(item => {
+    return inventoryItems.filter((item) => {
+      // Search
       if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        const matchBarcode = item.barcode?.toLowerCase().includes(query)
-        const matchPledge = item.pledgeId?.toLowerCase().includes(query) || item.pledgeNo?.toLowerCase().includes(query)
-        const matchCustomer = item.customerName?.toLowerCase().includes(query)
-        const matchCategory = item.category?.toLowerCase().includes(query)
-        const matchRack = item.rackLocation?.toLowerCase().includes(query)
-        if (!matchBarcode && !matchPledge && !matchCustomer && !matchCategory && !matchRack) return false
+        const query = searchQuery.toLowerCase();
+        const matches =
+          item.barcode?.toLowerCase().includes(query) ||
+          item.pledge?.pledge_no?.toLowerCase().includes(query) ||
+          item.pledge?.customer?.name?.toLowerCase().includes(query) ||
+          getCategoryName(item.category).toLowerCase().includes(query);
+        if (!matches) return false;
       }
-      if (purityFilter !== 'all' && item.purity !== purityFilter) return false
-      if (categoryFilter !== 'all' && item.category !== categoryFilter) return false
-      if (rackFilter !== 'all') {
-        if (rackFilter === 'unassigned' && item.rackLocation) return false
-        if (rackFilter !== 'unassigned' && item.rackLocation !== rackFilter) return false
-      }
-      if (statusFilter !== 'all') {
-        if (statusFilter === 'active' && item.pledgeStatus !== 'active') return false
-        if (statusFilter === 'overdue' && item.pledgeStatus !== 'overdue') return false
-        if (statusFilter === 'redeemed' && item.pledgeStatus !== 'redeemed') return false
-      }
-      return true
-    })
-  }, [allItems, searchQuery, purityFilter, categoryFilter, rackFilter, statusFilter])
+
+      // Category
+      const itemCategory = getCategoryName(item.category);
+      if (categoryFilter !== "all" && itemCategory !== categoryFilter)
+        return false;
+
+      // Purity
+      const itemPurity = getPurityName(item.purity);
+      if (purityFilter !== "all" && itemPurity !== purityFilter) return false;
+
+      // Location
+      const itemLoc = formatLocation(item);
+      if (locationFilter === "unassigned" && itemLoc) return false;
+      if (
+        locationFilter !== "all" &&
+        locationFilter !== "unassigned" &&
+        itemLoc !== locationFilter
+      )
+        return false;
+
+      return true;
+    });
+  }, [
+    inventoryItems,
+    searchQuery,
+    categoryFilter,
+    purityFilter,
+    locationFilter,
+  ]);
 
   // Calculate stats
-  const stats = useMemo(() => {
-    const inStorage = allItems.filter(i => i.pledgeStatus === 'active' || i.pledgeStatus === 'overdue')
-    return {
-      totalItems: inStorage.length,
-      totalWeight: inStorage.reduce((sum, i) => sum + (parseFloat(i.weight) || 0), 0),
-      totalValue: inStorage.reduce((sum, i) => sum + (i.netValue || 0), 0),
-      noLocation: inStorage.filter(i => !i.rackLocation).length,
-      overdue: allItems.filter(i => i.pledgeStatus === 'overdue').length,
-    }
-  }, [allItems])
+  const stats = useMemo(
+    () => ({
+      total: inventorySummary.total_items || inventoryItems.length,
+      inStorage:
+        inventorySummary.active_count ||
+        inventoryItems.filter((i) => i.pledge?.status === "active").length,
+      overdue:
+        inventorySummary.overdue_count ||
+        inventoryItems.filter((i) => i.pledge?.status === "overdue").length,
+      totalWeight:
+        inventorySummary.total_weight ||
+        inventoryItems.reduce((sum, i) => sum + (parseFloat(i.weight) || 0), 0),
+      totalValue:
+        inventorySummary.total_value ||
+        inventoryItems.reduce(
+          (sum, i) => sum + (parseFloat(i.estimated_value) || 0),
+          0
+        ),
+      noLocation: inventoryItems.filter(
+        (i) =>
+          !i.slot_id && !i.storage_location && i.pledge?.status !== "redeemed"
+      ).length,
+    }),
+    [inventorySummary, inventoryItems]
+  );
 
-  // Handle selection
-  const toggleItemSelection = (barcode) => {
-    setSelectedItems(prev =>
-      prev.includes(barcode)
-        ? prev.filter(b => b !== barcode)
-        : [...prev, barcode]
-    )
-  }
+  // Check if filters are active
+  const hasActiveFilters =
+    categoryFilter !== "all" ||
+    purityFilter !== "all" ||
+    locationFilter !== "all";
 
+  // Clear filters
+  const clearFilters = () => {
+    setCategoryFilter("all");
+    setPurityFilter("all");
+    setLocationFilter("all");
+    setSearchQuery("");
+    fetchInventory();
+  };
+
+  // Toggle item selection
+  const toggleItemSelection = (id) => {
+    setSelectedItems((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  // Toggle select all
   const toggleSelectAll = () => {
     if (selectAll) {
-      setSelectedItems([])
+      setSelectedItems([]);
     } else {
-      setSelectedItems(filteredItems.map(i => i.barcode))
+      setSelectedItems(filteredItems.map((i) => i.id));
     }
-    setSelectAll(!selectAll)
-  }
+    setSelectAll(!selectAll);
+  };
 
+  // Clear selection
   const clearSelection = () => {
-    setSelectedItems([])
-    setSelectAll(false)
-  }
-
-  // Save rack location
-  const handleSaveRack = () => {
-    if (!selectedItem) return
-    const storedPledges = getStorageItem(STORAGE_KEYS.PLEDGES, [])
-    const updatedPledges = storedPledges.map(pledge => {
-      if (pledge.id === selectedItem.pledgeId) {
-        return { ...pledge, rackLocation }
-      }
-      return pledge
-    })
-    setStorageItem(STORAGE_KEYS.PLEDGES, updatedPledges)
-    dispatch(setPledges(updatedPledges))
-    setShowRackModal(false)
-    setSelectedItem(null)
-    setRackLocation('')
-    dispatch(addToast({ type: 'success', title: 'Location Updated', message: `Rack location set to ${rackLocation}` }))
-  }
-
-  // Open rack modal
-  const openRackModal = (item) => {
-    setSelectedItem(item)
-    setRackLocation(item.rackLocation || '')
-    setShowRackModal(true)
-  }
+    setSelectedItems([]);
+    setSelectAll(false);
+  };
 
   // Open print modal
   const openPrintModal = () => {
-    setShowPrintModal(true)
-  }
+    if (selectedItems.length === 0) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "No Items",
+          message: "Please select items to print",
+        })
+      );
+      return;
+    }
+    setShowPrintModal(true);
+  };
 
-  // Handle print - opens new window with printable labels
-  const handlePrint = () => {
-    const itemsToPrint = selectedItems.length > 0
-      ? filteredItems.filter(i => selectedItems.includes(i.barcode))
-      : filteredItems.slice(0, 10)
+  // Get selected items data
+  const getSelectedItemsData = () => {
+    return filteredItems.filter((item) => selectedItems.includes(item.id));
+  };
 
-    const labelConfig = labelSizes.find(l => l.id === labelSize)
+  // Print barcode labels
+  const handlePrintBarcodeLabels = () => {
+    setIsPrinting(true);
+    const selectedData = getSelectedItemsData();
 
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Print Labels - PawnSys</title>
+        <title>Barcode Labels - PawnSys</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
-          @page { size: auto; margin: 5mm; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; padding: 10px; }
-          .header { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-          .header h2 { margin-bottom: 10px; }
-          .header p { color: #666; margin-bottom: 15px; }
-          .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-right: 10px; }
-          .btn-print { background: #f59e0b; color: white; }
-          .btn-close { background: #e5e5e5; color: #333; }
-          .labels-container { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-start; }
-          .label { border: 1px solid #ccc; padding: 8px; background: white; page-break-inside: avoid; border-radius: 4px; }
-          .label-small { width: 100px; }
-          .label-medium { width: 190px; }
-          .label-large { width: 260px; }
-          .label-sticker { width: 150px; }
-          .company { font-size: 9px; font-weight: bold; text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 6px; }
-          .barcode-area { text-align: center; margin: 8px 0; padding: 5px; background: #fafafa; }
-          .barcode-lines { font-family: 'Libre Barcode 128', monospace; font-size: 40px; line-height: 1; }
-          .barcode-text { font-family: monospace; font-size: 11px; letter-spacing: 1px; margin-top: 4px; }
-          .details { font-size: 9px; }
-          .details-row { display: flex; justify-content: space-between; margin: 3px 0; }
-          .details-row .label-text { color: #666; }
-          .details-row .value { font-weight: bold; }
-          .location { background: #e0f2fe; padding: 4px 8px; text-align: center; font-size: 10px; font-weight: bold; margin-top: 6px; border-radius: 3px; }
-          .location-icon { margin-right: 3px; }
-          @media print { .header { display: none; } body { padding: 0; } }
+          body { font-family: Arial, sans-serif; background: #fff; }
+          .labels-container { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; }
+          .label { 
+            width: 220px; 
+            border: 1px solid #000; 
+            padding: 8px; 
+            page-break-inside: avoid;
+            background: #fff;
+          }
+          .label-header { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
+          .barcode-container { text-align: center; margin: 5px 0; }
+          .barcode-container svg { max-width: 100%; height: 50px; }
+          .label-footer { font-size: 9px; display: flex; justify-content: space-between; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; }
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .labels-container { gap: 5px; padding: 5px; }
+          }
         </style>
-        <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
       </head>
       <body>
-        <div class="header">
-          <h2>🏷️ Label Print Preview</h2>
-          <p><strong>${itemsToPrint.length}</strong> label(s) × <strong>${printQuantity}</strong> copy(s) = <strong>${itemsToPrint.length * printQuantity}</strong> total labels</p>
-          <p>Size: <strong>${labelConfig.name}</strong></p>
-          <button class="btn btn-print" onclick="window.print()">🖨️ Print Now</button>
-          <button class="btn btn-close" onclick="window.close()">✕ Close</button>
-        </div>
-        
         <div class="labels-container">
-          ${itemsToPrint.map(item =>
-      Array(printQuantity).fill(0).map(() => `
-              <div class="label label-${labelSize}">
-                <div class="company">PAWNSYS SDN BHD</div>
-                <div class="barcode-area">
-                  <div class="barcode-lines">*${item.barcode || 'N/A'}*</div>
-                  <div class="barcode-text">${item.barcode || 'N/A'}</div>
-                </div>
-                <div class="details">
-                  <div class="details-row">
-                    <span class="label-text">Pledge:</span>
-                    <span class="value">${item.pledgeNo || item.pledgeId}</span>
-                  </div>
-                  <div class="details-row">
-                    <span class="label-text">Item:</span>
-                    <span class="value">${item.category || 'Gold'} (${item.purity || 'N/A'})</span>
-                  </div>
-                  <div class="details-row">
-                    <span class="label-text">Weight:</span>
-                    <span class="value">${parseFloat(item.weight || 0).toFixed(2)}g</span>
-                  </div>
-                </div>
-                ${item.rackLocation ? `<div class="location"><span class="location-icon">📍</span>${item.rackLocation}</div>` : ''}
+          ${selectedData
+            .map((item, index) => {
+              const catName =
+                item.category?.name_en ||
+                item.category?.name ||
+                item.category?.code ||
+                (typeof item.category === "string" ? item.category : "Gold");
+              const purName =
+                item.purity?.name_en ||
+                item.purity?.name ||
+                item.purity?.code ||
+                (typeof item.purity === "string" ? item.purity : "916");
+              const barcodeValue = (item.barcode || "NOCODE")
+                .replace(/[^A-Z0-9]/gi, "")
+                .substring(0, 20);
+              return `
+            <div class="label">
+              <div class="label-header">${
+                item.pledge?.pledge_no || "N/A"
+              } | ${catName}</div>
+              <div class="barcode-container">
+                <svg id="barcode-${index}"></svg>
               </div>
-            `).join('')
-    ).join('')}
+              <div style="font-size: 10px; text-align: center; font-family: monospace;">${
+                item.barcode || "N/A"
+              }</div>
+              <div class="label-footer">
+                <span>${item.weight || 0}g | ${purName}</span>
+                <span>${(item.pledge?.customer?.name || "Customer").substring(
+                  0,
+                  15
+                )}</span>
+              </div>
+            </div>
+          `;
+            })
+            .join("")}
         </div>
+        <script>
+          window.onload = function() {
+            ${selectedData
+              .map((item, index) => {
+                const barcodeValue = (item.barcode || "NOCODE")
+                  .replace(/[^A-Z0-9]/gi, "")
+                  .substring(0, 20);
+                return `
+              try {
+                JsBarcode("#barcode-${index}", "${barcodeValue}", {
+                  format: "CODE128",
+                  width: 1.5,
+                  height: 40,
+                  displayValue: false,
+                  margin: 0
+                });
+              } catch(e) { console.log(e); }
+            `;
+              })
+              .join("")}
+            setTimeout(function() { window.print(); }, 300);
+          };
+        </script>
       </body>
       </html>
-    `
+    `;
 
-    const printWindow = window.open('', '_blank')
-    printWindow.document.write(printContent)
-    printWindow.document.close()
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      setIsPrinting(false);
+      setShowPrintModal(false);
+      clearSelection();
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Print",
+          message: `Printing ${selectedData.length} barcode labels`,
+        })
+      );
+    } else {
+      setIsPrinting(false);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please allow popups to print",
+        })
+      );
+    }
+  };
 
-    setShowPrintModal(false)
-    dispatch(addToast({ type: 'success', title: 'Print Preview Opened', message: `${itemsToPrint.length * printQuantity} labels ready` }))
+  // Print pack stickers
+  const handlePrintPackStickers = () => {
+    setIsPrinting(true);
+    const selectedData = getSelectedItemsData();
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Pack Stickers - PawnSys</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; background: #fff; }
+          .stickers-container { display: flex; flex-wrap: wrap; gap: 15px; padding: 15px; }
+          .sticker { 
+            width: 260px; 
+            border: 2px solid #f59e0b; 
+            border-radius: 8px;
+            padding: 12px; 
+            page-break-inside: avoid;
+            background: #fff;
+          }
+          .sticker-header { 
+            background: #f59e0b; 
+            color: white; 
+            padding: 6px 10px; 
+            margin: -12px -12px 10px -12px;
+            border-radius: 6px 6px 0 0;
+            font-weight: bold;
+            font-size: 14px;
+          }
+          .sticker-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; }
+          .sticker-label { color: #666; }
+          .sticker-value { font-weight: bold; }
+          .sticker-barcode { 
+            text-align: center; 
+            margin-top: 10px; 
+            padding-top: 10px; 
+            border-top: 1px dashed #ddd; 
+          }
+          .sticker-barcode svg { max-width: 100%; height: 40px; }
+          .barcode-text { font-size: 9px; font-family: monospace; margin-top: 3px; }
+          @media print { 
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .sticker { border: 1px solid #f59e0b; } 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="stickers-container">
+          ${selectedData
+            .map((item, index) => {
+              const catName =
+                item.category?.name_en ||
+                item.category?.name ||
+                item.category?.code ||
+                (typeof item.category === "string" ? item.category : "Gold");
+              const purName =
+                item.purity?.name_en ||
+                item.purity?.name ||
+                item.purity?.code ||
+                (typeof item.purity === "string" ? item.purity : "916");
+              return `
+            <div class="sticker">
+              <div class="sticker-header">📦 ${
+                item.pledge?.pledge_no || "N/A"
+              }</div>
+              <div class="sticker-row">
+                <span class="sticker-label">Customer:</span>
+                <span class="sticker-value">${
+                  item.pledge?.customer?.name || "N/A"
+                }</span>
+              </div>
+              <div class="sticker-row">
+                <span class="sticker-label">Item:</span>
+                <span class="sticker-value">${catName}</span>
+              </div>
+              <div class="sticker-row">
+                <span class="sticker-label">Purity:</span>
+                <span class="sticker-value">${purName}</span>
+              </div>
+              <div class="sticker-row">
+                <span class="sticker-label">Weight:</span>
+                <span class="sticker-value">${item.weight || 0}g</span>
+              </div>
+              <div class="sticker-row">
+                <span class="sticker-label">Value:</span>
+                <span class="sticker-value">RM ${parseFloat(
+                  item.estimated_value || 0
+                ).toLocaleString()}</span>
+              </div>
+              <div class="sticker-barcode">
+                <svg id="sticker-barcode-${index}"></svg>
+                <div class="barcode-text">${item.barcode || "N/A"}</div>
+              </div>
+            </div>
+          `;
+            })
+            .join("")}
+        </div>
+        <script>
+          window.onload = function() {
+            ${selectedData
+              .map((item, index) => {
+                const barcodeValue = (item.barcode || "NOCODE")
+                  .replace(/[^A-Z0-9]/gi, "")
+                  .substring(0, 20);
+                return `
+              try {
+                JsBarcode("#sticker-barcode-${index}", "${barcodeValue}", {
+                  format: "CODE128",
+                  width: 1.5,
+                  height: 35,
+                  displayValue: false,
+                  margin: 0
+                });
+              } catch(e) { console.log(e); }
+            `;
+              })
+              .join("")}
+            setTimeout(function() { window.print(); }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      setIsPrinting(false);
+      setShowPrintModal(false);
+      clearSelection();
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Print",
+          message: `Printing ${selectedData.length} pack stickers`,
+        })
+      );
+    } else {
+      setIsPrinting(false);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please allow popups to print",
+        })
+      );
+    }
+  };
+
+  // Print single item label
+  const handlePrintSingleLabel = (item) => {
+    const catName = getCategoryName(item.category);
+    const purName = getPurityName(item.purity);
+    const barcodeValue = (item.barcode || "NOCODE")
+      .replace(/[^A-Z0-9]/gi, "")
+      .substring(0, 20);
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Label - ${item.barcode}</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 20px; background: #fff; }
+          .label { 
+            width: 220px; 
+            border: 1px solid #000; 
+            padding: 8px; 
+            background: #fff;
+          }
+          .label-header { font-size: 11px; font-weight: bold; margin-bottom: 5px; }
+          .barcode-container { text-align: center; margin: 5px 0; }
+          .barcode-container svg { max-width: 100%; height: 50px; }
+          .barcode-text { font-size: 10px; text-align: center; font-family: monospace; }
+          .label-footer { font-size: 9px; display: flex; justify-content: space-between; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; }
+          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        <div class="label">
+          <div class="label-header">${
+            item.pledge?.pledge_no || "N/A"
+          } | ${catName}</div>
+          <div class="barcode-container">
+            <svg id="single-barcode"></svg>
+          </div>
+          <div class="barcode-text">${item.barcode || "N/A"}</div>
+          <div class="label-footer">
+            <span>${item.weight || 0}g | ${purName}</span>
+            <span>${(item.pledge?.customer?.name || "Customer").substring(
+              0,
+              15
+            )}</span>
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            try {
+              JsBarcode("#single-barcode", "${barcodeValue}", {
+                format: "CODE128",
+                width: 1.5,
+                height: 40,
+                displayValue: false,
+                margin: 0
+              });
+            } catch(e) { console.log(e); }
+            setTimeout(function() { window.print(); }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+    }
+  };
+
+  // Open location assignment modal
+  const openLocationModal = (item) => {
+    setEditingItem(item);
+    setNewLocation(formatLocation(item) || "");
+    setShowLocationModal(true);
+  };
+
+  // Save location via API
+  const handleSaveLocation = async () => {
+    if (!editingItem) return;
+
+    setIsSaving(true);
+    try {
+      const response = await inventoryService.updateLocation(editingItem.id, {
+        storage_location: newLocation,
+        reason: "Manual assignment from inventory list",
+      });
+
+      if (response.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Location Updated",
+            message: "Item location has been updated",
+          })
+        );
+        setShowLocationModal(false);
+        setEditingItem(null);
+        fetchInventory(); // Refresh data from API
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: response.message || "Failed to update location",
+          })
+        );
+      }
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to update location",
+        })
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Export to CSV
+  const handleExport = () => {
+    const csvData = filteredItems.map((item) => ({
+      Barcode: item.barcode || "",
+      "Pledge No": item.pledge?.pledge_no || "",
+      Customer: item.pledge?.customer?.name || "",
+      Category: getCategoryName(item.category),
+      Purity: getPurityName(item.purity),
+      "Weight (g)": item.weight || 0,
+      "Value (RM)": item.estimated_value || 0,
+      Location: formatLocation(item) || "Unassigned",
+      Status: item.pledge?.status || "",
+      "Due Date": item.pledge?.due_date || "",
+    }));
+
+    const headers = Object.keys(csvData[0] || {});
+    const csv = [
+      headers.join(","),
+      ...csvData.map((row) => headers.map((h) => `"${row[h]}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inventory_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    dispatch(
+      addToast({
+        type: "success",
+        title: "Export",
+        message: `Exported ${csvData.length} items to CSV`,
+      })
+    );
+  };
+
+  // Loading state
+  if (isLoading && inventoryItems.length === 0) {
+    return (
+      <PageWrapper
+        title="Inventory Management"
+        subtitle="Track and manage all pledged items"
+      >
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+            <p className="text-zinc-500">Loading inventory from server...</p>
+          </div>
+        </div>
+      </PageWrapper>
+    );
   }
-
-  // Clear filters
-  const clearFilters = () => {
-    setSearchQuery('')
-    setPurityFilter('all')
-    setCategoryFilter('all')
-    setStatusFilter('active')
-    setRackFilter('all')
-  }
-
-  const hasActiveFilters = searchQuery || purityFilter !== 'all' || categoryFilter !== 'all' || statusFilter !== 'active' || rackFilter !== 'all'
 
   return (
     <PageWrapper
       title="Inventory Management"
-      subtitle="Track, locate, and manage all pledged items"
+      subtitle="Track and manage all pledged items"
       actions={
         <div className="flex items-center gap-2">
-          {selectedItems.length > 0 && (
-            <Badge variant="info" className="mr-2">{selectedItems.length} selected</Badge>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={RefreshCw}
+            onClick={() => {
+              fetchInventory();
+              fetchSummary();
+            }}
+          >
+            Refresh
+          </Button>
           <Button variant="outline" leftIcon={Printer} onClick={openPrintModal}>
             Print Labels
           </Button>
-          <Button variant="outline" leftIcon={Download}>
+          <Button variant="outline" leftIcon={Download} onClick={handleExport}>
             Export
           </Button>
         </div>
       }
     >
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-              <Package className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-xs text-zinc-500">Total Items</p>
-              <p className="text-xl font-bold text-zinc-800">{stats.totalItems}</p>
-            </div>
-          </div>
-        </Card>
-
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Scale className="w-5 h-5 text-blue-600" />
+              <Package className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Total Weight</p>
-              <p className="text-xl font-bold text-blue-600">{stats.totalWeight.toFixed(2)}g</p>
+              <p className="text-xs text-zinc-500">Total Items</p>
+              <p className="text-xl font-bold text-zinc-800">{stats.total}</p>
             </div>
           </div>
         </Card>
@@ -360,11 +870,13 @@ export default function InventoryList() {
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <Gem className="w-5 h-5 text-emerald-600" />
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Total Value</p>
-              <p className="text-xl font-bold text-emerald-600">{formatCurrency(stats.totalValue)}</p>
+              <p className="text-xs text-zinc-500">In Storage</p>
+              <p className="text-xl font-bold text-emerald-600">
+                {stats.inStorage}
+              </p>
             </div>
           </div>
         </Card>
@@ -383,12 +895,42 @@ export default function InventoryList() {
 
         <Card className="p-4">
           <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+              <Scale className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Total Weight</p>
+              <p className="text-xl font-bold text-amber-600">
+                {parseFloat(stats.totalWeight || 0).toFixed(1)}g
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Total Value</p>
+              <p className="text-xl font-bold text-purple-600">
+                {formatCurrency(stats.totalValue || 0)}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
               <MapPin className="w-5 h-5 text-zinc-600" />
             </div>
             <div>
               <p className="text-xs text-zinc-500">No Location</p>
-              <p className="text-xl font-bold text-zinc-600">{stats.noLocation}</p>
+              <p className="text-xl font-bold text-zinc-600">
+                {stats.noLocation}
+              </p>
             </div>
           </div>
         </Card>
@@ -402,6 +944,7 @@ export default function InventoryList() {
               placeholder="Search barcode, pledge no, customer, category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleBarcodeSearch()}
               leftIcon={Search}
             />
           </div>
@@ -411,10 +954,11 @@ export default function InventoryList() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               options={[
-                { value: 'all', label: 'All Status' },
-                { value: 'active', label: 'In Storage' },
-                { value: 'overdue', label: 'Overdue' },
-                { value: 'redeemed', label: 'Released' },
+                { value: "all", label: "All Status" },
+                { value: "active", label: "In Storage" },
+                { value: "overdue", label: "Overdue" },
+                { value: "expiring", label: "Expiring" },
+                { value: "redeemed", label: "Released" },
               ]}
               className="w-32"
             />
@@ -423,24 +967,47 @@ export default function InventoryList() {
               variant="outline"
               leftIcon={Filter}
               onClick={() => setShowFilters(!showFilters)}
-              className={cn(showFilters && 'bg-zinc-100')}
+              className={cn(showFilters && "bg-zinc-100")}
             >
               Filters
-              {hasActiveFilters && <span className="ml-1 w-2 h-2 rounded-full bg-amber-500" />}
+              {hasActiveFilters && (
+                <span className="ml-1 w-2 h-2 rounded-full bg-amber-500" />
+              )}
             </Button>
 
+            {/* View Mode Toggle */}
             <div className="flex border border-zinc-200 rounded-lg overflow-hidden">
               <button
-                className={cn('p-2 transition-colors', viewMode === 'table' ? 'bg-zinc-100' : 'hover:bg-zinc-50')}
-                onClick={() => setViewMode('table')}
+                className={cn(
+                  "p-2 transition-colors",
+                  viewMode === "table" ? "bg-zinc-100" : "hover:bg-zinc-50"
+                )}
+                onClick={() => setViewMode("table")}
+                title="List View"
               >
                 <List className="w-4 h-4" />
               </button>
               <button
-                className={cn('p-2 transition-colors', viewMode === 'grid' ? 'bg-zinc-100' : 'hover:bg-zinc-50')}
-                onClick={() => setViewMode('grid')}
+                className={cn(
+                  "p-2 transition-colors",
+                  viewMode === "grid" ? "bg-zinc-100" : "hover:bg-zinc-50"
+                )}
+                onClick={() => setViewMode("grid")}
+                title="Grid View"
               >
                 <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button
+                className={cn(
+                  "p-2 transition-colors",
+                  viewMode === "map"
+                    ? "bg-amber-100 text-amber-700"
+                    : "hover:bg-zinc-50"
+                )}
+                onClick={() => setViewMode("map")}
+                title="Rack Map View"
+              >
+                <Map className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -451,7 +1018,7 @@ export default function InventoryList() {
           {showFilters && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
+              animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
@@ -461,8 +1028,8 @@ export default function InventoryList() {
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
                   options={[
-                    { value: 'all', label: 'All Categories' },
-                    ...categories.map(c => ({ value: c, label: c }))
+                    { value: "all", label: "All Categories" },
+                    ...categories.map((c) => ({ value: c, label: c })),
                   ]}
                 />
                 <Select
@@ -470,22 +1037,29 @@ export default function InventoryList() {
                   value={purityFilter}
                   onChange={(e) => setPurityFilter(e.target.value)}
                   options={[
-                    { value: 'all', label: 'All Purities' },
-                    ...Object.entries(purityLabels).map(([k, v]) => ({ value: k, label: v }))
+                    { value: "all", label: "All Purities" },
+                    ...Object.entries(purityLabels).map(([k, v]) => ({
+                      value: k,
+                      label: v,
+                    })),
                   ]}
                 />
                 <Select
-                  label="Rack Location"
-                  value={rackFilter}
-                  onChange={(e) => setRackFilter(e.target.value)}
+                  label="Location"
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
                   options={[
-                    { value: 'all', label: 'All Locations' },
-                    { value: 'unassigned', label: '⚠️ Unassigned' },
-                    ...racks.map(r => ({ value: r, label: r }))
+                    { value: "all", label: "All Locations" },
+                    { value: "unassigned", label: "⚠️ Unassigned" },
+                    ...locations.map((l) => ({ value: l, label: l })),
                   ]}
                 />
                 <div className="flex items-end">
-                  <Button variant="outline" onClick={clearFilters} leftIcon={RotateCcw}>
+                  <Button
+                    variant="outline"
+                    onClick={clearFilters}
+                    leftIcon={RotateCcw}
+                  >
                     Clear Filters
                   </Button>
                 </div>
@@ -496,16 +1070,27 @@ export default function InventoryList() {
       </Card>
 
       {/* Selection Actions Bar */}
-      {selectedItems.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+      {selectedItems.length > 0 && viewMode !== "map" && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4"
+        >
           <Card className="p-3 bg-amber-50 border-amber-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CheckSquare className="w-5 h-5 text-amber-600" />
-                <span className="font-medium text-amber-800">{selectedItems.length} item(s) selected</span>
+                <span className="font-medium text-amber-800">
+                  {selectedItems.length} item(s) selected
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="accent" leftIcon={Printer} onClick={openPrintModal}>
+                <Button
+                  size="sm"
+                  variant="accent"
+                  leftIcon={Printer}
+                  onClick={openPrintModal}
+                >
                   Print Selected
                 </Button>
                 <Button size="sm" variant="outline" onClick={clearSelection}>
@@ -517,21 +1102,45 @@ export default function InventoryList() {
         </motion.div>
       )}
 
-      {/* Results Info */}
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-zinc-500">
-          Showing <strong>{filteredItems.length}</strong> items
-        </p>
-        <button className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1" onClick={toggleSelectAll}>
-          {selectAll ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-          {selectAll ? 'Deselect All' : 'Select All'}
-        </button>
-      </div>
-
-      {/* Items Display */}
+      {/* View Mode Content */}
       <AnimatePresence mode="wait">
-        {viewMode === 'table' ? (
-          <motion.div key="table" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        {/* MAP VIEW */}
+        {viewMode === "map" && (
+          <motion.div
+            key="map"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <RackMap embedded />
+          </motion.div>
+        )}
+
+        {/* TABLE VIEW */}
+        {viewMode === "table" && (
+          <motion.div
+            key="table"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-zinc-500">
+                Showing <strong>{filteredItems.length}</strong> items
+              </p>
+              <button
+                className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                onClick={toggleSelectAll}
+              >
+                {selectAll ? (
+                  <CheckSquare className="w-4 h-4" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {selectAll ? "Deselect All" : "Select All"}
+              </button>
+            </div>
+
             <Card className="overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -539,85 +1148,138 @@ export default function InventoryList() {
                     <tr>
                       <th className="p-4 text-left w-10">
                         <button onClick={toggleSelectAll}>
-                          {selectAll ? <CheckSquare className="w-5 h-5 text-amber-500" /> : <Square className="w-5 h-5 text-zinc-400" />}
+                          {selectAll ? (
+                            <CheckSquare className="w-5 h-5 text-amber-500" />
+                          ) : (
+                            <Square className="w-5 h-5 text-zinc-400" />
+                          )}
                         </button>
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Item</th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Barcode</th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Pledge</th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Customer</th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Weight</th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Purity</th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Location</th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">Status</th>
-                      <th className="p-4 text-center text-xs font-semibold text-zinc-500 uppercase">Actions</th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Item
+                      </th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Barcode
+                      </th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Pledge
+                      </th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Customer
+                      </th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Weight
+                      </th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Purity
+                      </th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Location
+                      </th>
+                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                        Status
+                      </th>
+                      <th className="p-4 text-center text-xs font-semibold text-zinc-500 uppercase">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
                     {filteredItems.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="p-12 text-center">
-                          <Box className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                          <p className="text-zinc-500">No items found</p>
+                        <td
+                          colSpan={10}
+                          className="p-8 text-center text-zinc-500"
+                        >
+                          <Package className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
+                          No items found
                         </td>
                       </tr>
                     ) : (
-                      filteredItems.map((item, index) => {
-                        const status = statusConfig[item.pledgeStatus] || statusConfig.active
-                        const StatusIcon = status.icon
-                        const isSelected = selectedItems.includes(item.barcode)
+                      filteredItems.map((item) => {
+                        const status = getStatusConfig(item.pledge?.status);
+                        const StatusIcon = status.icon;
+                        const isSelected = selectedItems.includes(item.id);
+                        const location = formatLocation(item);
 
                         return (
                           <motion.tr
-                            key={`${item.barcode}-${index}`}
+                            key={item.id}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            transition={{ delay: Math.min(index * 0.02, 0.3) }}
-                            className={cn('hover:bg-zinc-50 transition-colors', isSelected && 'bg-amber-50')}
+                            className={cn(
+                              "hover:bg-zinc-50",
+                              isSelected && "bg-amber-50"
+                            )}
                           >
                             <td className="p-4">
-                              <button onClick={() => toggleItemSelection(item.barcode)}>
-                                {isSelected ? <CheckSquare className="w-5 h-5 text-amber-500" /> : <Square className="w-5 h-5 text-zinc-300 hover:text-zinc-400" />}
+                              <button
+                                onClick={() => toggleItemSelection(item.id)}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="w-5 h-5 text-amber-500" />
+                                ) : (
+                                  <Square className="w-5 h-5 text-zinc-400" />
+                                )}
                               </button>
                             </td>
                             <td className="p-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center overflow-hidden">
-                                  {item.photo ? (
-                                    <img src={item.photo} alt="" className="w-full h-full object-cover cursor-pointer"
-                                      onClick={() => { setSelectedImage(item.photo); setShowImageModal(true) }} />
-                                  ) : (
-                                    <Package className="w-5 h-5 text-zinc-400" />
-                                  )}
+                                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                                  <Gem className="w-5 h-5 text-amber-600" />
                                 </div>
-                                <span className="font-medium text-zinc-800 capitalize">{item.category}</span>
+                                <div>
+                                  <p className="font-medium text-zinc-800">
+                                    {getCategoryName(item.category)}
+                                  </p>
+                                  <p className="text-xs text-zinc-500">
+                                    {purityLabels[getPurityName(item.purity)] ||
+                                      getPurityName(item.purity)}
+                                  </p>
+                                </div>
                               </div>
                             </td>
                             <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                <Barcode className="w-4 h-4 text-zinc-400" />
-                                <code className="text-sm font-mono bg-zinc-100 px-2 py-1 rounded">{item.barcode || 'N/A'}</code>
-                              </div>
+                              <code className="text-sm bg-zinc-100 px-2 py-1 rounded font-mono">
+                                {item.barcode || "-"}
+                              </code>
                             </td>
                             <td className="p-4">
-                              <button onClick={() => navigate(`/pledges/${item.pledgeId}`)} className="text-amber-600 hover:text-amber-700 font-medium text-sm">
-                                {item.pledgeNo || item.pledgeId}
+                              <button
+                                onClick={() =>
+                                  navigate(
+                                    `/pledges/${
+                                      item.pledge?.id || item.pledge_id
+                                    }`
+                                  )
+                                }
+                                className="text-amber-600 hover:text-amber-700 font-medium"
+                              >
+                                {item.pledge?.pledge_no || "-"}
                               </button>
                             </td>
                             <td className="p-4">
-                              <p className="text-sm text-zinc-800">{item.customerName}</p>
+                              <p className="text-zinc-800">
+                                {item.pledge?.customer?.name || "Unknown"}
+                              </p>
                             </td>
                             <td className="p-4">
-                              <span className="font-semibold">{parseFloat(item.weight || 0).toFixed(2)}g</span>
+                              <span className="font-medium">
+                                {item.weight}g
+                              </span>
                             </td>
                             <td className="p-4">
-                              <Badge variant="outline">{item.purity || 'N/A'}</Badge>
+                              <Badge variant="default">
+                                {getPurityName(item.purity)}
+                              </Badge>
                             </td>
                             <td className="p-4">
-                              {item.rackLocation ? (
+                              {location ? (
                                 <div className="flex items-center gap-1.5">
                                   <MapPin className="w-4 h-4 text-blue-500" />
-                                  <span className="font-medium text-blue-600">{item.rackLocation}</span>
+                                  <span className="font-medium text-blue-600 text-sm">
+                                    {location}
+                                  </span>
                                 </div>
                               ) : (
                                 <span className="text-red-500 text-sm flex items-center gap-1">
@@ -634,22 +1296,42 @@ export default function InventoryList() {
                             </td>
                             <td className="p-4">
                               <div className="flex items-center justify-center gap-1">
-                                <Button variant="ghost" size="icon-sm" title="View Pledge" onClick={() => navigate(`/pledges/${item.pledgeId}`)}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  title="View Pledge"
+                                  onClick={() =>
+                                    navigate(
+                                      `/pledges/${
+                                        item.pledge?.id || item.pledge_id
+                                      }`
+                                    )
+                                  }
+                                >
                                   <Eye className="w-4 h-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon-sm" title="Print Label"
-                                  onClick={() => { setSelectedItems([item.barcode]); openPrintModal() }}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  title="Print Label"
+                                  onClick={() => handlePrintSingleLabel(item)}
+                                >
                                   <Printer className="w-4 h-4" />
                                 </Button>
-                                {(item.pledgeStatus === 'active' || item.pledgeStatus === 'overdue') && (
-                                  <Button variant="ghost" size="icon-sm" title="Set Location" onClick={() => openRackModal(item)}>
+                                {item.pledge?.status !== "redeemed" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    title="Set Location"
+                                    onClick={() => openLocationModal(item)}
+                                  >
                                     <MapPin className="w-4 h-4" />
                                   </Button>
                                 )}
                               </div>
                             </td>
                           </motion.tr>
-                        )
+                        );
                       })
                     )}
                   </tbody>
@@ -657,217 +1339,227 @@ export default function InventoryList() {
               </div>
             </Card>
           </motion.div>
-        ) : (
-          /* Grid View */
-          <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filteredItems.length === 0 ? (
-              <Card className="col-span-full p-12 text-center">
-                <Box className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                <p className="text-zinc-500">No items found</p>
-              </Card>
-            ) : (
-              filteredItems.map((item, index) => {
-                const status = statusConfig[item.pledgeStatus] || statusConfig.active
-                const isSelected = selectedItems.includes(item.barcode)
+        )}
 
-                return (
-                  <motion.div key={`${item.barcode}-${index}`} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: Math.min(index * 0.02, 0.3) }}>
-                    <Card className={cn('overflow-hidden hover:shadow-lg transition-all relative', isSelected && 'ring-2 ring-amber-500')}>
-                      <div className="absolute top-2 left-2 z-10">
-                        <button onClick={(e) => { e.stopPropagation(); toggleItemSelection(item.barcode) }}
-                          className="w-6 h-6 rounded bg-white/80 flex items-center justify-center">
-                          {isSelected ? <CheckSquare className="w-5 h-5 text-amber-500" /> : <Square className="w-5 h-5 text-zinc-400" />}
-                        </button>
-                      </div>
-                      <div className="aspect-square bg-zinc-100 relative">
-                        {item.photo ? (
-                          <img src={item.photo} alt={item.category} className="w-full h-full object-cover"
-                            onClick={() => { setSelectedImage(item.photo); setShowImageModal(true) }} />
+        {/* GRID VIEW */}
+        {viewMode === "grid" && (
+          <motion.div
+            key="grid"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-zinc-500">
+                Showing <strong>{filteredItems.length}</strong> items
+              </p>
+              <button
+                className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                onClick={toggleSelectAll}
+              >
+                {selectAll ? (
+                  <CheckSquare className="w-4 h-4" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {selectAll ? "Deselect All" : "Select All"}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredItems.length === 0 ? (
+                <div className="col-span-full text-center py-12">
+                  <Package className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
+                  <p className="text-zinc-500">No items found</p>
+                </div>
+              ) : (
+                filteredItems.map((item) => {
+                  const status = getStatusConfig(item.pledge?.status);
+                  const isSelected = selectedItems.includes(item.id);
+                  const location = formatLocation(item);
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                    >
+                      <Card
+                        className={cn(
+                          "p-4 cursor-pointer transition-all hover:shadow-md",
+                          isSelected && "ring-2 ring-amber-500 bg-amber-50"
+                        )}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <button onClick={() => toggleItemSelection(item.id)}>
+                            {isSelected ? (
+                              <CheckSquare className="w-5 h-5 text-amber-500" />
+                            ) : (
+                              <Square className="w-5 h-5 text-zinc-400" />
+                            )}
+                          </button>
+                          <Badge variant={status.variant} size="sm">
+                            {status.label}
+                          </Badge>
+                        </div>
+
+                        <div className="w-full h-24 rounded-lg bg-amber-100 flex items-center justify-center mb-3">
+                          <Gem className="w-10 h-10 text-amber-600" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <p className="font-semibold text-zinc-800">
+                            {getCategoryName(item.category)}
+                          </p>
+                          <p className="text-sm text-zinc-500">
+                            {purityLabels[getPurityName(item.purity)] ||
+                              getPurityName(item.purity)}
+                          </p>
+                          <p className="text-sm font-medium">{item.weight}g</p>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-zinc-200">
+                          <code className="text-xs bg-zinc-100 px-2 py-1 rounded font-mono block truncate">
+                            {item.barcode || "-"}
+                          </code>
+                          <p className="text-xs text-zinc-500 mt-1">
+                            {item.pledge?.pledge_no || "-"}
+                          </p>
+                        </div>
+
+                        {location ? (
+                          <div className="mt-2 flex items-center gap-1 text-xs text-blue-600">
+                            <MapPin className="w-3 h-3" />
+                            <span className="truncate">{location}</span>
+                          </div>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-12 h-12 text-zinc-300" />
+                          <div className="mt-2 flex items-center gap-1 text-xs text-red-500">
+                            <AlertTriangle className="w-3 h-3" />
+                            Unassigned
                           </div>
                         )}
-                        <Badge variant={status.variant} className="absolute top-2 right-2">{status.label}</Badge>
-                      </div>
-                      <div className="p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-zinc-800 capitalize text-sm">{item.category}</span>
-                          <Badge variant="outline" className="text-xs">{item.purity}</Badge>
-                        </div>
-                        <p className="text-xs text-zinc-500 font-mono mb-2 truncate">{item.barcode}</p>
-                        <div className="flex items-center justify-between text-sm mb-2">
-                          <span className="text-zinc-600">{parseFloat(item.weight || 0).toFixed(2)}g</span>
-                          <span className="font-semibold text-emerald-600">{formatCurrency(item.netValue || 0)}</span>
-                        </div>
-                        {item.rackLocation ? (
-                          <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                            <MapPin className="w-3 h-3" />{item.rackLocation}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 text-xs text-red-500 bg-red-50 px-2 py-1 rounded">
-                            <AlertTriangle className="w-3 h-3" />No location
-                          </div>
-                        )}
-                        <div className="flex gap-1 mt-3">
-                          <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/pledges/${item.pledgeId}`)}>
-                            <Eye className="w-3 h-3 mr-1" />View
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => { setSelectedItems([item.barcode]); openPrintModal() }}>
-                            <Printer className="w-3 h-3" />
+
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            fullWidth
+                            onClick={() =>
+                              navigate(
+                                `/pledges/${item.pledge?.id || item.pledge_id}`
+                              )
+                            }
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
+                            View
                           </Button>
                         </div>
-                      </div>
-                    </Card>
-                  </motion.div>
-                )
-              })
-            )}
+                      </Card>
+                    </motion.div>
+                  );
+                })
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Rack Location Modal */}
-      <Modal isOpen={showRackModal} onClose={() => setShowRackModal(false)} title="Set Storage Location" size="sm">
+      {/* Print Modal */}
+      <Modal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        title="Print Labels"
+        size="md"
+      >
         <div className="p-5">
-          {selectedItem && (
-            <div className="mb-4 p-3 bg-zinc-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <Package className="w-6 h-6 text-amber-600" />
-                </div>
-                <div>
-                  <p className="font-medium capitalize">{selectedItem.category} - {selectedItem.purity}</p>
-                  <p className="text-xs text-zinc-500 font-mono">{selectedItem.barcode}</p>
-                  <p className="text-xs text-zinc-400">{selectedItem.pledgeNo || selectedItem.pledgeId}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <Input label="Rack / Locker Location" placeholder="e.g., A-01, B-05, SAFE-1"
-            value={rackLocation} onChange={(e) => setRackLocation(e.target.value.toUpperCase())}
-            leftIcon={MapPin} helperText="Enter rack code (e.g., A-01 means Rack A, Slot 01)" />
-          <div className="mt-3">
-            <p className="text-xs text-zinc-500 mb-2">Quick Select:</p>
-            <div className="flex flex-wrap gap-2">
-              {['A-01', 'A-02', 'B-01', 'B-02', 'C-01', 'SAFE-1'].map(loc => (
-                <button key={loc} onClick={() => setRackLocation(loc)}
-                  className={cn('px-3 py-1 text-sm rounded-lg border transition-colors',
-                    rackLocation === loc ? 'bg-amber-100 border-amber-300 text-amber-700' : 'border-zinc-200 hover:bg-zinc-50')}>
-                  {loc}
-                </button>
-              ))}
-            </div>
+          <p className="text-zinc-600 mb-4">
+            Print labels for <strong>{selectedItems.length}</strong> selected
+            item(s)
+          </p>
+
+          <div className="space-y-3">
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={Barcode}
+              onClick={handlePrintBarcodeLabels}
+              loading={isPrinting}
+            >
+              Item Barcode Labels
+            </Button>
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={Package}
+              onClick={handlePrintPackStickers}
+              loading={isPrinting}
+            >
+              Pack Stickers
+            </Button>
           </div>
+
           <div className="flex gap-3 mt-6">
-            <Button variant="outline" fullWidth onClick={() => setShowRackModal(false)}>Cancel</Button>
-            <Button variant="accent" fullWidth leftIcon={Save} onClick={handleSaveRack}>Save Location</Button>
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowPrintModal(false)}
+            >
+              Cancel
+            </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Print Labels Modal */}
-      <Modal isOpen={showPrintModal} onClose={() => setShowPrintModal(false)} title="Print Barcode Labels" size="md">
+      {/* Location Assignment Modal */}
+      <Modal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        title="Assign Storage Location"
+        size="sm"
+      >
         <div className="p-5">
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-zinc-700">Items to Print</p>
-              <Badge variant="info">{selectedItems.length > 0 ? selectedItems.length : Math.min(filteredItems.length, 10)} labels</Badge>
-            </div>
-            <div className="p-3 bg-zinc-50 rounded-lg max-h-32 overflow-y-auto">
-              {selectedItems.length > 0 ? (
-                <div className="space-y-1">
-                  {filteredItems.filter(i => selectedItems.includes(i.barcode)).slice(0, 5).map(item => (
-                    <div key={item.barcode} className="flex items-center justify-between text-sm">
-                      <span className="font-mono">{item.barcode}</span>
-                      <span className="text-zinc-500 capitalize">{item.category}</span>
-                    </div>
-                  ))}
-                  {selectedItems.length > 5 && <p className="text-xs text-zinc-400">...and {selectedItems.length - 5} more</p>}
-                </div>
-              ) : (
-                <p className="text-sm text-zinc-500">No items selected. Will print first 10 items from filtered list.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-zinc-700 mb-2">Label Size</label>
-            <div className="grid grid-cols-2 gap-2">
-              {labelSizes.map(size => (
-                <button key={size.id} onClick={() => setLabelSize(size.id)}
-                  className={cn('p-3 rounded-lg border-2 text-left transition-all',
-                    labelSize === size.id ? 'border-amber-500 bg-amber-50' : 'border-zinc-200 hover:border-zinc-300')}>
-                  <p className="font-medium text-sm">{size.name}</p>
-                  <p className="text-xs text-zinc-500">{size.width}mm × {size.height}mm</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-zinc-700 mb-2">Copies per Item</label>
-            <div className="flex items-center gap-2">
-              {[1, 2, 3].map(qty => (
-                <button key={qty} onClick={() => setPrintQuantity(qty)}
-                  className={cn('w-12 h-12 rounded-lg border-2 font-bold transition-all',
-                    printQuantity === qty ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-zinc-200 hover:border-zinc-300')}>
-                  {qty}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <p className="text-sm font-medium text-zinc-700 mb-2">Label Preview</p>
-            <div className="border border-zinc-200 rounded-lg p-4 bg-white">
-              <div className="border border-dashed border-zinc-300 p-3 max-w-[200px] mx-auto">
-                <p className="text-[8px] font-bold text-center border-b border-zinc-200 pb-1 mb-2">PAWNSYS SDN BHD</p>
-                <div className="text-center mb-2 bg-zinc-50 p-2">
-                  <p className="font-mono text-2xl tracking-wider">||||||||||||</p>
-                  <p className="font-mono text-[10px]">PLG-2024-001-01</p>
-                </div>
-                <div className="text-[8px] space-y-1">
-                  <div className="flex justify-between"><span>Pledge:</span><span className="font-bold">PLG-2024-001</span></div>
-                  <div className="flex justify-between"><span>Item:</span><span className="font-bold">Ring (916)</span></div>
-                  <div className="flex justify-between"><span>Weight:</span><span className="font-bold">5.25g</span></div>
-                </div>
-                <div className="mt-2 bg-blue-100 text-center text-[8px] font-bold py-1 rounded">📍 A-01</div>
+          {editingItem && (
+            <>
+              <div className="bg-zinc-50 rounded-lg p-4 mb-4">
+                <p className="text-sm text-zinc-500">Item</p>
+                <p className="font-semibold">
+                  {getCategoryName(editingItem.category)} -{" "}
+                  {editingItem.barcode}
+                </p>
+                <p className="text-sm text-zinc-600">
+                  Pledge: {editingItem.pledge?.pledge_no}
+                </p>
               </div>
-            </div>
-          </div>
 
-          <div className="p-3 bg-blue-50 rounded-lg mb-6">
-            <div className="flex gap-2">
-              <Printer className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-700">
-                <p className="font-medium">How Barcode Printing Works:</p>
-                <ol className="list-decimal list-inside text-xs mt-1 space-y-1">
-                  <li>Click "Generate Labels" to open print preview</li>
-                  <li>A new window shows all labels ready to print</li>
-                  <li>Click "Print Now" in the preview window</li>
-                  <li>Select your label printer (Zebra, Brother, etc.)</li>
-                  <li>Configure paper size to match label sheets</li>
-                </ol>
+              <Input
+                label="Storage Location"
+                placeholder="e.g., Vault A → Box 1 → Slot 5"
+                value={newLocation}
+                onChange={(e) => setNewLocation(e.target.value)}
+              />
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="outline"
+                  fullWidth
+                  onClick={() => setShowLocationModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="accent"
+                  fullWidth
+                  leftIcon={MapPin}
+                  onClick={handleSaveLocation}
+                  loading={isSaving}
+                >
+                  Save Location
+                </Button>
               </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button variant="outline" fullWidth onClick={() => setShowPrintModal(false)}>Cancel</Button>
-            <Button variant="accent" fullWidth leftIcon={Printer} onClick={handlePrint}>Generate Labels</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Image Modal */}
-      <Modal isOpen={showImageModal} onClose={() => setShowImageModal(false)} title="Item Photo" size="lg">
-        <div className="p-4">
-          {selectedImage && <img src={selectedImage} alt="Item" className="w-full max-h-[70vh] object-contain rounded-lg" />}
+            </>
+          )}
         </div>
       </Modal>
     </PageWrapper>
-  )
+  );
 }

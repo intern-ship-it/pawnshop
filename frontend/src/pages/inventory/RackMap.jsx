@@ -1,740 +1,1189 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router'
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { setPledges } from '@/features/pledges/pledgesSlice'
-import { addToast } from '@/features/ui/uiSlice'
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/utils/localStorage'
-import { formatCurrency } from '@/utils/formatters'
-import { cn } from '@/lib/utils'
-import { motion, AnimatePresence } from 'framer-motion'
-import PageWrapper from '@/components/layout/PageWrapper'
-import { Card, Button, Input, Select, Badge, Modal } from '@/components/common'
+/**
+ * Rack / Locker Map - Fully API Integrated
+ * No localStorage - All data from backend
+ */
+
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router";
+import { useAppDispatch } from "@/app/hooks";
+import { addToast } from "@/features/ui/uiSlice";
+import storageService from "@/services/storageService";
+import inventoryService from "@/services/inventoryService";
+import { formatCurrency } from "@/utils/formatters";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import PageWrapper from "@/components/layout/PageWrapper";
+import { Card, Button, Input, Badge, Modal } from "@/components/common";
 import {
-    Grid3X3,
-    Package,
-    MapPin,
-    Search,
-    Plus,
-    Eye,
-    Edit,
-    Trash2,
-    Save,
-    X,
-    AlertTriangle,
-    CheckCircle,
-    Box,
-    Layers,
-    ArrowRight,
-    RefreshCw,
-    Printer,
-    Download,
-    Info,
-    Clock,
-    User,
-} from 'lucide-react'
+  Grid3X3,
+  Package,
+  Box,
+  Search,
+  Plus,
+  RefreshCw,
+  Scale,
+  DollarSign,
+  Clock,
+  AlertTriangle,
+  Loader2,
+  ExternalLink,
+  Printer,
+} from "lucide-react";
 
-// Default racks configuration
-const defaultRacks = [
-    { id: 'A', name: 'Rack A', slots: 20, description: 'Main gold storage', rows: 4, cols: 5 },
-    { id: 'B', name: 'Rack B', slots: 20, description: 'Secondary storage', rows: 4, cols: 5 },
-    { id: 'C', name: 'Rack C', slots: 15, description: 'High value items', rows: 3, cols: 5 },
-    { id: 'SAFE', name: 'Safe', slots: 10, description: 'Premium/large items', rows: 2, cols: 5 },
-]
+export default function RackMap({ embedded = false }) {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
-export default function RackMap() {
-    const navigate = useNavigate()
-    const dispatch = useAppDispatch()
-    const { pledges } = useAppSelector((state) => state.pledges)
+  // State
+  const [vaults, setVaults] = useState([]);
+  const [selectedVault, setSelectedVault] = useState(null);
+  const [boxes, setBoxes] = useState([]);
+  const [selectedBox, setSelectedBox] = useState(null);
+  const [slots, setSlots] = useState([]);
+  const [boxSummaries, setBoxSummaries] = useState({});
+  const [inventorySummary, setInventorySummary] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBoxes, setIsLoadingBoxes] = useState(false);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
-    // State
-    const [racks, setRacks] = useState([])
-    const [selectedRack, setSelectedRack] = useState(null)
-    const [selectedSlot, setSelectedSlot] = useState(null)
-    const [searchQuery, setSearchQuery] = useState('')
+  // Modal State
+  const [showSlotModal, setShowSlotModal] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [slotItems, setSlotItems] = useState([]);
+  const [showAddVaultModal, setShowAddVaultModal] = useState(false);
+  const [showAddBoxModal, setShowAddBoxModal] = useState(false);
+  const [newVaultName, setNewVaultName] = useState("");
+  const [newVaultCode, setNewVaultCode] = useState("");
+  const [newVaultDescription, setNewVaultDescription] = useState("");
+  const [newBoxName, setNewBoxName] = useState("");
+  const [newBoxCode, setNewBoxCode] = useState("");
+  const [newBoxSlots, setNewBoxSlots] = useState(20);
+  const [isSaving, setIsSaving] = useState(false);
 
-    // Modals
-    const [showSlotModal, setShowSlotModal] = useState(false)
-    const [showAddRackModal, setShowAddRackModal] = useState(false)
-    const [showMoveModal, setShowMoveModal] = useState(false)
+  // Load initial data
+  useEffect(() => {
+    fetchVaults();
+    fetchInventorySummary();
+  }, []);
 
-    // New rack form
-    const [newRack, setNewRack] = useState({ id: '', name: '', slots: 20, description: '', rows: 4, cols: 5 })
+  // Load boxes when vault changes
+  useEffect(() => {
+    if (selectedVault) {
+      fetchBoxes(selectedVault);
+    }
+  }, [selectedVault]);
 
-    // Move form
-    const [moveTarget, setMoveTarget] = useState('')
+  // Load slots and summary when box changes
+  useEffect(() => {
+    if (selectedBox) {
+      fetchSlots(selectedBox);
+      fetchBoxSummary(selectedBox);
+    }
+  }, [selectedBox]);
 
-    // Load data
-    useEffect(() => {
-        // Load racks from settings
-        const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {})
-        const storedRacks = settings.racks || defaultRacks
-        setRacks(storedRacks)
-
-        // Load pledges
-        const storedPledges = getStorageItem(STORAGE_KEYS.PLEDGES, [])
-        dispatch(setPledges(storedPledges))
-
-        // Select first rack by default
-        if (storedRacks.length > 0 && !selectedRack) {
-            setSelectedRack(storedRacks[0].id)
+  // Fetch all vaults (racks)
+  const fetchVaults = async () => {
+    setIsLoading(true);
+    try {
+      const response = await storageService.getVaults();
+      if (response.success && response.data) {
+        setVaults(response.data);
+        if (response.data.length > 0 && !selectedVault) {
+          setSelectedVault(response.data[0].id);
         }
-    }, [dispatch])
-
-    // Build slot occupancy map
-    const slotOccupancy = useMemo(() => {
-        const map = {}
-
-        pledges.forEach(pledge => {
-            if (pledge.rackLocation && (pledge.status === 'active' || pledge.status === 'overdue')) {
-                const location = pledge.rackLocation.toUpperCase()
-                if (!map[location]) {
-                    map[location] = []
-                }
-                map[location].push({
-                    pledgeId: pledge.id,
-                    pledgeNo: pledge.pledgeNo || pledge.id,
-                    customerName: pledge.customerName,
-                    status: pledge.status,
-                    itemCount: pledge.items?.length || 0,
-                    totalWeight: pledge.items?.reduce((sum, i) => sum + (parseFloat(i.weight) || 0), 0) || 0,
-                    loanAmount: pledge.loanAmount,
-                    dueDate: pledge.dueDate,
-                    createdAt: pledge.createdAt,
-                })
-            }
+      }
+    } catch (error) {
+      console.error("Error fetching vaults:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to load vaults",
         })
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        return map
-    }, [pledges])
-
-    // Calculate stats
-    const stats = useMemo(() => {
-        const totalSlots = racks.reduce((sum, r) => sum + (r.slots || 0), 0)
-        const occupiedSlots = Object.keys(slotOccupancy).length
-        const emptySlots = totalSlots - occupiedSlots
-
-        return {
-            totalRacks: racks.length,
-            totalSlots,
-            occupiedSlots,
-            emptySlots,
-            occupancyRate: totalSlots > 0 ? ((occupiedSlots / totalSlots) * 100).toFixed(1) : 0,
+  // Fetch boxes for a vault
+  const fetchBoxes = async (vaultId) => {
+    setIsLoadingBoxes(true);
+    setBoxes([]);
+    setSelectedBox(null);
+    setSlots([]);
+    try {
+      const response = await storageService.getBoxes(vaultId);
+      if (response.success && response.data) {
+        setBoxes(response.data);
+        // Fetch summaries for all boxes
+        response.data.forEach((box) => fetchBoxSummary(box.id));
+        if (response.data.length > 0) {
+          setSelectedBox(response.data[0].id);
         }
-    }, [racks, slotOccupancy])
+      }
+    } catch (error) {
+      console.error("Error fetching boxes:", error);
+    } finally {
+      setIsLoadingBoxes(false);
+    }
+  };
 
-    // Get current rack data
-    const currentRack = useMemo(() => {
-        return racks.find(r => r.id === selectedRack) || racks[0]
-    }, [racks, selectedRack])
+  // Fetch slots for a box
+  const fetchSlots = async (boxId) => {
+    setIsLoadingSlots(true);
+    try {
+      const response = await storageService.getSlots(boxId);
+      if (response.success && response.data) {
+        setSlots(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching slots:", error);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
 
-    // Generate slots for current rack
-    const rackSlots = useMemo(() => {
-        if (!currentRack) return []
+  // Fetch box summary (totals)
+  const fetchBoxSummary = async (boxId) => {
+    try {
+      const response = await storageService.getBoxSummary(boxId);
+      if (response.success && response.data) {
+        setBoxSummaries((prev) => ({ ...prev, [boxId]: response.data }));
+      }
+    } catch (error) {
+      console.error("Error fetching box summary:", error);
+    }
+  };
 
-        const slots = []
-        const rows = currentRack.rows || 4
-        const cols = currentRack.cols || 5
+  // Fetch overall inventory summary
+  const fetchInventorySummary = async () => {
+    try {
+      const response = await inventoryService.getSummary();
+      if (response.success && response.data) {
+        setInventorySummary(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching inventory summary:", error);
+    }
+  };
 
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                const slotNum = row * cols + col + 1
-                if (slotNum <= currentRack.slots) {
-                    const slotId = `${currentRack.id}-${String(slotNum).padStart(2, '0')}`
-                    const occupants = slotOccupancy[slotId] || []
+  // Get current vault/box data
+  const currentVault = vaults.find((v) => v.id === selectedVault);
+  const currentBox = boxes.find((b) => b.id === selectedBox);
+  const currentBoxSummary = boxSummaries[selectedBox] || {};
 
-                    slots.push({
-                        id: slotId,
-                        row,
-                        col,
-                        number: slotNum,
-                        isOccupied: occupants.length > 0,
-                        occupants,
-                        hasOverdue: occupants.some(o => o.status === 'overdue'),
-                    })
-                }
-            }
+  // Filter slots by search
+  const filteredSlots = useMemo(() => {
+    if (!searchQuery) return slots;
+    const query = searchQuery.toLowerCase();
+    return slots.filter(
+      (slot) =>
+        slot.slot_number?.toString().includes(query) ||
+        slot.pledge_item?.pledge?.pledge_no?.toLowerCase().includes(query) ||
+        slot.pledge_item?.pledge?.customer?.name
+          ?.toLowerCase()
+          .includes(query) ||
+        slot.pledge_item?.barcode?.toLowerCase().includes(query)
+    );
+  }, [slots, searchQuery]);
+
+  // Overall stats
+  const overallStats = useMemo(
+    () => ({
+      totalVaults: vaults.length,
+      totalItems: inventorySummary.total_items || 0,
+      totalWeight: inventorySummary.total_weight || 0,
+      totalValue: inventorySummary.total_value || 0,
+      overdueItems: inventorySummary.overdue_count || 0,
+    }),
+    [vaults, inventorySummary]
+  );
+
+  // Handle slot click
+  const handleSlotClick = async (slot) => {
+    setSelectedSlot(slot);
+    setSlotItems([]);
+    setShowSlotModal(true);
+
+    if (slot.is_occupied && slot.pledge_item_id) {
+      try {
+        const response = await inventoryService.getById(slot.pledge_item_id);
+        if (response.success && response.data) {
+          setSlotItems([response.data]);
         }
+      } catch (error) {
+        console.error("Error fetching slot item:", error);
+      }
+    }
+  };
 
-        return slots
-    }, [currentRack, slotOccupancy])
+  // Navigate to pledge
+  const handleViewPledge = (pledgeId) => {
+    setShowSlotModal(false);
+    navigate(`/pledges/${pledgeId}`);
+  };
 
-    // Filter slots by search
-    const filteredSlots = useMemo(() => {
-        if (!searchQuery) return rackSlots
-
-        const query = searchQuery.toLowerCase()
-        return rackSlots.filter(slot => {
-            if (slot.id.toLowerCase().includes(query)) return true
-            return slot.occupants.some(o =>
-                o.pledgeNo?.toLowerCase().includes(query) ||
-                o.customerName?.toLowerCase().includes(query)
-            )
+  // Add new vault
+  const handleAddVault = async () => {
+    if (!newVaultName.trim()) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please enter a vault name",
         })
-    }, [rackSlots, searchQuery])
-
-    // Handle slot click
-    const handleSlotClick = (slot) => {
-        setSelectedSlot(slot)
-        setShowSlotModal(true)
+      );
+      return;
     }
-
-    // Add new rack
-    const handleAddRack = () => {
-        if (!newRack.id || !newRack.name) {
-            dispatch(addToast({ type: 'error', title: 'Error', message: 'Rack ID and Name are required' }))
-            return
-        }
-
-        const updatedRacks = [...racks, {
-            ...newRack,
-            id: newRack.id.toUpperCase(),
-            slots: parseInt(newRack.slots) || 20,
-            rows: parseInt(newRack.rows) || 4,
-            cols: parseInt(newRack.cols) || 5,
-        }]
-
-        // Save to settings
-        const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {})
-        settings.racks = updatedRacks
-        setStorageItem(STORAGE_KEYS.SETTINGS, settings)
-
-        setRacks(updatedRacks)
-        setShowAddRackModal(false)
-        setNewRack({ id: '', name: '', slots: 20, description: '', rows: 4, cols: 5 })
-
-        dispatch(addToast({ type: 'success', title: 'Rack Added', message: `${newRack.name} has been created` }))
-    }
-
-    // Move pledge to new location
-    const handleMove = () => {
-        if (!selectedSlot || !moveTarget) return
-
-        const pledgeToMove = selectedSlot.occupants[0]
-        if (!pledgeToMove) return
-
-        const storedPledges = getStorageItem(STORAGE_KEYS.PLEDGES, [])
-        const updatedPledges = storedPledges.map(p => {
-            if (p.id === pledgeToMove.pledgeId) {
-                return { ...p, rackLocation: moveTarget.toUpperCase() }
-            }
-            return p
+    if (!newVaultCode.trim()) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please enter a vault code",
         })
-
-        setStorageItem(STORAGE_KEYS.PLEDGES, updatedPledges)
-        dispatch(setPledges(updatedPledges))
-
-        setShowMoveModal(false)
-        setShowSlotModal(false)
-        setMoveTarget('')
-
-        dispatch(addToast({
-            type: 'success',
-            title: 'Pledge Moved',
-            message: `${pledgeToMove.pledgeNo} moved to ${moveTarget.toUpperCase()}`,
-        }))
+      );
+      return;
     }
 
-    // Delete rack
-    const handleDeleteRack = (rackId) => {
-        // Check if rack has items
-        const hasItems = Object.keys(slotOccupancy).some(loc => loc.startsWith(rackId + '-'))
-        if (hasItems) {
-            dispatch(addToast({ type: 'error', title: 'Cannot Delete', message: 'Rack has items. Move them first.' }))
-            return
-        }
+    setIsSaving(true);
+    try {
+      const response = await storageService.createVault({
+        name: newVaultName,
+        code: newVaultCode.toUpperCase().replace(/\s+/g, "-"),
+        description: newVaultDescription,
+      });
 
-        const updatedRacks = racks.filter(r => r.id !== rackId)
-        const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {})
-        settings.racks = updatedRacks
-        setStorageItem(STORAGE_KEYS.SETTINGS, settings)
+      if (response.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Vault Created",
+            message: `${newVaultName} has been created`,
+          })
+        );
+        setShowAddVaultModal(false);
+        setNewVaultName("");
+        setNewVaultCode("");
+        setNewVaultDescription("");
+        fetchVaults();
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: response.message || "Failed to create vault",
+          })
+        );
+      }
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to create vault",
+        })
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-        setRacks(updatedRacks)
-        if (selectedRack === rackId && updatedRacks.length > 0) {
-            setSelectedRack(updatedRacks[0].id)
-        }
-
-        dispatch(addToast({ type: 'success', title: 'Rack Deleted', message: 'Rack has been removed' }))
+  // Add new box
+  const handleAddBox = async () => {
+    if (!newBoxName.trim() || !selectedVault) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please enter a box name",
+        })
+      );
+      return;
+    }
+    if (!newBoxCode.trim()) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please enter a box number",
+        })
+      );
+      return;
     }
 
+    setIsSaving(true);
+    try {
+      const response = await storageService.createBox({
+        vault_id: selectedVault,
+        name: newBoxName,
+        box_number: newBoxCode,
+        total_slots: parseInt(newBoxSlots) || 20,
+      });
+
+      if (response.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Box Created",
+            message: `${newBoxName} has been created`,
+          })
+        );
+        setShowAddBoxModal(false);
+        setNewBoxName("");
+        setNewBoxCode("");
+        setNewBoxSlots(20);
+        fetchBoxes(selectedVault);
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: response.message || "Failed to create box",
+          })
+        );
+      }
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to create box",
+        })
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Format date
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleDateString("en-MY", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  // Print map
+  const handlePrintMap = () => {
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Rack Map - ${currentVault?.name || "All Vaults"}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          .header h1 { font-size: 24px; margin-bottom: 5px; }
+          .header p { color: #666; font-size: 12px; }
+          .stats { display: flex; justify-content: space-around; margin-bottom: 20px; padding: 10px; background: #f5f5f5; }
+          .stat { text-align: center; }
+          .stat-value { font-size: 20px; font-weight: bold; }
+          .stat-label { font-size: 10px; color: #666; }
+          .vault-section { margin-bottom: 30px; page-break-inside: avoid; }
+          .vault-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; padding: 5px; background: #f59e0b; color: white; }
+          .box-section { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; }
+          .box-header { display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+          .box-name { font-weight: bold; }
+          .box-stats { font-size: 12px; color: #666; }
+          .slots-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
+          .slot { width: 100%; aspect-ratio: 1; border: 1px solid #ddd; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; }
+          .slot.empty { background: #f9fafb; }
+          .slot.occupied { background: #fef3c7; border-color: #f59e0b; }
+          .slot.overdue { background: #fee2e2; border-color: #ef4444; }
+          .slot-number { font-weight: bold; }
+          .slot-pledge { font-size: 8px; color: #666; }
+          .legend { display: flex; gap: 20px; margin-top: 20px; justify-content: center; }
+          .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+          .legend-box { width: 15px; height: 15px; border: 1px solid #ddd; }
+          .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
+          @media print { body { padding: 10px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🗄️ Rack / Locker Map</h1>
+          <p>Printed on: ${new Date().toLocaleString("en-MY")}</p>
+        </div>
+        
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-value">${overallStats.totalVaults}</div>
+            <div class="stat-label">Total Vaults</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${overallStats.totalItems}</div>
+            <div class="stat-label">Total Items</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${overallStats.totalWeight}g</div>
+            <div class="stat-label">Total Weight</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">RM ${overallStats.totalValue.toLocaleString()}</div>
+            <div class="stat-label">Total Value</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" style="color: #ef4444;">${
+              overallStats.overdueItems
+            }</div>
+            <div class="stat-label">Overdue</div>
+          </div>
+        </div>
+
+        ${
+          currentVault
+            ? `
+          <div class="vault-section">
+            <div class="vault-title">${currentVault.name} ${
+                currentVault.description ? `- ${currentVault.description}` : ""
+              }</div>
+            ${boxes
+              .map((box) => {
+                const summary = boxSummaries[box.id] || {};
+                return `
+                <div class="box-section">
+                  <div class="box-header">
+                    <span class="box-name">${box.name}</span>
+                    <span class="box-stats">${
+                      summary.item_count || 0
+                    } items | ${(summary.total_weight || 0).toFixed(
+                  1
+                )}g | RM ${(summary.total_value || 0).toLocaleString()}</span>
+                  </div>
+                  <div class="slots-grid">
+                    ${(selectedBox === box.id ? slots : [])
+                      .map(
+                        (slot) => `
+                      <div class="slot ${
+                        slot.is_occupied
+                          ? slot.pledge_item?.pledge?.status === "overdue"
+                            ? "overdue"
+                            : "occupied"
+                          : "empty"
+                      }">
+                        <span class="slot-number">${String(
+                          slot.slot_number
+                        ).padStart(2, "0")}</span>
+                        ${
+                          slot.is_occupied && slot.pledge_item
+                            ? `<span class="slot-pledge">${
+                                slot.pledge_item.pledge?.pledge_no || ""
+                              }</span>`
+                            : ""
+                        }
+                      </div>
+                    `
+                      )
+                      .join("")}
+                  </div>
+                </div>
+              `;
+              })
+              .join("")}
+          </div>
+        `
+            : '<p style="text-align: center; color: #999;">No vault selected</p>'
+        }
+
+        <div class="legend">
+          <div class="legend-item"><div class="legend-box" style="background: #f9fafb;"></div> Empty</div>
+          <div class="legend-item"><div class="legend-box" style="background: #fef3c7;"></div> Occupied</div>
+          <div class="legend-item"><div class="legend-box" style="background: #fee2e2;"></div> Overdue</div>
+        </div>
+
+        <div class="footer">
+          <p>PawnSys - Pawn Shop Management System</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    } else {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please allow popups to print",
+        })
+      );
+    }
+  };
+
+  if (isLoading) {
     return (
-        <PageWrapper
-            title="Rack / Locker Map"
-            subtitle="Visual storage location management"
-            actions={
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" leftIcon={Printer}>
-                        Print Map
-                    </Button>
-                    <Button variant="accent" leftIcon={Plus} onClick={() => setShowAddRackModal(true)}>
-                        Add Rack
-                    </Button>
-                </div>
-            }
-        >
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                <Card className="p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                            <Grid3X3 className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-zinc-500">Total Racks</p>
-                            <p className="text-xl font-bold text-zinc-800">{stats.totalRacks}</p>
-                        </div>
-                    </div>
-                </Card>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+          <p className="text-zinc-500">Loading rack map...</p>
+        </div>
+      </div>
+    );
+  }
 
-                <Card className="p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
-                            <Layers className="w-5 h-5 text-zinc-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-zinc-500">Total Slots</p>
-                            <p className="text-xl font-bold text-zinc-800">{stats.totalSlots}</p>
-                        </div>
-                    </div>
-                </Card>
+  const content = (
+    <>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+              <Grid3X3 className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Total Vaults</p>
+              <p className="text-xl font-bold text-zinc-800">
+                {overallStats.totalVaults}
+              </p>
+            </div>
+          </div>
+        </Card>
 
-                <Card className="p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                            <Package className="w-5 h-5 text-amber-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-zinc-500">Occupied</p>
-                            <p className="text-xl font-bold text-amber-600">{stats.occupiedSlots}</p>
-                        </div>
-                    </div>
-                </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+              <Package className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Total Items</p>
+              <p className="text-xl font-bold text-amber-600">
+                {overallStats.totalItems}
+              </p>
+            </div>
+          </div>
+        </Card>
 
-                <Card className="p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                            <Box className="w-5 h-5 text-emerald-600" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-zinc-500">Empty</p>
-                            <p className="text-xl font-bold text-emerald-600">{stats.emptySlots}</p>
-                        </div>
-                    </div>
-                </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <Scale className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Total Weight</p>
+              <p className="text-xl font-bold text-emerald-600">
+                {overallStats.totalWeight}g
+              </p>
+            </div>
+          </div>
+        </Card>
 
-                <Card className="p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                            <span className="text-purple-600 font-bold text-sm">{stats.occupancyRate}%</span>
-                        </div>
-                        <div>
-                            <p className="text-xs text-zinc-500">Occupancy</p>
-                            <div className="w-20 h-2 bg-zinc-200 rounded-full overflow-hidden mt-1">
-                                <div
-                                    className="h-full bg-purple-500 rounded-full transition-all"
-                                    style={{ width: `${stats.occupancyRate}%` }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Total Value</p>
+              <p className="text-xl font-bold text-purple-600">
+                {formatCurrency(overallStats.totalValue)}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Overdue Items</p>
+              <p className="text-xl font-bold text-red-600">
+                {overallStats.overdueItems}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Sidebar */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Vaults */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-zinc-800">Vaults / Racks</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddVaultModal(true)}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Rack Selector */}
-                <div className="lg:col-span-1">
-                    <Card className="p-4">
-                        <h3 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
-                            <Grid3X3 className="w-5 h-5 text-amber-500" />
-                            Racks
-                        </h3>
-
-                        <div className="space-y-2">
-                            {racks.map(rack => {
-                                const rackOccupied = Object.keys(slotOccupancy).filter(loc => loc.startsWith(rack.id + '-')).length
-                                const isSelected = selectedRack === rack.id
-
-                                return (
-                                    <button
-                                        key={rack.id}
-                                        onClick={() => setSelectedRack(rack.id)}
-                                        className={cn(
-                                            'w-full p-3 rounded-lg border-2 text-left transition-all',
-                                            isSelected
-                                                ? 'border-amber-500 bg-amber-50'
-                                                : 'border-zinc-200 hover:border-zinc-300'
-                                        )}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="font-medium text-zinc-800">{rack.name}</p>
-                                                <p className="text-xs text-zinc-500">{rack.description}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm font-bold text-zinc-800">{rackOccupied}/{rack.slots}</p>
-                                                <p className="text-xs text-zinc-400">slots</p>
-                                            </div>
-                                        </div>
-                                        {/* Mini progress bar */}
-                                        <div className="w-full h-1.5 bg-zinc-200 rounded-full overflow-hidden mt-2">
-                                            <div
-                                                className={cn(
-                                                    'h-full rounded-full transition-all',
-                                                    rackOccupied === rack.slots ? 'bg-red-500' : 'bg-amber-500'
-                                                )}
-                                                style={{ width: `${(rackOccupied / rack.slots) * 100}%` }}
-                                            />
-                                        </div>
-                                    </button>
-                                )
-                            })}
-                        </div>
-
-                        {/* Legend */}
-                        <div className="mt-6 pt-4 border-t border-zinc-200">
-                            <p className="text-xs font-medium text-zinc-500 mb-3">LEGEND</p>
-                            <div className="space-y-2 text-xs">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 rounded bg-zinc-100 border border-zinc-300" />
-                                    <span className="text-zinc-600">Empty Slot</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 rounded bg-amber-500" />
-                                    <span className="text-zinc-600">Occupied</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 rounded bg-red-500" />
-                                    <span className="text-zinc-600">Overdue Item</span>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-
-                {/* Rack Grid */}
-                <div className="lg:col-span-3">
-                    <Card className="p-6">
-                        {/* Header */}
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="text-lg font-semibold text-zinc-800">{currentRack?.name || 'Select a Rack'}</h3>
-                                <p className="text-sm text-zinc-500">{currentRack?.description}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    placeholder="Search slot or pledge..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    leftIcon={Search}
-                                    className="w-48"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Grid */}
-                        {currentRack ? (
-                            <div
-                                className="grid gap-3"
-                                style={{
-                                    gridTemplateColumns: `repeat(${currentRack.cols || 5}, minmax(0, 1fr))`,
-                                }}
-                            >
-                                {filteredSlots.map(slot => (
-                                    <motion.button
-                                        key={slot.id}
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={() => handleSlotClick(slot)}
-                                        className={cn(
-                                            'aspect-square rounded-xl border-2 p-2 transition-all flex flex-col items-center justify-center relative',
-                                            slot.isOccupied
-                                                ? slot.hasOverdue
-                                                    ? 'bg-red-500 border-red-600 text-white'
-                                                    : 'bg-amber-500 border-amber-600 text-white'
-                                                : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300 text-zinc-600'
-                                        )}
-                                    >
-                                        <span className="text-xs font-bold">{slot.id}</span>
-                                        {slot.isOccupied ? (
-                                            <>
-                                                <Package className="w-5 h-5 mt-1" />
-                                                <span className="text-[10px] mt-1 truncate w-full text-center">
-                                                    {slot.occupants[0]?.pledgeNo}
-                                                </span>
-                                                {slot.occupants.length > 1 && (
-                                                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center">
-                                                        +{slot.occupants.length - 1}
-                                                    </span>
-                                                )}
-                                            </>
-                                        ) : (
-                                            <Box className="w-5 h-5 mt-1 text-zinc-300" />
-                                        )}
-                                    </motion.button>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12">
-                                <Grid3X3 className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
-                                <p className="text-zinc-500">Select a rack to view slots</p>
-                            </div>
-                        )}
-
-                        {/* Quick Stats */}
-                        {currentRack && (
-                            <div className="mt-6 pt-4 border-t border-zinc-200 flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-4">
-                                    <span className="text-zinc-500">
-                                        <strong className="text-zinc-800">{rackSlots.filter(s => s.isOccupied).length}</strong> occupied
-                                    </span>
-                                    <span className="text-zinc-500">
-                                        <strong className="text-zinc-800">{rackSlots.filter(s => !s.isOccupied).length}</strong> empty
-                                    </span>
-                                    <span className="text-zinc-500">
-                                        <strong className="text-red-600">{rackSlots.filter(s => s.hasOverdue).length}</strong> overdue
-                                    </span>
-                                </div>
-                                <Button variant="outline" size="sm" leftIcon={RefreshCw} onClick={() => setSearchQuery('')}>
-                                    Reset View
-                                </Button>
-                            </div>
-                        )}
-                    </Card>
-                </div>
-            </div>
-
-            {/* Slot Detail Modal */}
-            <Modal
-                isOpen={showSlotModal}
-                onClose={() => setShowSlotModal(false)}
-                title={`Slot ${selectedSlot?.id}`}
-                size="md"
-            >
-                <div className="p-5">
-                    {selectedSlot?.isOccupied ? (
-                        <>
-                            {/* Occupied Slot */}
-                            <div className="space-y-3 mb-6">
-                                {selectedSlot.occupants.map((occupant, idx) => (
-                                    <div
-                                        key={occupant.pledgeId}
-                                        className={cn(
-                                            'p-4 rounded-xl border',
-                                            occupant.status === 'overdue'
-                                                ? 'bg-red-50 border-red-200'
-                                                : 'bg-amber-50 border-amber-200'
-                                        )}
-                                    >
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <Package className={cn(
-                                                    'w-5 h-5',
-                                                    occupant.status === 'overdue' ? 'text-red-500' : 'text-amber-500'
-                                                )} />
-                                                <span className="font-bold">{occupant.pledgeNo}</span>
-                                            </div>
-                                            <Badge variant={occupant.status === 'overdue' ? 'error' : 'success'}>
-                                                {occupant.status === 'overdue' ? 'Overdue' : 'Active'}
-                                            </Badge>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3 text-sm">
-                                            <div>
-                                                <p className="text-zinc-500 flex items-center gap-1">
-                                                    <User className="w-3 h-3" /> Customer
-                                                </p>
-                                                <p className="font-medium">{occupant.customerName}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-zinc-500 flex items-center gap-1">
-                                                    <Package className="w-3 h-3" /> Items
-                                                </p>
-                                                <p className="font-medium">{occupant.itemCount} items ({occupant.totalWeight.toFixed(2)}g)</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-zinc-500">Loan Amount</p>
-                                                <p className="font-medium text-emerald-600">{formatCurrency(occupant.loanAmount)}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-zinc-500 flex items-center gap-1">
-                                                    <Clock className="w-3 h-3" /> Due Date
-                                                </p>
-                                                <p className={cn(
-                                                    'font-medium',
-                                                    occupant.status === 'overdue' && 'text-red-600'
-                                                )}>
-                                                    {occupant.dueDate ? new Date(occupant.dueDate).toLocaleDateString('en-MY') : 'N/A'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-2 mt-4">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                fullWidth
-                                                leftIcon={Eye}
-                                                onClick={() => {
-                                                    setShowSlotModal(false)
-                                                    navigate(`/pledges/${occupant.pledgeId}`)
-                                                }}
-                                            >
-                                                View Pledge
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                fullWidth
-                                                leftIcon={ArrowRight}
-                                                onClick={() => setShowMoveModal(true)}
-                                            >
-                                                Move
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
-                    ) : (
-                        /* Empty Slot */
-                        <div className="text-center py-8">
-                            <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mx-auto mb-4">
-                                <Box className="w-8 h-8 text-zinc-400" />
-                            </div>
-                            <h4 className="font-semibold text-zinc-800 mb-2">Empty Slot</h4>
-                            <p className="text-sm text-zinc-500 mb-4">
-                                This slot is available for new items
-                            </p>
-                            <Badge variant="success">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Available
-                            </Badge>
-                        </div>
+            {vaults.length === 0 ? (
+              <div className="text-center py-8">
+                <Grid3X3 className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
+                <p className="text-sm text-zinc-500">No vaults configured</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setShowAddVaultModal(true)}
+                >
+                  Add Vault
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {vaults.map((vault) => (
+                  <button
+                    key={vault.id}
+                    onClick={() => setSelectedVault(vault.id)}
+                    className={cn(
+                      "w-full p-3 rounded-lg text-left transition-all",
+                      selectedVault === vault.id
+                        ? "bg-amber-100 border-2 border-amber-300"
+                        : "bg-zinc-50 hover:bg-zinc-100 border-2 border-transparent"
                     )}
-
-                    <Button variant="outline" fullWidth onClick={() => setShowSlotModal(false)} className="mt-4">
-                        Close
-                    </Button>
-                </div>
-            </Modal>
-
-            {/* Move Modal */}
-            <Modal
-                isOpen={showMoveModal}
-                onClose={() => setShowMoveModal(false)}
-                title="Move to New Location"
-                size="sm"
-            >
-                <div className="p-5">
-                    <div className="mb-4 p-3 bg-zinc-50 rounded-lg">
-                        <p className="text-sm text-zinc-500">Moving from</p>
-                        <p className="font-bold text-lg">{selectedSlot?.id}</p>
-                        <p className="text-sm text-zinc-600">{selectedSlot?.occupants[0]?.pledgeNo}</p>
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-zinc-800">
+                        {vault.name}
+                      </span>
+                      <Badge variant="default" size="sm">
+                        {vault.total_boxes || 0} boxes
+                      </Badge>
                     </div>
+                    {vault.description && (
+                      <p className="text-xs text-zinc-500 truncate">
+                        {vault.description}
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
 
-                    <Input
-                        label="New Location"
-                        placeholder="e.g., B-05, SAFE-01"
-                        value={moveTarget}
-                        onChange={(e) => setMoveTarget(e.target.value.toUpperCase())}
-                        leftIcon={MapPin}
-                    />
+          {/* Boxes */}
+          {selectedVault && (
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-zinc-800">Boxes</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAddBoxModal(true)}
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
 
-                    {/* Quick select empty slots */}
-                    <div className="mt-3">
-                        <p className="text-xs text-zinc-500 mb-2">Available Slots:</p>
-                        <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
-                            {rackSlots.filter(s => !s.isOccupied).slice(0, 10).map(slot => (
-                                <button
-                                    key={slot.id}
-                                    onClick={() => setMoveTarget(slot.id)}
-                                    className={cn(
-                                        'px-2 py-1 text-xs rounded border transition-colors',
-                                        moveTarget === slot.id
-                                            ? 'bg-amber-100 border-amber-300 text-amber-700'
-                                            : 'border-zinc-200 hover:bg-zinc-50'
-                                    )}
-                                >
-                                    {slot.id}
-                                </button>
-                            ))}
+              {isLoadingBoxes ? (
+                <div className="text-center py-4">
+                  <Loader2 className="w-6 h-6 text-amber-500 animate-spin mx-auto" />
+                </div>
+              ) : boxes.length === 0 ? (
+                <div className="text-center py-4">
+                  <Box className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
+                  <p className="text-sm text-zinc-500">No boxes</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {boxes.map((box) => {
+                    const summary = boxSummaries[box.id] || {};
+                    return (
+                      <button
+                        key={box.id}
+                        onClick={() => setSelectedBox(box.id)}
+                        className={cn(
+                          "w-full p-3 rounded-lg text-left transition-all",
+                          selectedBox === box.id
+                            ? "bg-amber-100 border-2 border-amber-300"
+                            : "bg-zinc-50 hover:bg-zinc-100 border-2 border-transparent"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-zinc-800">
+                            {box.name}
+                          </span>
+                          <Badge
+                            variant={
+                              summary.overdue_count > 0 ? "error" : "default"
+                            }
+                            size="sm"
+                          >
+                            {summary.item_count || 0}
+                          </Badge>
                         </div>
-                    </div>
 
-                    <div className="flex gap-3 mt-6">
-                        <Button variant="outline" fullWidth onClick={() => setShowMoveModal(false)}>
-                            Cancel
-                        </Button>
-                        <Button variant="accent" fullWidth leftIcon={ArrowRight} onClick={handleMove} disabled={!moveTarget}>
-                            Move Item
-                        </Button>
-                    </div>
+                        {/* Box Totals */}
+                        <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+                          <div className="flex items-center gap-1 text-zinc-500">
+                            <Scale className="w-3 h-3" />
+                            <span>
+                              {(summary.total_weight || 0).toFixed(1)}g
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-zinc-500">
+                            <DollarSign className="w-3 h-3" />
+                            <span>
+                              {formatCurrency(summary.total_value || 0)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Occupancy Bar */}
+                        <div className="mt-2 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full",
+                              summary.overdue_count > 0
+                                ? "bg-red-500"
+                                : "bg-amber-500"
+                            )}
+                            style={{
+                              width: `${Math.min(
+                                ((box.occupied_slots || 0) /
+                                  (box.total_slots || 1)) *
+                                  100,
+                                100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-            </Modal>
+              )}
+            </Card>
+          )}
 
-            {/* Add Rack Modal */}
-            <Modal
-                isOpen={showAddRackModal}
-                onClose={() => setShowAddRackModal(false)}
-                title="Add New Rack"
-                size="sm"
+          {/* Legend */}
+          <Card className="p-4">
+            <p className="text-xs font-medium text-zinc-500 mb-3">LEGEND</p>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-zinc-100 border border-zinc-300" />
+                <span className="text-zinc-600">Empty Slot</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-amber-500" />
+                <span className="text-zinc-600">Occupied</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-red-500" />
+                <span className="text-zinc-600">Overdue Item</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Slot Grid */}
+        <div className="lg:col-span-3">
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-800">
+                  {currentVault?.name || "Select a Vault"}{" "}
+                  {currentBox ? `→ ${currentBox.name}` : ""}
+                </h3>
+                {currentBox && (
+                  <p className="text-sm text-zinc-500">
+                    {currentBoxSummary.item_count || 0} items •{" "}
+                    {(currentBoxSummary.total_weight || 0).toFixed(1)}g •{" "}
+                    {formatCurrency(currentBoxSummary.total_value || 0)}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Search slot or pledge..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  leftIcon={Search}
+                  className="w-48"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={RefreshCw}
+                  onClick={() => selectedBox && fetchSlots(selectedBox)}
+                >
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {isLoadingSlots ? (
+              <div className="text-center py-12">
+                <Loader2 className="w-10 h-10 text-amber-500 animate-spin mx-auto mb-4" />
+                <p className="text-zinc-500">Loading slots...</p>
+              </div>
+            ) : currentBox && filteredSlots.length > 0 ? (
+              <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                {filteredSlots.map((slot) => {
+                  const isOccupied = slot.is_occupied;
+                  const hasOverdue =
+                    slot.pledge_item?.pledge?.status === "overdue";
+
+                  return (
+                    <motion.button
+                      key={slot.id}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleSlotClick(slot)}
+                      className={cn(
+                        "aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-1 transition-all relative",
+                        isOccupied
+                          ? hasOverdue
+                            ? "bg-red-100 border-red-300 text-red-700"
+                            : "bg-amber-100 border-amber-300 text-amber-700"
+                          : "bg-zinc-50 border-zinc-200 text-zinc-400 hover:border-zinc-300"
+                      )}
+                    >
+                      <span className="text-xs font-mono font-medium">
+                        {String(slot.slot_number).padStart(2, "0")}
+                      </span>
+                      {isOccupied && slot.pledge_item && (
+                        <span className="text-[10px] mt-0.5 truncate max-w-full px-1">
+                          {slot.pledge_item.pledge?.pledge_no || "Item"}
+                        </span>
+                      )}
+                      {hasOverdue && (
+                        <AlertTriangle className="w-3 h-3 absolute top-1 right-1 text-red-500" />
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ) : currentBox ? (
+              <div className="text-center py-12">
+                <Grid3X3 className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
+                <p className="text-zinc-500">No slots in this box</p>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Grid3X3 className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
+                <p className="text-zinc-500">
+                  Select a vault and box to view slots
+                </p>
+              </div>
+            )}
+
+            {currentBox && slots.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-zinc-200 flex items-center gap-4 text-sm">
+                <span className="text-zinc-500">
+                  <strong className="text-zinc-800">
+                    {slots.filter((s) => s.is_occupied).length}
+                  </strong>{" "}
+                  occupied
+                </span>
+                <span className="text-zinc-500">
+                  <strong className="text-zinc-800">
+                    {slots.filter((s) => !s.is_occupied).length}
+                  </strong>{" "}
+                  empty
+                </span>
+                <span className="text-zinc-500">
+                  <strong className="text-red-600">
+                    {
+                      slots.filter(
+                        (s) => s.pledge_item?.pledge?.status === "overdue"
+                      ).length
+                    }
+                  </strong>{" "}
+                  overdue
+                </span>
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+
+      {/* Slot Detail Modal */}
+      <Modal
+        isOpen={showSlotModal}
+        onClose={() => setShowSlotModal(false)}
+        title={`Slot ${
+          selectedSlot?.slot_number
+            ? String(selectedSlot.slot_number).padStart(2, "0")
+            : ""
+        }`}
+        size="lg"
+      >
+        <div className="p-5">
+          {selectedSlot?.is_occupied && slotItems.length > 0 ? (
+            <>
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="text-center p-3 bg-amber-50 rounded-lg">
+                  <Package className="w-6 h-6 text-amber-500 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-amber-600">
+                    {slotItems.length}
+                  </p>
+                  <p className="text-xs text-amber-700">Items</p>
+                </div>
+                <div className="text-center p-3 bg-emerald-50 rounded-lg">
+                  <Scale className="w-6 h-6 text-emerald-500 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-emerald-600">
+                    {slotItems
+                      .reduce(
+                        (sum, item) => sum + (parseFloat(item.weight) || 0),
+                        0
+                      )
+                      .toFixed(2)}
+                    g
+                  </p>
+                  <p className="text-xs text-emerald-700">Weight</p>
+                </div>
+                <div className="text-center p-3 bg-purple-50 rounded-lg">
+                  <DollarSign className="w-6 h-6 text-purple-500 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-purple-600">
+                    {formatCurrency(
+                      slotItems.reduce(
+                        (sum, item) =>
+                          sum + (parseFloat(item.estimated_value) || 0),
+                        0
+                      )
+                    )}
+                  </p>
+                  <p className="text-xs text-purple-700">Value</p>
+                </div>
+              </div>
+
+              <h4 className="font-semibold text-zinc-800 mb-3">
+                Items in this Slot
+              </h4>
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {slotItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "p-4 rounded-xl border",
+                      item.pledge?.status === "overdue"
+                        ? "bg-red-50 border-red-200"
+                        : "bg-zinc-50 border-zinc-200"
+                    )}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-zinc-800">
+                            {item.pledge?.pledge_no || "N/A"}
+                          </span>
+                          <Badge
+                            variant={
+                              item.pledge?.status === "overdue"
+                                ? "error"
+                                : "success"
+                            }
+                          >
+                            {item.pledge?.status || "active"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-zinc-500">
+                          {item.pledge?.customer?.name || "Unknown"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={ExternalLink}
+                        onClick={() =>
+                          handleViewPledge(item.pledge?.id || item.pledge_id)
+                        }
+                      >
+                        View Pledge
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-zinc-500">Category</p>
+                        <p className="font-medium">
+                          {item.category?.name || item.category || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-500">Purity</p>
+                        <p className="font-medium">
+                          {item.purity?.name || item.purity || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-500">Weight</p>
+                        <p className="font-medium">{item.weight}g</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-500">Value</p>
+                        <p className="font-medium">
+                          {formatCurrency(item.estimated_value || 0)}
+                        </p>
+                      </div>
+                    </div>
+                    {item.barcode && (
+                      <div className="mt-2 pt-2 border-t border-zinc-200">
+                        <p className="text-xs text-zinc-500">Barcode</p>
+                        <code className="text-sm font-mono">
+                          {item.barcode}
+                        </code>
+                      </div>
+                    )}
+                    <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
+                      <Clock className="w-3 h-3" />
+                      Due: {formatDate(item.pledge?.due_date)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Box className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
+              <p className="text-zinc-500">This slot is empty</p>
+              <p className="text-sm text-zinc-400 mt-1">
+                Assign items during pledge creation
+              </p>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            fullWidth
+            className="mt-6"
+            onClick={() => setShowSlotModal(false)}
+          >
+            Close
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Add Vault Modal */}
+      <Modal
+        isOpen={showAddVaultModal}
+        onClose={() => setShowAddVaultModal(false)}
+        title="Add New Vault / Rack"
+        size="sm"
+      >
+        <div className="p-5 space-y-4">
+          <Input
+            label="Vault Name"
+            placeholder="e.g., Safe Room, Vault A"
+            value={newVaultName}
+            onChange={(e) => setNewVaultName(e.target.value)}
+          />
+          <Input
+            label="Vault Code"
+            placeholder="e.g., SAFE-01, VAULT-A"
+            value={newVaultCode}
+            onChange={(e) => setNewVaultCode(e.target.value)}
+            helperText="Unique identifier code (required)"
+          />
+          <Input
+            label="Description (Optional)"
+            placeholder="e.g., High value items"
+            value={newVaultDescription}
+            onChange={(e) => setNewVaultDescription(e.target.value)}
+          />
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowAddVaultModal(false)}
             >
-                <div className="p-5 space-y-4">
-                    <Input
-                        label="Rack ID"
-                        placeholder="e.g., D, E, VAULT"
-                        value={newRack.id}
-                        onChange={(e) => setNewRack({ ...newRack, id: e.target.value.toUpperCase() })}
-                        maxLength={5}
-                        helperText="Short code (1-5 characters)"
-                    />
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              fullWidth
+              leftIcon={Plus}
+              onClick={handleAddVault}
+              loading={isSaving}
+            >
+              Add Vault
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
-                    <Input
-                        label="Rack Name"
-                        placeholder="e.g., Rack D"
-                        value={newRack.name}
-                        onChange={(e) => setNewRack({ ...newRack, name: e.target.value })}
-                    />
+      {/* Add Box Modal */}
+      <Modal
+        isOpen={showAddBoxModal}
+        onClose={() => setShowAddBoxModal(false)}
+        title="Add New Box"
+        size="sm"
+      >
+        <div className="p-5 space-y-4">
+          <Input
+            label="Box Name"
+            placeholder="e.g., Box 01, Drawer A"
+            value={newBoxName}
+            onChange={(e) => setNewBoxName(e.target.value)}
+          />
+          <Input
+            label="Box Number"
+            placeholder="e.g., 1, 2, 3 or B01"
+            value={newBoxCode}
+            onChange={(e) => setNewBoxCode(e.target.value)}
+            helperText="Unique box number (required)"
+          />
+          <Input
+            label="Number of Slots"
+            type="number"
+            min={1}
+            max={100}
+            value={newBoxSlots}
+            onChange={(e) => setNewBoxSlots(e.target.value)}
+          />
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowAddBoxModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              fullWidth
+              leftIcon={Plus}
+              onClick={handleAddBox}
+              loading={isSaving}
+            >
+              Add Box
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
+  );
 
-                    <Input
-                        label="Description"
-                        placeholder="e.g., Reserve storage"
-                        value={newRack.description}
-                        onChange={(e) => setNewRack({ ...newRack, description: e.target.value })}
-                    />
+  if (embedded) return content;
 
-                    <div className="grid grid-cols-3 gap-3">
-                        <Input
-                            label="Total Slots"
-                            type="number"
-                            value={newRack.slots}
-                            onChange={(e) => setNewRack({ ...newRack, slots: e.target.value })}
-                        />
-                        <Input
-                            label="Rows"
-                            type="number"
-                            value={newRack.rows}
-                            onChange={(e) => setNewRack({ ...newRack, rows: e.target.value })}
-                        />
-                        <Input
-                            label="Columns"
-                            type="number"
-                            value={newRack.cols}
-                            onChange={(e) => setNewRack({ ...newRack, cols: e.target.value })}
-                        />
-                    </div>
-
-                    <div className="flex gap-3 mt-6">
-                        <Button variant="outline" fullWidth onClick={() => setShowAddRackModal(false)}>
-                            Cancel
-                        </Button>
-                        <Button variant="accent" fullWidth leftIcon={Plus} onClick={handleAddRack}>
-                            Add Rack
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
-        </PageWrapper>
-    )
+  return (
+    <PageWrapper
+      title="Rack / Locker Map"
+      subtitle="Visual storage location management"
+      actions={
+        <div className="flex items-center gap-2">
+          <Button variant="outline" leftIcon={Printer} onClick={handlePrintMap}>
+            Print Map
+          </Button>
+          <Button
+            variant="accent"
+            leftIcon={Plus}
+            onClick={() => setShowAddVaultModal(true)}
+          >
+            Add Vault
+          </Button>
+        </div>
+      }
+    >
+      {content}
+    </PageWrapper>
+  );
 }
