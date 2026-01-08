@@ -12,6 +12,8 @@ import Sidebar from "./Sidebar";
 import Header from "./Header";
 import Toast from "@/components/common/Toast";
 import { Loader2 } from "lucide-react";
+import { setSettings } from "@/features/ui/uiSlice";
+import settingsService from "@/services/settingsService";
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -61,6 +63,38 @@ export default function MainLayout() {
 
     verifyAuth();
   }, [dispatch, navigate, isAuthenticated, user]);
+
+  // Fetch settings from API on startup
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await settingsService.getAll();
+        if (response.success && response.data) {
+          // Transform API data
+          const companyData = response.data.company || [];
+          const companyMap = {};
+          companyData.forEach((s) => {
+            companyMap[s.key_name] = s.value;
+          });
+
+          dispatch(
+            setSettings({
+              company: {
+                name: companyMap.name || "PawnSys",
+                license: companyMap.registration_no || "",
+              },
+            })
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+      }
+    };
+
+    if (isAuthenticated) {
+      loadSettings();
+    }
+  }, [isAuthenticated, dispatch]);
 
   if (isVerifying || authLoading) {
     return (

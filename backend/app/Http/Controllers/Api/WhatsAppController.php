@@ -37,9 +37,6 @@ class WhatsAppController extends Controller
         ]);
     }
 
-    /**
-     * Update WhatsApp configuration
-     */
     public function updateConfig(Request $request): JsonResponse
     {
         $branchId = $request->user()->branch_id;
@@ -47,19 +44,33 @@ class WhatsAppController extends Controller
         $validated = $request->validate([
             'provider' => 'required|in:ultramsg,twilio,wati',
             'instance_id' => 'required|string|max:100',
-            'api_token' => 'required|string|max:255',
+            'api_token' => 'nullable|string|max:255',
             'phone_number' => 'required|string|max:20',
             'is_enabled' => 'nullable|boolean',
         ]);
 
-        $config = WhatsAppConfig::updateOrCreate(
-            ['branch_id' => $branchId],
-            $validated
-        );
+        // Don't update token if it's masked or empty
+        if (empty($validated['api_token']) || $validated['api_token'] === '********') {
+            unset($validated['api_token']);
+        }
+
+        // Check if config exists
+        $config = WhatsAppConfig::where('branch_id', $branchId)->first();
+
+        if ($config) {
+            $config->update($validated);
+        } else {
+            // For new config, token is required
+            if (empty($request->api_token) || $request->api_token === '********') {
+                return $this->error('API token is required for new configuration', 422);
+            }
+            $validated['api_token'] = $request->api_token;
+            $validated['branch_id'] = $branchId;
+            $config = WhatsAppConfig::create($validated);
+        }
 
         return $this->success($config, 'WhatsApp configuration updated');
     }
-
     /**
      * Test WhatsApp connection
      */
@@ -96,8 +107,8 @@ class WhatsAppController extends Controller
         $branchId = $request->user()->branch_id;
 
         $templates = WhatsAppTemplate::where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->orderBy('template_key')
             ->get();
 
@@ -328,48 +339,113 @@ class WhatsAppController extends Controller
             default => ['success' => false, 'error' => 'Unknown provider'],
         };
     }
-
     /**
      * Test Ultramsg connection
      */
     protected function testUltramsg(WhatsAppConfig $config): array
     {
         try {
-            $response = Http::get("https://api.ultramsg.com/{$config->instance_id}/instance/status", [
-                'token' => $config->api_token,
-            ]);
+            $url = "https://api.ultramsg.com/{$config->instance_id}/instance/status";
 
-            if ($response->successful()) {
+            $params = [
+                'token' => $config->api_token,
+            ];
+
+            $ch = curl_init();
+
+            $curlOptions = [
+                CURLOPT_URL => $url . '?' . http_build_query($params),
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 30,
+            ];
+
+            // Only disable SSL verification in local environment
+            if (app()->environment('local')) {
+                $curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
+                $curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
+            }
+
+            curl_setopt_array($ch, $curlOptions);
+
+            $response = curl_exec($ch);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($err) {
+                return ['success' => false, 'error' => 'cURL Error: ' . $err];
+            }
+
+            $result = json_decode($response, true);
+
+            // Check if we got a valid response
+            if ($response && !isset($result['error'])) {
                 return ['success' => true];
             }
 
-            return ['success' => false, 'error' => $response->body()];
+            return ['success' => false, 'error' => $result['error'] ?? $response];
         } catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
-
     /**
      * Send via Ultramsg
      */
     protected function sendViaUltramsg(WhatsAppConfig $config, string $phone, string $message): array
     {
         try {
-            $response = Http::post("https://api.ultramsg.com/{$config->instance_id}/messages/chat", [
+            $url = "https://api.ultramsg.com/{$config->instance_id}/messages/chat";
+
+            $params = [
                 'token' => $config->api_token,
                 'to' => $phone,
                 'body' => $message,
-            ]);
+            ];
 
-            if ($response->successful() && $response->json('sent') === 'true') {
-                return ['success' => true, 'message_id' => $response->json('id')];
+            $ch = curl_init();
+
+            $curlOptions = [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => "",
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => "POST",
+                CURLOPT_POSTFIELDS => http_build_query($params),
+                CURLOPT_HTTPHEADER => [
+                    "content-type: application/x-www-form-urlencoded"
+                ],
+            ];
+
+            // Only disable SSL verification in local environment
+            if (app()->environment('local')) {
+                $curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
+                $curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
             }
 
-            return ['success' => false, 'error' => $response->json('error') ?? $response->body()];
+            curl_setopt_array($ch, $curlOptions);
+
+            $response = curl_exec($ch);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($err) {
+                return ['success' => false, 'error' => 'cURL Error: ' . $err];
+            }
+
+            $result = json_decode($response, true);
+
+            if (isset($result['sent']) && $result['sent'] === 'true') {
+                return ['success' => true, 'message_id' => $result['id'] ?? null];
+            }
+
+            return ['success' => false, 'error' => $result['error'] ?? $response];
         } catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
+
+
 
     /**
      * Test Twilio connection (placeholder)

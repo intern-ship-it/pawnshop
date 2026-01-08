@@ -175,40 +175,12 @@ export default function Sidebar() {
   const roleSlug = role?.slug || role || "";
 
   // Company info
-  const [companyName, setCompanyName] = useState("PawnSys");
-  const [companyShort, setCompanyShort] = useState("PS");
-
-  useEffect(() => {
-    const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {});
-    if (settings.company?.name) {
-      setCompanyName(settings.company.name);
-      const words = settings.company.name.split(" ");
-      setCompanyShort(
-        words.length >= 2
-          ? words[0][0] + words[1][0]
-          : settings.company.name.substring(0, 2).toUpperCase()
-      );
-    }
-  }, []);
-
-  // Listen for settings updates
-  useEffect(() => {
-    const handleSettingsUpdate = () => {
-      const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {});
-      if (settings.company?.name) {
-        setCompanyName(settings.company.name);
-        const words = settings.company.name.split(" ");
-        setCompanyShort(
-          words.length >= 2
-            ? words[0][0] + words[1][0]
-            : settings.company.name.substring(0, 2).toUpperCase()
-        );
-      }
-    };
-    window.addEventListener("settingsUpdated", handleSettingsUpdate);
-    return () =>
-      window.removeEventListener("settingsUpdated", handleSettingsUpdate);
-  }, []);
+  const { settings } = useAppSelector((state) => state.ui);
+  const companyName = settings?.company?.name || "PawnSys";
+  const companyShort =
+    companyName.split(" ").length >= 2
+      ? companyName.split(" ")[0][0] + companyName.split(" ")[1][0]
+      : companyName.substring(0, 2).toUpperCase();
 
   /**
    * Check if user has permission

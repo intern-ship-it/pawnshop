@@ -15,6 +15,10 @@ const initialState = {
     price999: 320.00,
     lastUpdated: new Date().toISOString(),
   },
+  settings: {
+    company: { name: 'PawnSys', license: '' },
+    loaded: false,
+  },  
 }
 
 const uiSlice = createSlice({
@@ -43,6 +47,9 @@ const uiSlice = createSlice({
         id: Date.now(),
         ...action.payload,
       })
+    },
+    setSettings: (state, action) => {
+      state.settings = { ...state.settings, ...action.payload, loaded: true };
     },
     removeToast: (state, action) => {
       state.toasts = state.toasts.filter(t => t.id !== action.payload)
@@ -73,5 +80,6 @@ export const {
   setGlobalLoading,
   setPageLoading,
   updateGoldPrice,
+  setSettings,
 } = uiSlice.actions
 export default uiSlice.reducer
