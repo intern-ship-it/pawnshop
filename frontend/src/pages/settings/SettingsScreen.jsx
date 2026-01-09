@@ -647,10 +647,9 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
           addToast({
             type: "success",
             title: "Gold Price Updated",
-            message: `Live price: RM ${
-              apiPrices?.price999?.toFixed(2) ||
-              goldPrice.manualPrice?.toFixed(2)
-            }/g`,
+            message: `Live price: RM ${Number(
+              apiPrices?.price999 || goldPrice.manualPrice || 0
+            ).toFixed(2)}/g`,
           })
         );
       } else {
@@ -660,7 +659,9 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
           addToast({
             type: "success",
             title: "Price Updated",
-            message: `Manual price: RM ${goldPrice.manualPrice?.toFixed(2)}/g`,
+            message: `Manual price: RM ${Number(
+              goldPrice.manualPrice || 0
+            ).toFixed(2)}/g`,
           })
         );
       }
@@ -681,8 +682,8 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
   // Get display price - API price if available, otherwise manual
   const displayPrice =
     goldPrice.source === "api" && apiPrices?.price999
-      ? apiPrices.price999
-      : goldPrice.manualPrice;
+      ? Number(apiPrices.price999) || 0
+      : Number(goldPrice.manualPrice) || 0;
 
   // Get source indicator
   const getSourceBadge = () => {
@@ -740,7 +741,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
               {apiLoading ? (
                 <span className="text-2xl">Loading...</span>
               ) : (
-                `RM ${displayPrice?.toFixed(2) || "0.00"}/g`
+                `RM ${Number(displayPrice || 0).toFixed(2)}/g`
               )}
             </p>
 
@@ -762,8 +763,8 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
                     <TrendingDown className="w-4 h-4" />
                   )}
                   {apiPrices.change.direction === "up" ? "+" : ""}
-                  RM {apiPrices.change.amount?.toFixed(2)} (
-                  {apiPrices.change.percent?.toFixed(2)}%)
+                  RM {Number(apiPrices.change.amount || 0).toFixed(2)} (
+                  {Number(apiPrices.change.percent || 0).toFixed(2)}%)
                   <span className="text-amber-200 ml-1">vs yesterday</span>
                 </p>
               )}
@@ -922,7 +923,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
                 >
                   <p className="text-xs text-zinc-500">{purity.karat}</p>
                   <p className="text-sm font-bold text-zinc-800">
-                    RM {price.toFixed(2)}
+                    RM {Number(price || 0).toFixed(2)}
                   </p>
                 </div>
               );

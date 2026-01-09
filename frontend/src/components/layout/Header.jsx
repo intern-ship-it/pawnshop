@@ -325,7 +325,7 @@ export default function Header() {
                     GOLD (999)
                   </span>
                   <span className="text-base font-bold">
-                    RM {goldPrices?.price999?.toFixed(2) || "0.00"}/g
+                    RM {Number(goldPrices?.price999 || 0).toFixed(2)}/g
                   </span>
                   {/* Trend Indicator */}
                   {goldPrices?.change &&
@@ -344,7 +344,7 @@ export default function Header() {
                         ) : (
                           <TrendingDown className="w-3 h-3" />
                         )}
-                        {goldPrices.change.percent?.toFixed(1)}%
+                        {Number(goldPrices.change.percent || 0).toFixed(1)}%
                       </span>
                     )}
                   <ChevronDown
@@ -367,7 +367,7 @@ export default function Header() {
                       <p className="text-xs text-white/80">Gold Price (999)</p>
                       <div className="flex items-center gap-2">
                         <p className="text-2xl font-bold">
-                          RM {goldPrices.price999?.toFixed(2)}/g
+                          RM {Number(goldPrices.price999 || 0).toFixed(2)}/g
                         </p>
                         {/* Trend Badge */}
                         {goldPrices.change &&
@@ -386,7 +386,10 @@ export default function Header() {
                               ) : (
                                 <TrendingDown className="w-4 h-4" />
                               )}
-                              {goldPrices.change.percent?.toFixed(2)}%
+                              {Number(goldPrices.change.percent || 0).toFixed(
+                                2
+                              )}
+                              %
                             </span>
                           )}
                       </div>
@@ -414,7 +417,8 @@ export default function Header() {
                       <div className="flex items-center gap-2 mt-2 text-sm text-white/80">
                         <span>
                           {goldPrices.change.direction === "up" ? "+" : ""}
-                          RM {goldPrices.change.amount?.toFixed(2)} vs yesterday
+                          RM {Number(goldPrices.change.amount || 0).toFixed(2)}
+                          vs yesterday
                         </span>
                       </div>
                     )}
@@ -447,7 +451,10 @@ export default function Header() {
                           {purity.karat}
                         </span>
                         <span className="text-sm font-semibold text-zinc-800">
-                          RM {(goldPrices.carat?.[purity.code] || 0).toFixed(2)}
+                          RM{" "}
+                          {Number(goldPrices.carat?.[purity.code] || 0).toFixed(
+                            2
+                          )}
                         </span>
                       </div>
                     ))}
