@@ -60,6 +60,8 @@ export default function Header() {
   const [goldLoading, setGoldLoading] = useState(true);
   const [goldError, setGoldError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isFromCache, setIsFromCache] = useState(false); // ADD THIS
+  const [cacheAge, setCacheAge] = useState("");
 
   const goldDropdownRef = useRef(null);
 
@@ -109,7 +111,7 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchGoldPrices = async () => {
+  const fetchGoldPrices = async (forceRefresh = false) => {
     try {
       setGoldLoading(true);
       setGoldError(null);
@@ -134,14 +136,19 @@ export default function Header() {
             lastUpdated:
               goldPriceSettings?.lastUpdated || new Date().toISOString(),
           });
+          setIsFromCache(false);
+          setCacheAge("");
         } else {
           setGoldError("Manual price not set");
         }
       } else {
-        // Fetch from API
+        // Fetch from API (with caching)
         try {
-          const response = await goldPriceService.getDashboardPrices();
-          if (response.data) {
+          const response = await goldPriceService.getDashboardPrices(
+            forceRefresh
+          );
+
+          if (response.success && response.data) {
             const data = response.data;
             const price999 = data.current?.prices?.gold?.per_gram || 0;
 
@@ -156,33 +163,28 @@ export default function Header() {
             });
 
             setGoldPrices({
-              source: data.current?.source || "api",
+              source: response.fromCache
+                ? "cache"
+                : data.current?.source || "api",
               price999: price999,
               carat: allPrices,
               change: data.change,
               lastUpdated: data.last_updated || new Date().toISOString(),
             });
+
+            // Set cache status
+            setIsFromCache(response.fromCache || false);
+            setCacheAge(response.cacheAge || "");
           } else {
-            setGoldError("No price data");
+            // API failed - show error (NO fallback!)
+            setGoldError(
+              response.message || "API limit reached or unavailable"
+            );
           }
         } catch (apiError) {
           console.error("API fetch error:", apiError);
-          // Fallback to manual if API fails
-          const manualPrice = parseFloat(goldPriceSettings?.manualPrice) || 0;
-          if (manualPrice > 0) {
-            const calculatedPrices = {};
-            purities.forEach((p) => {
-              calculatedPrices[p.code] = manualPrice * (p.percentage / 100);
-            });
-            setGoldPrices({
-              source: "fallback",
-              price999: manualPrice,
-              carat: calculatedPrices,
-              lastUpdated: new Date().toISOString(),
-            });
-          } else {
-            setGoldError("API unavailable");
-          }
+          // Show error - NO fallback to manual
+          setGoldError("API error: " + (apiError.message || "Request failed"));
         }
       }
     } catch (err) {
@@ -197,9 +199,11 @@ export default function Header() {
     setRefreshing(true);
     try {
       if (goldPriceSettings?.source === "api") {
-        await goldPriceService.refreshPrices();
+        // Force refresh - bypasses cache (uses API quota!)
+        await fetchGoldPrices(true);
+      } else {
+        await fetchGoldPrices(false);
       }
-      await fetchGoldPrices();
     } catch (err) {
       console.error("Refresh error:", err);
     } finally {
@@ -225,16 +229,18 @@ export default function Header() {
   };
 
   const getSourceLabel = () => {
-    if (goldError) return "Error";
+    if (goldError) return "❌ Error";
     switch (goldPrices?.source) {
       case "metalpriceapi":
         return "🟢 Live";
       case "cache":
-        return "🟡 Cached";
+        return `🟡 Cached (${cacheAge})`;
       case "manual":
         return "🔵 Manual";
       case "fallback":
         return "🟠 Fallback";
+      case "api":
+        return "🟢 Live";
       default:
         return "Unknown";
     }
@@ -389,6 +395,11 @@ export default function Header() {
                       onClick={handleRefreshGoldPrice}
                       disabled={refreshing}
                       className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                      title={
+                        goldPriceSettings?.source === "api"
+                          ? "Refresh (uses API quota)"
+                          : "Refresh"
+                      }
                     >
                       <RefreshCw
                         className={cn("w-5 h-5", refreshing && "animate-spin")}
@@ -413,6 +424,11 @@ export default function Header() {
                     <span className="text-xs text-white/80 bg-white/20 px-2 py-0.5 rounded-full">
                       {getSourceLabel()}
                     </span>
+                    {isFromCache && goldPriceSettings?.source === "api" && (
+                      <span className="text-xs text-white/60">
+                        (saves API quota)
+                      </span>
+                    )}
                   </div>
                 </div>
 

@@ -20,8 +20,8 @@ class InventoryController extends Controller
         $branchId = $request->user()->branch_id;
 
         $query = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId);
-            })
+            $q->where('branch_id', $branchId);
+        })
             ->with(['pledge.customer:id,name,ic_number', 'category', 'purity', 'vault', 'box', 'slot']);
 
         // Filter by status
@@ -68,13 +68,11 @@ class InventoryController extends Controller
     /**
      * Get item details
      */
-    public function show(Request $request, PledgeItem $pledgeItem): JsonResponse
+    public function show(Request $request, $id): JsonResponse
     {
-        if ($pledgeItem->pledge->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+        $branchId = $request->user()->branch_id;
 
-        $pledgeItem->load([
+        $pledgeItem = PledgeItem::with([
             'pledge.customer',
             'category',
             'purity',
@@ -82,7 +80,15 @@ class InventoryController extends Controller
             'box',
             'slot',
             'locationHistory.performedBy:id,name',
-        ]);
+        ])
+            ->whereHas('pledge', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            })
+            ->find($id);
+
+        if (!$pledgeItem) {
+            return $this->error('Item not found', 404);
+        }
 
         return $this->success($pledgeItem);
     }
@@ -101,8 +107,8 @@ class InventoryController extends Controller
         ]);
 
         $query = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId);
-            })
+            $q->where('branch_id', $branchId);
+        })
             ->where('status', 'stored')
             ->where('vault_id', $validated['vault_id']);
 
@@ -132,8 +138,8 @@ class InventoryController extends Controller
         ]);
 
         $item = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId);
-            })
+            $q->where('branch_id', $branchId);
+        })
             ->where('barcode', $validated['barcode'])
             ->with(['pledge.customer', 'category', 'purity', 'vault', 'box', 'slot'])
             ->first();
@@ -351,8 +357,8 @@ class InventoryController extends Controller
         $branchId = $request->user()->branch_id;
 
         $items = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->where('status', 'active');
-            })
+            $q->where('branch_id', $branchId)->where('status', 'active');
+        })
             ->where('status', 'stored')
             ->get();
 

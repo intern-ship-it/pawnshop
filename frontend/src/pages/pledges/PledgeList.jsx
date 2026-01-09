@@ -37,6 +37,7 @@ const statusConfig = {
   redeemed: { label: "Redeemed", variant: "info", icon: DollarSign },
   forfeited: { label: "Forfeited", variant: "warning", icon: XCircle },
   auctioned: { label: "Auctioned", variant: "default", icon: Package },
+  cancelled: { label: "Cancelled", variant: "default", icon: XCircle },
 };
 
 export default function PledgeList() {
@@ -277,6 +278,42 @@ export default function PledgeList() {
     );
   };
 
+  // Handle cancel pledge
+  const handleCancelPledge = async (pledgeId, pledgeNo, e) => {
+    if (e) e.stopPropagation();
+
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel pledge ${pledgeNo}?\n\nThis action will:\n• Mark the pledge as cancelled\n• Release the storage slot\n• Cannot be undone`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await pledgeService.cancel(pledgeId);
+
+      if (response.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Cancelled",
+            message: `Pledge ${pledgeNo} has been cancelled`,
+          })
+        );
+        fetchPledges(true); // Refresh the list
+      } else {
+        throw new Error(response.message || "Failed to cancel");
+      }
+    } catch (error) {
+      console.error("Cancel error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to cancel pledge",
+        })
+      );
+    }
+  };
   // Calculate stats
   const stats = {
     total: pledges.length,
@@ -483,6 +520,7 @@ export default function PledgeList() {
               { value: "overdue", label: "Overdue" },
               { value: "redeemed", label: "Redeemed" },
               { value: "forfeited", label: "Forfeited" },
+              { value: "cancelled", label: "Cancelled" },
             ]}
             className="w-40"
           />
@@ -690,7 +728,8 @@ export default function PledgeList() {
 
                       {/* Actions */}
                       <td className="p-4">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1">
+                          {/* View Button */}
                           <Button
                             variant="ghost"
                             size="icon-sm"
@@ -698,9 +737,12 @@ export default function PledgeList() {
                               e.stopPropagation();
                               navigate(`/pledges/${pledge.id}`);
                             }}
+                            title="View Details"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+
+                          {/* Print Button */}
                           <Button
                             variant="ghost"
                             size="icon-sm"
@@ -714,6 +756,26 @@ export default function PledgeList() {
                               <FileText className="w-4 h-4" />
                             )}
                           </Button>
+
+                          {/* Cancel Button - Only for active pledges with no renewals */}
+                          {pledge.status === "active" &&
+                            pledge.renewalCount === 0 && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={(e) =>
+                                  handleCancelPledge(
+                                    pledge.id,
+                                    pledge.pledgeNo || pledge.receiptNo,
+                                    e
+                                  )
+                                }
+                                title="Cancel Pledge"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                            )}
                         </div>
                       </td>
                     </tr>

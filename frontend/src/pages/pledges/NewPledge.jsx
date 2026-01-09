@@ -8,6 +8,7 @@ import {
 import { setPledges, addPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
 import { customerService, pledgeService, settingsService } from "@/services";
+import storageService from "@/services/storageService";
 import goldPriceService from "@/services/goldPriceService";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { formatCurrency, formatIC, formatPhone } from "@/utils/formatters";
@@ -49,9 +50,14 @@ import {
   Calendar,
   Clock,
   TrendingUp,
+  Archive,
+  Box,
+  MapPin,
+  Zap,
+  Loader2,
 } from "lucide-react";
 
-// Step configuration
+// Step configuration - NOW 6 STEPS WITH STORAGE
 const steps = [
   { id: 1, title: "Customer", icon: User, description: "Select customer" },
   { id: 2, title: "Items", icon: Package, description: "Add items" },
@@ -62,8 +68,9 @@ const steps = [
     description: "Calculate value",
   },
   { id: 4, title: "Payout", icon: Wallet, description: "Payment method" },
+  { id: 5, title: "Storage", icon: Archive, description: "Assign location" },
   {
-    id: 5,
+    id: 6,
     title: "Confirm",
     icon: FileSignature,
     description: "Review & sign",
@@ -167,6 +174,7 @@ export default function NewPledge() {
   const [customer, setCustomer] = useState(null);
   const [customerSearchResult, setCustomerSearchResult] = useState(null);
   const [customerPledges, setCustomerPledges] = useState([]);
+
   // Step 2: Items state
   const [items, setItems] = useState([{ ...emptyItem, id: "item-1" }]);
 
@@ -183,7 +191,19 @@ export default function NewPledge() {
   const [accountNumber, setAccountNumber] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
 
-  // Step 5: Signature state
+  // Step 5: Storage Assignment state - USING REAL API DATA ONLY
+  const [vaults, setVaults] = useState([]);
+  const [boxes, setBoxes] = useState([]);
+  const [slots, setSlots] = useState([]);
+  const [selectedVault, setSelectedVault] = useState(null);
+  const [selectedBox, setSelectedBox] = useState(null);
+  const [itemStorageAssignments, setItemStorageAssignments] = useState({}); // { itemId: { vaultId, boxId, slotId, slotNumber } }
+  const [loadingVaults, setLoadingVaults] = useState(false);
+  const [loadingBoxes, setLoadingBoxes] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [storageError, setStorageError] = useState(null);
+
+  // Step 6: Signature state (was Step 5)
   const [signature, setSignature] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -191,10 +211,12 @@ export default function NewPledge() {
   // General state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [createdPledgeId, setCreatedPledgeId] = useState(null); // Numeric ID for API calls
-  const [createdReceiptNo, setCreatedReceiptNo] = useState(null); // Display receipt number
+  const [createdPledgeId, setCreatedPledgeId] = useState(null);
+  const [createdReceiptNo, setCreatedReceiptNo] = useState(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
-  // Gold prices from API/Settings (same as Header)
+  // Gold prices from API/Settings
   const [goldPrices, setGoldPrices] = useState({});
   const [goldPricesLoading, setGoldPricesLoading] = useState(true);
 
@@ -203,32 +225,248 @@ export default function NewPledge() {
   const [backendPurities, setBackendPurities] = useState([]);
   const [backendBanks, setBackendBanks] = useState([]);
 
-  // Fetch gold prices on mount (same logic as Header.jsx)
+  // Fetch gold prices on mount
   useEffect(() => {
     fetchGoldPrices();
     fetchBackendData();
   }, []);
 
+  // Fetch storage data when reaching step 5
+  useEffect(() => {
+    if (currentStep === 5) {
+      fetchVaults();
+    }
+  }, [currentStep]);
+
+  // Fetch boxes when vault changes
+  useEffect(() => {
+    if (selectedVault) {
+      fetchBoxes(selectedVault);
+    }
+  }, [selectedVault]);
+
+  // Fetch slots when box changes
+  useEffect(() => {
+    if (selectedBox) {
+      fetchSlots(selectedBox);
+    }
+  }, [selectedBox]);
+
   // Fetch categories, purities, banks from backend
   const fetchBackendData = async () => {
     try {
-      // Fetch categories
       const catResponse = await settingsService.getCategories();
       const categories = catResponse.data?.data || catResponse.data || [];
       setBackendCategories(categories);
 
-      // Fetch purities
       const purityResponse = await settingsService.getPurities();
       const purities = purityResponse.data?.data || purityResponse.data || [];
       setBackendPurities(purities);
 
-      // Fetch banks
       const bankResponse = await settingsService.getBanks();
       const banks = bankResponse.data?.data || bankResponse.data || [];
       setBackendBanks(banks);
     } catch (error) {
       console.error("Error fetching backend data:", error);
     }
+  };
+
+  // ============ STORAGE API FUNCTIONS - NO MOCK DATA ============
+
+  // Fetch all vaults from API
+  const fetchVaults = async () => {
+    setLoadingVaults(true);
+    setStorageError(null);
+    try {
+      const response = await storageService.getVaults();
+      const vaultsData = response.data?.data || response.data || [];
+      setVaults(vaultsData);
+
+      // Auto-select first vault if exists
+      if (vaultsData.length > 0 && !selectedVault) {
+        setSelectedVault(vaultsData[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching vaults:", error);
+      setStorageError("Failed to load vaults. Please try again.");
+      setVaults([]);
+    } finally {
+      setLoadingVaults(false);
+    }
+  };
+
+  // Fetch boxes for selected vault from API
+  const fetchBoxes = async (vaultId) => {
+    if (!vaultId) return;
+
+    setLoadingBoxes(true);
+    setBoxes([]);
+    setSlots([]);
+    setSelectedBox(null);
+
+    try {
+      const response = await storageService.getBoxes(vaultId);
+      const boxesData = response.data?.data || response.data || [];
+      setBoxes(boxesData);
+
+      // Auto-select first box with available slots
+      const boxWithSlots = boxesData.find(
+        (b) => (b.available_slots || b.total_slots - b.occupied_slots) > 0
+      );
+      if (boxWithSlots) {
+        setSelectedBox(boxWithSlots.id);
+      } else if (boxesData.length > 0) {
+        setSelectedBox(boxesData[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching boxes:", error);
+      setBoxes([]);
+    } finally {
+      setLoadingBoxes(false);
+    }
+  };
+
+  // Fetch slots for selected box from API
+  const fetchSlots = async (boxId) => {
+    if (!boxId) return;
+
+    setLoadingSlots(true);
+    setSlots([]);
+
+    try {
+      const response = await storageService.getSlots(boxId);
+      const slotsData = response.data?.data || response.data || [];
+      setSlots(slotsData);
+    } catch (error) {
+      console.error("Error fetching slots:", error);
+      setSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  // Handle vault change
+  const handleVaultChange = (vaultId) => {
+    const numericVaultId = parseInt(vaultId, 10);
+    setSelectedVault(numericVaultId);
+    setSelectedBox(null);
+    setSlots([]);
+    // Clear assignments when vault changes
+    setItemStorageAssignments({});
+  };
+
+  // Handle box change
+  const handleBoxChange = (boxId) => {
+    const numericBoxId = parseInt(boxId, 10);
+    setSelectedBox(numericBoxId);
+    // Clear assignments when box changes
+    setItemStorageAssignments({});
+  };
+
+  // Auto-assign storage for all items
+  const handleAutoAssign = () => {
+    const validItems = items.filter((i) => i.category && i.weight);
+    const availableSlots = slots.filter((s) => !s.is_occupied);
+
+    if (availableSlots.length === 0) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "No Slots Available",
+          message: "No available slots in this box",
+        })
+      );
+      return;
+    }
+
+    if (availableSlots.length < validItems.length) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Not Enough Slots",
+          message: `Need ${validItems.length} slots but only ${availableSlots.length} available in this box`,
+        })
+      );
+    }
+
+    const assignments = {};
+    validItems.forEach((item, index) => {
+      if (availableSlots[index]) {
+        const slot = availableSlots[index];
+        assignments[item.id] = {
+          vaultId: selectedVault,
+          boxId: selectedBox,
+          slotId: slot.id, // Real integer ID from API
+          slotNumber: slot.slot_number,
+        };
+      }
+    });
+
+    setItemStorageAssignments(assignments);
+    dispatch(
+      addToast({
+        type: "success",
+        title: "Auto-Assigned",
+        message: `${Object.keys(assignments).length} items assigned to storage`,
+      })
+    );
+  };
+
+  // Assign single slot to item
+  const handleSlotAssign = (itemId, slot) => {
+    if (slot.is_occupied) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Slot Occupied",
+          message: "This slot is already occupied",
+        })
+      );
+      return;
+    }
+
+    // Check if slot is already assigned to another item in this pledge
+    const existingAssignment = Object.entries(itemStorageAssignments).find(
+      ([id, assignment]) => assignment.slotId === slot.id && id !== itemId
+    );
+
+    if (existingAssignment) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Slot Already Assigned",
+          message: "This slot is assigned to another item in this pledge",
+        })
+      );
+      return;
+    }
+
+    setItemStorageAssignments((prev) => ({
+      ...prev,
+      [itemId]: {
+        vaultId: selectedVault,
+        boxId: selectedBox,
+        slotId: slot.id, // Real integer ID from API
+        slotNumber: slot.slot_number,
+      },
+    }));
+
+    dispatch(
+      addToast({
+        type: "success",
+        title: "Assigned",
+        message: `Item assigned to Slot ${slot.slot_number}`,
+      })
+    );
+  };
+
+  // Remove storage assignment
+  const handleRemoveAssignment = (itemId) => {
+    setItemStorageAssignments((prev) => {
+      const updated = { ...prev };
+      delete updated[itemId];
+      return updated;
+    });
   };
 
   // Helper to get category ID from category value/name
@@ -254,7 +492,6 @@ export default function NewPledge() {
     try {
       setGoldPricesLoading(true);
 
-      // Get settings from localStorage (same as Header)
       const storedSettings = getStorageItem(STORAGE_KEYS.SETTINGS, null);
       const goldPriceSettings = storedSettings?.goldPrice || {
         source: "api",
@@ -263,7 +500,6 @@ export default function NewPledge() {
       const source = goldPriceSettings?.source || "api";
 
       if (source === "manual") {
-        // Use manual price and calculate by purity
         const manualPrice = parseFloat(goldPriceSettings?.manualPrice) || 400;
         const calculatedPrices = {};
         purityOptions.forEach((p) => {
@@ -272,7 +508,6 @@ export default function NewPledge() {
         });
         setGoldPrices(calculatedPrices);
       } else {
-        // Fetch from API
         try {
           const response = await goldPriceService.getDashboardPrices();
           if (response.data) {
@@ -280,7 +515,6 @@ export default function NewPledge() {
             const price999 = data.current?.prices?.gold?.per_gram || 400;
             const caratPrices = data.carat?.purity_codes || data.carat || {};
 
-            // Build prices for all purities
             const allPrices = {};
             purityOptions.forEach((p) => {
               allPrices[p.value] =
@@ -291,7 +525,6 @@ export default function NewPledge() {
           }
         } catch (apiError) {
           console.error("API fetch error:", apiError);
-          // Fallback to manual calculation
           const manualPrice = parseFloat(goldPriceSettings?.manualPrice) || 400;
           const calculatedPrices = {};
           purityOptions.forEach((p) => {
@@ -321,7 +554,6 @@ export default function NewPledge() {
     if (Object.keys(goldPrices).length > 0) {
       setItems((prevItems) =>
         prevItems.map((item) => {
-          // Only update if price is not custom-set or is empty
           if (!item.pricePerGram || item.pricePerGram === "") {
             const marketPrice =
               goldPrices[item.purity] || getMarketPrice(item.purity);
@@ -333,25 +565,23 @@ export default function NewPledge() {
     }
   }, [goldPrices]);
 
-  // Initialize signature canvas when step 5 is reached
+  // Initialize signature canvas when step 6 is reached
   useEffect(() => {
-    if (currentStep === 5) {
+    if (currentStep === 6) {
       setTimeout(() => {
         initSignatureCanvas();
       }, 100);
     }
   }, [currentStep]);
 
-  // Get market price for a purity - from API/settings prices
+  // Get market price for a purity
   const getMarketPrice = (purity) => {
-    // First try to get from fetched goldPrices (from API/settings)
     if (goldPrices[purity] && goldPrices[purity] > 0) {
       return goldPrices[purity];
     }
 
-    // Fallback to Redux goldPrice if available
     const purityOption = purityOptions.find((p) => p.value === purity);
-    if (!purityOption) return 295; // fallback
+    if (!purityOption) return 295;
 
     const base999Price = goldPrice?.manualPrice || goldPrice?.price999 || 400;
     const calculatedPrice = base999Price * (purityOption.percentage / 100);
@@ -375,15 +605,12 @@ export default function NewPledge() {
     if (item.stoneDeduction) {
       const deductionValue = parseFloat(item.stoneDeduction) || 0;
       if (item.stoneDeductionType === "percentage") {
-        // Percentage of gross value
         const grossValue = grossWeight * pricePerGram;
         deduction = grossValue * (deductionValue / 100);
       } else if (item.stoneDeductionType === "grams") {
-        // Weight deduction (grams) - deduct from weight before calculation
         netWeight = Math.max(0, grossWeight - deductionValue);
-        deduction = deductionValue * pricePerGram; // Show as RM value deducted
+        deduction = deductionValue * pricePerGram;
       } else {
-        // Amount (RM)
         deduction = deductionValue;
       }
     }
@@ -421,7 +648,7 @@ export default function NewPledge() {
     : loanPercentage;
   const loanAmount = totals.netValue * (effectivePercentage / 100);
 
-  // Customer search handler - API INTEGRATION
+  // Customer search handler
   const handleCustomerSearch = async () => {
     const cleanIC = icSearch.replace(/[-\s]/g, "");
 
@@ -449,7 +676,7 @@ export default function NewPledge() {
 
     setIsSearching(true);
     setCustomerSearchResult(null);
-    setCustomerPledges([]); // Reset pledges
+    setCustomerPledges([]);
 
     try {
       const response = await customerService.searchByIC(cleanIC);
@@ -460,7 +687,6 @@ export default function NewPledge() {
         setCustomerSearchResult(customerData);
         setCustomer(customerData);
 
-        // Extract pledges from response - they come as customer.active_pledges array or existing_pledges
         let pledgesArray = [];
         if (Array.isArray(customerData.active_pledges)) {
           pledgesArray = customerData.active_pledges;
@@ -468,7 +694,6 @@ export default function NewPledge() {
           pledgesArray = responseData.existing_pledges;
         }
 
-        // Filter to only active/overdue
         pledgesArray = pledgesArray.filter(
           (p) =>
             p &&
@@ -509,6 +734,7 @@ export default function NewPledge() {
       setIsSearching(false);
     }
   };
+
   // Item handlers
   const addItem = () => {
     const defaultPurity = "916";
@@ -535,6 +761,8 @@ export default function NewPledge() {
       return;
     }
     setItems(items.filter((item) => item.id !== id));
+    // Also remove storage assignment if exists
+    handleRemoveAssignment(id);
   };
 
   const updateItem = (id, field, value) => {
@@ -630,7 +858,7 @@ export default function NewPledge() {
     initSignatureCanvas();
   };
 
-  // Navigation validation
+  // Navigation validation - UPDATED FOR 6 STEPS
   const validateStep = (step) => {
     switch (step) {
       case 1:
@@ -709,6 +937,23 @@ export default function NewPledge() {
         }
         return true;
       case 5:
+        // Storage assignment validation - optional but recommended
+        const itemsNeedingStorage = items.filter((i) => i.category && i.weight);
+        const assignedCount = Object.keys(itemStorageAssignments).length;
+        if (assignedCount < itemsNeedingStorage.length && assignedCount > 0) {
+          // Partial assignment - just warn
+          dispatch(
+            addToast({
+              type: "warning",
+              title: "Partial Assignment",
+              message: `${
+                itemsNeedingStorage.length - assignedCount
+              } item(s) have no storage location.`,
+            })
+          );
+        }
+        return true;
+      case 6:
         return true;
       default:
         return true;
@@ -727,7 +972,7 @@ export default function NewPledge() {
     }
   };
 
-  // Submit pledge - API INTEGRATION
+  // Submit pledge - INCLUDES STORAGE WITH INTEGER IDs
   const handleSubmit = async () => {
     if (!signature) {
       dispatch(
@@ -754,12 +999,12 @@ export default function NewPledge() {
     setIsSubmitting(true);
 
     try {
-      // Prepare items for API - using backend IDs
       const pledgeItems = items
         .filter((item) => item.category && item.weight)
         .map((item) => {
           const categoryId = getCategoryId(item.category);
           const purityId = getPurityId(item.purity);
+          const storageAssignment = itemStorageAssignments[item.id];
 
           if (!categoryId) {
             console.warn(`Category ID not found for: ${item.category}`);
@@ -768,18 +1013,26 @@ export default function NewPledge() {
             console.warn(`Purity ID not found for: ${item.purity}`);
           }
 
-          return {
+          // Build item payload - ENSURE INTEGER IDs
+          const itemPayload = {
             category_id: categoryId,
             purity_id: purityId,
             gross_weight: parseFloat(item.weight),
             stone_deduction_type: item.stoneDeductionType || "amount",
             stone_deduction_value: parseFloat(item.stoneDeduction) || 0,
             description: item.description || null,
-            // photo: item.photo, // Uncomment if backend accepts photo
           };
+
+          // Only add storage if assigned - ENSURE INTEGER VALUES
+          if (storageAssignment) {
+            itemPayload.vault_id = parseInt(storageAssignment.vaultId, 10);
+            itemPayload.box_id = parseInt(storageAssignment.boxId, 10);
+            itemPayload.slot_id = parseInt(storageAssignment.slotId, 10);
+          }
+
+          return itemPayload;
         });
 
-      // Check if we have valid IDs
       const hasInvalidItems = pledgeItems.some(
         (item) => !item.category_id || !item.purity_id
       );
@@ -796,7 +1049,6 @@ export default function NewPledge() {
         return;
       }
 
-      // Prepare payment object
       const payment = {
         method: payoutMethod === "partial" ? "partial" : payoutMethod,
         cash_amount:
@@ -811,7 +1063,6 @@ export default function NewPledge() {
         reference_no: referenceNo || null,
       };
 
-      // Only include bank_id if it's a transfer/partial with a valid bank
       if (
         (payoutMethod === "transfer" || payoutMethod === "partial") &&
         bankId
@@ -819,7 +1070,6 @@ export default function NewPledge() {
         payment.bank_id = parseInt(bankId);
       }
 
-      // Prepare pledge data for API
       const pledgeData = {
         customer_id: customer.id,
         items: pledgeItems,
@@ -829,17 +1079,17 @@ export default function NewPledge() {
         terms_accepted: true,
       };
 
-      console.log("Submitting pledge data:", pledgeData);
+      console.log(
+        "Submitting pledge data:",
+        JSON.stringify(pledgeData, null, 2)
+      );
 
-      // Create pledge via API
       const response = await pledgeService.create(pledgeData);
       const createdPledge = response.data?.data || response.data;
 
-      // Update Redux store
       dispatch(addPledge(createdPledge));
       dispatch(setSelectedCustomer(null));
 
-      // Show success - store both ID (for API) and receipt_no (for display)
       setCreatedPledgeId(createdPledge.id);
       setCreatedReceiptNo(
         createdPledge.receipt_no || createdPledge.pledge_no || createdPledge.id
@@ -863,7 +1113,6 @@ export default function NewPledge() {
       const errors = error.response?.data?.errors;
       let message = error.response?.data?.message || "Failed to create pledge";
 
-      // Show specific validation errors
       if (errors) {
         const errorMessages = Object.values(errors)
           .flat()
@@ -877,51 +1126,116 @@ export default function NewPledge() {
     }
   };
 
-  // Handle print receipt - API
-  const handlePrintReceipt = async () => {
-    if (createdPledgeId) {
-      try {
-        await pledgeService.printReceipt(createdPledgeId, "customer");
-        dispatch(
-          addToast({
-            type: "info",
-            title: "Print",
-            message: "Opening print dialog...",
-          })
-        );
-      } catch (error) {
-        dispatch(
-          addToast({
-            type: "info",
-            title: "Print",
-            message: "Opening print dialog...",
-          })
-        );
+  // Handle print receipt - Downloads PDF from PrintController
+  const handlePrintReceipt = async (copyType = "customer") => {
+    if (!createdPledgeId) return;
+
+    const token = localStorage.getItem("pawnsys_token");
+    if (!token) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please login again",
+        })
+      );
+      return;
+    }
+
+    setIsPrinting(true);
+    try {
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      // Call PrintController endpoint (generates actual PDF)
+      const response = await fetch(
+        `${apiUrl}/print/pledge-receipt/${createdPledgeId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/pdf",
+          },
+          body: JSON.stringify({ copy_type: copyType }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to generate receipt");
       }
+
+      // Get PDF blob
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      // Open in new tab for printing
+      window.open(url, "_blank");
+
+      // Cleanup URL after a delay
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipt Generated",
+          message: "PDF opened in new tab. Use Ctrl+P to print.",
+        })
+      );
+    } catch (error) {
+      console.error("Print error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Error",
+          message: error.message || "Failed to generate receipt",
+        })
+      );
+    } finally {
+      setIsPrinting(false);
     }
   };
 
-  // Handle WhatsApp - API
+  // Handle WhatsApp - Sends pledge details via WhatsApp
   const handleSendWhatsApp = async () => {
-    if (createdPledgeId) {
-      try {
-        await pledgeService.sendWhatsApp(createdPledgeId);
+    if (!createdPledgeId) return;
+
+    setIsSendingWhatsApp(true);
+    try {
+      const response = await pledgeService.sendWhatsApp(createdPledgeId);
+
+      // Check if response indicates success
+      if (response.data?.success || response.success) {
         dispatch(
           addToast({
-            type: "info",
-            title: "WhatsApp",
-            message: "Sending to customer...",
+            type: "success",
+            title: "WhatsApp Sent",
+            message:
+              response.data?.message || "Receipt sent to customer via WhatsApp",
           })
         );
-      } catch (error) {
-        dispatch(
-          addToast({
-            type: "info",
-            title: "WhatsApp",
-            message: "Sending to customer...",
-          })
-        );
+      } else {
+        throw new Error(response.data?.message || "Failed to send WhatsApp");
       }
+    } catch (error) {
+      console.error("WhatsApp error:", error);
+
+      // Check if it's a configuration error
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to send WhatsApp";
+
+      dispatch(
+        addToast({
+          type: "error",
+          title: "WhatsApp Error",
+          message: errorMessage,
+        })
+      );
+    } finally {
+      setIsSendingWhatsApp(false);
     }
   };
 
@@ -930,6 +1244,28 @@ export default function NewPledge() {
     hidden: { opacity: 0, x: 50 },
     visible: { opacity: 1, x: 0 },
     exit: { opacity: 0, x: -50 },
+  };
+
+  // Get vault/box names for display
+  const getVaultName = (vaultId) =>
+    vaults.find((v) => v.id === vaultId)?.name || `Vault ${vaultId}`;
+  const getBoxName = (boxId) => {
+    const box = boxes.find((b) => b.id === boxId);
+    return box?.name || box?.box_number
+      ? `Box ${box.box_number}`
+      : `Box ${boxId}`;
+  };
+
+  // Calculate available slots count
+  const getAvailableSlotsCount = () => {
+    return slots.filter((s) => !s.is_occupied).length;
+  };
+
+  // Check if slot is assigned in current pledge
+  const isSlotAssignedInPledge = (slotId) => {
+    return Object.values(itemStorageAssignments).some(
+      (a) => a.slotId === slotId
+    );
   };
 
   return (
@@ -948,7 +1284,7 @@ export default function NewPledge() {
     >
       {/* Progress Steps */}
       <div className="mb-8">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
+        <div className="flex items-center justify-between max-w-5xl mx-auto">
           {steps.map((step, index) => {
             const Icon = step.icon;
             const isActive = currentStep === step.id;
@@ -964,7 +1300,7 @@ export default function NewPledge() {
                 >
                   <motion.div
                     className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all",
+                      "w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center border-2 transition-all",
                       isActive && "border-amber-500 bg-amber-50 text-amber-600",
                       isCompleted &&
                         "border-emerald-500 bg-emerald-500 text-white",
@@ -976,15 +1312,15 @@ export default function NewPledge() {
                     whileTap={{ scale: 0.95 }}
                   >
                     {isCompleted ? (
-                      <Check className="w-5 h-5" />
+                      <Check className="w-4 h-4 lg:w-5 lg:h-5" />
                     ) : (
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-4 h-4 lg:w-5 lg:h-5" />
                     )}
                   </motion.div>
                   <div className="mt-2 text-center">
                     <p
                       className={cn(
-                        "text-sm font-medium",
+                        "text-xs lg:text-sm font-medium",
                         isActive && "text-amber-600",
                         isCompleted && "text-emerald-600",
                         !isActive && !isCompleted && "text-zinc-400"
@@ -992,7 +1328,7 @@ export default function NewPledge() {
                     >
                       {step.title}
                     </p>
-                    <p className="text-xs text-zinc-500 hidden sm:block">
+                    <p className="text-[10px] text-zinc-500 hidden lg:block">
                       {step.description}
                     </p>
                   </div>
@@ -1000,7 +1336,7 @@ export default function NewPledge() {
                 {index < steps.length - 1 && (
                   <div
                     className={cn(
-                      "w-12 lg:w-20 h-0.5 mx-2",
+                      "w-6 lg:w-12 xl:w-16 h-0.5 mx-1 lg:mx-2",
                       isCompleted ? "bg-emerald-500" : "bg-zinc-200"
                     )}
                   />
@@ -1332,7 +1668,6 @@ export default function NewPledge() {
                         onChange={(e) => {
                           const newPurity = e.target.value;
                           updateItem(item.id, "purity", newPurity);
-                          // Auto-populate price from market price for selected purity
                           const marketPriceForPurity =
                             goldPrices[newPurity] || getMarketPrice(newPurity);
                           updateItem(
@@ -1854,38 +2189,6 @@ export default function NewPledge() {
                 </div>
               </div>
 
-              {/* Redemption Estimate */}
-              <div className="border-2 border-amber-300 bg-amber-50 rounded-xl p-4">
-                <h5 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
-                  <Wallet className="w-4 h-4" />
-                  Redemption Estimate (If Redeemed Within 6 Months)
-                </h5>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="bg-white rounded-lg p-3 border border-amber-200">
-                    <p className="text-xs text-zinc-500 mb-1">After 1 Month</p>
-                    <p className="font-bold text-amber-700">
-                      {formatCurrency(loanAmount + loanAmount * 0.005 * 1)}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-amber-200">
-                    <p className="text-xs text-zinc-500 mb-1">After 3 Months</p>
-                    <p className="font-bold text-amber-700">
-                      {formatCurrency(loanAmount + loanAmount * 0.005 * 3)}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-amber-200">
-                    <p className="text-xs text-zinc-500 mb-1">After 6 Months</p>
-                    <p className="font-bold text-amber-700">
-                      {formatCurrency(loanAmount + loanAmount * 0.005 * 6)}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-xs text-amber-600 mt-3 text-center">
-                  * Redemption Amount = Loan + Interest. Grace period of 7 days
-                  after due date.
-                </p>
-              </div>
-
               {/* Due Date Info */}
               <div className="mt-4 p-4 bg-zinc-100 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -2087,10 +2390,349 @@ export default function NewPledge() {
             </motion.div>
           )}
 
-          {/* Step 5: Confirm & Sign */}
+          {/* Step 5: Storage Assignment - REAL API DATA ONLY */}
           {currentStep === 5 && (
             <motion.div
               key="step-5"
+              variants={stepVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <Archive className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-zinc-800">
+                      Storage Assignment
+                    </h3>
+                    <p className="text-sm text-zinc-500">
+                      Assign locker/rack location for pledged items
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="accent"
+                  leftIcon={Zap}
+                  onClick={handleAutoAssign}
+                  disabled={loadingSlots || !selectedBox || slots.length === 0}
+                >
+                  Auto-Assign All
+                </Button>
+              </div>
+
+              {/* Error Message */}
+              {storageError && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                  <div>
+                    <p className="font-medium text-red-800">{storageError}</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={fetchVaults}
+                      className="mt-1 text-red-600"
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Vault & Box Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                    Select Vault
+                  </label>
+                  {loadingVaults ? (
+                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                      <span className="text-sm text-zinc-500">
+                        Loading vaults...
+                      </span>
+                    </div>
+                  ) : vaults.length === 0 ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-700">
+                        No vaults available. Please create vaults in Settings.
+                      </p>
+                    </div>
+                  ) : (
+                    <Select
+                      value={selectedVault || ""}
+                      onChange={(e) => handleVaultChange(e.target.value)}
+                      options={[
+                        { value: "", label: "Select Vault..." },
+                        ...vaults.map((v) => ({
+                          value: v.id,
+                          label: v.name || `Vault ${v.code}`,
+                        })),
+                      ]}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                    Select Box
+                  </label>
+                  {loadingBoxes ? (
+                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                      <span className="text-sm text-zinc-500">
+                        Loading boxes...
+                      </span>
+                    </div>
+                  ) : !selectedVault ? (
+                    <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+                      <p className="text-sm text-zinc-500">
+                        Select a vault first
+                      </p>
+                    </div>
+                  ) : boxes.length === 0 ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-700">
+                        No boxes in this vault.
+                      </p>
+                    </div>
+                  ) : (
+                    <Select
+                      value={selectedBox || ""}
+                      onChange={(e) => handleBoxChange(e.target.value)}
+                      options={[
+                        { value: "", label: "Select Box..." },
+                        ...boxes.map((b) => ({
+                          value: b.id,
+                          label: `${b.name || `Box ${b.box_number}`} (${
+                            (b.total_slots || 0) - (b.occupied_slots || 0)
+                          } available)`,
+                        })),
+                      ]}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Box Summary */}
+              {selectedBox && !loadingSlots && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl mb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Box className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <p className="font-semibold text-blue-800">
+                          {getBoxName(selectedBox)}
+                        </p>
+                        <p className="text-sm text-blue-600">
+                          {getVaultName(selectedVault)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-blue-600">
+                        {getAvailableSlotsCount()}
+                      </p>
+                      <p className="text-xs text-blue-500">Slots Available</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Slot Grid */}
+              {selectedBox && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-zinc-700 mb-3">
+                    Available Slots (Click to assign)
+                  </label>
+                  {loadingSlots ? (
+                    <div className="flex items-center justify-center p-8 bg-zinc-50 rounded-xl">
+                      <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+                      <span className="ml-2 text-zinc-500">
+                        Loading slots...
+                      </span>
+                    </div>
+                  ) : slots.length === 0 ? (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                      <p className="text-amber-700">
+                        No slots configured for this box.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                        {slots.map((slot) => {
+                          const isAssignedInPledge = isSlotAssignedInPledge(
+                            slot.id
+                          );
+
+                          return (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              disabled={slot.is_occupied}
+                              onClick={() => {
+                                const validItems = items.filter(
+                                  (i) => i.category && i.weight
+                                );
+                                const unassignedItem = validItems.find(
+                                  (item) => !itemStorageAssignments[item.id]
+                                );
+                                if (unassignedItem) {
+                                  handleSlotAssign(unassignedItem.id, slot);
+                                } else {
+                                  dispatch(
+                                    addToast({
+                                      type: "info",
+                                      title: "All Items Assigned",
+                                      message:
+                                        "All items already have storage assigned",
+                                    })
+                                  );
+                                }
+                              }}
+                              className={cn(
+                                "w-10 h-10 rounded-lg text-xs font-bold transition-all",
+                                slot.is_occupied &&
+                                  "bg-red-100 text-red-400 cursor-not-allowed",
+                                !slot.is_occupied &&
+                                  !isAssignedInPledge &&
+                                  "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                isAssignedInPledge &&
+                                  "bg-amber-500 text-white ring-2 ring-amber-300"
+                              )}
+                              title={
+                                slot.is_occupied
+                                  ? "Occupied"
+                                  : isAssignedInPledge
+                                  ? "Assigned in this pledge"
+                                  : "Available - Click to assign"
+                              }
+                            >
+                              {slot.slot_number}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex gap-4 mt-2 text-xs">
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded bg-emerald-100 border border-emerald-300" />
+                          <span className="text-zinc-500">Available</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded bg-red-100 border border-red-300" />
+                          <span className="text-zinc-500">Occupied</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded bg-amber-500" />
+                          <span className="text-zinc-500">
+                            Assigned (This Pledge)
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Items Storage Assignment List */}
+              <div className="border border-zinc-200 rounded-xl overflow-hidden">
+                <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-3">
+                  <h4 className="font-semibold text-zinc-800 flex items-center gap-2">
+                    <Package className="w-4 h-4" />
+                    Item Storage Assignments
+                  </h4>
+                </div>
+                <div className="divide-y divide-zinc-100">
+                  {items
+                    .filter((i) => i.category && i.weight)
+                    .map((item, idx) => {
+                      const category = itemCategories.find(
+                        (c) => c.value === item.category
+                      );
+                      const assignment = itemStorageAssignments[item.id];
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-4 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-sm">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <p className="font-medium text-zinc-800">
+                                {category?.label || item.category}
+                              </p>
+                              <p className="text-xs text-zinc-500">
+                                {item.purity} • {item.weight}g
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {assignment ? (
+                              <>
+                                <div className="text-right">
+                                  <p className="font-medium text-emerald-600 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />
+                                    Slot {assignment.slotNumber}
+                                  </p>
+                                  <p className="text-xs text-zinc-500">
+                                    {getVaultName(assignment.vaultId)} →{" "}
+                                    {getBoxName(assignment.boxId)}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() =>
+                                    handleRemoveAssignment(item.id)
+                                  }
+                                  className="text-red-500 hover:bg-red-50"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Badge variant="warning">Not Assigned</Badge>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Assignment Summary */}
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm text-amber-800">
+                      Storage assignment is recommended but optional. You can
+                      assign later from Inventory.
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-amber-700">
+                      {Object.keys(itemStorageAssignments).length} /{" "}
+                      {items.filter((i) => i.category && i.weight).length}
+                    </p>
+                    <p className="text-xs text-amber-600">Items Assigned</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 6: Confirm & Sign */}
+          {currentStep === 6 && (
+            <motion.div
+              key="step-6"
               variants={stepVariants}
               initial="hidden"
               animate="visible"
@@ -2152,26 +2794,22 @@ export default function NewPledge() {
                 </div>
 
                 <div className="p-4 bg-blue-50 rounded-xl">
-                  <h4 className="font-semibold text-blue-800 mb-3">Payout</h4>
-                  <p className="text-zinc-600 capitalize">{payoutMethod}</p>
-                  {(parseFloat(cashAmount) || 0) > 0 && (
+                  <h4 className="font-semibold text-blue-800 mb-3">Storage</h4>
+                  <p className="text-zinc-600">
+                    {Object.keys(itemStorageAssignments).length} /{" "}
+                    {items.filter((i) => i.category && i.weight).length} items
+                    assigned
+                  </p>
+                  {Object.keys(itemStorageAssignments).length > 0 && (
                     <p className="text-sm text-zinc-500">
-                      Cash: {formatCurrency(parseFloat(cashAmount))}
-                    </p>
-                  )}
-                  {(parseFloat(transferAmount) || 0) > 0 && (
-                    <>
-                      <p className="text-sm text-zinc-500">
-                        Transfer: {formatCurrency(parseFloat(transferAmount))}
-                      </p>
-                      {bankId && (
-                        <p className="text-sm text-zinc-500">
-                          Bank:{" "}
-                          {backendBanks.find((b) => String(b.id) === bankId)
-                            ?.name || "N/A"}
-                        </p>
+                      {getVaultName(
+                        Object.values(itemStorageAssignments)[0]?.vaultId
+                      )}{" "}
+                      →{" "}
+                      {getBoxName(
+                        Object.values(itemStorageAssignments)[0]?.boxId
                       )}
-                    </>
+                    </p>
                   )}
                 </div>
               </div>
@@ -2260,7 +2898,7 @@ export default function NewPledge() {
             Previous
           </Button>
 
-          {currentStep < 5 ? (
+          {currentStep < 6 ? (
             <Button
               variant="accent"
               rightIcon={ArrowRight}
@@ -2284,7 +2922,10 @@ export default function NewPledge() {
       {/* Success Modal */}
       <Modal
         isOpen={showSuccessModal}
-        onClose={() => {}}
+        onClose={() => {
+          setShowSuccessModal(false);
+          navigate("/pledges");
+        }}
         title="Pledge Created Successfully!"
         size="md"
       >
@@ -2330,17 +2971,21 @@ export default function NewPledge() {
               variant="outline"
               fullWidth
               leftIcon={Printer}
-              onClick={handlePrintReceipt}
+              onClick={() => handlePrintReceipt("customer")}
+              loading={isPrinting}
+              disabled={isPrinting || isSendingWhatsApp}
             >
-              Print Receipt
+              {isPrinting ? "Generating..." : "Print Receipt"}
             </Button>
             <Button
               variant="outline"
               fullWidth
               leftIcon={MessageSquare}
               onClick={handleSendWhatsApp}
+              loading={isSendingWhatsApp}
+              disabled={isPrinting || isSendingWhatsApp}
             >
-              Send WhatsApp
+              {isSendingWhatsApp ? "Sending..." : "Send WhatsApp"}
             </Button>
           </div>
 
@@ -2364,8 +3009,16 @@ export default function NewPledge() {
                 setCustomerSearchResult(null);
                 setCustomerPledges([]);
                 setItems([{ ...emptyItem, id: "item-1" }]);
+                setItemStorageAssignments({});
+                setSelectedVault(null);
+                setSelectedBox(null);
+                setSlots([]);
                 setSignature(null);
                 setAgreedToTerms(false);
+                setCreatedPledgeId(null);
+                setCreatedReceiptNo(null);
+                setIsPrinting(false);
+                setIsSendingWhatsApp(false);
               }}
             >
               New Pledge

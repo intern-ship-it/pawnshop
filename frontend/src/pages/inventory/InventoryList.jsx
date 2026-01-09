@@ -196,8 +196,12 @@ export default function InventoryList() {
     }
   };
 
-  // Format location display
   const formatLocation = (item) => {
+    // API returns vault, box, slot as separate objects (not nested)
+    if (item.vault && item.box && item.slot) {
+      return `${item.vault.name} → ${item.box.name} → Slot ${item.slot.slot_number}`;
+    }
+    // Fallback: check for nested structure (in case some APIs return it nested)
     if (item.slot?.box?.vault) {
       return `${item.slot.box.vault.name} → ${item.slot.box.name} → Slot ${item.slot.slot_number}`;
     }

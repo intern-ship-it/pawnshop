@@ -94,6 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{pledge}/print-barcode', [PledgeController::class, 'printBarcode']);
         Route::post('/{pledge}/send-whatsapp', [PledgeController::class, 'sendWhatsApp']);
         Route::get('/calculate', [PledgeController::class, 'calculate']);
+        Route::post('/{pledge}/cancel', [PledgeController::class, 'cancel']);
     });
     Route::apiResource('pledges', PledgeController::class);
 

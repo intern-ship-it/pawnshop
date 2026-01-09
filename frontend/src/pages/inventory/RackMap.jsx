@@ -60,6 +60,7 @@ export default function RackMap({ embedded = false }) {
   const [newBoxCode, setNewBoxCode] = useState("");
   const [newBoxSlots, setNewBoxSlots] = useState(20);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingSlotItems, setIsLoadingSlotItems] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -145,12 +146,24 @@ export default function RackMap({ embedded = false }) {
     }
   };
 
-  // Fetch box summary (totals)
+  // CHANGE TO:
   const fetchBoxSummary = async (boxId) => {
     try {
       const response = await storageService.getBoxSummary(boxId);
       if (response.success && response.data) {
-        setBoxSummaries((prev) => ({ ...prev, [boxId]: response.data }));
+        // Extract summary and map field names
+        const summaryData = response.data.summary || {};
+        setBoxSummaries((prev) => ({
+          ...prev,
+          [boxId]: {
+            item_count: summaryData.total_items || 0,
+            total_weight: parseFloat(summaryData.total_weight) || 0,
+            total_value: parseFloat(summaryData.total_value) || 0,
+            occupied_slots: summaryData.occupied_slots || 0,
+            available_slots: summaryData.available_slots || 0,
+            overdue_count: summaryData.overdue_count || 0,
+          },
+        }));
       }
     } catch (error) {
       console.error("Error fetching box summary:", error);
@@ -200,25 +213,31 @@ export default function RackMap({ embedded = false }) {
     }),
     [vaults, inventorySummary]
   );
-
-  // Handle slot click
+  // CHANGE TO:
   const handleSlotClick = async (slot) => {
     setSelectedSlot(slot);
     setSlotItems([]);
     setShowSlotModal(true);
+    setIsLoadingSlotItems(true);
 
-    if (slot.is_occupied && slot.pledge_item_id) {
+    // Use current_item_id from API response
+    const itemId = slot.current_item_id || slot.pledge_item_id;
+
+    if (slot.is_occupied && itemId) {
       try {
-        const response = await inventoryService.getById(slot.pledge_item_id);
+        const response = await inventoryService.getById(itemId);
         if (response.success && response.data) {
           setSlotItems([response.data]);
         }
       } catch (error) {
         console.error("Error fetching slot item:", error);
       }
+    } else if (slot.is_occupied && slot.current_item) {
+      // If current_item is already loaded with slot data
+      setSlotItems([slot.current_item]);
     }
+    setIsLoadingSlotItems(false);
   };
-
   // Navigate to pledge
   const handleViewPledge = (pledgeId) => {
     setShowSlotModal(false);
@@ -830,8 +849,8 @@ export default function RackMap({ embedded = false }) {
               <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
                 {filteredSlots.map((slot) => {
                   const isOccupied = slot.is_occupied;
-                  const hasOverdue =
-                    slot.pledge_item?.pledge?.status === "overdue";
+                  const item = slot.current_item || slot.pledge_item;
+                  const hasOverdue = item?.pledge?.status === "overdue";
 
                   return (
                     <motion.button
@@ -851,11 +870,14 @@ export default function RackMap({ embedded = false }) {
                       <span className="text-xs font-mono font-medium">
                         {String(slot.slot_number).padStart(2, "0")}
                       </span>
-                      {isOccupied && slot.pledge_item && (
-                        <span className="text-[10px] mt-0.5 truncate max-w-full px-1">
-                          {slot.pledge_item.pledge?.pledge_no || "Item"}
-                        </span>
-                      )}
+                      {isOccupied &&
+                        (slot.current_item || slot.pledge_item) && (
+                          <span className="text-[10px] mt-0.5 truncate max-w-full px-1">
+                            {(slot.current_item || slot.pledge_item)?.pledge
+                              ?.pledge_no || "Item"}
+                          </span>
+                        )}
+
                       {hasOverdue && (
                         <AlertTriangle className="w-3 h-3 absolute top-1 right-1 text-red-500" />
                       )}
@@ -919,7 +941,12 @@ export default function RackMap({ embedded = false }) {
         size="lg"
       >
         <div className="p-5">
-          {selectedSlot?.is_occupied && slotItems.length > 0 ? (
+          {isLoadingSlotItems ? (
+            <div className="text-center py-12">
+              <Loader2 className="w-10 h-10 text-amber-500 animate-spin mx-auto mb-4" />
+              <p className="text-zinc-500">Loading item details...</p>
+            </div>
+          ) : selectedSlot?.is_occupied && slotItems.length > 0 ? (
             <>
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="text-center p-3 bg-amber-50 rounded-lg">
@@ -934,7 +961,11 @@ export default function RackMap({ embedded = false }) {
                   <p className="text-lg font-bold text-emerald-600">
                     {slotItems
                       .reduce(
-                        (sum, item) => sum + (parseFloat(item.weight) || 0),
+                        (sum, item) =>
+                          sum +
+                          (parseFloat(item.net_weight) ||
+                            parseFloat(item.weight) ||
+                            0),
                         0
                       )
                       .toFixed(2)}
@@ -948,7 +979,10 @@ export default function RackMap({ embedded = false }) {
                     {formatCurrency(
                       slotItems.reduce(
                         (sum, item) =>
-                          sum + (parseFloat(item.estimated_value) || 0),
+                          sum +
+                          (parseFloat(item.net_value) ||
+                            parseFloat(item.estimated_value) ||
+                            0),
                         0
                       )
                     )}
@@ -1006,23 +1040,29 @@ export default function RackMap({ embedded = false }) {
                       <div>
                         <p className="text-xs text-zinc-500">Category</p>
                         <p className="font-medium">
-                          {item.category?.name || item.category || "N/A"}
+                          {item.category?.name_en ||
+                            item.category?.name ||
+                            "N/A"}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-zinc-500">Purity</p>
                         <p className="font-medium">
-                          {item.purity?.name || item.purity || "N/A"}
+                          {item.purity?.name || item.purity?.code || "N/A"}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-zinc-500">Weight</p>
-                        <p className="font-medium">{item.weight}g</p>
+                        <p className="font-medium">
+                          {item.net_weight || item.weight || 0}g
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-zinc-500">Value</p>
                         <p className="font-medium">
-                          {formatCurrency(item.estimated_value || 0)}
+                          {formatCurrency(
+                            item.net_value || item.estimated_value || 0
+                          )}
                         </p>
                       </div>
                     </div>

@@ -125,6 +125,17 @@ const pledgeService = {
   async sendWhatsApp(pledgeId) {
     return apiPost(`/pledges/${pledgeId}/send-whatsapp`)
   },
+
+  /**
+   * Cancel a pledge (only for active pledges with no renewals)
+   * Releases storage slots and marks pledge as cancelled
+   * @param {number} pledgeId 
+   * @param {string} reason - Optional cancellation reason
+   * @returns {Promise}
+   */
+  async cancel(pledgeId, reason = null) {
+    return apiPost(`/pledges/${pledgeId}/cancel`, { reason })
+  },
 }
 
 export default pledgeService

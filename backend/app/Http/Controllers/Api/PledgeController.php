@@ -13,6 +13,7 @@ use App\Services\InterestCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class PledgeController extends Controller
@@ -386,7 +387,6 @@ class PledgeController extends Controller
                     'location_assigned_at' => isset($item['slot_id']) ? now() : null,
                     'location_assigned_by' => isset($item['slot_id']) ? $userId : null,
                 ]);
-
                 // Update slot if assigned
                 if (isset($item['slot_id'])) {
                     Slot::where('id', $item['slot_id'])->update([
@@ -394,6 +394,11 @@ class PledgeController extends Controller
                         'current_item_id' => $pledgeItem->id,
                         'occupied_at' => now(),
                     ]);
+
+                    // Also increment box occupied count
+                    if (isset($item['box_id'])) {
+                        \App\Models\Box::where('id', $item['box_id'])->increment('occupied_slots');
+                    }
                 }
 
                 $itemNumber++;
@@ -610,5 +615,87 @@ class PledgeController extends Controller
             'charge_amount' => $chargeAmount,
             'print_count' => $pledge->receipt_print_count,
         ], 'Receipt print recorded');
+    }
+
+
+    /**
+     * Cancel a pledge (soft cancel - maintains audit trail)
+     */
+    public function cancel(Request $request, $id): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $pledge = Pledge::where('branch_id', $branchId)
+            ->with('items.slot')
+            ->find($id);
+
+        if (!$pledge) {
+            return $this->error('Pledge not found', 404);
+        }
+
+        // Check if pledge can be cancelled
+        if ($pledge->status !== 'active') {
+            return $this->error('Only active pledges can be cancelled', 400);
+        }
+
+        if ($pledge->renewal_count > 0) {
+            return $this->error('Pledges that have been renewed cannot be cancelled', 400);
+        }
+
+        // Check if any payments have been made (optional - adjust based on your business rules)
+        // if ($pledge->payments()->exists()) {
+        //     return $this->error('Pledges with payments cannot be cancelled', 400);
+        // }
+
+        DB::beginTransaction();
+        try {
+            // Release storage slots
+            foreach ($pledge->items as $item) {
+                if ($item->slot_id) {
+                    // Update slot
+                    $slot = $item->slot;
+                    if ($slot) {
+                        $slot->update([
+                            'is_occupied' => false,
+                            'current_item_id' => null,
+                            'occupied_at' => null,
+                        ]);
+
+                        // Update box occupied count
+                        if ($slot->box) {
+                            $slot->box->decrement('occupied_slots');
+                        }
+                    }
+
+                    // Clear item location
+                    $item->update([
+                        'vault_id' => null,
+                        'box_id' => null,
+                        'slot_id' => null,
+                        'status' => 'released',
+                    ]);
+                }
+            }
+
+            // Update pledge status
+            $pledge->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancelled_by' => $request->user()->id,
+                'cancellation_reason' => $request->input('reason', 'Cancelled by user'),
+            ]);
+
+            DB::commit();
+
+            return $this->success([
+                'message' => 'Pledge cancelled successfully',
+                'pledge' => $pledge->fresh(),
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Pledge cancellation failed: ' . $e->getMessage());
+            return $this->error('Failed to cancel pledge: ' . $e->getMessage(), 500);
+        }
     }
 }

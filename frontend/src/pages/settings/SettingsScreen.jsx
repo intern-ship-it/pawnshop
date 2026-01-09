@@ -43,6 +43,7 @@ import {
   Loader2,
 } from "lucide-react";
 import WhatsAppSettings from "./WhatsAppSettings";
+import storageService from "@/services/storageService";
 
 // Default settings structure
 const defaultSettings = {
@@ -1623,41 +1624,244 @@ function StoneDeductionTab({ settings, updateSettings }) {
   );
 }
 
-// Racks Tab
+// Racks Tab - API Integrated with Vault + Box Management
 function RacksTab({ settings, updateSettings }) {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [formData, setFormData] = useState({
-    id: "",
+  const [showAddVaultModal, setShowAddVaultModal] = useState(false);
+  const [showAddBoxModal, setShowAddBoxModal] = useState(false);
+  const [selectedVault, setSelectedVault] = useState(null);
+  const [vaultFormData, setVaultFormData] = useState({
     name: "",
-    slots: 20,
+    code: "",
     description: "",
   });
-  const racks = settings.racks;
+  const [boxFormData, setBoxFormData] = useState({
+    name: "",
+    total_slots: 20,
+    description: "",
+  });
+  const [vaults, setVaults] = useState([]);
+  const [boxes, setBoxes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBoxes, setIsLoadingBoxes] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [error, setError] = useState(null);
 
-  const handleAdd = () => {
-    if (formData.id && formData.name) {
-      const updated = [
-        ...racks,
-        {
-          id: formData.id.toUpperCase(),
-          name: formData.name,
-          slots: parseInt(formData.slots) || 20,
-          description: formData.description,
-        },
-      ];
-      updateSettings("racks", updated);
-      setFormData({ id: "", name: "", slots: 20, description: "" });
-      setShowAddModal(false);
+  // Fetch vaults from API on mount
+  useEffect(() => {
+    fetchVaults();
+  }, []);
+
+  // Fetch boxes when vault is selected
+  useEffect(() => {
+    if (selectedVault) {
+      fetchBoxes(selectedVault.id);
+    } else {
+      setBoxes([]);
+    }
+  }, [selectedVault]);
+
+  const fetchVaults = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await storageService.getVaults();
+
+      if (response.success && response.data) {
+        const mapped = response.data.map((vault) => ({
+          id: vault.id,
+          name: vault.name,
+          code: vault.code,
+          description: vault.description,
+          total_boxes: vault.total_boxes || 0,
+          boxes_count: vault.boxes_count || 0,
+          is_active: vault.is_active,
+        }));
+        setVaults(mapped);
+
+        // Auto-select first vault if none selected
+        if (mapped.length > 0 && !selectedVault) {
+          setSelectedVault(mapped[0]);
+        }
+      } else {
+        throw new Error(response.message || "Failed to load vaults");
+      }
+    } catch (err) {
+      console.error("Error fetching vaults:", err);
+      setError("Failed to load vaults. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDelete = (id) => {
-    const updated = racks.filter((r) => r.id !== id);
-    updateSettings("racks", updated);
+  const fetchBoxes = async (vaultId) => {
+    try {
+      setIsLoadingBoxes(true);
+
+      const response = await storageService.getBoxes(vaultId);
+
+      if (response.success && response.data) {
+        const mapped = response.data.map((box) => ({
+          id: box.id,
+          name: box.name,
+          total_slots: box.total_slots || 0,
+          occupied_slots: box.occupied_slots || 0,
+          description: box.description,
+        }));
+        setBoxes(mapped);
+      } else {
+        setBoxes([]);
+      }
+    } catch (err) {
+      console.error("Error fetching boxes:", err);
+      setBoxes([]);
+    } finally {
+      setIsLoadingBoxes(false);
+    }
   };
 
-  // Calculate total slots
-  const totalSlots = racks.reduce((sum, r) => sum + r.slots, 0);
+  const handleAddVault = async () => {
+    if (!vaultFormData.name) return;
+
+    setIsAdding(true);
+    try {
+      const response = await storageService.createVault({
+        name: vaultFormData.name,
+        code:
+          vaultFormData.code ||
+          vaultFormData.name.toUpperCase().replace(/\s+/g, "-"),
+        description: vaultFormData.description || null,
+      });
+
+      if (response.success) {
+        await fetchVaults();
+        setVaultFormData({ name: "", code: "", description: "" });
+        setShowAddVaultModal(false);
+      } else {
+        throw new Error(response.message || "Failed to create vault");
+      }
+    } catch (err) {
+      console.error("Error creating vault:", err);
+      setError(err.message || "Failed to create vault. Please try again.");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleAddBox = async () => {
+    if (!boxFormData.name || !selectedVault) return;
+
+    setIsAdding(true);
+    try {
+      const response = await storageService.createBox({
+        vault_id: selectedVault.id,
+        name: boxFormData.name,
+        total_slots: parseInt(boxFormData.total_slots) || 20,
+        description: boxFormData.description || null,
+      });
+
+      if (response.success) {
+        await fetchBoxes(selectedVault.id);
+        await fetchVaults(); // Refresh vault counts
+        setBoxFormData({ name: "", total_slots: 20, description: "" });
+        setShowAddBoxModal(false);
+      } else {
+        throw new Error(response.message || "Failed to create box");
+      }
+    } catch (err) {
+      console.error("Error creating box:", err);
+      setError(err.message || "Failed to create box. Please try again.");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleDeleteVault = async (id) => {
+    const vault = vaults.find((v) => v.id === id);
+    if (vault && vault.boxes_count > 0) {
+      alert(
+        `Cannot delete "${vault.name}" - it has ${vault.boxes_count} boxes. Please delete boxes first.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${vault?.name}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(`vault-${id}`);
+    try {
+      const response = await storageService.deleteVault(id);
+
+      if (response.success) {
+        if (selectedVault?.id === id) {
+          setSelectedVault(null);
+        }
+        await fetchVaults();
+      } else {
+        throw new Error(response.message || "Failed to delete vault");
+      }
+    } catch (err) {
+      console.error("Error deleting vault:", err);
+      alert(err.message || "Failed to delete vault.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteBox = async (id) => {
+    const box = boxes.find((b) => b.id === id);
+    if (box && box.occupied_slots > 0) {
+      alert(
+        `Cannot delete "${box.name}" - it has ${box.occupied_slots} occupied slots. Please relocate items first.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${box?.name}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(`box-${id}`);
+    try {
+      const response = await storageService.deleteBox(id);
+
+      if (response.success) {
+        await fetchBoxes(selectedVault.id);
+        await fetchVaults(); // Refresh vault counts
+      } else {
+        throw new Error(response.message || "Failed to delete box");
+      }
+    } catch (err) {
+      console.error("Error deleting box:", err);
+      alert(err.message || "Failed to delete box.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Calculate totals
+  const totalBoxes = vaults.reduce((sum, v) => sum + (v.boxes_count || 0), 0);
+  const totalSlots = boxes.reduce((sum, b) => sum + (b.total_slots || 0), 0);
+  const occupiedSlots = boxes.reduce(
+    (sum, b) => sum + (b.occupied_slots || 0),
+    0
+  );
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+          <span className="ml-3 text-zinc-600">Loading storage setup...</span>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-6">
@@ -1667,111 +1871,400 @@ function RacksTab({ settings, updateSettings }) {
           Rack / Locker Setup
         </h2>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
-          leftIcon={Plus}
-          onClick={() => setShowAddModal(true)}
+          leftIcon={RefreshCw}
+          onClick={() => {
+            fetchVaults();
+            if (selectedVault) fetchBoxes(selectedVault.id);
+          }}
         >
-          Add Rack
+          Refresh
         </Button>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500" />
+          <p className="text-sm text-red-700">{error}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setError(null)}
+            className="ml-auto"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="p-4 bg-zinc-50 rounded-xl">
-          <p className="text-sm text-zinc-500">Total Racks</p>
-          <p className="text-2xl font-bold text-zinc-800">{racks.length}</p>
+          <p className="text-sm text-zinc-500">Total Vaults</p>
+          <p className="text-2xl font-bold text-zinc-800">{vaults.length}</p>
         </div>
         <div className="p-4 bg-amber-50 rounded-xl">
-          <p className="text-sm text-amber-600">Total Slots</p>
-          <p className="text-2xl font-bold text-amber-600">{totalSlots}</p>
+          <p className="text-sm text-amber-600">Total Boxes</p>
+          <p className="text-2xl font-bold text-amber-600">{totalBoxes}</p>
+        </div>
+        <div className="p-4 bg-emerald-50 rounded-xl">
+          <p className="text-sm text-emerald-600">
+            {selectedVault ? `Slots in ${selectedVault.name}` : "Total Slots"}
+          </p>
+          <p className="text-2xl font-bold text-emerald-600">
+            {occupiedSlots}{" "}
+            <span className="text-sm font-normal">/ {totalSlots}</span>
+          </p>
         </div>
       </div>
 
-      {/* Rack List */}
-      <div className="space-y-3">
-        {racks.map((rack) => (
-          <div
-            key={rack.id}
-            className="flex items-center justify-between p-4 rounded-xl border border-zinc-200"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-                <span className="text-xl font-bold text-white">{rack.id}</span>
-              </div>
-              <div>
-                <p className="font-medium text-zinc-800">{rack.name}</p>
-                <p className="text-sm text-zinc-500">{rack.description}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-lg font-semibold text-zinc-800">
-                  {rack.slots}
-                </p>
-                <p className="text-xs text-zinc-500">slots</p>
-              </div>
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column - Vaults */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-medium text-zinc-800 flex items-center gap-2">
+              <Package className="w-4 h-4 text-zinc-500" />
+              Vaults / Racks
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={Plus}
+              onClick={() => setShowAddVaultModal(true)}
+            >
+              Add Vault
+            </Button>
+          </div>
+
+          {vaults.length === 0 ? (
+            <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
+              <Package className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
+              <p className="text-sm">No vaults configured</p>
               <Button
-                variant="ghost"
+                variant="link"
                 size="sm"
-                onClick={() => handleDelete(rack.id)}
-                className="text-zinc-400 hover:text-red-500"
+                onClick={() => setShowAddVaultModal(true)}
               >
-                <Trash2 className="w-4 h-4" />
+                Add your first vault
               </Button>
             </div>
+          ) : (
+            <div className="space-y-2">
+              {vaults.map((vault, index) => {
+                const letter = String.fromCharCode(65 + index);
+                const isSelected = selectedVault?.id === vault.id;
+
+                return (
+                  <div
+                    key={vault.id}
+                    onClick={() => setSelectedVault(vault)}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all",
+                      isSelected
+                        ? "border-amber-500 bg-amber-50"
+                        : "border-zinc-200 hover:border-zinc-300"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "w-10 h-10 rounded-lg flex items-center justify-center",
+                          isSelected
+                            ? "bg-amber-500 text-white"
+                            : "bg-zinc-100 text-zinc-600"
+                        )}
+                      >
+                        <span className="font-bold">{letter}</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-zinc-800">
+                          {vault.name}
+                        </p>
+                        <p className="text-xs text-zinc-500">
+                          {vault.description || vault.code}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-zinc-800">
+                          {vault.boxes_count}
+                        </p>
+                        <p className="text-xs text-zinc-500">boxes</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteVault(vault.id);
+                        }}
+                        disabled={deletingId === `vault-${vault.id}`}
+                        className={cn(
+                          "text-zinc-400 hover:text-red-500",
+                          vault.boxes_count > 0 && "opacity-50"
+                        )}
+                        title={
+                          vault.boxes_count > 0
+                            ? "Delete boxes first"
+                            : "Delete vault"
+                        }
+                      >
+                        {deletingId === `vault-${vault.id}` ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - Boxes */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-medium text-zinc-800 flex items-center gap-2">
+              <Grid3X3 className="w-4 h-4 text-zinc-500" />
+              Boxes in{" "}
+              <span className="text-amber-600">
+                {selectedVault?.name || "..."}
+              </span>
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={Plus}
+              onClick={() => setShowAddBoxModal(true)}
+              disabled={!selectedVault}
+            >
+              Add Box
+            </Button>
           </div>
-        ))}
+
+          {!selectedVault ? (
+            <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
+              <ChevronRight className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
+              <p className="text-sm">Select a vault to manage boxes</p>
+            </div>
+          ) : isLoadingBoxes ? (
+            <div className="text-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-500 mx-auto" />
+              <p className="text-sm text-zinc-500 mt-2">Loading boxes...</p>
+            </div>
+          ) : boxes.length === 0 ? (
+            <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
+              <Grid3X3 className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
+              <p className="text-sm">No boxes in this vault</p>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setShowAddBoxModal(true)}
+              >
+                Add your first box
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {boxes.map((box) => {
+                const occupancyPercent =
+                  box.total_slots > 0
+                    ? Math.round((box.occupied_slots / box.total_slots) * 100)
+                    : 0;
+
+                return (
+                  <div
+                    key={box.id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 hover:border-zinc-300 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
+                        <Grid3X3 className="w-5 h-5 text-zinc-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-zinc-800">{box.name}</p>
+                        <p className="text-xs text-zinc-500">
+                          {box.total_slots} slots
+                          {box.description && ` • ${box.description}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {/* Occupancy */}
+                      <div className="hidden sm:block w-24">
+                        <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
+                          <span>{occupancyPercent}%</span>
+                        </div>
+                        <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              occupancyPercent >= 90
+                                ? "bg-red-500"
+                                : occupancyPercent >= 70
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
+                            )}
+                            style={{ width: `${occupancyPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                      {/* Slot count */}
+                      <div className="text-right min-w-[50px]">
+                        <p className="text-sm font-semibold text-zinc-800">
+                          {box.occupied_slots}/{box.total_slots}
+                        </p>
+                        <p className="text-xs text-zinc-500">slots</p>
+                      </div>
+                      {/* Delete */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteBox(box.id)}
+                        disabled={deletingId === `box-${box.id}`}
+                        className={cn(
+                          "text-zinc-400 hover:text-red-500",
+                          box.occupied_slots > 0 && "opacity-50"
+                        )}
+                        title={
+                          box.occupied_slots > 0
+                            ? "Has items - relocate first"
+                            : "Delete box"
+                        }
+                      >
+                        {deletingId === `box-${box.id}` ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Add Modal */}
+      {/* Add Vault Modal */}
       <Modal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="Add Rack"
+        isOpen={showAddVaultModal}
+        onClose={() => setShowAddVaultModal(false)}
+        title="Add Vault"
         size="sm"
       >
         <div className="p-5">
           <Input
-            label="Rack ID"
-            value={formData.id}
-            onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-            placeholder="e.g. D"
-            maxLength={2}
-          />
-          <Input
-            label="Rack Name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="e.g. Rack D"
-          />
-          <Input
-            label="Number of Slots"
-            type="number"
-            value={formData.slots}
+            label="Vault Name"
+            value={vaultFormData.name}
             onChange={(e) =>
-              setFormData({ ...formData, slots: e.target.value })
+              setVaultFormData({ ...vaultFormData, name: e.target.value })
             }
-            placeholder="20"
+            placeholder="e.g. Safe Room, High Value Storage"
           />
           <Input
-            label="Description"
-            value={formData.description}
+            label="Code (Optional)"
+            value={vaultFormData.code}
             onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
+              setVaultFormData({
+                ...vaultFormData,
+                code: e.target.value.toUpperCase(),
+              })
             }
-            placeholder="e.g. High-value items"
+            placeholder="e.g. SAFE-1"
+            helperText="Auto-generated if left empty"
+          />
+          <Input
+            label="Description (Optional)"
+            value={vaultFormData.description}
+            onChange={(e) =>
+              setVaultFormData({
+                ...vaultFormData,
+                description: e.target.value,
+              })
+            }
+            placeholder="e.g. For high-value items only"
           />
           <div className="flex gap-3 mt-6">
             <Button
               variant="outline"
               fullWidth
-              onClick={() => setShowAddModal(false)}
+              onClick={() => setShowAddVaultModal(false)}
+              disabled={isAdding}
             >
               Cancel
             </Button>
-            <Button variant="accent" fullWidth onClick={handleAdd}>
-              Add Rack
+            <Button
+              variant="accent"
+              fullWidth
+              onClick={handleAddVault}
+              loading={isAdding}
+              disabled={!vaultFormData.name}
+            >
+              Add Vault
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Box Modal */}
+      <Modal
+        isOpen={showAddBoxModal}
+        onClose={() => setShowAddBoxModal(false)}
+        title={`Add Box to ${selectedVault?.name || "Vault"}`}
+        size="sm"
+      >
+        <div className="p-5">
+          <Input
+            label="Box Name"
+            value={boxFormData.name}
+            onChange={(e) =>
+              setBoxFormData({ ...boxFormData, name: e.target.value })
+            }
+            placeholder="e.g. BOX-1, Shelf A"
+          />
+          <Input
+            label="Number of Slots"
+            type="number"
+            value={boxFormData.total_slots}
+            onChange={(e) =>
+              setBoxFormData({ ...boxFormData, total_slots: e.target.value })
+            }
+            placeholder="20"
+            helperText="Each slot can hold one pledge item"
+          />
+          <Input
+            label="Description (Optional)"
+            value={boxFormData.description}
+            onChange={(e) =>
+              setBoxFormData({ ...boxFormData, description: e.target.value })
+            }
+            placeholder="e.g. Top shelf"
+          />
+          <div className="flex gap-3 mt-6">
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowAddBoxModal(false)}
+              disabled={isAdding}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              fullWidth
+              onClick={handleAddBox}
+              loading={isAdding}
+              disabled={!boxFormData.name}
+            >
+              Add Box
             </Button>
           </div>
         </div>
