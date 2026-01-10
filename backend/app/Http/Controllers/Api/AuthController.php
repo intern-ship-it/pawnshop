@@ -39,7 +39,16 @@ class AuthController extends Controller
         if ($request->filled('email')) {
             $user = User::where('email', $request->email)->first();
         } elseif ($request->filled('username')) {
-            $user = User::where('username', $request->username)->first();
+            $identifier = $request->username;
+
+            // Check if the username field contains an email address
+            if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+                // It's an email - search by email column
+                $user = User::where('email', $identifier)->first();
+            } else {
+                // It's a username - search by username column
+                $user = User::where('username', $identifier)->first();
+            }
         }
 
         if (!$user || !Hash::check($request->password, $user->password)) {
