@@ -1,6 +1,7 @@
 /**
  * API Service - Axios instance with interceptors
  * Connects React frontend to Laravel Sanctum backend
+ * With Remember Me functionality support
  */
 
 import axios from 'axios'
@@ -28,17 +29,59 @@ const api = axios.create({
   },
 })
 
-// Token storage key
+// Token storage keys
 const TOKEN_KEY = 'pawnsys_token'
+const USER_KEY = 'pawnsys_user'
+const REMEMBER_KEY = 'pawnsys_remember'
 
-// Get token from storage
-export const getToken = () => localStorage.getItem(TOKEN_KEY)
+// Flag to prevent token refresh during logout
+let isLoggingOut = false
 
-// Set token to storage
-export const setToken = (token) => localStorage.setItem(TOKEN_KEY, token)
+export const setLoggingOut = (value) => {
+  isLoggingOut = value
+}
 
-// Remove token from storage
-export const removeToken = () => localStorage.removeItem(TOKEN_KEY)
+/**
+ * Get token from correct storage based on Remember Me choice
+ */
+export const getToken = () => {
+  const remembered = localStorage.getItem(REMEMBER_KEY)
+  
+  if (remembered === 'true') {
+    return localStorage.getItem(TOKEN_KEY)
+  } else if (remembered === 'false') {
+    return sessionStorage.getItem(TOKEN_KEY)
+  }
+  
+  // Fallback: check both (for backward compatibility)
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
+}
+
+/**
+ * Set token to correct storage
+ */
+export const setToken = (token, rememberMe = true) => {
+  const storage = rememberMe ? localStorage : sessionStorage
+  
+  // Clear from both first
+  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  
+  // Store in correct storage
+  storage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(REMEMBER_KEY, rememberMe ? 'true' : 'false')
+}
+
+/**
+ * Remove token from both storages
+ */
+export const removeToken = () => {
+  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REMEMBER_KEY)
+  localStorage.removeItem(USER_KEY)
+  sessionStorage.removeItem(USER_KEY)
+}
 
 // Request interceptor - Add auth token and handle Content-Type
 api.interceptors.request.use(
@@ -74,8 +117,17 @@ api.interceptors.response.use(
                            originalRequest.url?.includes('auth/refresh') ||
                            originalRequest.url?.includes('auth/logout')
 
-    // Handle 401 Unauthorized (but not for auth endpoints)
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    // If we're logging out, silently reject all 401 errors without logging
+    if (isLoggingOut && error.response?.status === 401) {
+      return Promise.reject({ 
+        message: 'Logout in progress',
+        silent: true,
+        status: 401 
+      })
+    }
+
+    // Handle 401 Unauthorized (but not for auth endpoints or during logout)
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint && !isLoggingOut) {
       originalRequest._retry = true
 
       // Only try refresh if we have a token
@@ -94,15 +146,20 @@ api.interceptors.response.use(
 
           if (refreshResponse.data.success) {
             const newToken = refreshResponse.data.data.token
-            setToken(newToken)
+            
+            // Keep same storage preference when refreshing
+            const remembered = localStorage.getItem(REMEMBER_KEY) === 'true'
+            setToken(newToken, remembered)
+            
             originalRequest.headers.Authorization = `Bearer ${newToken}`
             return api(originalRequest)
           }
         } catch (refreshError) {
-          // Refresh failed - logout user
-          removeToken()
-          localStorage.removeItem('pawnsys_user')
-          window.location.href = '/login'
+          // Refresh failed - logout user (only if not already logging out)
+          if (!isLoggingOut) {
+            removeToken()
+            window.location.href = '/login'
+          }
           return Promise.reject(refreshError)
         }
       }
@@ -159,5 +216,8 @@ export const apiUpload = (url, formData, onProgress) => {
     },
   })
 }
+
+// Get public company info (no auth required)
+export const getPublicCompanyInfo = () => apiGet('/settings/public/company')
 
 export default api

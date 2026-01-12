@@ -324,6 +324,11 @@ export default function ReportsScreen() {
     }
   };
 
+  // Handle print
+  const handlePrint = () => {
+    window.print();
+  };
+
   // Format date range display
   const getDateRangeDisplay = () => {
     if (!fromDate || !toDate) return "Select Date Range";
@@ -365,7 +370,7 @@ export default function ReportsScreen() {
           >
             Export CSV
           </Button>
-          <Button variant="outline" leftIcon={Printer}>
+          <Button variant="outline" leftIcon={Printer} onClick={handlePrint}>
             Print
           </Button>
         </div>

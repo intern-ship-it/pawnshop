@@ -28,7 +28,11 @@ use App\Http\Controllers\Api\GoldPriceController;
 */
 
 // Public routes
+Route::get('/settings/public/company', [SettingsController::class, 'publicCompanyInfo']);
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/verify-reset-token', [AuthController::class, 'verifyResetToken']);
+Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -40,6 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/verify-passkey', [AuthController::class, 'verifyPasskey']);
         Route::put('/change-password', [AuthController::class, 'changePassword']);
+        Route::put('/profile', [AuthController::class, 'updateProfile']);
     });
 
     // Dashboard

@@ -258,7 +258,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-thin">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 scrollbar-thin">
         {filteredMenu.map((section, sectionIndex) => (
           <div key={sectionIndex} className="mb-6">
             {!sidebarCollapsed && (

@@ -101,11 +101,36 @@ const reportService = {
    * @returns {Promise}
    */
   async exportReport(reportType, format = 'csv', params = {}) {
-    return apiPost('/reports/export', {
-      report_type: reportType,
-      format,
-      ...params,
-    })
+    try {
+      // Use api instance directly to set responseType
+      const response = await import('./api').then(m => m.default.post('/reports/export', {
+        report_type: reportType,
+        format,
+        ...params,
+      }, {
+        responseType: 'blob'
+      }))
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response]))
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Generate filename
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const filename = `${reportType}_report_${dateStr}.${format}`
+      
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.parentNode.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      return { success: true }
+    } catch (error) {
+      console.error('Export error:', error)
+      throw error
+    }
   },
 }
 

@@ -17,7 +17,10 @@ const PageLoader = () => (
 
 // Lazy load pages for better performance
 const Login = lazy(() => import("@/pages/Login"));
+const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Profile = lazy(() => import("@/pages/Profile"));
 
 // Customer pages
 const CustomerList = lazy(() => import("@/pages/customers/CustomerList"));
@@ -72,12 +75,23 @@ export const router = createBrowserRouter([
     element: withSuspense(Login),
   },
   {
+    path: "/forgot-password",
+    element: withSuspense(ForgotPassword),
+  },
+  {
+    path: "/reset-password",
+    element: withSuspense(ResetPassword),
+  },
+  {
     path: "/",
     element: <MainLayout />,
     children: [
       // Dashboard
       { index: true, element: withSuspense(Dashboard) },
-
+      {
+        path: "profile",
+        element: withSuspense(Profile),
+      },
       // CUSTOMER ROUTES
       { path: "customers", element: withSuspense(CustomerList) },
       { path: "customers/new", element: withSuspense(CustomerCreate) },
@@ -128,6 +142,8 @@ export const router = createBrowserRouter([
 // Export route paths for easy reference
 export const ROUTES = {
   LOGIN: "/login",
+  FORGOT_PASSWORD: "/forgot-password",
+  RESET_PASSWORD: "/reset-password",
   DASHBOARD: "/",
   CUSTOMERS: "/customers",
   CUSTOMER_NEW: "/customers/new",

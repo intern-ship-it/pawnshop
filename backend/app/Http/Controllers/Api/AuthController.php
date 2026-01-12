@@ -8,7 +8,10 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Carbon\Carbon;
 
 class AuthController extends Controller
 {
@@ -82,7 +85,7 @@ class AuthController extends Controller
                     'username' => $user->username,
                     'employee_id' => $user->employee_id,
                     'phone' => $user->phone,
-                    'profile_photo' => $user->profile_photo,
+                    'profile_photo' => $user->profile_photo ? asset('storage/' . $user->profile_photo) : null,
                     'role' => $user->role ? [
                         'id' => $user->role->id,
                         'name' => $user->role->name,
@@ -151,7 +154,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'employee_id' => $user->employee_id,
                 'phone' => $user->phone,
-                'profile_photo' => $user->profile_photo,
+                'profile_photo' => $user->profile_photo ? asset('storage/' . $user->profile_photo) : null,
                 'role' => [
                     'id' => $user->role->id,
                     'name' => $user->role->name,
@@ -230,6 +233,230 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Password changed successfully.',
+        ]);
+    }
+
+    /**
+     * Update user profile
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|email|unique:users,email,' . $user->id,
+            'phone' => 'sometimes|string|max:20|nullable',
+            'profile_photo' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        // Handle profile photo upload
+        if ($request->hasFile('profile_photo')) {
+            // Delete old photo if exists
+            if ($user->profile_photo && \Storage::disk('public')->exists($user->profile_photo)) {
+                \Storage::disk('public')->delete($user->profile_photo);
+            }
+
+            // Store new photo
+            $path = $request->file('profile_photo')->store('profile-photos', 'public');
+            $validated['profile_photo'] = $path;
+        }
+
+        // Update user
+        $user->update($validated);
+
+        // Reload user with relationships
+        $user->load('role', 'branch');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully.',
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'username' => $user->username,
+                    'employee_id' => $user->employee_id,
+                    'phone' => $user->phone,
+                    'profile_photo' => $user->profile_photo ? asset('storage/' . $user->profile_photo) : null,
+                    'role' => $user->role ? [
+                        'id' => $user->role->id,
+                        'name' => $user->role->name,
+                        'slug' => $user->role->slug,
+                    ] : null,
+                    'branch' => $user->branch ? [
+                        'id' => $user->branch->id,
+                        'name' => $user->branch->name,
+                        'code' => $user->branch->code,
+                    ] : null,
+                    'last_login_at' => $user->last_login_at,
+                    'created_at' => $user->created_at,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Request password reset (forgot password)
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        // Check if user exists
+        $user = User::where('email', $request->email)->first();
+
+        // Always return success to prevent email enumeration
+        // But only create token if user exists
+        if ($user) {
+            // Delete any existing tokens for this email
+            DB::table('password_reset_tokens')
+                ->where('email', $request->email)
+                ->delete();
+
+            // Generate a random token
+            $token = Str::random(64);
+
+            // Store the token
+            DB::table('password_reset_tokens')->insert([
+                'email' => $request->email,
+                'token' => Hash::make($token),
+                'created_at' => Carbon::now(),
+            ]);
+
+            // TODO: Send email with reset link
+            // For now, we'll return the token in development
+            // In production, this should be sent via email only
+
+            // Mail::to($user->email)->send(new ResetPasswordMail($token, $user));
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'If an account exists with this email, you will receive a password reset link shortly.',
+            // Remove this in production - only for development/testing
+            'token' => $user ? $token : null,
+        ]);
+    }
+
+    /**
+     * Verify reset token
+     */
+    public function verifyResetToken(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => 'required|string',
+        ]);
+
+        // Find all password reset records (we need to check hashed tokens)
+        $resetRecords = DB::table('password_reset_tokens')->get();
+
+        $validRecord = null;
+        foreach ($resetRecords as $record) {
+            if (Hash::check($request->token, $record->token)) {
+                $validRecord = $record;
+                break;
+            }
+        }
+
+        if (!$validRecord) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid reset token.',
+            ], 400);
+        }
+
+        // Check if token is expired (60 minutes)
+        $createdAt = Carbon::parse($validRecord->created_at);
+        if ($createdAt->addMinutes(60)->isPast()) {
+            // Delete expired token
+            DB::table('password_reset_tokens')
+                ->where('email', $validRecord->email)
+                ->delete();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Reset token has expired. Please request a new one.',
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Token is valid.',
+            'data' => [
+                'email' => $validRecord->email,
+            ],
+        ]);
+    }
+
+    /**
+     * Reset password with token
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        // Find all password reset records (we need to check hashed tokens)
+        $resetRecords = DB::table('password_reset_tokens')->get();
+
+        $validRecord = null;
+        foreach ($resetRecords as $record) {
+            if (Hash::check($request->token, $record->token)) {
+                $validRecord = $record;
+                break;
+            }
+        }
+
+        if (!$validRecord) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid reset token.',
+            ], 400);
+        }
+
+        // Check if token is expired (60 minutes)
+        $createdAt = Carbon::parse($validRecord->created_at);
+        if ($createdAt->addMinutes(60)->isPast()) {
+            // Delete expired token
+            DB::table('password_reset_tokens')
+                ->where('email', $validRecord->email)
+                ->delete();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Reset token has expired. Please request a new one.',
+            ], 400);
+        }
+
+        // Find user and update password
+        $user = User::where('email', $validRecord->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found.',
+            ], 404);
+        }
+
+        // Update password
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        // Delete the used token
+        DB::table('password_reset_tokens')
+            ->where('email', $validRecord->email)
+            ->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password has been reset successfully. You can now login with your new password.',
         ]);
     }
 }

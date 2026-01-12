@@ -64,9 +64,12 @@ export default function MainLayout() {
     verifyAuth();
   }, [dispatch, navigate, isAuthenticated, user]);
 
-  // Fetch settings from API on startup
+  // Fetch settings from API on startup (only once when authenticated)
   useEffect(() => {
     const loadSettings = async () => {
+      const hasToken = authService.isAuthenticated();
+      if (!hasToken || !isAuthenticated) return;
+
       try {
         const response = await settingsService.getAll();
         if (response.success && response.data) {
@@ -87,14 +90,20 @@ export default function MainLayout() {
           );
         }
       } catch (error) {
-        console.error("Failed to load settings:", error);
+        // Silently ignore errors during logout
+        if (!error.silent) {
+          console.error("Failed to load settings:", error);
+        }
       }
     };
 
-    if (isAuthenticated) {
+    // Only load settings once when the user becomes authenticated
+    // Don't reload when isAuthenticated changes to false (logout)
+    if (isAuthenticated && user) {
       loadSettings();
     }
-  }, [isAuthenticated, dispatch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, dispatch]); // Only depend on user and dispatch, not isAuthenticated
 
   if (isVerifying || authLoading) {
     return (

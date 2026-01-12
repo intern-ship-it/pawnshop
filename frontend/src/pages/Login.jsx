@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { loginWithUsername, clearError } from "@/features/auth/authSlice";
 import { addToast } from "@/features/ui/uiSlice";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import Button from "@/components/common/Button";
 import { User, Lock, Eye, EyeOff, Check } from "lucide-react";
 import { motion } from "framer-motion";
+import { getPublicCompanyInfo } from "@/services/api";
 
 const demoAccounts = [
   { username: "superadmin", password: "password123", role: "Super Admin" },
@@ -48,19 +49,42 @@ export default function Login() {
   // Company info from settings
   const [companyName, setCompanyName] = useState("PawnSys");
   const [companyShort, setCompanyShort] = useState("PS");
+  const [isLoadingCompany, setIsLoadingCompany] = useState(true);
 
-  // Load company name from cached settings
+  // Load company name from API (for public pages) or cached settings
   useEffect(() => {
-    const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {});
-    if (settings.company?.name) {
-      setCompanyName(settings.company.name);
-      const words = settings.company.name.split(" ");
-      setCompanyShort(
-        words.length >= 2
-          ? words[0][0] + words[1][0]
-          : settings.company.name.substring(0, 2).toUpperCase()
-      );
-    }
+    const loadCompanyInfo = async () => {
+      try {
+        // Try to fetch from API first (public endpoint, no auth required)
+        const response = await getPublicCompanyInfo();
+        if (response.success && response.data?.company?.name) {
+          const name = response.data.company.name;
+          setCompanyName(name);
+          const words = name.split(" ");
+          setCompanyShort(
+            words.length >= 2
+              ? words[0][0] + words[1][0]
+              : name.substring(0, 2).toUpperCase()
+          );
+        }
+      } catch (error) {
+        // Fallback to localStorage if API fails
+        const settings = getStorageItem(STORAGE_KEYS.SETTINGS, {});
+        if (settings.company?.name) {
+          setCompanyName(settings.company.name);
+          const words = settings.company.name.split(" ");
+          setCompanyShort(
+            words.length >= 2
+              ? words[0][0] + words[1][0]
+              : settings.company.name.substring(0, 2).toUpperCase()
+          );
+        }
+      } finally {
+        setIsLoadingCompany(false);
+      }
+    };
+
+    loadCompanyInfo();
   }, []);
 
   // Listen for settings updates (in case user changes settings and comes back)
@@ -133,6 +157,7 @@ export default function Login() {
         loginWithUsername({
           username: formData.username,
           password: formData.password,
+          rememberMe: rememberMe,
         })
       ).unwrap();
 
@@ -193,13 +218,28 @@ export default function Login() {
         >
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.5)]">
-              <span className="text-2xl font-bold text-zinc-900">
-                {companyShort}
-              </span>
+              {isLoadingCompany ? (
+                <div className="w-8 h-8 rounded bg-amber-600/50 animate-pulse" />
+              ) : (
+                <span className="text-2xl font-bold text-zinc-900">
+                  {companyShort}
+                </span>
+              )}
             </div>
-            <div>
-              <h1 className="text-2xl font-bold">{companyName}</h1>
-              <p className="text-amber-500 text-sm">Pajak Kedai Management</p>
+            <div className="flex-1">
+              {isLoadingCompany ? (
+                <>
+                  <div className="h-6 bg-zinc-700 rounded w-48 mb-2 animate-pulse" />
+                  <div className="h-4 bg-zinc-700/50 rounded w-32 animate-pulse" />
+                </>
+              ) : (
+                <>
+                  <h1 className="text-2xl font-bold">{companyName}</h1>
+                  <p className="text-amber-500 text-sm">
+                    Pajak Kedai Management
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </motion.div>
@@ -256,15 +296,30 @@ export default function Login() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
             <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500">
-              <span className="text-xl font-bold text-zinc-900">
-                {companyShort}
-              </span>
+              {isLoadingCompany ? (
+                <div className="w-6 h-6 rounded bg-amber-600/50 animate-pulse" />
+              ) : (
+                <span className="text-xl font-bold text-zinc-900">
+                  {companyShort}
+                </span>
+              )}
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-zinc-800">
-                {companyName}
-              </h1>
-              <p className="text-amber-600 text-sm">Pajak Kedai Management</p>
+            <div className="flex-1">
+              {isLoadingCompany ? (
+                <>
+                  <div className="h-6 bg-zinc-300 rounded w-40 mb-1 animate-pulse" />
+                  <div className="h-4 bg-zinc-200 rounded w-28 animate-pulse" />
+                </>
+              ) : (
+                <>
+                  <h1 className="text-2xl font-bold text-zinc-800">
+                    {companyName}
+                  </h1>
+                  <p className="text-amber-600 text-sm">
+                    Pajak Kedai Management
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -294,7 +349,7 @@ export default function Login() {
               {/* Username */}
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-                  Username <span className="text-red-500">*</span>
+                  Username or Email <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -311,7 +366,7 @@ export default function Login() {
                       "focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500",
                       errors.username ? "border-red-300" : "border-zinc-300"
                     )}
-                    placeholder="Enter your username"
+                    placeholder="Enter your username or email"
                   />
                 </div>
                 {errors.username && (
@@ -358,7 +413,6 @@ export default function Login() {
                 )}
               </div>
 
-              {/* Remember Me */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -369,12 +423,12 @@ export default function Login() {
                   />
                   <span className="text-sm text-zinc-600">Remember me</span>
                 </label>
-                <button
-                  type="button"
+                <Link
+                  to="/forgot-password"
                   className="text-sm text-amber-600 hover:text-amber-700 font-medium"
                 >
                   Forgot password?
-                </button>
+                </Link>
               </div>
 
               <Button
@@ -423,7 +477,8 @@ export default function Login() {
             transition={{ delay: 0.8 }}
             className="text-center text-xs text-zinc-500 mt-6"
           >
-            © 2025 {companyName}. KPKT Malaysia Compliant System.
+            © {new Date().getFullYear()} {companyName}. KPKT Malaysia Compliant
+            System.
           </motion.p>
         </div>
       </div>

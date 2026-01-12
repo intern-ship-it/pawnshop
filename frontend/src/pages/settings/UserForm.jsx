@@ -71,6 +71,7 @@ export default function UserForm() {
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -619,19 +620,103 @@ export default function UserForm() {
                       <Eye className="w-4 h-4" />
                     )}
                   </button>
+
+                  {/* Password Strength Indicator */}
+                  {formData.password &&
+                    (() => {
+                      let strength = 0;
+                      if (formData.password.length >= 8) strength++;
+                      if (formData.password.length >= 12) strength++;
+                      if (
+                        /[a-z]/.test(formData.password) &&
+                        /[A-Z]/.test(formData.password)
+                      )
+                        strength++;
+                      if (/\d/.test(formData.password)) strength++;
+                      if (/[^a-zA-Z\d]/.test(formData.password)) strength++;
+
+                      const getStrengthInfo = () => {
+                        if (strength <= 2)
+                          return { label: "Weak", color: "bg-red-500" };
+                        if (strength <= 3)
+                          return { label: "Fair", color: "bg-amber-500" };
+                        if (strength <= 4)
+                          return { label: "Good", color: "bg-blue-500" };
+                        return { label: "Strong", color: "bg-green-500" };
+                      };
+
+                      const strengthInfo = getStrengthInfo();
+
+                      return (
+                        <div className="mt-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="flex-1 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                              <div
+                                className={cn(
+                                  "h-full transition-all duration-300",
+                                  strengthInfo.color
+                                )}
+                                style={{ width: `${(strength / 5) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium text-zinc-600">
+                              {strengthInfo.label}
+                            </span>
+                          </div>
+                          <p className="text-xs text-zinc-500">
+                            Use 8+ characters with a mix of letters, numbers &
+                            symbols
+                          </p>
+                        </div>
+                      );
+                    })()}
                 </div>
 
-                <Input
-                  label="Confirm Password"
-                  type={showPassword ? "text" : "password"}
-                  value={formData.confirmPassword}
-                  onChange={(e) =>
-                    handleChange("confirmPassword", e.target.value)
-                  }
-                  placeholder="Confirm password"
-                  error={errors.confirmPassword}
-                  leftIcon={Key}
-                />
+                <div>
+                  <div className="relative">
+                    <Input
+                      label="Confirm Password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={formData.confirmPassword}
+                      onChange={(e) =>
+                        handleChange("confirmPassword", e.target.value)
+                      }
+                      placeholder="Confirm password"
+                      error={errors.confirmPassword}
+                      leftIcon={Key}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      className="absolute right-3 top-9 text-zinc-400 hover:text-zinc-600"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Password Match Indicator */}
+                  {formData.confirmPassword && formData.password && (
+                    <div className="mt-2">
+                      {formData.password === formData.confirmPassword ? (
+                        <div className="flex items-center gap-2 text-sm text-green-600">
+                          <Check className="w-4 h-4" />
+                          <span>Passwords match</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm text-red-600">
+                          <X className="w-4 h-4" />
+                          <span>Passwords do not match</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Passkey (6-digit PIN) */}

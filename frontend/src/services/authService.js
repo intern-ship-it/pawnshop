@@ -1,22 +1,79 @@
 /**
  * Auth Service - Authentication API calls
  * Updated to work with Laravel backend
+ * With Remember Me functionality
  */
 
-import { apiPost, apiGet, apiPut, setToken, removeToken, getToken } from './api'
+import { apiPost, apiGet, apiPut, setLoggingOut } from './api'
 
 const USER_KEY = 'pawnsys_user'
+const TOKEN_KEY = 'pawnsys_token'
+const REMEMBER_KEY = 'pawnsys_remember'
+
+/**
+ * Get the correct storage based on remember me choice
+ */
+const getStorage = () => {
+  const remembered = localStorage.getItem(REMEMBER_KEY) === 'true'
+  return remembered ? localStorage : sessionStorage
+}
+
+/**
+ * Get token from correct storage
+ */
+export const getToken = () => {
+  // Check localStorage first (for remember me)
+  const remembered = localStorage.getItem(REMEMBER_KEY)
+  
+  if (remembered === 'true') {
+    return localStorage.getItem(TOKEN_KEY)
+  } else if (remembered === 'false') {
+    return sessionStorage.getItem(TOKEN_KEY)
+  }
+  
+  // Fallback: check both (for backward compatibility)
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
+}
+
+/**
+ * Set token in correct storage
+ */
+export const setToken = (token, rememberMe = true) => {
+  const storage = rememberMe ? localStorage : sessionStorage
+  storage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(REMEMBER_KEY, rememberMe ? 'true' : 'false')
+}
+
+/**
+ * Remove token from both storages
+ */
+export const removeToken = () => {
+  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+}
 
 const authService = {
   /**
    * Login with username and password (for Laravel backend)
+   * Supports Remember Me functionality
    */
-  async loginWithUsername(username, password) {
+  async loginWithUsername(username, password, rememberMe = false) {
     const response = await apiPost('/auth/login', { username, password })
     
     if (response.success && response.data?.token) {
-      setToken(response.data.token)
-      localStorage.setItem(USER_KEY, JSON.stringify(response.data.user))
+      // Choose storage based on rememberMe
+      const storage = rememberMe ? localStorage : sessionStorage
+      
+      // Clear any existing tokens from both storages first
+      localStorage.removeItem(TOKEN_KEY)
+      sessionStorage.removeItem(TOKEN_KEY)
+      
+      // Store in correct storage
+      storage.setItem(TOKEN_KEY, response.data.token)
+      storage.setItem(USER_KEY, JSON.stringify(response.data.user))
+      
+      // Remember the choice for token retrieval
+      localStorage.setItem(REMEMBER_KEY, rememberMe ? 'true' : 'false')
     }
     
     return response
@@ -25,12 +82,18 @@ const authService = {
   /**
    * Login with email and password (legacy)
    */
-  async login(email, password) {
+  async login(email, password, rememberMe = false) {
     const response = await apiPost('/auth/login', { email, password })
     
     if (response.success && response.data?.token) {
-      setToken(response.data.token)
-      localStorage.setItem(USER_KEY, JSON.stringify(response.data.user))
+      const storage = rememberMe ? localStorage : sessionStorage
+      
+      localStorage.removeItem(TOKEN_KEY)
+      sessionStorage.removeItem(TOKEN_KEY)
+      
+      storage.setItem(TOKEN_KEY, response.data.token)
+      storage.setItem(USER_KEY, JSON.stringify(response.data.user))
+      localStorage.setItem(REMEMBER_KEY, rememberMe ? 'true' : 'false')
     }
     
     return response
@@ -41,20 +104,30 @@ const authService = {
    */
   async logout() {
     try {
+      // Set flag to prevent token refresh attempts during logout
+      setLoggingOut(true)
       await apiPost('/auth/logout')
     } catch (error) {
       console.warn('Logout API error:', error)
     } finally {
       this.clearLocalAuth()
+      // Reset flag after logout is complete
+      setLoggingOut(false)
     }
   },
 
   /**
-   * Clear local authentication data
+   * Clear local authentication data from BOTH storages
    */
   clearLocalAuth() {
-    removeToken()
+    // Clear from localStorage
+    localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(REMEMBER_KEY)
+    
+    // Clear from sessionStorage
+    sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(USER_KEY)
   },
 
   /**
@@ -74,7 +147,9 @@ const authService = {
 
       const response = await apiGet('/auth/me')
       if (response.success && response.data) {
-        localStorage.setItem(USER_KEY, JSON.stringify(response.data))
+        // Store user in correct storage
+        const storage = getStorage()
+        storage.setItem(USER_KEY, JSON.stringify(response.data))
         return true
       }
       return false
@@ -91,7 +166,8 @@ const authService = {
     const response = await apiPost('/auth/refresh')
     
     if (response.success && response.data?.token) {
-      setToken(response.data.token)
+      const storage = getStorage()
+      storage.setItem(TOKEN_KEY, response.data.token)
     }
     
     return response
@@ -123,12 +199,21 @@ const authService = {
   },
 
   /**
-   * Get stored user from localStorage
+   * Get stored user from correct storage
    */
   getStoredUser() {
     try {
-      const userStr = localStorage.getItem(USER_KEY)
-      return userStr ? JSON.parse(userStr) : null
+      const storage = getStorage()
+      const userStr = storage.getItem(USER_KEY)
+      
+      // Fallback to other storage if not found
+      if (!userStr) {
+        const fallbackStorage = storage === localStorage ? sessionStorage : localStorage
+        const fallbackUser = fallbackStorage.getItem(USER_KEY)
+        return fallbackUser ? JSON.parse(fallbackUser) : null
+      }
+      
+      return JSON.parse(userStr)
     } catch (error) {
       console.error('Error parsing stored user:', error)
       return null
@@ -164,6 +249,41 @@ const authService = {
     const roleArray = Array.isArray(roles) ? roles : [roles]
     
     return roleArray.includes(roleSlug)
+  },
+
+  /**
+   * Request password reset (forgot password)
+   */
+  async forgotPassword(email) {
+    return apiPost('/auth/forgot-password', { email })
+  },
+
+  /**
+   * Verify password reset token
+   */
+  async verifyResetToken(token) {
+    return apiPost('/auth/verify-reset-token', { token })
+  },
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(token, password, passwordConfirmation) {
+    return apiPost('/auth/reset-password', {
+      token,
+      password,
+      password_confirmation: passwordConfirmation,
+    })
+  },
+
+  // Update user profile
+  async updateProfile(formData) {
+    // Laravel requires POST with _method override for file uploads
+    if (formData instanceof FormData) {
+      formData.append('_method', 'PUT')
+      return apiPost('/auth/profile', formData)
+    }
+    return apiPost('/auth/profile', { ...formData, _method: 'PUT' })
   },
 }
 

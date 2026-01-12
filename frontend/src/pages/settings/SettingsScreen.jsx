@@ -188,7 +188,10 @@ export default function SettingsScreen() {
           setStorageItem(STORAGE_KEYS.SETTINGS, merged);
         }
       } catch (error) {
-        console.error("Failed to load settings from API:", error);
+        // Silently ignore errors during logout
+        if (!error.silent) {
+          console.error("Failed to load settings from API:", error);
+        }
         // Keep using localStorage data (already loaded)
       } finally {
         setIsLoading(false);

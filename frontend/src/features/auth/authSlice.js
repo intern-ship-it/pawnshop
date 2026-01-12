@@ -1,6 +1,7 @@
 /**
  * Auth Slice - Redux state for authentication
  * Updated for Laravel backend with username login
+ * With Remember Me functionality
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
@@ -10,9 +11,9 @@ import authService from '@/services/authService'
 
 export const loginWithUsername = createAsyncThunk(
   'auth/loginWithUsername',
-  async ({ username, password }, { rejectWithValue }) => {
+  async ({ username, password, rememberMe = false }, { rejectWithValue }) => {
     try {
-      const response = await authService.loginWithUsername(username, password)
+      const response = await authService.loginWithUsername(username, password, rememberMe)
       if (!response.success) {
         return rejectWithValue(response.message || 'Login failed')
       }
@@ -25,9 +26,9 @@ export const loginWithUsername = createAsyncThunk(
 
 export const login = createAsyncThunk(
   'auth/login',
-  async ({ email, password }, { rejectWithValue }) => {
+  async ({ email, password, rememberMe = false }, { rejectWithValue }) => {
     try {
-      const response = await authService.login(email, password)
+      const response = await authService.login(email, password, rememberMe)
       if (!response.success) {
         return rejectWithValue(response.message || 'Login failed')
       }

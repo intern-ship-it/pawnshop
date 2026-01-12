@@ -18,6 +18,32 @@ use Carbon\Carbon;
 class SettingsController extends Controller
 {
     /**
+     * Get public company information (for login/public pages)
+     * No authentication required
+     */
+    public function publicCompanyInfo(): JsonResponse
+    {
+        // Get company settings (not branch-specific, just global)
+        $companySettings = Setting::where('category', 'company')
+            ->whereNull('branch_id')
+            ->get()
+            ->pluck('value', 'key_name');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'company' => [
+                    'name' => $companySettings['name'] ?? 'PawnSys',
+                    'license_number' => $companySettings['registration_no'] ?? '',
+                    'address' => $companySettings['address'] ?? '',
+                    'phone' => $companySettings['phone'] ?? '',
+                    'email' => $companySettings['email'] ?? '',
+                ],
+            ],
+        ]);
+    }
+
+    /**
      * Get all settings
      */
     public function index(Request $request): JsonResponse
@@ -25,8 +51,8 @@ class SettingsController extends Controller
         $branchId = $request->user()->branch_id;
 
         $settings = Setting::where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->get()
             ->groupBy('category');
 
@@ -90,8 +116,8 @@ class SettingsController extends Controller
         $days = $request->get('days', 30);
 
         $prices = GoldPrice::where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->where('price_date', '>=', Carbon::today()->subDays($days))
             ->orderBy('price_date', 'desc')
             ->get();
@@ -336,8 +362,8 @@ class SettingsController extends Controller
         $branchId = $request->user()->branch_id;
 
         $rates = InterestRate::where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->orderBy('rate_type')
             ->orderBy('from_month')
             ->get();
@@ -414,8 +440,8 @@ class SettingsController extends Controller
         $branchId = $request->user()->branch_id;
 
         $terms = TermsCondition::where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->get();
 
         return $this->success($terms);
