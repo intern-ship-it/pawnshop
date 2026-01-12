@@ -245,6 +245,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/terms-conditions', [SettingsController::class, 'storeTermsCondition']);
         Route::put('/terms-conditions/{termsCondition}', [SettingsController::class, 'updateTermsCondition']);
         Route::delete('/terms-conditions/{termsCondition}', [SettingsController::class, 'deleteTermsCondition']);
+
+        // Margin Presets
+        Route::get('/margin-presets', [SettingsController::class, 'marginPresets']);
+        Route::post('/margin-presets', [SettingsController::class, 'storeMarginPreset']);
+        Route::put('/margin-presets/{marginPreset}', [SettingsController::class, 'updateMarginPreset']);
+        Route::delete('/margin-presets/{marginPreset}', [SettingsController::class, 'deleteMarginPreset']);
     });
 
     // Users

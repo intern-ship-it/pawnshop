@@ -11,6 +11,7 @@ use App\Models\Bank;
 use App\Models\StoneDeduction;
 use App\Models\InterestRate;
 use App\Models\TermsCondition;
+use App\Models\MarginPreset;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
@@ -351,6 +352,52 @@ class SettingsController extends Controller
         $stoneDeduction->delete();
 
         return $this->success(null, 'Stone deduction deleted successfully');
+    }
+
+    // ===================
+    // MARGIN PRESETS
+    // ===================
+
+    public function marginPresets(): JsonResponse
+    {
+        $presets = MarginPreset::orderBy('sort_order')->get();
+        return $this->success($presets);
+    }
+
+    public function storeMarginPreset(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'margin_percentage' => 'required|numeric|min:0|max:100',
+            'is_default' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer',
+        ]);
+
+        $preset = MarginPreset::create($validated);
+
+        return $this->success($preset, 'Margin preset created successfully', 201);
+    }
+
+    public function updateMarginPreset(Request $request, MarginPreset $marginPreset): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:100',
+            'margin_percentage' => 'sometimes|numeric|min:0|max:100',
+            'is_default' => 'sometimes|boolean',
+            'is_active' => 'sometimes|boolean',
+            'sort_order' => 'nullable|integer',
+        ]);
+
+        $marginPreset->update($validated);
+
+        return $this->success($marginPreset, 'Margin preset updated successfully');
+    }
+
+    public function deleteMarginPreset(MarginPreset $marginPreset): JsonResponse
+    {
+        $marginPreset->delete();
+
+        return $this->success(null, 'Margin preset deleted successfully');
     }
 
     // ===================

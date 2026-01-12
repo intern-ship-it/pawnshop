@@ -160,6 +160,36 @@ const settingsService = {
   async deleteTermsCondition(id) {
     return apiDelete(`/settings/terms-conditions/${id}`)
   },
+
+
+
+
+
+
+  // ============ MARGIN PRESETS ============
+
+  async getMarginPresets() {
+    return apiGet('/settings/margin-presets')
+  },
+
+  async createMarginPreset(data) {
+    return apiPost('/settings/margin-presets', data)
+  },
+
+  async updateMarginPreset(id, data) {
+    return apiPut(`/settings/margin-presets/${id}`, data)
+  },
+
+  async deleteMarginPreset(id) {
+    return apiDelete(`/settings/margin-presets/${id}`)
+  },
 }
+
+
+
+
+
+
+
 
 export default settingsService

@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             InterestRateSeeder::class,
             DefaultSettingsSeeder::class,
             WhatsAppTemplateSeeder::class,
+            MarginPresetSeeder::class,
         ]);
     }
 }
