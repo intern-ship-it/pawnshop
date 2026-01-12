@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->boolean('is_default')->default(false);
             $table->boolean('is_active')->default(true);
             $table->integer('sort_order')->default(0);
-            $table->foreignId('branch_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('branch_id')->nullable()->constrained('branches', 'id')->nullOnDelete();
             $table->timestamps();
 
             // Ensure only one default per branch (or global)
