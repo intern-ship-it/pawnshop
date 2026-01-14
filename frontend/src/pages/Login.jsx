@@ -90,9 +90,14 @@ export default function Login() {
         // Token expired or invalid, clear local auth data
         console.warn("Auto-login failed, token may be expired:", error);
         authService.clearLocalAuth();
-        // Clear the auth error - this is not a user login error
-        dispatch(clearError());
       }
+
+      // Clear any error that occurred during auto-login check
+      // This must be done AFTER the catch to clear any error set by fetchCurrentUser
+      dispatch(clearError());
+
+      // Also clear local errors state
+      setErrors({});
 
       // Show login form
       setCheckingAuth(false);
@@ -193,11 +198,13 @@ export default function Login() {
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
-    if (authError) {
+    // Only show auth errors if we're not in the initial checking phase
+    // This prevents showing "Unauthenticated" error on login page after logout
+    if (authError && !checkingAuth) {
       setErrors({ form: authError });
       setIsSubmitting(false);
     }
-  }, [authError]);
+  }, [authError, checkingAuth]);
 
   useEffect(() => {
     return () => {

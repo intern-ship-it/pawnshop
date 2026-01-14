@@ -242,29 +242,36 @@ export default function CustomerDetail() {
 
               <div className="space-y-4">
                 {customer.phone && (
-                  <div className="flex items-center gap-3">
-                    <Phone className="w-4 h-4 text-zinc-400" />
-                    <span className="text-zinc-600">{customer.phone}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Phone className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                    <span className="text-zinc-600 truncate">
+                      {customer.phone}
+                    </span>
                   </div>
                 )}
                 {customer.whatsapp && customer.whatsapp !== customer.phone && (
-                  <div className="flex items-center gap-3">
-                    <Phone className="w-4 h-4 text-emerald-500" />
-                    <span className="text-zinc-600">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Phone className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <span className="text-zinc-600 truncate">
                       {customer.whatsapp} (WhatsApp)
                     </span>
                   </div>
                 )}
                 {customer.email && (
-                  <div className="flex items-center gap-3">
-                    <Mail className="w-4 h-4 text-zinc-400" />
-                    <span className="text-zinc-600">{customer.email}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Mail className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                    <span
+                      className="text-zinc-600 truncate break-all text-sm"
+                      title={customer.email}
+                    >
+                      {customer.email}
+                    </span>
                   </div>
                 )}
                 {customer.address && (
-                  <div className="flex items-start gap-3">
-                    <MapPin className="w-4 h-4 text-zinc-400 mt-1" />
-                    <span className="text-zinc-600">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <MapPin className="w-4 h-4 text-zinc-400 mt-1 flex-shrink-0" />
+                    <span className="text-zinc-600 break-words">
                       {customer.address}
                       {customer.city && `, ${customer.city}`}
                       {customer.state && `, ${customer.state}`}
@@ -405,15 +412,16 @@ export default function CustomerDetail() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              className="h-full"
             >
-              <Card className="p-4">
+              <Card className="p-4 h-full">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
+                  <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
                     <FileText className="w-5 h-5 text-blue-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-zinc-500">Total Pledges</p>
-                    <p className="text-xl font-semibold text-zinc-800">
+                    <p className="text-xl font-semibold text-zinc-800 truncate">
                       {statistics?.total_pledges ?? customer.total_pledges ?? 0}
                     </p>
                   </div>
@@ -425,15 +433,16 @@ export default function CustomerDetail() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
+              className="h-full"
             >
-              <Card className="p-4">
+              <Card className="p-4 h-full">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 rounded-lg">
+                  <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
                     <Clock className="w-5 h-5 text-amber-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-zinc-500">Active</p>
-                    <p className="text-xl font-semibold text-zinc-800">
+                    <p className="text-xl font-semibold text-zinc-800 truncate">
                       {statistics?.active_pledges ??
                         customer.active_pledges_count ??
                         0}
@@ -447,15 +456,16 @@ export default function CustomerDetail() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
+              className="h-full"
             >
-              <Card className="p-4">
+              <Card className="p-4 h-full">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-100 rounded-lg">
+                  <div className="p-2 bg-emerald-100 rounded-lg flex-shrink-0">
                     <DollarSign className="w-5 h-5 text-emerald-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-zinc-500">Total Value</p>
-                    <p className="text-xl font-semibold text-zinc-800">
+                    <p className="text-xl font-semibold text-zinc-800 truncate">
                       {formatCurrency(statistics?.total_loan_amount ?? 0)}
                     </p>
                   </div>
@@ -467,15 +477,16 @@ export default function CustomerDetail() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
+              className="h-full"
             >
-              <Card className="p-4">
+              <Card className="p-4 h-full">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-red-100 rounded-lg">
+                  <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
                     <AlertCircle className="w-5 h-5 text-red-600" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-zinc-500">Overdue</p>
-                    <p className="text-xl font-semibold text-zinc-800">
+                    <p className="text-xl font-semibold text-zinc-800 truncate">
                       {statistics?.overdue_pledges ?? 0}
                     </p>
                   </div>

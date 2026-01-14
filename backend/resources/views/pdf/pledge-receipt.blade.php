@@ -455,25 +455,33 @@
         <table class="items-table">
             <thead>
                 <tr>
-                    <th style="width: 5%">#</th>
-                    <th style="width: 30%">Perkara / Description</th>
-                    <th style="width: 12%">Ketulenan</th>
-                    <th style="width: 12%">Berat (g)</th>
-                    <th style="width: 13%">Harga/g (RM)</th>
-                    <th style="width: 13%">Tolakan (RM)</th>
-                    <th style="width: 15%">Nilai (RM)</th>
+                    <th style="width: 3%">#</th>
+                    <th style="width: 18%">Perkara / Description</th>
+                    <th style="width: 8%">Ketulenan</th>
+                    <th style="width: 10%">Berat (g)</th>
+                    <th style="width: 11%">Harga/g (RM)</th>
+                    <th style="width: 10%">Tolakan (RM)</th>
+                    <th style="width: 13%">Nilai (RM)</th>
+                    <th style="width: 17%">Lokasi</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($pledge->items as $index => $item)
                 <tr>
                     <td>{{ $index + 1 }}</td>
-                    <td class="left">{{ $item->category->name_en ?? 'Item' }}@if($item->description) - {{ Str::limit($item->description, 20) }}@endif</td>
+                    <td class="left">{{ $item->category->name_en ?? 'Item' }}@if($item->description) - {{ Str::limit($item->description, 10) }}@endif</td>
                     <td>{{ $item->purity->code ?? '-' }}</td>
                     <td>{{ number_format($item->net_weight, 3) }}</td>
                     <td class="right">{{ number_format($item->price_per_gram, 2) }}</td>
                     <td class="right">{{ number_format($item->deduction_amount ?? 0, 2) }}</td>
                     <td class="right"><strong>{{ number_format($item->net_value, 2) }}</strong></td>
+                    <td class="left" style="font-size: 7px; word-wrap: break-word; overflow-wrap: break-word;">
+                        @if($item->vault_id)
+                            {{ $item->vault->code ?? '' }}<br>B{{ $item->box->box_number ?? '-' }}/S{{ $item->slot->slot_number ?? '-' }}
+                        @else
+                            <em style="color: #999;">-</em>
+                        @endif
+                    </td>
                 </tr>
                 @endforeach
             </tbody>

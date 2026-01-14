@@ -22,6 +22,9 @@ git checkout -- backend/bootstrap/app.php backend/config/cors.php deploy.sh fron
 echo "📥 Pulling latest code..."
 git pull origin main
 
+# Make deploy.sh executable (in case git overwrites permissions)
+chmod +x deploy.sh
+
 # Restore server-specific files
 echo "🔄 Restoring server-specific files..."
 cp /tmp/.env.backup backend/.env

@@ -179,6 +179,7 @@
                     <th>Perkara / Item</th>
                     <th>Ketulenan</th>
                     <th class="text-right">Berat (g)</th>
+                    <th>Lokasi/Storage</th>
                 </tr>
             </thead>
             <tbody>
@@ -188,6 +189,13 @@
                     <td>{{ $item->category->name_en ?? 'Item' }} {{ $item->description ? '- ' . $item->description : '' }}</td>
                     <td class="text-center">{{ $item->purity->code ?? '' }}</td>
                     <td class="text-right">{{ number_format($item->net_weight, 3) }}</td>
+                    <td style="font-size: 8px;">
+                        @if($item->vault_id)
+                            {{ $item->vault->code ?? '' }} / B{{ $item->box->box_number ?? '-' }} / S{{ $item->slot->slot_number ?? '-' }}
+                        @else
+                            -
+                        @endif
+                    </td>
                 </tr>
                 @endforeach
             </tbody>
