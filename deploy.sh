@@ -39,20 +39,68 @@ cd ../backend
 composer install --no-dev --optimize-autoloader
 
 # Create storage directories if missing
+echo "📁 Creating storage directories..."
 mkdir -p storage/app/public/customers/ic
 mkdir -p storage/app/public/customers/selfie
+mkdir -p storage/app/public/documents
+mkdir -p storage/app/public/photos
+mkdir -p storage/app/public/receipts
+mkdir -p storage/app/public/signatures
 mkdir -p storage/framework/cache/data
 mkdir -p storage/framework/sessions
 mkdir -p storage/framework/views
 mkdir -p storage/logs
 mkdir -p bootstrap/cache
 
-# Create symbolic link for storage (safe to run multiple times)
-echo "🔗 Creating storage symbolic link..."
-/opt/cpanel/ea-php82/root/usr/bin/php artisan storage:link 2>/dev/null || echo "  ℹ️  Storage link already exists"
-
-# Set permissions
+# Set permissions BEFORE creating symlink
+echo "🔐 Setting permissions..."
 chmod -R 775 storage bootstrap/cache
+
+# ========================================
+# FIX: STORAGE SYMBOLIC LINK FOR IMAGES
+# ========================================
+echo "🔗 Setting up storage symbolic link..."
+
+# Remove existing link/folder (whether broken or working)
+if [ -L "public/storage" ]; then
+    echo "  Removing existing symbolic link..."
+    rm -f public/storage
+elif [ -d "public/storage" ]; then
+    echo "  Removing existing storage folder..."
+    rm -rf public/storage
+fi
+
+# Create the symbolic link using artisan
+echo "  Creating storage link via artisan..."
+/opt/cpanel/ea-php82/root/usr/bin/php artisan storage:link
+
+# Verify the link was created
+if [ -L "public/storage" ]; then
+    echo "  ✅ Storage link created successfully!"
+    ls -la public/storage
+else
+    echo "  ⚠️ Artisan storage:link failed, creating manually..."
+    # Manual fallback - use relative path for cPanel compatibility
+    cd public
+    ln -sf ../storage/app/public storage
+    cd ..
+    
+    if [ -L "public/storage" ]; then
+        echo "  ✅ Manual storage link created!"
+        ls -la public/storage
+    else
+        echo "  ❌ ERROR: Could not create storage link!"
+        echo "  Please contact hosting provider about symlink permissions"
+    fi
+fi
+
+# Test if storage is accessible
+echo "🧪 Testing storage accessibility..."
+if [ -d "public/storage/customers" ]; then
+    echo "  ✅ Storage/customers directory accessible"
+else
+    echo "  ℹ️ Storage/customers not visible yet (will work after first upload)"
+fi
 
 # Clear and cache Laravel (using PHP 8.2)
 echo "🧹 Clearing cache..."
@@ -67,5 +115,9 @@ echo "🧹 Clearing cache..."
 rm -f /tmp/.env.backup
 rm -f /tmp/.htaccess.backup
 
+echo ""
 echo "✅ Deployment completed!"
 echo "🌐 Visit: https://pajak-kedai.graspsoftwaresolutions.xyz"
+echo ""
+echo "📋 Storage link status:"
+ls -la public/ | grep storage
