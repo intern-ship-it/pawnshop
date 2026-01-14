@@ -504,46 +504,33 @@ function CompanyTab({ settings, updateSettings }) {
       setIsLoadingLogo(true);
       try {
         const response = await settingsService.getLogo();
-        console.log("Logo GET response:", response);
 
         // Note: The API interceptor already unwraps response.data,
         // so response here is {logo_url: '...', path: '...'} directly
         if (response?.logo_url) {
           // Fetch the image as a blob to avoid cross-origin issues
-          console.log(
-            "Attempting to fetch logo as blob from:",
-            response.logo_url
-          );
           try {
             const imgResponse = await fetch(response.logo_url);
-            console.log(
-              "Logo fetch response status:",
-              imgResponse.status,
-              imgResponse.ok
-            );
             if (imgResponse.ok) {
               const blob = await imgResponse.blob();
-              console.log("Blob created, size:", blob.size);
               const blobUrl = URL.createObjectURL(blob);
-              console.log("Blob URL created:", blobUrl);
               setLogoPreview(blobUrl);
             } else {
-              console.error("Failed to fetch logo image:", imgResponse.status);
               // Fallback to direct URL
               setLogoPreview(response.logo_url);
             }
           } catch (fetchErr) {
-            console.error("Error fetching logo blob:", fetchErr);
             // Fallback to direct URL
             setLogoPreview(response.logo_url);
           }
         } else if (response?.path) {
-          // Fallback - construct full URL and fetch as blob
+          // Fallback - construct full URL dynamically and fetch as blob
           const baseUrl =
-            import.meta.env.VITE_API_URL?.replace("/api", "") ||
-            "http://localhost:8000";
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1"
+              ? "http://localhost:8000"
+              : window.location.origin;
           const fullUrl = baseUrl + response.path;
-          console.log("Fallback: fetching logo from path:", fullUrl);
           try {
             const imgResponse = await fetch(fullUrl);
             if (imgResponse.ok) {

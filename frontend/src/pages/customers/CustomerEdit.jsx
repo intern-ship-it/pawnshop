@@ -801,7 +801,7 @@ export default function CustomerEdit() {
                   {/* IC Front */}
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 mb-2">
-                      IC Front
+                      Front
                     </label>
                     <input
                       ref={icFrontRef}
@@ -819,28 +819,30 @@ export default function CustomerEdit() {
                           exit={{ opacity: 0, scale: 0.9 }}
                           className="relative"
                         >
-                          <img
-                            src={icFrontImage}
-                            alt="IC Front"
-                            className="w-full h-40 object-cover rounded-lg border border-zinc-200"
-                          />
+                          <div className="bg-zinc-50 rounded-lg border border-zinc-200 p-2">
+                            <img
+                              src={icFrontImage}
+                              alt="IC Front"
+                              className="w-full h-48 object-contain rounded-lg"
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeImage("icFront")}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            className="absolute top-3 right-3 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                           >
                             <X className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => icFrontRef.current?.click()}
-                            className="absolute bottom-2 right-2 px-2 py-1 bg-amber-500 text-white text-xs rounded-full hover:bg-amber-600 flex items-center gap-1"
+                            className="absolute bottom-3 right-3 px-2 py-1 bg-amber-500 text-white text-xs rounded-full hover:bg-amber-600 flex items-center gap-1"
                           >
                             <Upload className="w-3 h-3" />
                             Change
                           </button>
                           {imagesChanged.icFront && (
-                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
+                            <div className="absolute bottom-3 left-3 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
                               Changed
                             </div>
                           )}
@@ -853,7 +855,7 @@ export default function CustomerEdit() {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
                           onClick={() => icFrontRef.current?.click()}
-                          className="w-full h-40 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
+                          className="w-full h-48 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
                         >
                           <Upload className="w-8 h-8" />
                           <span className="text-sm font-medium">
@@ -867,7 +869,7 @@ export default function CustomerEdit() {
                   {/* IC Back */}
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 mb-2">
-                      IC Back
+                      Back
                     </label>
                     <input
                       ref={icBackRef}
@@ -885,28 +887,30 @@ export default function CustomerEdit() {
                           exit={{ opacity: 0, scale: 0.9 }}
                           className="relative"
                         >
-                          <img
-                            src={icBackImage}
-                            alt="IC Back"
-                            className="w-full h-40 object-cover rounded-lg border border-zinc-200"
-                          />
+                          <div className="bg-zinc-50 rounded-lg border border-zinc-200 p-2">
+                            <img
+                              src={icBackImage}
+                              alt="IC Back"
+                              className="w-full h-48 object-contain rounded-lg"
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeImage("icBack")}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            className="absolute top-3 right-3 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                           >
                             <X className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => icBackRef.current?.click()}
-                            className="absolute bottom-2 right-2 px-2 py-1 bg-amber-500 text-white text-xs rounded-full hover:bg-amber-600 flex items-center gap-1"
+                            className="absolute bottom-3 right-3 px-2 py-1 bg-amber-500 text-white text-xs rounded-full hover:bg-amber-600 flex items-center gap-1"
                           >
                             <Upload className="w-3 h-3" />
                             Change
                           </button>
                           {imagesChanged.icBack && (
-                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
+                            <div className="absolute bottom-3 left-3 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
                               Changed
                             </div>
                           )}
@@ -919,7 +923,7 @@ export default function CustomerEdit() {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
                           onClick={() => icBackRef.current?.click()}
-                          className="w-full h-40 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
+                          className="w-full h-48 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
                         >
                           <Upload className="w-8 h-8" />
                           <span className="text-sm font-medium">

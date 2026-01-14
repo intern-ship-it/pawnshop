@@ -327,19 +327,23 @@ export default function CustomerDetail() {
                 <div>
                   <p className="text-sm text-zinc-500 mb-2">Front</p>
                   {customer.ic_front_photo ? (
-                    <img
-                      src={getStorageUrl(customer.ic_front_photo)}
-                      alt="IC Front"
-                      className="w-full h-24 object-cover rounded-lg border border-zinc-200 cursor-pointer hover:opacity-90"
+                    <div
+                      className="bg-zinc-50 rounded-lg border border-zinc-200 p-2 cursor-pointer hover:border-amber-400 transition-colors"
                       onClick={() =>
                         window.open(
                           getStorageUrl(customer.ic_front_photo),
                           "_blank"
                         )
                       }
-                    />
+                    >
+                      <img
+                        src={getStorageUrl(customer.ic_front_photo)}
+                        alt="IC Front"
+                        className="w-full h-32 object-contain rounded-lg"
+                      />
+                    </div>
                   ) : (
-                    <div className="w-full h-24 bg-zinc-100 rounded-lg border border-zinc-200 flex items-center justify-center">
+                    <div className="w-full h-32 bg-zinc-100 rounded-lg border border-zinc-200 flex items-center justify-center">
                       <span className="text-xs text-zinc-400">
                         Not uploaded
                       </span>
@@ -349,19 +353,23 @@ export default function CustomerDetail() {
                 <div>
                   <p className="text-sm text-zinc-500 mb-2">Back</p>
                   {customer.ic_back_photo ? (
-                    <img
-                      src={getStorageUrl(customer.ic_back_photo)}
-                      alt="IC Back"
-                      className="w-full h-24 object-cover rounded-lg border border-zinc-200 cursor-pointer hover:opacity-90"
+                    <div
+                      className="bg-zinc-50 rounded-lg border border-zinc-200 p-2 cursor-pointer hover:border-amber-400 transition-colors"
                       onClick={() =>
                         window.open(
                           getStorageUrl(customer.ic_back_photo),
                           "_blank"
                         )
                       }
-                    />
+                    >
+                      <img
+                        src={getStorageUrl(customer.ic_back_photo)}
+                        alt="IC Back"
+                        className="w-full h-32 object-contain rounded-lg"
+                      />
+                    </div>
                   ) : (
-                    <div className="w-full h-24 bg-zinc-100 rounded-lg border border-zinc-200 flex items-center justify-center">
+                    <div className="w-full h-32 bg-zinc-100 rounded-lg border border-zinc-200 flex items-center justify-center">
                       <span className="text-xs text-zinc-400">
                         Not uploaded
                       </span>

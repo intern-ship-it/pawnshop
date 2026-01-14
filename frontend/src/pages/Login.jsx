@@ -137,8 +137,14 @@ export default function Login() {
     // Load logo from public endpoint
     const loadLogo = async () => {
       try {
-        // Fetch logo from public endpoint (no auth required)
-        const logoUrl = "http://localhost:8000/api/settings/logo-image";
+        // Dynamically construct API URL based on current environment
+        const apiBaseUrl =
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1"
+            ? "http://localhost:8000"
+            : window.location.origin;
+        const logoUrl = `${apiBaseUrl}/api/settings/logo-image`;
+
         const imgResponse = await fetch(logoUrl);
         if (imgResponse.ok) {
           const blob = await imgResponse.blob();

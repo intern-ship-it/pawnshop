@@ -613,9 +613,8 @@ class SettingsController extends Controller
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->first();
 
-        // Return the logo-image endpoint URL using localhost instead of 127.0.0.1
-        // This ensures the frontend (localhost:3000) can load images from localhost:8000
-        $logoUrl = $setting ? 'http://localhost:8000/api/settings/logo-image' : null;
+        // Return the logo-image endpoint URL dynamically based on current environment
+        $logoUrl = $setting ? url('/api/settings/logo-image') : null;
 
         return $this->success([
             'logo_url' => $logoUrl,
