@@ -942,12 +942,6 @@ export default function RenewalScreen() {
                               item.net_value || item.netValue || 0
                             )}
                           </p>
-                          <p className="text-xs text-zinc-500">
-                            Loan:{" "}
-                            {formatCurrency(
-                              item.loan_amount || item.loanAmount || 0
-                            )}
-                          </p>
                         </div>
                       </div>
                     );
