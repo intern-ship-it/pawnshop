@@ -68,14 +68,25 @@ class PledgeController extends Controller
     }
 
     /**
-     * Get pledge by receipt number
+     * Get pledge by receipt number, pledge number, or IC
      */
     public function byReceipt(Request $request, string $receiptNo): JsonResponse
     {
         $branchId = $request->user()->branch_id;
+        $searchTerm = trim($receiptNo);
 
+        // Search by receipt_no, pledge_no, or customer IC
         $pledge = Pledge::where('branch_id', $branchId)
-            ->where('receipt_no', $receiptNo)
+            ->where(function ($query) use ($searchTerm) {
+                $query->where('receipt_no', $searchTerm)
+                    ->orWhere('pledge_no', $searchTerm)
+                    ->orWhereHas('customer', function ($q) use ($searchTerm) {
+                        // Remove dashes/spaces from IC for matching
+                        $cleanIC = preg_replace('/[-\s]/', '', $searchTerm);
+                        $q->where('ic_number', $searchTerm)
+                            ->orWhere(DB::raw("REPLACE(REPLACE(ic_number, '-', ''), ' ', '')"), $cleanIC);
+                    });
+            })
             ->with(['customer', 'items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot'])
             ->first();
 
@@ -687,7 +698,8 @@ class PledgeController extends Controller
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
                 'cancelled_by' => $request->user()->id,
-                'cancellation_reason' => $request->input('reason', 'Cancelled by user'),
+                'cancellation_reason' => $request->input('reason', 'No reason provided'),
+                'cancellation_notes' => $request->input('notes', ''),
             ]);
 
             DB::commit();
@@ -701,6 +713,249 @@ class PledgeController extends Controller
             DB::rollBack();
             Log::error('Pledge cancellation failed: ' . $e->getMessage());
             return $this->error('Failed to cancel pledge: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Send pledge details via WhatsApp
+     */
+    public function sendWhatsApp(Request $request, Pledge $pledge): JsonResponse
+    {
+        try {
+            // Check branch access
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            // Load relationships
+            $pledge->load(['customer', 'items.category', 'items.purity', 'branch']);
+
+            // Get WhatsApp configuration
+            $config = \App\Models\WhatsAppConfig::where('branch_id', $pledge->branch_id)
+                ->where('is_enabled', true)
+                ->first();
+
+            if (!$config) {
+                return $this->error('WhatsApp not configured for this branch', 400);
+            }
+
+            // Build message
+            $message = $this->buildPledgeWhatsAppMessage($pledge);
+
+            // Get customer phone with correct country code from database
+            $phone = preg_replace('/[^0-9]/', '', $pledge->customer->phone);
+            $countryCode = preg_replace('/[^0-9]/', '', $pledge->customer->country_code ?? '60');
+
+            // Remove leading 0 from phone if present
+            if (substr($phone, 0, 1) === '0') {
+                $phone = substr($phone, 1);
+            }
+
+            // Add country code (use stored country_code, default to 60 for Malaysia)
+            $phone = $countryCode . $phone;
+
+            // Send text message via configured provider
+            $result = $this->sendViaProvider($config, $phone, $message);
+
+            if ($result['success']) {
+                // Also send PDF receipt as document
+                try {
+                    $pdfResult = $this->sendPdfReceipt($config, $phone, $pledge);
+                    if (!$pdfResult['success']) {
+                        Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
+                    }
+                } catch (\Exception $pdfError) {
+                    Log::warning('PDF attachment error: ' . $pdfError->getMessage());
+                }
+
+                // Log the message
+                \App\Models\WhatsAppLog::create([
+                    'branch_id' => $pledge->branch_id,
+                    'recipient_phone' => $phone,
+                    'recipient_name' => $pledge->customer->name,
+                    'message_content' => $message,
+                    'status' => 'sent',
+                    'related_type' => 'pledge',
+                    'related_id' => $pledge->id,
+                    'sent_at' => now(),
+                    'sent_by' => $request->user()->id,
+                ]);
+
+                return $this->success([
+                    'message' => 'WhatsApp sent successfully to ' . $pledge->customer->phone,
+                ]);
+            } else {
+                return $this->error($result['message'] ?? 'Failed to send WhatsApp', 500);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp sending failed: ' . $e->getMessage());
+            return $this->error('Failed to send WhatsApp: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Build WhatsApp message for pledge
+     */
+    private function buildPledgeWhatsAppMessage(Pledge $pledge): string
+    {
+        $items = $pledge->items->map(function ($item) {
+            return "• {$item->category->name_en} ({$item->purity->code}) - {$item->net_weight}g";
+        })->join("\n");
+
+        $message = "🏦 *PLEDGE RECEIPT*\n";
+        $message .= "━━━━━━━━━━━━━━━━━━\n\n";
+        $message .= "📋 *Pledge No:* {$pledge->pledge_no}\n";
+        $message .= "📅 *Date:* {$pledge->pledge_date->format('d/m/Y')}\n\n";
+        $message .= "*Customer:* {$pledge->customer->name}\n";
+        $message .= "*IC:* {$pledge->customer->ic_number}\n\n";
+        $message .= "📦 *Items:*\n{$items}\n\n";
+        $message .= "⚖️ *Total Weight:* {$pledge->total_weight}g\n";
+        $message .= "💰 *Loan Amount:* RM " . number_format($pledge->loan_amount, 2) . "\n";
+        $message .= "📊 *Interest:* {$pledge->interest_rate}% /month\n\n";
+        $message .= "📅 *Due Date:* {$pledge->due_date->format('d/m/Y')}\n\n";
+        $message .= "━━━━━━━━━━━━━━━━━━\n";
+        $message .= "_Thank you for your business!_\n";
+        $message .= "_{$pledge->branch->name}_";
+
+        return $message;
+    }
+
+    /**
+     * Send message via configured provider
+     */
+    private function sendViaProvider($config, string $phone, string $message): array
+    {
+        switch ($config->provider) {
+            case 'ultramsg':
+                return $this->sendViaUltramsg($config, $phone, $message);
+            case 'twilio':
+                return $this->sendViaTwilio($config, $phone, $message);
+            case 'wati':
+                return $this->sendViaWati($config, $phone, $message);
+            default:
+                return ['success' => false, 'message' => 'Unknown provider'];
+        }
+    }
+
+    private function sendViaUltramsg($config, string $phone, string $message): array
+    {
+        try {
+            // Disable SSL verification for development (Windows SSL cert issue)
+            $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->post(
+                    "https://api.ultramsg.com/{$config->instance_id}/messages/chat",
+                    [
+                        'token' => $config->api_token,
+                        'to' => $phone,
+                        'body' => $message,
+                    ]
+                );
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['sent']) && $data['sent'] === 'true') {
+                    return ['success' => true];
+                }
+                return ['success' => false, 'message' => $data['message'] ?? 'Failed to send'];
+            }
+
+            return ['success' => false, 'message' => 'API request failed: ' . $response->status()];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    private function sendViaTwilio($config, string $phone, string $message): array
+    {
+        // Twilio implementation placeholder
+        return ['success' => false, 'message' => 'Twilio not yet implemented'];
+    }
+
+    private function sendViaWati($config, string $phone, string $message): array
+    {
+        // WATI implementation placeholder
+        return ['success' => false, 'message' => 'WATI not yet implemented'];
+    }
+
+    /**
+     * Send PDF receipt via WhatsApp
+     */
+    private function sendPdfReceipt($config, string $phone, Pledge $pledge): array
+    {
+        try {
+            // Get company settings
+            $companySettings = \App\Models\Setting::where('category', 'company')->get();
+            $settingsMap = [];
+            foreach ($companySettings as $setting) {
+                $settingsMap[$setting->key_name] = $setting->value;
+            }
+
+            $settings = [
+                'company_name' => $settingsMap['name'] ?? $pledge->branch->name ?? 'PAJAK GADAI SDN BHD',
+                'registration_no' => $settingsMap['registration_no'] ?? '',
+                'license_no' => $settingsMap['license_no'] ?? $pledge->branch->license_no ?? '',
+                'address' => $settingsMap['address'] ?? $pledge->branch->address ?? '',
+                'phone' => $settingsMap['phone'] ?? $pledge->branch->phone ?? '',
+                'fax' => $settingsMap['fax'] ?? '',
+                'email' => $settingsMap['email'] ?? $pledge->branch->email ?? '',
+                'receipt_header_text' => $settingsMap['receipt_header'] ?? 'PAJAK GADAI BERLESEN',
+                'receipt_footer_text' => $settingsMap['receipt_footer'] ?? 'Terima kasih atas sokongan anda',
+            ];
+
+            // Get terms
+            $terms = [];
+            try {
+                $terms = \App\Models\TermsCondition::getForActivity('pledge', $pledge->branch_id) ?? [];
+            } catch (\Exception $e) {
+                $terms = [];
+            }
+
+            $data = [
+                'pledge' => $pledge,
+                'copy_type' => 'customer',
+                'settings' => $settings,
+                'terms' => $terms,
+                'printed_at' => now(),
+                'printed_by' => 'WhatsApp',
+            ];
+
+            // Generate PDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.pledge-receipt', $data);
+            $pdf->setPaper('a5', 'portrait');
+            $pdfContent = $pdf->output();
+            $pdfBase64 = base64_encode($pdfContent);
+
+            // Send via Ultramsg document API
+            if ($config->provider === 'ultramsg') {
+                $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                    ->post(
+                        "https://api.ultramsg.com/{$config->instance_id}/messages/document",
+                        [
+                            'token' => $config->api_token,
+                            'to' => $phone,
+                            'document' => 'data:application/pdf;base64,' . $pdfBase64,
+                            'filename' => "Receipt-{$pledge->receipt_no}.pdf",
+                            'caption' => "📄 Receipt for Pledge {$pledge->pledge_no}",
+                        ]
+                    );
+
+                if ($response->successful()) {
+                    $responseData = $response->json();
+                    if (isset($responseData['sent']) && $responseData['sent'] === 'true') {
+                        return ['success' => true];
+                    }
+                    return ['success' => false, 'message' => $responseData['message'] ?? 'Document send failed'];
+                }
+
+                return ['success' => false, 'message' => 'Document API request failed: ' . $response->status()];
+            }
+
+            return ['success' => false, 'message' => 'PDF sending not supported for this provider'];
+
+        } catch (\Exception $e) {
+            Log::error('PDF receipt generation failed: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 }

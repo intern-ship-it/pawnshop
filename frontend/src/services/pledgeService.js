@@ -139,11 +139,11 @@ const pledgeService = {
    * Cancel a pledge (only for active pledges with no renewals)
    * Releases storage slots and marks pledge as cancelled
    * @param {number} pledgeId 
-   * @param {string} reason - Optional cancellation reason
+   * @param {Object} data - { reason: string, notes: string }
    * @returns {Promise}
    */
-  async cancel(pledgeId, reason = null) {
-    return apiPost(`/pledges/${pledgeId}/cancel`, { reason })
+  async cancel(pledgeId, data = {}) {
+    return apiPost(`/pledges/${pledgeId}/cancel`, data)
   },
 }
 

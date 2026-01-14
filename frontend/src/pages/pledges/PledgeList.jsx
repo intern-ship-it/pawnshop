@@ -9,7 +9,7 @@ import { formatCurrency, formatDate, formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { Card, Button, Input, Select, Badge } from "@/components/common";
+import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
 import {
   Plus,
   Search,
@@ -55,6 +55,23 @@ export default function PledgeList() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [printingId, setPrintingId] = useState(null);
+
+  // Cancel Modal State
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancellingPledge, setCancellingPledge] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelNotes, setCancelNotes] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+
+  // Predefined cancellation reasons
+  const cancelReasons = [
+    "Customer requested cancellation",
+    "Error in calculation",
+    "Duplicate entry",
+    "Items not as described",
+    "Customer did not complete transaction",
+    "Other",
+  ];
 
   // Fetch pledges from API
   const fetchPledges = async (showRefresh = false) => {
@@ -282,27 +299,53 @@ export default function PledgeList() {
     );
   };
 
-  // Handle cancel pledge
-  const handleCancelPledge = async (pledgeId, pledgeNo, e) => {
+  // Handle cancel pledge - Opens modal
+  const openCancelModal = (pledge, e) => {
     if (e) e.stopPropagation();
+    setCancellingPledge(pledge);
+    setCancelReason("");
+    setCancelNotes("");
+    setShowCancelModal(true);
+  };
 
-    const confirmed = window.confirm(
-      `Are you sure you want to cancel pledge ${pledgeNo}?\n\nThis action will:\n• Mark the pledge as cancelled\n• Release the storage slot\n• Cannot be undone`
-    );
+  // Confirm cancellation with reason
+  const handleConfirmCancel = async () => {
+    if (!cancelReason) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Required",
+          message: "Please select a cancellation reason",
+        })
+      );
+      return;
+    }
 
-    if (!confirmed) return;
+    setCancelling(true);
 
     try {
-      const response = await pledgeService.cancel(pledgeId);
+      const reasonText =
+        cancelReason === "Other" && cancelNotes
+          ? `Other: ${cancelNotes}`
+          : cancelReason;
+
+      const response = await pledgeService.cancel(cancellingPledge.id, {
+        reason: reasonText,
+        notes: cancelNotes,
+      });
 
       if (response.success) {
         dispatch(
           addToast({
             type: "success",
             title: "Cancelled",
-            message: `Pledge ${pledgeNo} has been cancelled`,
+            message: `Pledge ${
+              cancellingPledge.pledgeNo || cancellingPledge.receiptNo
+            } has been cancelled`,
           })
         );
+        setShowCancelModal(false);
+        setCancellingPledge(null);
         fetchPledges(true); // Refresh the list
       } else {
         throw new Error(response.message || "Failed to cancel");
@@ -316,6 +359,8 @@ export default function PledgeList() {
           message: error.message || "Failed to cancel pledge",
         })
       );
+    } finally {
+      setCancelling(false);
     }
   };
   // Calculate stats
@@ -767,13 +812,7 @@ export default function PledgeList() {
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                onClick={(e) =>
-                                  handleCancelPledge(
-                                    pledge.id,
-                                    pledge.pledgeNo || pledge.receiptNo,
-                                    e
-                                  )
-                                }
+                                onClick={(e) => openCancelModal(pledge, e)}
                                 title="Cancel Pledge"
                                 className="text-red-500 hover:text-red-700 hover:bg-red-50"
                               >
@@ -807,6 +846,92 @@ export default function PledgeList() {
           </div>
         )}
       </Card>
+      {/* Cancel Modal */}
+      <Modal
+        isOpen={showCancelModal}
+        onClose={() => {
+          setShowCancelModal(false);
+          setCancellingPledge(null);
+        }}
+        title="Cancel Pledge"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800 font-medium">
+              Are you sure you want to cancel pledge{" "}
+              {cancellingPledge?.receiptNo || cancellingPledge?.pledgeNo}?
+            </p>
+            <p className="text-red-600 text-sm mt-1">
+              This action will mark the pledge as cancelled and release the
+              storage slot. This cannot be undone.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Reason for Cancellation <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            >
+              <option value="">Select a reason...</option>
+              {cancelReasons.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {(cancelReason === "Other" || cancelReason) && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                {cancelReason === "Other"
+                  ? "Please specify (required)"
+                  : "Additional Notes (optional)"}
+              </label>
+              <textarea
+                value={cancelNotes}
+                onChange={(e) => setCancelNotes(e.target.value)}
+                rows={3}
+                placeholder={
+                  cancelReason === "Other"
+                    ? "Please provide details..."
+                    : "Any additional notes..."
+                }
+                className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCancelModal(false);
+                setCancellingPledge(null);
+              }}
+            >
+              Keep Pledge
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleConfirmCancel}
+              disabled={
+                !cancelReason ||
+                (cancelReason === "Other" && !cancelNotes) ||
+                cancelling
+              }
+              leftIcon={cancelling ? Loader2 : XCircle}
+              className={cancelling ? "[&_svg]:animate-spin" : ""}
+            >
+              {cancelling ? "Cancelling..." : "Confirm Cancel"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageWrapper>
   );
 }

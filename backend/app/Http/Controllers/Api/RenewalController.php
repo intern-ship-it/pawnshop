@@ -138,7 +138,29 @@ class RenewalController extends Controller
             (float) $pledge->interest_rate_extended
         );
 
-        $handlingFee = (float) config('pawnsys.handling_fee.amount', 0.50);
+        // Fetch handling fee settings
+        $settings = \App\Models\Setting::whereIn('key_name', [
+            'handling_charge_type',
+            'handling_charge_value',
+            'handling_charge_min',
+            'handling_fee'
+        ])->get()->pluck('value', 'key_name');
+
+        $type = $settings['handling_charge_type'] ?? 'fixed';
+        $value = (float) ($settings['handling_charge_value'] ?? $settings['handling_fee'] ?? 0.50);
+        $min = (float) ($settings['handling_charge_min'] ?? 0);
+
+        $principal = (float) $pledge->loan_amount;
+        $handlingFee = 0;
+        if ($type === 'percentage') {
+            $handlingFee = $principal * ($value / 100);
+            if ($handlingFee < $min)
+                $handlingFee = $min;
+        } else {
+            $handlingFee = $value;
+        }
+        $handlingFee = round($handlingFee, 2);
+
         $totalPayable = $calculation['total_interest'] + $handlingFee;
 
         return $this->success([
@@ -213,7 +235,29 @@ class RenewalController extends Controller
                 (float) $pledge->interest_rate_extended
             );
 
-            $handlingFee = (float) config('pawnsys.handling_fee.amount', 0.50);
+            // Fetch handling fee settings
+            $settings = \App\Models\Setting::whereIn('key_name', [
+                'handling_charge_type',
+                'handling_charge_value',
+                'handling_charge_min',
+                'handling_fee'
+            ])->get()->pluck('value', 'key_name');
+
+            $type = $settings['handling_charge_type'] ?? 'fixed';
+            $value = (float) ($settings['handling_charge_value'] ?? $settings['handling_fee'] ?? 0.50);
+            $min = (float) ($settings['handling_charge_min'] ?? 0);
+
+            $principal = (float) $pledge->loan_amount;
+            $handlingFee = 0;
+            if ($type === 'percentage') {
+                $handlingFee = $principal * ($value / 100);
+                if ($handlingFee < $min)
+                    $handlingFee = $min;
+            } else {
+                $handlingFee = $value;
+            }
+            $handlingFee = round($handlingFee, 2);
+
             $totalPayable = $calculation['total_interest'] + $handlingFee;
 
             // Generate renewal number

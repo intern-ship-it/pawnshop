@@ -46,6 +46,10 @@ class Pledge extends Model
         'receipt_print_count',
         'created_by',
         'approved_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancellation_reason',
+        'cancellation_notes',
     ];
 
     protected $casts = [

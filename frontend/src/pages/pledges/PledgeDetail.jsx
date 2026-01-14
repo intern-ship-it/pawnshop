@@ -108,6 +108,8 @@ export default function PledgeDetail() {
           netValue: parseFloat(data.net_value) || 0,
           loanPercentage: parseFloat(data.loan_percentage) || 0,
           loanAmount: parseFloat(data.loan_amount) || 0,
+          handlingFee: parseFloat(data.handling_fee) || 0,
+          payoutAmount: parseFloat(data.payout_amount) || 0,
           interestRate: parseFloat(data.interest_rate) || 0.5,
           interestRateExtended: parseFloat(data.interest_rate_extended) || 1.5,
           interestRateOverdue: parseFloat(data.interest_rate_overdue) || 2.0,
@@ -644,6 +646,61 @@ export default function PledgeDetail() {
               </div>
             </Card>
 
+            {/* Pledge Charges */}
+            <Card className="p-6 lg:col-span-3">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-zinc-400" />
+                Pledge Charges & Payout
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <p className="text-sm text-blue-600 font-medium">
+                    Loan Amount
+                  </p>
+                  <p className="text-xl font-bold text-blue-700">
+                    {formatCurrency(pledge.loanAmount)}
+                  </p>
+                  <p className="text-xs text-blue-500 mt-1">
+                    {pledge.loanPercentage}% of Net Value
+                  </p>
+                </div>
+                <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+                  <p className="text-sm text-amber-600 font-medium">
+                    Handling Fee
+                  </p>
+                  <p className="text-xl font-bold text-amber-700">
+                    {formatCurrency(pledge.handlingFee)}
+                  </p>
+                  <p className="text-xs text-amber-500 mt-1">Service charge</p>
+                </div>
+                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+                  <p className="text-sm text-emerald-600 font-medium">
+                    Payout Amount
+                  </p>
+                  <p className="text-xl font-bold text-emerald-700">
+                    {formatCurrency(
+                      pledge.payoutAmount ||
+                        pledge.loanAmount - pledge.handlingFee
+                    )}
+                  </p>
+                  <p className="text-xs text-emerald-500 mt-1">
+                    Amount paid to customer
+                  </p>
+                </div>
+                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
+                  <p className="text-sm text-zinc-600 font-medium">
+                    Interest Rate
+                  </p>
+                  <p className="text-xl font-bold text-zinc-700">
+                    {pledge.interestRate}%
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Per month (first 6 months)
+                  </p>
+                </div>
+              </div>
+            </Card>
+
             {/* Gold Prices Used */}
             <Card className="p-6 lg:col-span-3">
               <h3 className="text-lg font-semibold text-zinc-800 mb-4 flex items-center gap-2">
@@ -725,25 +782,68 @@ export default function PledgeDetail() {
                         >
                           <td className="p-4 text-zinc-500">{idx + 1}</td>
                           <td className="p-4">
-                            <div className="flex items-center gap-3">
+                            <div
+                              className={cn(
+                                "flex items-center gap-3",
+                                item.photo && "cursor-pointer group"
+                              )}
+                              onClick={() => {
+                                if (item.photo) {
+                                  // Handle photo URL - prefix with storage URL if needed
+                                  const photoUrl = item.photo.startsWith("http")
+                                    ? item.photo
+                                    : `${import.meta.env.VITE_API_URL?.replace(
+                                        "/api",
+                                        ""
+                                      )}/storage/${item.photo}`;
+                                  setSelectedImage(photoUrl);
+                                  setShowImageModal(true);
+                                }
+                              }}
+                            >
                               {item.photo ? (
-                                <img
-                                  src={item.photo}
-                                  alt={item.category}
-                                  className="w-10 h-10 rounded-lg object-cover cursor-pointer"
-                                  onClick={() => {
-                                    setSelectedImage(item.photo);
-                                    setShowImageModal(true);
-                                  }}
-                                />
+                                <div className="relative">
+                                  <img
+                                    src={
+                                      item.photo.startsWith("http")
+                                        ? item.photo
+                                        : `${import.meta.env.VITE_API_URL?.replace(
+                                            "/api",
+                                            ""
+                                          )}/storage/${item.photo}`
+                                    }
+                                    alt={item.category}
+                                    className="w-12 h-12 rounded-lg object-cover border border-zinc-200 group-hover:border-amber-400 transition-colors"
+                                    onError={(e) => {
+                                      e.target.style.display = "none";
+                                      e.target.nextSibling.style.display =
+                                        "flex";
+                                    }}
+                                  />
+                                  <div className="w-12 h-12 rounded-lg bg-zinc-100 items-center justify-center hidden">
+                                    <Gem className="w-6 h-6 text-zinc-400" />
+                                  </div>
+                                  <div className="absolute inset-0 bg-black/40 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Eye className="w-4 h-4 text-white" />
+                                  </div>
+                                </div>
                               ) : (
-                                <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
-                                  <Gem className="w-5 h-5 text-zinc-400" />
+                                <div className="w-12 h-12 rounded-lg bg-zinc-100 flex items-center justify-center border border-zinc-200">
+                                  <Gem className="w-6 h-6 text-zinc-400" />
                                 </div>
                               )}
                               <div>
-                                <p className="font-medium text-zinc-800">
+                                <p
+                                  className={cn(
+                                    "font-medium text-zinc-800",
+                                    item.photo &&
+                                      "group-hover:text-amber-600 transition-colors"
+                                  )}
+                                >
                                   {item.category}
+                                  {item.photo && (
+                                    <Image className="w-3 h-3 inline-block ml-1 text-zinc-400 group-hover:text-amber-500" />
+                                  )}
                                 </p>
                                 <p className="text-xs text-zinc-500">
                                   {item.description}
@@ -892,11 +992,42 @@ export default function PledgeDetail() {
         isOpen={showImageModal}
         onClose={() => setShowImageModal(false)}
         title="Item Photo"
-        size="lg"
+        size="xl"
       >
-        {selectedImage && (
-          <img src={selectedImage} alt="Item" className="w-full rounded-lg" />
-        )}
+        <div className="flex flex-col items-center">
+          {selectedImage && (
+            <>
+              <img
+                src={selectedImage}
+                alt="Item"
+                className="max-w-full max-h-[70vh] rounded-lg object-contain"
+                onError={(e) => {
+                  e.target.src =
+                    "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2NjY2NjYyIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSIxOCIgaGVpZ2h0PSIxOCIgcng9IjIiIHJ5PSIyIi8+PGNpcmNsZSBjeD0iOC41IiBjeT0iOC41IiByPSIxLjUiLz48cG9seWxpbmUgcG9pbnRzPSIyMSAxNSAxNiAxMCA1IDIxIi8+PC9zdmc+";
+                }}
+              />
+              <div className="mt-4 flex gap-3">
+                <a
+                  href={selectedImage}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Image
+                </a>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(selectedImage, "_blank")}
+                  leftIcon={Eye}
+                >
+                  Open Full Size
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
       </Modal>
     </PageWrapper>
   );

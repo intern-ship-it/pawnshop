@@ -56,6 +56,9 @@ import {
   MapPin,
   Zap,
   Loader2,
+  Upload,
+  Barcode,
+  Copy,
 } from "lucide-react";
 
 // Step configuration - NOW 6 STEPS WITH STORAGE
@@ -164,6 +167,7 @@ export default function NewPledge() {
 
   // Refs
   const signatureCanvasRef = useRef(null);
+  const signatureUploadRef = useRef(null);
   const photoInputRefs = useRef({});
 
   // Step state
@@ -203,6 +207,7 @@ export default function NewPledge() {
   const [loanPercentage, setLoanPercentage] = useState(70);
   const [customPercentage, setCustomPercentage] = useState("");
   const [useCustomPercentage, setUseCustomPercentage] = useState(false);
+  const [interestScenario, setInterestScenario] = useState("standard"); // 'standard', 'renewed', 'overdue'
 
   // Step 4: Payout state
   const [payoutMethod, setPayoutMethod] = useState("cash");
@@ -864,6 +869,7 @@ export default function NewPledge() {
     setCustomer(selectedCustomer);
     setSearchQuery(selectedCustomer.name);
     setShowResults(false);
+    setSearchResults([]); // Clear results to prevent dropdown from reopening
     setCustomerSearchResult(selectedCustomer);
 
     // Fetch active pledges
@@ -880,6 +886,11 @@ export default function NewPledge() {
 
   // Debounced search effect
   useEffect(() => {
+    // Skip search if customer is already selected (prevents dropdown reopening)
+    if (customer) {
+      return;
+    }
+
     const timer = setTimeout(() => {
       if (searchQuery.length >= 3) {
         performSearch(searchQuery);
@@ -890,7 +901,7 @@ export default function NewPledge() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, customer]);
 
   // Item handlers
   const addItem = () => {
@@ -1026,6 +1037,34 @@ export default function NewPledge() {
   const clearSignature = () => {
     setSignature(null);
     initSignatureCanvas();
+  };
+
+  // Handle signature image upload
+  const handleSignatureUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Invalid File",
+          message: "Please upload an image file (PNG, JPG, etc.)",
+        })
+      );
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSignature(reader.result);
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input so same file can be uploaded again
+    if (signatureUploadRef.current) {
+      signatureUploadRef.current.value = "";
+    }
   };
 
   // Navigation validation - UPDATED FOR 6 STEPS
@@ -1279,6 +1318,41 @@ export default function NewPledge() {
           } created successfully`,
         })
       );
+
+      // Auto-send WhatsApp if customer has phone number
+      if (customer?.phone) {
+        try {
+          const whatsappResponse = await pledgeService.sendWhatsApp(
+            createdPledge.id
+          );
+          if (whatsappResponse.success || whatsappResponse.data?.success) {
+            dispatch(
+              addToast({
+                type: "success",
+                title: "WhatsApp Sent",
+                message:
+                  whatsappResponse.data?.message ||
+                  "Receipt sent to customer via WhatsApp",
+              })
+            );
+          }
+        } catch (whatsappError) {
+          // Show error but don't block - pledge was already created successfully
+          const errorMessage =
+            whatsappError.response?.data?.message ||
+            whatsappError.message ||
+            "Failed to send WhatsApp";
+
+          dispatch(
+            addToast({
+              type: "warning",
+              title: "WhatsApp Not Sent",
+              message: errorMessage,
+            })
+          );
+          console.error("WhatsApp auto-send error:", whatsappError);
+        }
+      }
     } catch (error) {
       console.error("Error creating pledge:", error);
       const errors = error.response?.data?.errors;
@@ -1407,6 +1481,216 @@ export default function NewPledge() {
       );
     } finally {
       setIsSendingWhatsApp(false);
+    }
+  };
+
+  // Handle printing both Office and Customer copies
+  const handlePrintBothCopies = async () => {
+    if (!createdPledgeId) return;
+    setIsPrinting(true);
+
+    try {
+      // Print Office Copy first
+      await handlePrintReceipt("office");
+
+      // Small delay then print Customer Copy
+      setTimeout(async () => {
+        await handlePrintReceipt("customer");
+      }, 1000);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipts Generated",
+          message: "Both Office and Customer copies are ready for printing.",
+        })
+      );
+    } catch (error) {
+      console.error("Print both error:", error);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // Handle printing barcode stickers
+  const handlePrintBarcodes = async () => {
+    if (!createdPledgeId) return;
+
+    const token = getToken();
+    if (!token) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please login again",
+        })
+      );
+      return;
+    }
+
+    setIsPrinting(true);
+    try {
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      // Get the pledge items for barcodes
+      const pledgeResponse = await fetch(
+        `${apiUrl}/pledges/${createdPledgeId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!pledgeResponse.ok) {
+        throw new Error("Failed to fetch pledge details");
+      }
+
+      const pledgeData = await pledgeResponse.json();
+      console.log("Pledge data for barcodes:", pledgeData);
+
+      // Items are under data.pledge.items (not data.items)
+      const pledgeItems =
+        pledgeData.data?.pledge?.items || pledgeData.data?.items || [];
+
+      if (pledgeItems.length === 0) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "No Items",
+            message: "No items found to generate barcodes",
+          })
+        );
+        return;
+      }
+
+      // Fetch batch barcodes - correct endpoint is /print/barcodes/batch
+      const barcodeResponse = await fetch(`${apiUrl}/print/barcodes/batch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          item_ids: pledgeItems.map((item) => item.id),
+        }),
+      });
+
+      if (!barcodeResponse.ok) {
+        throw new Error("Failed to generate barcodes");
+      }
+
+      const barcodeData = await barcodeResponse.json();
+      console.log("Barcode response:", barcodeData);
+
+      // Handle different response structures
+      const barcodes = barcodeData.data || barcodeData || [];
+
+      if (barcodes.length === 0) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "No Barcodes",
+            message:
+              "No barcodes were generated. Items may not have barcodes assigned.",
+          })
+        );
+        return;
+      }
+
+      // Open barcode print window
+      const printWindow = window.open("", "_blank");
+
+      if (!printWindow) {
+        // Popup was blocked
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Popup Blocked",
+            message: "Please allow popups for this site to print barcodes.",
+          })
+        );
+        return;
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Barcode Stickers - ${createdReceiptNo}</title>
+          <style>
+            @page { size: 50mm 25mm; margin: 0; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+            .barcode-container { 
+              page-break-after: always; 
+              width: 48mm; 
+              height: 23mm; 
+              border: 1px dashed #ccc;
+              padding: 2mm;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+            }
+            .barcode-container:last-child { page-break-after: auto; }
+            .barcode-image { max-width: 44mm; height: auto; }
+            .barcode-text { font-size: 8px; margin-top: 2px; text-align: center; }
+            .pledge-no { font-weight: bold; font-size: 10px; }
+          </style>
+        </head>
+        <body>
+          ${barcodes
+            .map(
+              (barcode) => `
+            <div class="barcode-container">
+              <div class="pledge-no">${barcode.pledge_no || ""}</div>
+              <img class="barcode-image" src="${
+                barcode.image
+              }" alt="Barcode" onerror="this.style.display='none'" />
+              <div class="barcode-text">${barcode.barcode || ""}</div>
+              <div class="barcode-text">${barcode.category || ""} - ${
+                barcode.purity || ""
+              } - ${barcode.weight || ""}</div>
+            </div>
+          `
+            )
+            .join("")}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+
+      // Delay print to ensure content is loaded
+      setTimeout(() => {
+        try {
+          printWindow.print();
+        } catch (printError) {
+          console.error("Print error:", printError);
+        }
+      }, 1000);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Barcodes Generated",
+          message: `${barcodes.length} barcode sticker(s) ready for printing.`,
+        })
+      );
+    } catch (error) {
+      console.error("Barcode print error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Barcode Error",
+          message: error.message || "Failed to generate barcodes",
+        })
+      );
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -2354,68 +2638,206 @@ export default function NewPledge() {
                 </div>
               </div>
 
-              {/* Interest & Repayment Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="border border-blue-200 bg-blue-50 rounded-xl p-4">
-                  <h5 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" />
-                    Interest Rates
-                  </h5>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between p-2 bg-white rounded-lg">
-                      <span className="text-zinc-600">First 6 months</span>
-                      <span className="font-bold text-blue-600">
-                        0.5% / month
-                      </span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-white rounded-lg">
-                      <span className="text-zinc-600">
-                        After 6 months (renewed)
-                      </span>
-                      <span className="font-bold text-amber-600">
-                        1.5% / month
-                      </span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-white rounded-lg">
-                      <span className="text-zinc-600">
-                        Overdue (not renewed)
-                      </span>
-                      <span className="font-bold text-red-600">
-                        2.0% / month
-                      </span>
-                    </div>
+              {/* Interest & Repayment Information - ENHANCED */}
+              <div className="border border-blue-200 bg-blue-50 rounded-xl p-4 mb-6">
+                <h5 className="font-semibold text-blue-800 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  Interest Breakdown
+                </h5>
+
+                {/* Scenario Tabs */}
+                <div className="flex gap-2 mb-4">
+                  {[
+                    {
+                      id: "standard",
+                      label: "Standard (0.5%)",
+                      rate: 0.5,
+                      months: 6,
+                      color: "blue",
+                    },
+                    {
+                      id: "renewed",
+                      label: "Renewed (1.5%)",
+                      rate: 1.5,
+                      months: 6,
+                      color: "amber",
+                    },
+                    {
+                      id: "overdue",
+                      label: "Overdue (2.0%)",
+                      rate: 2.0,
+                      months: 6,
+                      color: "red",
+                    },
+                  ].map((scenario) => (
+                    <button
+                      key={scenario.id}
+                      type="button"
+                      onClick={() => setInterestScenario(scenario.id)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1",
+                        interestScenario === scenario.id
+                          ? scenario.color === "blue"
+                            ? "bg-blue-600 text-white"
+                            : scenario.color === "amber"
+                            ? "bg-amber-500 text-white"
+                            : "bg-red-500 text-white"
+                          : "bg-white text-zinc-600 hover:bg-zinc-100"
+                      )}
+                    >
+                      {scenario.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Monthly Breakdown Table */}
+                <div className="bg-white rounded-lg border border-blue-100 overflow-hidden">
+                  <div className="overflow-x-auto max-h-48 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-zinc-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-zinc-600">
+                            Month
+                          </th>
+                          <th className="px-3 py-2 text-right font-medium text-zinc-600">
+                            Rate
+                          </th>
+                          <th className="px-3 py-2 text-right font-medium text-zinc-600">
+                            Interest
+                          </th>
+                          <th className="px-3 py-2 text-right font-medium text-zinc-600">
+                            Cumulative
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {(() => {
+                          const rate =
+                            interestScenario === "standard"
+                              ? 0.005
+                              : interestScenario === "renewed"
+                              ? 0.015
+                              : 0.02;
+                          const monthlyInterest = loanAmount * rate;
+                          let cumulative = 0;
+                          const rows = [];
+                          for (let i = 1; i <= 12; i++) {
+                            cumulative += monthlyInterest;
+                            rows.push(
+                              <tr
+                                key={i}
+                                className={i <= 6 ? "" : "bg-zinc-50/50"}
+                              >
+                                <td className="px-3 py-2 text-zinc-700">
+                                  Month {i}
+                                </td>
+                                <td className="px-3 py-2 text-right text-zinc-600">
+                                  {(rate * 100).toFixed(1)}%
+                                </td>
+                                <td className="px-3 py-2 text-right font-medium text-zinc-800">
+                                  {formatCurrency(monthlyInterest)}
+                                </td>
+                                <td
+                                  className={cn(
+                                    "px-3 py-2 text-right font-bold",
+                                    interestScenario === "standard"
+                                      ? "text-blue-600"
+                                      : interestScenario === "renewed"
+                                      ? "text-amber-600"
+                                      : "text-red-600"
+                                  )}
+                                >
+                                  {formatCurrency(cumulative)}
+                                </td>
+                              </tr>
+                            );
+                          }
+                          return rows;
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
-                <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-4">
-                  <h5 className="font-semibold text-emerald-800 mb-3 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Monthly Interest (First 6 Months)
-                  </h5>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between p-2 bg-white rounded-lg">
-                      <span className="text-zinc-600">Loan Amount</span>
-                      <span className="font-semibold">
-                        {formatCurrency(loanAmount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-white rounded-lg">
-                      <span className="text-zinc-600">
-                        Monthly Interest (0.5%)
-                      </span>
-                      <span className="font-bold text-emerald-600">
-                        {formatCurrency(loanAmount * 0.005)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-amber-100 rounded-lg border border-amber-200">
-                      <span className="text-amber-800 font-medium">
-                        6 Months Total Interest
-                      </span>
-                      <span className="font-bold text-amber-700">
-                        {formatCurrency(loanAmount * 0.005 * 6)}
-                      </span>
-                    </div>
+                {/* Summary */}
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
+                    <p className="text-xs text-zinc-500">Monthly Interest</p>
+                    <p
+                      className={cn(
+                        "text-lg font-bold",
+                        interestScenario === "standard"
+                          ? "text-blue-600"
+                          : interestScenario === "renewed"
+                          ? "text-amber-600"
+                          : "text-red-600"
+                      )}
+                    >
+                      {formatCurrency(
+                        loanAmount *
+                          (interestScenario === "standard"
+                            ? 0.005
+                            : interestScenario === "renewed"
+                            ? 0.015
+                            : 0.02)
+                      )}
+                    </p>
                   </div>
+                  <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
+                    <p className="text-xs text-zinc-500">6 Months Total</p>
+                    <p
+                      className={cn(
+                        "text-lg font-bold",
+                        interestScenario === "standard"
+                          ? "text-blue-600"
+                          : interestScenario === "renewed"
+                          ? "text-amber-600"
+                          : "text-red-600"
+                      )}
+                    >
+                      {formatCurrency(
+                        loanAmount *
+                          (interestScenario === "standard"
+                            ? 0.005
+                            : interestScenario === "renewed"
+                            ? 0.015
+                            : 0.02) *
+                          6
+                      )}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
+                    <p className="text-xs text-zinc-500">12 Months Total</p>
+                    <p
+                      className={cn(
+                        "text-lg font-bold",
+                        interestScenario === "standard"
+                          ? "text-blue-600"
+                          : interestScenario === "renewed"
+                          ? "text-amber-600"
+                          : "text-red-600"
+                      )}
+                    >
+                      {formatCurrency(
+                        loanAmount *
+                          (interestScenario === "standard"
+                            ? 0.005
+                            : interestScenario === "renewed"
+                            ? 0.015
+                            : 0.02) *
+                          12
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Rate Info */}
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    <strong>Note:</strong> Standard rate (0.5%) applies for the
+                    first 6 months. If renewed, rate increases to 1.5%. If
+                    overdue without renewal, rate becomes 2.0%.
+                  </p>
                 </div>
               </div>
 
@@ -2491,10 +2913,9 @@ export default function NewPledge() {
                       value={handlingCharge}
                       onChange={(e) => setHandlingCharge(e.target.value)}
                       className="flex-1 bg-white"
+                      inputClassName="pl-12"
                       leftElement={
-                        <span className="text-zinc-500 font-medium ml-1">
-                          RM
-                        </span>
+                        <span className="text-zinc-500 font-medium">RM</span>
                       }
                     />
                   </div>
@@ -3144,36 +3565,78 @@ export default function NewPledge() {
                 </div>
               </div>
 
-              {/* Signature Pad */}
+              {/* Signature Pad - ENHANCED */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium text-zinc-700">
                     Customer Signature <span className="text-red-500">*</span>
                   </label>
-                  {signature && (
-                    <Button variant="ghost" size="sm" onClick={clearSignature}>
-                      Clear Signature
+                  <div className="flex items-center gap-2">
+                    {signature && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearSignature}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Show uploaded signature or draw canvas */}
+                {signature && !signatureCanvasRef.current?.getContext ? (
+                  <div className="border-2 border-emerald-300 rounded-xl p-2 bg-emerald-50">
+                    <img
+                      src={signature}
+                      alt="Signature"
+                      className="max-h-24 mx-auto object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-zinc-300 rounded-xl p-2 bg-white">
+                    <canvas
+                      ref={signatureCanvasRef}
+                      width={400}
+                      height={100}
+                      className="w-full cursor-crosshair touch-none"
+                      style={{ maxHeight: "100px" }}
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      onTouchStart={startDrawing}
+                      onTouchMove={draw}
+                      onTouchEnd={stopDrawing}
+                    />
+                  </div>
+                )}
+
+                {/* Actions Row */}
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-zinc-500">
+                    Sign above using mouse or touch
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-400">OR</span>
+                    <input
+                      type="file"
+                      ref={signatureUploadRef}
+                      accept="image/*"
+                      onChange={handleSignatureUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      leftIcon={Upload}
+                      onClick={() => signatureUploadRef.current?.click()}
+                    >
+                      Upload
                     </Button>
-                  )}
+                  </div>
                 </div>
-                <div className="border-2 border-dashed border-zinc-300 rounded-xl p-2 bg-white">
-                  <canvas
-                    ref={signatureCanvasRef}
-                    width={600}
-                    height={150}
-                    className="w-full cursor-crosshair touch-none"
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                    onTouchStart={startDrawing}
-                    onTouchMove={draw}
-                    onTouchEnd={stopDrawing}
-                  />
-                </div>
-                <p className="text-xs text-zinc-500 mt-2">
-                  Sign above using mouse or touch
-                </p>
               </div>
 
               {/* Terms Agreement */}
@@ -3293,20 +3756,74 @@ export default function NewPledge() {
                   {formatCurrency(loanAmount)}
                 </p>
               </div>
+              <div>
+                <p className="text-zinc-500">Items</p>
+                <p className="font-medium text-zinc-800">
+                  {items.filter((i) => i.category && i.weight).length} item(s)
+                </p>
+              </div>
+              <div>
+                <p className="text-zinc-500">Storage</p>
+                <p className="font-medium text-zinc-800">
+                  {Object.keys(itemStorageAssignments).length > 0
+                    ? `${Object.keys(itemStorageAssignments).length} assigned`
+                    : "Not assigned"}
+                </p>
+              </div>
             </div>
           </div>
 
+          {/* Print Options */}
+          <div className="space-y-3 mb-4">
+            <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">
+              Print Options
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={Copy}
+                onClick={handlePrintBothCopies}
+                loading={isPrinting}
+                disabled={isPrinting || isSendingWhatsApp}
+              >
+                Both Copies
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={Printer}
+                onClick={() => handlePrintReceipt("customer")}
+                loading={isPrinting}
+                disabled={isPrinting || isSendingWhatsApp}
+              >
+                Customer Copy
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={Printer}
+                onClick={() => handlePrintReceipt("office")}
+                loading={isPrinting}
+                disabled={isPrinting || isSendingWhatsApp}
+              >
+                Office Copy
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={Barcode}
+                onClick={handlePrintBarcodes}
+                loading={isPrinting}
+                disabled={isPrinting || isSendingWhatsApp}
+              >
+                Barcode Stickers
+              </Button>
+            </div>
+          </div>
+
+          {/* Actions */}
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              fullWidth
-              leftIcon={Printer}
-              onClick={() => handlePrintReceipt("customer")}
-              loading={isPrinting}
-              disabled={isPrinting || isSendingWhatsApp}
-            >
-              {isPrinting ? "Generating..." : "Print Receipt"}
-            </Button>
             <Button
               variant="outline"
               fullWidth

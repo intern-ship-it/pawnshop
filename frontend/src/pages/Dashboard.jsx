@@ -26,8 +26,6 @@ import {
   CreditCard,
   AlertTriangle,
   ArrowRight,
-  Scale,
-  Lock,
   Loader2,
   TrendingUp,
   TrendingDown,
@@ -173,24 +171,6 @@ export default function Dashboard() {
       urgency: "7 days",
     })),
   ].slice(0, 5);
-
-  // Stock alerts (placeholder - would come from API)
-  const stockAlerts = [
-    {
-      id: 1,
-      type: "Weight Discrepancy",
-      icon: Scale,
-      description: "Item #G-1002 weight recorded as 5.2g vs expected 5.5g.",
-      severity: "critical",
-    },
-    {
-      id: 2,
-      type: "Pending Safe Audit",
-      icon: Lock,
-      description: "Daily safe audit not completed.",
-      severity: "warning",
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -612,86 +592,6 @@ export default function Dashboard() {
               <p>No upcoming due dates</p>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Stock Alerts */}
-      <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-zinc-800">Stock Alerts</h3>
-          <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">
-            {stockAlerts.filter((a) => a.severity === "critical").length}{" "}
-            Critical
-          </span>
-        </div>
-
-        <div className="space-y-3">
-          {stockAlerts.map((alert) => (
-            <div
-              key={alert.id}
-              className={cn(
-                "flex items-start gap-4 p-4 rounded-lg",
-                alert.severity === "critical"
-                  ? "bg-red-50 border border-red-100"
-                  : "bg-amber-50 border border-amber-100"
-              )}
-            >
-              <div
-                className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center",
-                  alert.severity === "critical" ? "bg-red-100" : "bg-amber-100"
-                )}
-              >
-                <alert.icon
-                  className={cn(
-                    "w-5 h-5",
-                    alert.severity === "critical"
-                      ? "text-red-600"
-                      : "text-amber-600"
-                  )}
-                />
-              </div>
-              <div className="flex-1">
-                <p
-                  className={cn(
-                    "font-medium",
-                    alert.severity === "critical"
-                      ? "text-red-800"
-                      : "text-amber-800"
-                  )}
-                >
-                  {alert.type}
-                </p>
-                <p
-                  className={cn(
-                    "text-sm mt-1",
-                    alert.severity === "critical"
-                      ? "text-red-600"
-                      : "text-amber-600"
-                  )}
-                >
-                  {alert.description}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  className={cn(
-                    "px-3 py-1.5 text-sm font-medium rounded-lg",
-                    alert.severity === "critical"
-                      ? "bg-red-600 text-white hover:bg-red-700"
-                      : "bg-amber-600 text-white hover:bg-amber-700"
-                  )}
-                >
-                  {alert.severity === "critical"
-                    ? "Investigate"
-                    : "Start Audit"}
-                </button>
-                <button className="px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 rounded-lg">
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

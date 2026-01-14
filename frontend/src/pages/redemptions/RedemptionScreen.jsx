@@ -625,6 +625,17 @@ export default function RedemptionScreen() {
                                   {item.barcode || item.item_code}
                                 </p>
                               )}
+
+                              {/* Show Location */}
+                              <div className="flex items-center gap-1 mt-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                                <Building2 className="w-3 h-3" />
+                                <span>
+                                  {item.location_string ||
+                                    (item.vault
+                                      ? `${item.vault.code} / Box ${item.box?.box_number} / Slot ${item.slot?.slot_number}`
+                                      : "Not Assigned")}
+                                </span>
+                              </div>
                             </div>
                           </div>
                           <p className="font-bold text-zinc-800">

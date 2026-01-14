@@ -186,12 +186,11 @@ export default function RenewalScreen() {
     setCalculation(null);
 
     try {
-      // Search by IC number, pledge number, or receipt number
-      const response = await pledgeService.search(searchQuery.trim());
+      // Search by IC number, pledge number, or receipt number (using byReceipt which now supports all)
+      const response = await pledgeService.getByReceipt(searchQuery.trim());
 
-      // The response is paginated, get first result
-      const pledges = response.data?.data || response.data;
-      const data = Array.isArray(pledges) ? pledges[0] : pledges;
+      // Get direct response data
+      const data = response.data?.data || response.data;
 
       if (data) {
         // Transform API response to frontend format
@@ -407,23 +406,57 @@ export default function RenewalScreen() {
 
     setIsPrintingReceipt(true);
     try {
-      const response = await renewalService.printReceipt(renewalResult.id);
-      const receiptData = response.data?.data || response.data;
+      // Get token from storage
+      const token =
+        localStorage.getItem("token") || sessionStorage.getItem("token");
 
-      // Here you could open a new window with the receipt or download PDF
-      // For now, just show success
-      console.log("Receipt data:", receiptData);
+      if (!token) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Please login again",
+          })
+        );
+        return;
+      }
+
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      // Fetch PDF from backend (using PrintController route)
+      const response = await fetch(
+        `${apiUrl}/print/renewal-receipt/${renewalResult.id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/pdf",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to generate receipt");
+      }
+
+      // Get the PDF blob and open in new tab
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank");
+
+      // Clean up after a minute
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
 
       dispatch(
         addToast({
           type: "success",
           title: "Success",
-          message: "Receipt printed successfully",
+          message: "Receipt opened in new tab",
         })
       );
-
-      // TODO: Implement actual printing logic
-      // window.print() or open PDF in new tab
     } catch (error) {
       console.error("Print receipt error:", error);
       dispatch(
@@ -890,6 +923,17 @@ export default function RenewalScreen() {
                                 {item.barcode || item.item_code}
                               </p>
                             )}
+
+                            {/* Show Location */}
+                            <div className="flex items-center gap-1 mt-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                              <Building2 className="w-3 h-3" />
+                              <span>
+                                {item.location_string ||
+                                  (item.vault
+                                    ? `${item.vault.code} / Box ${item.box?.box_number} / Slot ${item.slot?.slot_number}`
+                                    : "Not Assigned")}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <div className="text-right">

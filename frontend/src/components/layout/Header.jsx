@@ -60,7 +60,8 @@ export default function Header() {
   const [goldLoading, setGoldLoading] = useState(true);
   const [goldError, setGoldError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [isFromCache, setIsFromCache] = useState(false); // ADD THIS
+  const [isFromCache, setIsFromCache] = useState(false);
+  const [selectedPurity, setSelectedPurity] = useState("916"); // Default to 916
   const [cacheAge, setCacheAge] = useState("");
 
   const goldDropdownRef = useRef(null);
@@ -148,12 +149,26 @@ export default function Header() {
             forceRefresh
           );
 
+          console.log("Gold price API response:", response);
+
           if (response.success && response.data) {
             const data = response.data;
-            const price999 = data.current?.prices?.gold?.per_gram || 0;
+
+            // Get 999 price from current prices OR from carat prices
+            let price999 = data.current?.prices?.gold?.per_gram || 0;
+
+            // If current price is 0, try to get from carat prices
+            if (!price999 && data.carat?.purity_codes?.["999"]) {
+              price999 = data.carat.purity_codes["999"];
+            }
+
+            // If still no price, try the raw 24k from carat
+            if (!price999 && data.carat?.prices?.["24k"]) {
+              price999 = data.carat.prices["24k"];
+            }
 
             // Get carat prices from API (in purity_codes) or calculate
-            const caratPrices = data.carat?.purity_codes || data.carat || {};
+            const caratPrices = data.carat?.purity_codes || {};
 
             // Ensure we have prices for all purities
             const allPrices = {};
@@ -175,6 +190,10 @@ export default function Header() {
             // Set cache status
             setIsFromCache(response.fromCache || false);
             setCacheAge(response.cacheAge || "");
+
+            if (!price999) {
+              setGoldError("No gold price available from API");
+            }
           } else {
             // API failed - show error (NO fallback!)
             setGoldError(
@@ -322,10 +341,16 @@ export default function Header() {
               ) : (
                 <>
                   <span className="text-xs font-semibold text-white/80">
-                    GOLD (999)
+                    GOLD ({selectedPurity})
                   </span>
                   <span className="text-base font-bold">
-                    RM {Number(goldPrices?.price999 || 0).toFixed(2)}/g
+                    RM{" "}
+                    {Number(
+                      goldPrices?.carat?.[selectedPurity] ||
+                        goldPrices?.price999 ||
+                        0
+                    ).toFixed(2)}
+                    /g
                   </span>
                   {/* Trend Indicator */}
                   {goldPrices?.change &&
@@ -344,7 +369,7 @@ export default function Header() {
                         ) : (
                           <TrendingDown className="w-3 h-3" />
                         )}
-                        {Number(goldPrices.change.percent || 0).toFixed(1)}%
+                        {Number(goldPrices.change.percent || 0).toFixed(2)}%
                       </span>
                     )}
                   <ChevronDown
@@ -439,24 +464,52 @@ export default function Header() {
                 {/* Purity Prices */}
                 <div className="p-4">
                   <p className="text-xs font-medium text-zinc-500 mb-3 uppercase tracking-wider">
-                    Price by Purity
+                    Price by Purity{" "}
+                    <span className="text-zinc-400">
+                      (Click to set as default)
+                    </span>
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {purities.map((purity) => (
-                      <div
+                      <button
                         key={purity.code}
-                        className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg border border-zinc-100"
+                        onClick={() => setSelectedPurity(purity.code)}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-lg border transition-all text-left",
+                          selectedPurity === purity.code
+                            ? "bg-amber-50 border-amber-300 ring-1 ring-amber-300"
+                            : "bg-zinc-50 border-zinc-100 hover:border-amber-200 hover:bg-amber-50/50"
+                        )}
                       >
-                        <span className="text-sm text-zinc-500">
-                          {purity.karat}
-                        </span>
-                        <span className="text-sm font-semibold text-zinc-800">
+                        <div className="flex flex-col">
+                          <span
+                            className={cn(
+                              "text-sm font-medium",
+                              selectedPurity === purity.code
+                                ? "text-amber-700"
+                                : "text-zinc-700"
+                            )}
+                          >
+                            {purity.code}
+                          </span>
+                          <span className="text-xs text-zinc-400">
+                            {purity.karat}
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            "text-sm font-semibold",
+                            selectedPurity === purity.code
+                              ? "text-amber-700"
+                              : "text-zinc-800"
+                          )}
+                        >
                           RM{" "}
                           {Number(goldPrices.carat?.[purity.code] || 0).toFixed(
                             2
                           )}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
