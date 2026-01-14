@@ -16,7 +16,7 @@ rm -rf backend/public/assets/
 
 # Reset any modified tracked files
 echo "🔄 Resetting tracked files..."
-git checkout -- backend/bootstrap/app.php backend/config/cors.php 2>/dev/null
+git checkout -- backend/bootstrap/app.php backend/config/cors.php deploy.sh frontend/package-lock.json 2>/dev/null
 
 # Pull latest code
 echo "📥 Pulling latest code..."
