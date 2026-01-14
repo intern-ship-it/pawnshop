@@ -3,6 +3,7 @@
  */
 
 import { apiGet, apiPost, apiPut, apiDelete } from './api'
+import api from './api'  // Add this import for FormData upload
 
 const settingsService = {
   // ============ GENERAL SETTINGS ============
@@ -161,11 +162,6 @@ const settingsService = {
     return apiDelete(`/settings/terms-conditions/${id}`)
   },
 
-
-
-
-
-
   // ============ MARGIN PRESETS ============
 
   async getMarginPresets() {
@@ -183,13 +179,23 @@ const settingsService = {
   async deleteMarginPreset(id) {
     return apiDelete(`/settings/margin-presets/${id}`)
   },
+
+  // ============ LOGO ============
+
+  async uploadLogo(file) {
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    const response = await api.post('/settings/logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  async getLogo() {
+    const response = await api.get('/settings/logo');
+    return response.data;
+  },
 }
-
-
-
-
-
-
-
 
 export default settingsService

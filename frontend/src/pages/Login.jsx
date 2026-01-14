@@ -58,6 +58,7 @@ export default function Login() {
   // Company info from settings
   const [companyName, setCompanyName] = useState("PawnSys");
   const [companyShort, setCompanyShort] = useState("PS");
+  const [companyLogo, setCompanyLogo] = useState(null);
   const [isLoadingCompany, setIsLoadingCompany] = useState(true);
 
   // AUTO-LOGIN CHECK: Verify existing session on component mount
@@ -100,7 +101,7 @@ export default function Login() {
     checkExistingAuth();
   }, [dispatch, navigate]);
 
-  // Load company name from API (for public pages) or cached settings
+  // Load company name and logo from API (for public pages) or cached settings
   useEffect(() => {
     const loadCompanyInfo = async () => {
       try {
@@ -133,7 +134,31 @@ export default function Login() {
       }
     };
 
+    // Load logo from public endpoint
+    const loadLogo = async () => {
+      try {
+        // Fetch logo from public endpoint (no auth required)
+        const logoUrl = "http://localhost:8000/api/settings/logo-image";
+        const imgResponse = await fetch(logoUrl);
+        if (imgResponse.ok) {
+          const blob = await imgResponse.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          setCompanyLogo(blobUrl);
+        }
+      } catch (error) {
+        console.log("Logo not available or failed to load");
+      }
+    };
+
     loadCompanyInfo();
+    loadLogo();
+
+    // Cleanup blob URL on unmount
+    return () => {
+      if (companyLogo && companyLogo.startsWith("blob:")) {
+        URL.revokeObjectURL(companyLogo);
+      }
+    };
   }, []);
 
   // Listen for settings updates (in case user changes settings and comes back)
@@ -278,9 +303,16 @@ export default function Login() {
           className="mb-12"
         >
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.5)]">
+            <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.5)] overflow-hidden">
               {isLoadingCompany ? (
                 <div className="w-8 h-8 rounded bg-amber-600/50 animate-pulse" />
+              ) : companyLogo ? (
+                <img
+                  src={companyLogo}
+                  alt="Logo"
+                  className="w-full h-full object-contain p-1"
+                  onError={() => setCompanyLogo(null)}
+                />
               ) : (
                 <span className="text-2xl font-bold text-zinc-900">
                   {companyShort}
@@ -356,9 +388,16 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500">
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500 overflow-hidden">
               {isLoadingCompany ? (
                 <div className="w-6 h-6 rounded bg-amber-600/50 animate-pulse" />
+              ) : companyLogo ? (
+                <img
+                  src={companyLogo}
+                  alt="Logo"
+                  className="w-full h-full object-contain p-1"
+                  onError={() => setCompanyLogo(null)}
+                />
               ) : (
                 <span className="text-xl font-bold text-zinc-900">
                   {companyShort}

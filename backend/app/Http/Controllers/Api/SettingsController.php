@@ -564,4 +564,134 @@ class SettingsController extends Controller
 
         return $this->success(null, 'Terms and conditions deleted successfully');
     }
+
+
+
+    /**
+     * Upload company logo
+     */
+    public function uploadLogo(Request $request): JsonResponse
+    {
+        $request->validate([
+            'logo' => 'required|image|mimes:png,jpg,jpeg,svg|max:2048',
+        ]);
+
+        try {
+            $file = $request->file('logo');
+            $filename = 'company_logo_' . time() . '.' . $file->getClientOriginalExtension();
+
+            // Store in public storage
+            $path = $file->storeAs('logos', $filename, 'public');
+
+            // Save path to settings table
+            $branchId = $request->user()->branch_id;
+
+            Setting::updateOrCreate(
+                ['branch_id' => $branchId, 'category' => 'company', 'key_name' => 'logo'],
+                ['value' => '/storage/' . $path]
+            );
+
+            return $this->success([
+                'logo_url' => asset('storage/' . $path),
+                'path' => '/storage/' . $path,
+            ], 'Logo uploaded successfully');
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to upload logo: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get company logo
+     */
+    public function getLogo(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id ?? null;
+
+        $setting = Setting::where('category', 'company')
+            ->where('key_name', 'logo')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->first();
+
+        // Return the logo-image endpoint URL using localhost instead of 127.0.0.1
+        // This ensures the frontend (localhost:3000) can load images from localhost:8000
+        $logoUrl = $setting ? 'http://localhost:8000/api/settings/logo-image' : null;
+
+        return $this->success([
+            'logo_url' => $logoUrl,
+            'path' => $setting?->value,
+        ]);
+    }
+
+    /**
+     * Serve the logo image file directly with CORS headers
+     */
+    public function serveLogoImage(Request $request)
+    {
+        $branchId = $request->user()->branch_id ?? null;
+
+        $setting = Setting::where('category', 'company')
+            ->where('key_name', 'logo')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->first();
+
+        if (!$setting || !$setting->value) {
+            return response()->json(['error' => 'Logo not found'], 404);
+        }
+
+        // The value is stored as /storage/logos/filename.jpg
+        // Convert to actual storage path: logos/filename.jpg
+        $storagePath = str_replace('/storage/', '', $setting->value);
+        $fullPath = storage_path('app/public/' . $storagePath);
+
+        if (!file_exists($fullPath)) {
+            return response()->json(['error' => 'Logo file not found'], 404);
+        }
+
+        $mimeType = mime_content_type($fullPath);
+        $contents = file_get_contents($fullPath);
+
+        return response($contents, 200)
+            ->header('Content-Type', $mimeType)
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            ->header('Access-Control-Allow-Headers', '*')
+            ->header('Cache-Control', 'public, max-age=3600');
+    }
+
+    /**
+     * Serve the logo image file publicly (no auth required) with CORS headers
+     */
+    public function serveLogoImagePublic(Request $request)
+    {
+        // Get any logo - prioritize global (null branch_id), then any branch
+        $setting = Setting::where('category', 'company')
+            ->where('key_name', 'logo')
+            ->whereNotNull('value')
+            ->orderByRaw('branch_id IS NULL DESC') // Global first
+            ->first();
+
+        if (!$setting || !$setting->value) {
+            return response()->json(['error' => 'Logo not found'], 404);
+        }
+
+        // The value is stored as /storage/logos/filename.jpg
+        // Convert to actual storage path: logos/filename.jpg
+        $storagePath = str_replace('/storage/', '', $setting->value);
+        $fullPath = storage_path('app/public/' . $storagePath);
+
+        if (!file_exists($fullPath)) {
+            return response()->json(['error' => 'Logo file not found'], 404);
+        }
+
+        $mimeType = mime_content_type($fullPath);
+        $contents = file_get_contents($fullPath);
+
+        return response($contents, 200)
+            ->header('Content-Type', $mimeType)
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            ->header('Access-Control-Allow-Headers', '*')
+            ->header('Cache-Control', 'public, max-age=3600');
+    }
 }

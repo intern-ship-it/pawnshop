@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
+import { Upload, Image as ImageIcon } from "lucide-react";
 import {
   getStorageItem,
   setStorageItem,
@@ -491,10 +492,164 @@ export default function SettingsScreen() {
 
 // Company Tab
 function CompanyTab({ settings, updateSettings }) {
+  const dispatch = useAppDispatch();
   const company = settings.company;
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isLoadingLogo, setIsLoadingLogo] = useState(true);
+
+  // Load logo on mount
+  useEffect(() => {
+    const loadLogo = async () => {
+      setIsLoadingLogo(true);
+      try {
+        const response = await settingsService.getLogo();
+        console.log("Logo GET response:", response);
+
+        // Note: The API interceptor already unwraps response.data,
+        // so response here is {logo_url: '...', path: '...'} directly
+        if (response?.logo_url) {
+          // Fetch the image as a blob to avoid cross-origin issues
+          console.log(
+            "Attempting to fetch logo as blob from:",
+            response.logo_url
+          );
+          try {
+            const imgResponse = await fetch(response.logo_url);
+            console.log(
+              "Logo fetch response status:",
+              imgResponse.status,
+              imgResponse.ok
+            );
+            if (imgResponse.ok) {
+              const blob = await imgResponse.blob();
+              console.log("Blob created, size:", blob.size);
+              const blobUrl = URL.createObjectURL(blob);
+              console.log("Blob URL created:", blobUrl);
+              setLogoPreview(blobUrl);
+            } else {
+              console.error("Failed to fetch logo image:", imgResponse.status);
+              // Fallback to direct URL
+              setLogoPreview(response.logo_url);
+            }
+          } catch (fetchErr) {
+            console.error("Error fetching logo blob:", fetchErr);
+            // Fallback to direct URL
+            setLogoPreview(response.logo_url);
+          }
+        } else if (response?.path) {
+          // Fallback - construct full URL and fetch as blob
+          const baseUrl =
+            import.meta.env.VITE_API_URL?.replace("/api", "") ||
+            "http://localhost:8000";
+          const fullUrl = baseUrl + response.path;
+          console.log("Fallback: fetching logo from path:", fullUrl);
+          try {
+            const imgResponse = await fetch(fullUrl);
+            if (imgResponse.ok) {
+              const blob = await imgResponse.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              setLogoPreview(blobUrl);
+            }
+          } catch (fetchErr) {
+            console.error("Error fetching logo from path:", fetchErr);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load logo:", err);
+      } finally {
+        setIsLoadingLogo(false);
+      }
+    };
+    loadLogo();
+
+    // Cleanup blob URL on unmount
+    return () => {
+      if (logoPreview && logoPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(logoPreview);
+      }
+    };
+  }, []);
 
   const handleChange = (field, value) => {
     updateSettings("company", { ...company, [field]: value });
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/svg+xml",
+    ];
+    if (!validTypes.includes(file.type)) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Invalid File",
+          message: "Please upload PNG, JPG, or SVG file",
+        })
+      );
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "File Too Large",
+          message: "Logo must be less than 2MB",
+        })
+      );
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const response = await settingsService.uploadLogo(file);
+      console.log("Upload response:", response);
+
+      if (response.success && response.data) {
+        const logoUrl = response.data.logo_url || response.data.path;
+        setLogoPreview(logoUrl);
+
+        // Dispatch event for sidebar/other components to update
+        window.dispatchEvent(
+          new CustomEvent("logoUpdated", { detail: logoUrl })
+        );
+
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Logo Uploaded",
+            message: "Company logo updated successfully",
+          })
+        );
+      } else {
+        throw new Error(response.message || "Upload failed");
+      }
+    } catch (err) {
+      console.error("Logo upload failed:", err);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Upload Failed",
+          message: err.message || "Failed to upload logo. Please try again.",
+        })
+      );
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoPreview(null);
+    window.dispatchEvent(new CustomEvent("logoUpdated", { detail: null }));
   };
 
   return (
@@ -504,6 +659,82 @@ function CompanyTab({ settings, updateSettings }) {
         Company Information
       </h2>
 
+      {/* Logo Upload Section */}
+      <div className="mb-8 p-4 bg-zinc-50 rounded-xl">
+        <label className="block text-sm font-medium text-zinc-700 mb-3">
+          Company Logo
+        </label>
+        <div className="flex items-center gap-6">
+          {/* Logo Preview */}
+          <div className="relative">
+            <div className="w-24 h-24 rounded-xl border-2 border-dashed border-zinc-300 flex items-center justify-center bg-white overflow-hidden">
+              {isLoadingLogo ? (
+                <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+              ) : logoPreview ? (
+                <img
+                  src={logoPreview}
+                  alt="Company Logo"
+                  className="w-full h-full object-contain p-2"
+                  onError={(e) => {
+                    console.error("Image load error:", logoPreview);
+                    setLogoPreview(null);
+                  }}
+                />
+              ) : (
+                <ImageIcon className="w-10 h-10 text-zinc-300" />
+              )}
+            </div>
+            {isUploadingLogo && (
+              <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+              </div>
+            )}
+          </div>
+
+          {/* Upload Controls */}
+          <div className="flex-1">
+            <div className="flex gap-3">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                  disabled={isUploadingLogo}
+                />
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                    "bg-amber-500 text-white hover:bg-amber-600",
+                    isUploadingLogo && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <Upload className="w-4 h-4" />
+                  {logoPreview ? "Change Logo" : "Upload Logo"}
+                </span>
+              </label>
+
+              {logoPreview && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRemoveLogo}
+                  disabled={isUploadingLogo}
+                  className="text-red-500 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Remove
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-zinc-500 mt-2">
+              PNG, JPG, or SVG. Max 2MB. Recommended: 200x200px
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Company Form Fields - THIS WAS MISSING! */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Input
           label="Company Name"
@@ -558,7 +789,6 @@ function CompanyTab({ settings, updateSettings }) {
     </Card>
   );
 }
-
 // ============================================
 // GOLD PRICE TAB - WITH REAL API INTEGRATION
 // ============================================

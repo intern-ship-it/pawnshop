@@ -29,10 +29,12 @@ use App\Http\Controllers\Api\GoldPriceController;
 
 // Public routes
 Route::get('/settings/public/company', [SettingsController::class, 'publicCompanyInfo']);
+Route::get('/settings/logo-image', [SettingsController::class, 'serveLogoImagePublic']); // Public logo image endpoint
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/auth/verify-reset-token', [AuthController::class, 'verifyResetToken']);
 Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -251,6 +253,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/margin-presets', [SettingsController::class, 'storeMarginPreset']);
         Route::put('/margin-presets/{marginPreset}', [SettingsController::class, 'updateMarginPreset']);
         Route::delete('/margin-presets/{marginPreset}', [SettingsController::class, 'deleteMarginPreset']);
+        Route::post('/logo', [SettingsController::class, 'uploadLogo']);
+        Route::get('/logo', [SettingsController::class, 'getLogo']);
+        // logo-image is now a public route
     });
 
     // Users

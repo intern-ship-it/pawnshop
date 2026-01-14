@@ -76,6 +76,9 @@ backend/storage/app/public/customers/*
 backend/storage/app/public/profile-photos/*
 !backend/storage/app/public/profile-photos/.gitkeep
 
+backend/storage/app/public/logos/*
+!backend/storage/app/public/logos/.gitkeep
+
 # Bootstrap cache
 backend/bootstrap/cache/*
 !backend/bootstrap/cache/.gitkeep

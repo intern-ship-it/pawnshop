@@ -10,6 +10,7 @@ import { toggleSidebarCollapse } from "@/features/ui/uiSlice";
 import { logout } from "@/features/auth/authSlice";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
+import { settingsService } from "@/services";
 import {
   LayoutDashboard,
   Users,
@@ -172,6 +173,9 @@ export default function Sidebar() {
   const { sidebarCollapsed } = useAppSelector((state) => state.ui);
   const { user, role, permissions } = useAppSelector((state) => state.auth);
 
+  // Logo state
+  const [companyLogo, setCompanyLogo] = useState(null);
+
   const roleSlug = role?.slug || role || "";
 
   // Company info
@@ -181,6 +185,47 @@ export default function Sidebar() {
     companyName.split(" ").length >= 2
       ? companyName.split(" ")[0][0] + companyName.split(" ")[1][0]
       : companyName.substring(0, 2).toUpperCase();
+
+  // Load logo on mount
+  useEffect(() => {
+    const loadLogo = async () => {
+      try {
+        const response = await settingsService.getLogo();
+        // Note: The API interceptor already unwraps response.data
+        if (response?.logo_url) {
+          // Fetch as blob to avoid cross-origin issues
+          try {
+            const imgResponse = await fetch(response.logo_url);
+            if (imgResponse.ok) {
+              const blob = await imgResponse.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              setCompanyLogo(blobUrl);
+            }
+          } catch (fetchErr) {
+            // Fallback to direct URL
+            setCompanyLogo(response.logo_url);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load logo:", err);
+      }
+    };
+    loadLogo();
+
+    // Listen for logo updates from Settings page
+    const handleLogoUpdate = (e) => {
+      setCompanyLogo(e.detail);
+    };
+    window.addEventListener("logoUpdated", handleLogoUpdate);
+
+    return () => {
+      window.removeEventListener("logoUpdated", handleLogoUpdate);
+      // Cleanup blob URL
+      if (companyLogo && companyLogo.startsWith("blob:")) {
+        URL.revokeObjectURL(companyLogo);
+      }
+    };
+  }, []);
 
   /**
    * Check if user has permission
@@ -236,11 +281,23 @@ export default function Sidebar() {
             sidebarCollapsed && "justify-center w-full"
           )}
         >
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500 flex-shrink-0">
-            <span className="text-lg font-bold text-zinc-900">
-              {sidebarCollapsed ? companyShort[0] : companyShort}
-            </span>
-          </div>
+          {/* Logo Image or Fallback */}
+          {companyLogo ? (
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white overflow-hidden flex-shrink-0">
+              <img
+                src={companyLogo}
+                alt="Logo"
+                className="w-full h-full object-contain p-1"
+                onError={() => setCompanyLogo(null)} // Fallback if image fails
+              />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500 flex-shrink-0">
+              <span className="text-lg font-bold text-zinc-900">
+                {sidebarCollapsed ? companyShort[0] : companyShort}
+              </span>
+            </div>
+          )}
 
           {!sidebarCollapsed && (
             <div className="flex flex-col min-w-0">
