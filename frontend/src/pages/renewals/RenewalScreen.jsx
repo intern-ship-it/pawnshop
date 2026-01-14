@@ -89,6 +89,7 @@ export default function RenewalScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [renewalResult, setRenewalResult] = useState(null);
+  const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
 
   // Fetch banks on mount
   useEffect(() => {
@@ -185,9 +186,12 @@ export default function RenewalScreen() {
     setCalculation(null);
 
     try {
-      // Try searching by receipt number first
-      const response = await pledgeService.getByReceipt(searchQuery.trim());
-      const data = response.data?.data || response.data;
+      // Search by IC number, pledge number, or receipt number
+      const response = await pledgeService.search(searchQuery.trim());
+
+      // The response is paginated, get first result
+      const pledges = response.data?.data || response.data;
+      const data = Array.isArray(pledges) ? pledges[0] : pledges;
 
       if (data) {
         // Transform API response to frontend format
@@ -211,7 +215,7 @@ export default function RenewalScreen() {
           graceEndDate: data.grace_end_date,
           status: data.status,
           renewalCount: data.renewal_count || 0,
-          itemsCount: data.items?.length || 0,
+          itemsCount: data.items?.length || data.items_count || 0,
           items: data.items || [],
           createdAt: data.created_at,
         };
@@ -246,7 +250,7 @@ export default function RenewalScreen() {
           addToast({
             type: "error",
             title: "Not Found",
-            message: "No pledge found with this ID",
+            message: "Pledge not found. Please check the ID and try again.",
           })
         );
       }
@@ -257,7 +261,7 @@ export default function RenewalScreen() {
         addToast({
           type: "error",
           title: "Not Found",
-          message: "No pledge found with this ID",
+          message: "Pledge not found. Please check the ID and try again.",
         })
       );
     } finally {
@@ -322,8 +326,9 @@ export default function RenewalScreen() {
       const data = response.data?.data || response.data;
 
       if (response.data?.success !== false) {
-        // Success
+        // Success - store renewal ID and full data for receipt
         setRenewalResult({
+          id: data.id, // Store DB ID for printing receipt
           renewalId: data.renewal_no || data.id,
           pledgeId: pledge.pledgeNo,
           customerName: pledge.customerName,
@@ -334,6 +339,10 @@ export default function RenewalScreen() {
               : 0,
           newDueDate: data.new_due_date || calculation?.renewal?.new_due_date,
           extensionMonths,
+          interestBreakdown:
+            data.interest_breakdown ||
+            calculation?.calculation?.interest_breakdown ||
+            [],
         });
 
         setShowSuccessModal(true);
@@ -382,6 +391,55 @@ export default function RenewalScreen() {
   };
 
   const daysUntilDue = getDaysUntilDue();
+
+  // Print receipt
+  const handlePrintReceipt = async () => {
+    if (!renewalResult?.id) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Cannot print receipt - renewal ID not found",
+        })
+      );
+      return;
+    }
+
+    setIsPrintingReceipt(true);
+    try {
+      const response = await renewalService.printReceipt(renewalResult.id);
+      const receiptData = response.data?.data || response.data;
+
+      // Here you could open a new window with the receipt or download PDF
+      // For now, just show success
+      console.log("Receipt data:", receiptData);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: "Receipt printed successfully",
+        })
+      );
+
+      // TODO: Implement actual printing logic
+      // window.print() or open PDF in new tab
+    } catch (error) {
+      console.error("Print receipt error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message:
+            error.response?.data?.message ||
+            error.message ||
+            "Failed to print receipt",
+        })
+      );
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
 
   // Animation variants
   const containerVariants = {
@@ -1149,7 +1207,19 @@ export default function RenewalScreen() {
       {/* Success Modal */}
       <Modal
         isOpen={showSuccessModal}
-        onClose={() => {}}
+        onClose={() => {
+          setShowSuccessModal(false);
+          setRenewalResult(null);
+          setSearchQuery("");
+          setPledge(null);
+          setAmountReceived("");
+          setCashAmount("");
+          setTransferAmount("");
+          setBankId("");
+          setReferenceNo("");
+          setExtensionMonths(1);
+          setCalculation(null);
+        }}
         title="Renewal Successful!"
         size="md"
       >
@@ -1211,7 +1281,13 @@ export default function RenewalScreen() {
           </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" fullWidth leftIcon={Printer}>
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={Printer}
+              onClick={handlePrintReceipt}
+              loading={isPrintingReceipt}
+            >
               Print Receipt
             </Button>
             <Button variant="outline" fullWidth leftIcon={MessageSquare}>

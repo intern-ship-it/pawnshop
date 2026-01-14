@@ -6,14 +6,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { loginWithUsername, clearError } from "@/features/auth/authSlice";
+import {
+  loginWithUsername,
+  clearError,
+  fetchCurrentUser,
+  setUser,
+} from "@/features/auth/authSlice";
 import { addToast } from "@/features/ui/uiSlice";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
 import Button from "@/components/common/Button";
-import { User, Lock, Eye, EyeOff, Check } from "lucide-react";
+import { User, Lock, Eye, EyeOff, Check, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getPublicCompanyInfo } from "@/services/api";
+import authService from "@/services/authService";
 
 const demoAccounts = [
   { username: "superadmin", password: "password123", role: "Super Admin" },
@@ -46,10 +52,53 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Auto-login check state
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
   // Company info from settings
   const [companyName, setCompanyName] = useState("PawnSys");
   const [companyShort, setCompanyShort] = useState("PS");
   const [isLoadingCompany, setIsLoadingCompany] = useState(true);
+
+  // AUTO-LOGIN CHECK: Verify existing session on component mount
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      // Clear any previous auth errors first
+      dispatch(clearError());
+
+      // Check if we have a stored token
+      const hasToken = authService.isAuthenticated();
+      const storedUser = authService.getStoredUser();
+
+      if (!hasToken || !storedUser) {
+        // No existing session, show login form
+        setCheckingAuth(false);
+        return;
+      }
+
+      // We have token + user, verify with backend and auto-login
+      try {
+        const response = await dispatch(fetchCurrentUser()).unwrap();
+        if (response) {
+          // Token is valid, user is authenticated - redirect to dashboard
+          dispatch(setUser(response));
+          navigate("/", { replace: true });
+          return;
+        }
+      } catch (error) {
+        // Token expired or invalid, clear local auth data
+        console.warn("Auto-login failed, token may be expired:", error);
+        authService.clearLocalAuth();
+        // Clear the auth error - this is not a user login error
+        dispatch(clearError());
+      }
+
+      // Show login form
+      setCheckingAuth(false);
+    };
+
+    checkExistingAuth();
+  }, [dispatch, navigate]);
 
   // Load company name from API (for public pages) or cached settings
   useEffect(() => {
@@ -191,6 +240,18 @@ export default function Login() {
     setErrors({});
     dispatch(clearError());
   };
+
+  // Show loading screen while checking for existing auth session
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-100">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+          <p className="text-zinc-500">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class StorageController extends Controller
 {
+
     /**
      * List all vaults
      */
@@ -22,14 +23,28 @@ class StorageController extends Controller
 
         $vaults = Vault::where('branch_id', $branchId)
             ->withCount('boxes')
+            ->with(['boxes:id,vault_id,total_slots'])
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(function ($vault) {
+                $totalSlots = $vault->boxes->sum('total_slots');
+                return [
+                    'id' => $vault->id,
+                    'code' => $vault->code,
+                    'name' => $vault->name,
+                    'description' => $vault->description,
+                    'is_active' => $vault->is_active,
+                    'boxes_count' => $vault->boxes_count,
+                    'total_slots' => $totalSlots,
+                    'total_boxes' => $vault->total_boxes,
+                ];
+            });
 
         return $this->success($vaults);
     }
 
     /**
-     * Create vault
+     * Create vault with optional boxes
      */
     public function createVault(Request $request): JsonResponse
     {
@@ -37,6 +52,7 @@ class StorageController extends Controller
             'code' => 'required|string|max:20',
             'name' => 'required|string|max:100',
             'description' => 'nullable|string',
+            'number_of_boxes' => 'nullable|integer|min:0|max:100',
         ]);
 
         $branchId = $request->user()->branch_id;
@@ -50,14 +66,50 @@ class StorageController extends Controller
             return $this->error('Vault code already exists', 422);
         }
 
-        $vault = Vault::create([
-            'branch_id' => $branchId,
-            'code' => $validated['code'],
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
-        ]);
+        DB::beginTransaction();
 
-        return $this->success($vault, 'Vault created successfully', 201);
+        try {
+            $numberOfBoxes = $validated['number_of_boxes'] ?? 0;
+            $slotsPerBox = 20; // Fixed 20 slots per box
+
+            $vault = Vault::create([
+                'branch_id' => $branchId,
+                'code' => $validated['code'],
+                'name' => $validated['name'],
+                'description' => $validated['description'] ?? null,
+                'total_boxes' => $numberOfBoxes,
+            ]);
+
+            // Create boxes with 20 slots each
+            for ($boxNum = 1; $boxNum <= $numberOfBoxes; $boxNum++) {
+                $box = Box::create([
+                    'vault_id' => $vault->id,
+                    'box_number' => $boxNum,
+                    'name' => 'Box ' . $boxNum,
+                    'total_slots' => $slotsPerBox,
+                ]);
+
+                // Create 20 slots per box
+                for ($slotNum = 1; $slotNum <= $slotsPerBox; $slotNum++) {
+                    Slot::create([
+                        'box_id' => $box->id,
+                        'slot_number' => $slotNum,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return $this->success(
+                $vault->load('boxes'),
+                'Vault created successfully with ' . $numberOfBoxes . ' boxes',
+                201
+            );
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to create vault: ' . $e->getMessage(), 500);
+        }
     }
 
     /**
@@ -113,9 +165,11 @@ class StorageController extends Controller
         }
 
         $boxes = $vault->boxes()
-            ->withCount(['slots as occupied_slots' => function ($q) {
-                $q->where('is_occupied', true);
-            }])
+            ->withCount([
+                    'slots as occupied_slots' => function ($q) {
+                        $q->where('is_occupied', true);
+                    }
+                ])
             ->orderBy('box_number')
             ->get();
 
@@ -129,15 +183,25 @@ class StorageController extends Controller
     {
         $validated = $request->validate([
             'vault_id' => 'required|exists:vaults,id',
-            'box_number' => 'required|integer|min:1',
+            'box_number' => 'nullable|integer|min:1',
             'name' => 'nullable|string|max:50',
             'total_slots' => 'required|integer|min:1|max:100',
+            'description' => 'nullable|string|max:255',
         ]);
 
         $vault = Vault::find($validated['vault_id']);
 
         if ($vault->branch_id !== $request->user()->branch_id) {
             return $this->error('Unauthorized', 403);
+        }
+
+        // Auto-generate box_number if not provided
+        if (empty($validated['box_number'])) {
+            $lastBox = Box::where('vault_id', $validated['vault_id'])
+                ->orderBy('box_number', 'desc')
+                ->first();
+
+            $validated['box_number'] = $lastBox ? ($lastBox->box_number + 1) : 1;
         }
 
         // Check unique box number
@@ -155,8 +219,9 @@ class StorageController extends Controller
             $box = Box::create([
                 'vault_id' => $validated['vault_id'],
                 'box_number' => $validated['box_number'],
-                'name' => $validated['name'] ?? null,
+                'name' => $validated['name'] ?? ('Box ' . $validated['box_number']),
                 'total_slots' => $validated['total_slots'],
+                'description' => $validated['description'] ?? null,
             ]);
 
             // Create slots
@@ -172,7 +237,7 @@ class StorageController extends Controller
 
             DB::commit();
 
-            return $this->success($box, 'Box created successfully', 201);
+            return $this->success($box->load('vault'), 'Box created successfully', 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -312,7 +377,8 @@ class StorageController extends Controller
 
         return $this->success([
             'slot' => $slot,
-            'location_string' => sprintf('%s / Box %d / Slot %d',
+            'location_string' => sprintf(
+                '%s / Box %d / Slot %d',
                 $slot->box->vault->name,
                 $slot->box->box_number,
                 $slot->slot_number

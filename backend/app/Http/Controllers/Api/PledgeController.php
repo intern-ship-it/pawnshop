@@ -231,6 +231,7 @@ class PledgeController extends Controller
             'items.*.box_id' => 'nullable|exists:boxes,id',
             'items.*.slot_id' => 'nullable|exists:slots,id',
             'loan_percentage' => 'required|numeric|min:1|max:100',
+            'handling_fee' => 'nullable|numeric|min:0',
             'payment' => 'required|array',
             'payment.method' => 'required|in:cash,transfer,partial',
             'payment.cash_amount' => 'required_if:payment.method,cash,partial|numeric|min:0',
@@ -309,6 +310,8 @@ class PledgeController extends Controller
             }
 
             $loanAmount = $netValue * ($validated['loan_percentage'] / 100);
+            $handlingFee = $validated['handling_fee'] ?? 0;
+            $payoutAmount = max(0, $loanAmount - $handlingFee);
             $dueDate = Carbon::today()->addMonths(6);
 
             // Create pledge
@@ -323,6 +326,8 @@ class PledgeController extends Controller
                 'net_value' => $netValue,
                 'loan_percentage' => $validated['loan_percentage'],
                 'loan_amount' => $loanAmount,
+                'handling_fee' => $handlingFee,
+                'payout_amount' => $payoutAmount,
                 'interest_rate' => config('pawnsys.interest.standard', 0.5),
                 'interest_rate_extended' => config('pawnsys.interest.extended', 1.5),
                 'interest_rate_overdue' => config('pawnsys.interest.overdue', 2.0),

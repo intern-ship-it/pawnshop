@@ -4,6 +4,7 @@ import { useAppDispatch } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
 import { pledgeService } from "@/services";
+import { getToken } from "@/services/api";
 import {
   formatCurrency,
   formatDate,
@@ -232,7 +233,7 @@ export default function PledgeDetail() {
   // Handle print - downloads PDF from PrintController
   const handlePrint = async (copyType = "customer") => {
     try {
-      const token = localStorage.getItem("pawnsys_token"); // ← FIXED!
+      const token = getToken();
 
       if (!token) {
         dispatch(

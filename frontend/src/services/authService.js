@@ -14,8 +14,17 @@ const REMEMBER_KEY = 'pawnsys_remember'
  * Get the correct storage based on remember me choice
  */
 const getStorage = () => {
-  const remembered = localStorage.getItem(REMEMBER_KEY) === 'true'
-  return remembered ? localStorage : sessionStorage
+  const remembered = localStorage.getItem(REMEMBER_KEY)
+  if (remembered === 'true') {
+    return localStorage
+  } else if (remembered === 'false') {
+    return sessionStorage
+  }
+  // Fallback: check which storage has the token
+  if (localStorage.getItem(TOKEN_KEY)) {
+    return localStorage
+  }
+  return sessionStorage
 }
 
 /**
@@ -24,13 +33,13 @@ const getStorage = () => {
 export const getToken = () => {
   // Check localStorage first (for remember me)
   const remembered = localStorage.getItem(REMEMBER_KEY)
-  
+
   if (remembered === 'true') {
     return localStorage.getItem(TOKEN_KEY)
   } else if (remembered === 'false') {
     return sessionStorage.getItem(TOKEN_KEY)
   }
-  
+
   // Fallback: check both (for backward compatibility)
   return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
 }
@@ -59,23 +68,23 @@ const authService = {
    */
   async loginWithUsername(username, password, rememberMe = false) {
     const response = await apiPost('/auth/login', { username, password })
-    
+
     if (response.success && response.data?.token) {
       // Choose storage based on rememberMe
       const storage = rememberMe ? localStorage : sessionStorage
-      
+
       // Clear any existing tokens from both storages first
       localStorage.removeItem(TOKEN_KEY)
       sessionStorage.removeItem(TOKEN_KEY)
-      
+
       // Store in correct storage
       storage.setItem(TOKEN_KEY, response.data.token)
       storage.setItem(USER_KEY, JSON.stringify(response.data.user))
-      
+
       // Remember the choice for token retrieval
       localStorage.setItem(REMEMBER_KEY, rememberMe ? 'true' : 'false')
     }
-    
+
     return response
   },
 
@@ -84,18 +93,18 @@ const authService = {
    */
   async login(email, password, rememberMe = false) {
     const response = await apiPost('/auth/login', { email, password })
-    
+
     if (response.success && response.data?.token) {
       const storage = rememberMe ? localStorage : sessionStorage
-      
+
       localStorage.removeItem(TOKEN_KEY)
       sessionStorage.removeItem(TOKEN_KEY)
-      
+
       storage.setItem(TOKEN_KEY, response.data.token)
       storage.setItem(USER_KEY, JSON.stringify(response.data.user))
       localStorage.setItem(REMEMBER_KEY, rememberMe ? 'true' : 'false')
     }
-    
+
     return response
   },
 
@@ -117,17 +126,14 @@ const authService = {
   },
 
   /**
-   * Clear local authentication data from BOTH storages
+   * Clear ALL local data on logout (localStorage + sessionStorage)
    */
   clearLocalAuth() {
-    // Clear from localStorage
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-    localStorage.removeItem(REMEMBER_KEY)
-    
-    // Clear from sessionStorage
-    sessionStorage.removeItem(TOKEN_KEY)
-    sessionStorage.removeItem(USER_KEY)
+    // Clear ALL localStorage data
+    localStorage.clear()
+
+    // Clear ALL sessionStorage data
+    sessionStorage.clear()
   },
 
   /**
@@ -164,12 +170,12 @@ const authService = {
    */
   async refreshToken() {
     const response = await apiPost('/auth/refresh')
-    
+
     if (response.success && response.data?.token) {
       const storage = getStorage()
       storage.setItem(TOKEN_KEY, response.data.token)
     }
-    
+
     return response
   },
 
@@ -205,14 +211,14 @@ const authService = {
     try {
       const storage = getStorage()
       const userStr = storage.getItem(USER_KEY)
-      
+
       // Fallback to other storage if not found
       if (!userStr) {
         const fallbackStorage = storage === localStorage ? sessionStorage : localStorage
         const fallbackUser = fallbackStorage.getItem(USER_KEY)
         return fallbackUser ? JSON.parse(fallbackUser) : null
       }
-      
+
       return JSON.parse(userStr)
     } catch (error) {
       console.error('Error parsing stored user:', error)
@@ -233,9 +239,9 @@ const authService = {
   hasPermission(permission) {
     const user = this.getStoredUser()
     if (!user?.permissions) return false
-    
+
     return Object.keys(user.permissions).includes(permission) ||
-           Object.values(user.permissions).includes(permission)
+      Object.values(user.permissions).includes(permission)
   },
 
   /**
@@ -244,10 +250,10 @@ const authService = {
   hasRole(roles) {
     const user = this.getStoredUser()
     if (!user?.role) return false
-    
+
     const roleSlug = user.role?.slug || user.role
     const roleArray = Array.isArray(roles) ? roles : [roles]
-    
+
     return roleArray.includes(roleSlug)
   },
 

@@ -25,6 +25,8 @@ class Pledge extends Model
         'net_value',
         'loan_percentage',
         'loan_amount',
+        'handling_fee',
+        'payout_amount',
         'interest_rate',
         'interest_rate_extended',
         'interest_rate_overdue',
@@ -54,6 +56,8 @@ class Pledge extends Model
         'net_value' => 'decimal:2',
         'loan_percentage' => 'decimal:2',
         'loan_amount' => 'decimal:2',
+        'handling_fee' => 'decimal:2',
+        'payout_amount' => 'decimal:2',
         'interest_rate' => 'decimal:2',
         'interest_rate_extended' => 'decimal:2',
         'interest_rate_overdue' => 'decimal:2',
@@ -146,15 +150,15 @@ class Pledge extends Model
     public function getCurrentInterestRateAttribute(): float
     {
         $months = $this->months_elapsed;
-        
+
         if ($this->isOverdue()) {
             return $this->interest_rate_overdue;
         }
-        
+
         if ($months > 6) {
             return $this->interest_rate_extended;
         }
-        
+
         return $this->interest_rate;
     }
 
@@ -178,7 +182,7 @@ class Pledge extends Model
             ->orderBy('id', 'desc')
             ->first();
 
-        $number = $lastPledge ? (int)substr($lastPledge->pledge_no, -4) + 1 : 1;
+        $number = $lastPledge ? (int) substr($lastPledge->pledge_no, -4) + 1 : 1;
         return sprintf('PLG-%s-%s-%04d', $branch->code, $year, $number);
     }
 
@@ -191,7 +195,7 @@ class Pledge extends Model
             ->orderBy('id', 'desc')
             ->first();
 
-        $number = $lastPledge ? (int)substr($lastPledge->receipt_no, -4) + 1 : 1;
+        $number = $lastPledge ? (int) substr($lastPledge->receipt_no, -4) + 1 : 1;
         return sprintf('RCP-%s-%s-%04d', $branch->code, $year, $number);
     }
 }

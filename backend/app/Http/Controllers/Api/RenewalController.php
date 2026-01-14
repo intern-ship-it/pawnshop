@@ -295,4 +295,51 @@ class RenewalController extends Controller
 
         return $this->success($renewal);
     }
+
+    /**
+     * Print renewal receipt
+     */
+    public function printReceipt(Request $request, Renewal $renewal): JsonResponse
+    {
+        if ($renewal->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        // Load relationships for receipt
+        $renewal->load([
+            'pledge.customer',
+            'pledge.items.category',
+            'pledge.branch',
+            'interestBreakdown',
+            'bank',
+            'createdBy:id,name'
+        ]);
+
+        // Return receipt data
+        return $this->success([
+            'renewal' => $renewal,
+            'receipt_data' => [
+                'renewal_no' => $renewal->renewal_no,
+                'date' => $renewal->created_at->format('d/m/Y'),
+                'time' => $renewal->created_at->format('h:i A'),
+                'customer_name' => $renewal->pledge->customer->name,
+                'customer_ic' => $renewal->pledge->customer->ic_number,
+                'pledge_no' => $renewal->pledge->pledge_no,
+                'loan_amount' => number_format($renewal->pledge->loan_amount, 2),
+                'renewal_months' => $renewal->renewal_months,
+                'previous_due_date' => $renewal->previous_due_date->format('d/m/Y'),
+                'new_due_date' => $renewal->new_due_date->format('d/m/Y'),
+                'interest_amount' => number_format($renewal->interest_amount, 2),
+                'handling_fee' => number_format($renewal->handling_fee, 2),
+                'total_payable' => number_format($renewal->total_payable, 2),
+                'payment_method' => ucfirst($renewal->payment_method),
+                'cash_amount' => number_format($renewal->cash_amount, 2),
+                'transfer_amount' => number_format($renewal->transfer_amount, 2),
+                'bank_name' => $renewal->bank->name ?? null,
+                'reference_no' => $renewal->reference_no,
+                'processed_by' => $renewal->createdBy->name,
+                'interest_breakdown' => $renewal->interestBreakdown,
+            ],
+        ], 'Receipt data retrieved');
+    }
 }

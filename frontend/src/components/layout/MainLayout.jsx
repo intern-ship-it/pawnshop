@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import Toast from "@/components/common/Toast";
+import { GlobalCameraModal } from "@/components/common";
 import { Loader2 } from "lucide-react";
 import { setSettings } from "@/features/ui/uiSlice";
 import settingsService from "@/services/settingsService";
@@ -32,30 +33,33 @@ export default function MainLayout() {
       const hasToken = authService.isAuthenticated();
       const storedUser = authService.getStoredUser();
 
+      // No token at all - redirect to login
       if (!hasToken) {
         setIsVerifying(false);
         navigate("/login", { replace: true });
         return;
       }
 
+      // Already authenticated in Redux - no need to verify again
       if (isAuthenticated && user) {
         setIsVerifying(false);
         return;
       }
 
-      if (storedUser && !user) {
-        try {
-          const response = await dispatch(fetchCurrentUser()).unwrap();
-          if (response) {
-            setIsVerifying(false);
-            return;
-          }
-        } catch (error) {
-          console.warn("Token verification failed:", error);
-          authService.clearLocalAuth();
-          dispatch(logoutSuccess());
-          navigate("/login", { replace: true });
+      // We have a token, verify it with the backend
+      try {
+        const response = await dispatch(fetchCurrentUser()).unwrap();
+        if (response) {
+          // Token is valid - user is set by fetchCurrentUser.fulfilled in Redux
+          setIsVerifying(false);
+          return;
         }
+      } catch (error) {
+        console.warn("Token verification failed:", error);
+        authService.clearLocalAuth();
+        dispatch(logoutSuccess());
+        navigate("/login", { replace: true });
+        return;
       }
 
       setIsVerifying(false);
@@ -144,6 +148,8 @@ export default function MainLayout() {
           <Toast key={toast.id} {...toast} />
         ))}
       </div>
+
+      <GlobalCameraModal />
     </div>
   );
 }

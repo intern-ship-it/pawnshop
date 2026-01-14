@@ -22,6 +22,12 @@ class Category extends Model
         'is_active' => 'boolean',
     ];
 
+    // Relationships
+    public function pledgeItems()
+    {
+        return $this->hasMany(\App\Models\PledgeItem::class, 'category_id');
+    }
+
     public function getNameAttribute(): string
     {
         return app()->getLocale() === 'ms' ? $this->name_ms : $this->name_en;

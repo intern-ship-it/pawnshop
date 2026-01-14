@@ -21,7 +21,10 @@ class Customer extends Model
         'date_of_birth',
         'age',
         'nationality',
+        'occupation',
         'phone',
+        'country_code',
+        'whatsapp',
         'phone_alt',
         'email',
         'address_line1',
@@ -100,7 +103,7 @@ class Customer extends Model
             ->orderBy('id', 'desc')
             ->first();
 
-        $number = $lastCustomer ? (int)substr($lastCustomer->customer_no, -4) + 1 : 1;
+        $number = $lastCustomer ? (int) substr($lastCustomer->customer_no, -4) + 1 : 1;
         return sprintf('CUST-%s-%04d', $branch->code, $number);
     }
 }

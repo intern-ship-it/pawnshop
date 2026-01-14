@@ -61,7 +61,16 @@ export default function MarginPresetsTab() {
       const response = await settingsService.getMarginPresets();
       if (response.success) {
         const data = response.data?.data || response.data || [];
-        setPresets(data);
+        // Normalize data - map backend fields to frontend fields
+        const normalizedData = data.map((item) => ({
+          ...item,
+          value: item.margin_percentage || item.value,
+          label:
+            item.name ||
+            item.label ||
+            `${item.margin_percentage || item.value}%`,
+        }));
+        setPresets(normalizedData);
       } else {
         throw new Error(response.message || "Failed to fetch margin presets");
       }
@@ -89,7 +98,7 @@ export default function MarginPresetsTab() {
     }
 
     // Check if value already exists
-    if (presets.some((p) => p.value === value)) {
+    if (presets.some((p) => (p.margin_percentage || p.value) === value)) {
       dispatch(
         addToast({
           id: Date.now(),
@@ -109,7 +118,6 @@ export default function MarginPresetsTab() {
         is_default: formData.is_default,
         sort_order: presets.length + 1,
       };
-
       const response = await settingsService.createMarginPreset(payload);
 
       if (response.success) {
@@ -171,7 +179,13 @@ export default function MarginPresetsTab() {
     }
 
     // Check if value already exists (excluding current)
-    if (presets.some((p) => p.value === value && p.id !== editingPreset.id)) {
+    if (
+      presets.some(
+        (p) =>
+          (p.margin_percentage || p.value) === value &&
+          p.id !== editingPreset.id
+      )
+    ) {
       dispatch(
         addToast({
           id: Date.now(),

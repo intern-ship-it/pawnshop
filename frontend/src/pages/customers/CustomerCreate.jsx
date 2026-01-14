@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { addCustomer, setCustomers } from "@/features/customers/customersSlice";
-import { addToast } from "@/features/ui/uiSlice";
+import { addToast, openCamera, closeCamera } from "@/features/ui/uiSlice";
 import {
   getStorageItem,
   setStorageItem,
@@ -13,7 +13,7 @@ import { formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { Card, Button, Input, Select } from "@/components/common";
+import { Card, Button, Input, Select, PhoneInput } from "@/components/common";
 import { customerService } from "@/services";
 import {
   ArrowLeft,
@@ -109,6 +109,10 @@ export default function CustomerCreate() {
   const [touched, setTouched] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sameAsPhone, setSameAsPhone] = useState(true);
+  const [currentCaptureType, setCurrentCaptureType] = useState(null); // 'icFront', 'icBack', or 'profile'
+
+  // Get camera state from Redux
+  const { capturedImage } = useAppSelector((state) => state.ui.camera);
 
   // Load customers on mount
   useEffect(() => {
@@ -123,10 +127,111 @@ export default function CustomerCreate() {
     }
   }, [formData.phone, sameAsPhone]);
 
-  // Extract DOB from IC
+  // Malaysian state codes mapping (digits 7-8 of IC)
+  const stateCodeMap = {
+    "01": "Johor",
+    21: "Johor",
+    22: "Johor",
+    23: "Johor",
+    24: "Johor",
+    "02": "Kedah",
+    25: "Kedah",
+    26: "Kedah",
+    27: "Kedah",
+    "03": "Kelantan",
+    28: "Kelantan",
+    29: "Kelantan",
+    "04": "Melaka",
+    30: "Melaka",
+    "05": "Negeri Sembilan",
+    31: "Negeri Sembilan",
+    59: "Negeri Sembilan",
+    "06": "Pahang",
+    32: "Pahang",
+    33: "Pahang",
+    "07": "Pulau Pinang",
+    34: "Pulau Pinang",
+    35: "Pulau Pinang",
+    "08": "Perak",
+    36: "Perak",
+    37: "Perak",
+    38: "Perak",
+    39: "Perak",
+    "09": "Perlis",
+    40: "Perlis",
+    10: "Selangor",
+    41: "Selangor",
+    42: "Selangor",
+    43: "Selangor",
+    44: "Selangor",
+    11: "Terengganu",
+    45: "Terengganu",
+    46: "Terengganu",
+    12: "Sabah",
+    47: "Sabah",
+    48: "Sabah",
+    49: "Sabah",
+    13: "Sarawak",
+    50: "Sarawak",
+    51: "Sarawak",
+    52: "Sarawak",
+    53: "Sarawak",
+    14: "Kuala Lumpur",
+    54: "Kuala Lumpur",
+    55: "Kuala Lumpur",
+    56: "Kuala Lumpur",
+    57: "Kuala Lumpur",
+    15: "Labuan",
+    58: "Labuan",
+    16: "Putrajaya",
+  };
+
+  // Postcode mapping by state (starting postcode of capital city)
+  const statePostcodeMap = {
+    Johor: "80000", // Johor Bahru: 80000-81900
+    Kedah: "05000", // Alor Setar: 05000-06650
+    Kelantan: "15000", // Kota Bharu: 15000-16810
+    Melaka: "75000", // Melaka City: 75000-75990
+    "Negeri Sembilan": "70000", // Seremban: 70000-71900
+    Pahang: "25000", // Kuantan: 25000-26900
+    "Pulau Pinang": "10000", // George Town: 10000-14400
+    Perak: "30000", // Ipoh: 30000-31650
+    Perlis: "01000", // Kangar: 01000-02600
+    Selangor: "40000", // Shah Alam: 40000-40920
+    Terengganu: "20000", // Kuala Terengganu: 20000-21810
+    Sabah: "88000", // Kota Kinabalu: 88000-89509
+    Sarawak: "93000", // Kuching: 93000-93990
+    "Kuala Lumpur": "50000", // KL City: 50000-60000
+    Labuan: "87000", // Labuan: 87000-87033
+    Putrajaya: "62000", // Putrajaya: 62000-62988
+  };
+
+  // City mapping by state (official capital cities)
+  const stateCityMap = {
+    Johor: "Johor Bahru",
+    Kedah: "Alor Setar",
+    Kelantan: "Kota Bharu",
+    Melaka: "Melaka City",
+    "Negeri Sembilan": "Seremban",
+    Pahang: "Kuantan",
+    "Pulau Pinang": "George Town",
+    Perak: "Ipoh",
+    Perlis: "Kangar",
+    Selangor: "Shah Alam",
+    Terengganu: "Kuala Terengganu",
+    Sabah: "Kota Kinabalu",
+    Sarawak: "Kuching",
+    "Kuala Lumpur": "Kuala Lumpur",
+    Labuan: "Labuan",
+    Putrajaya: "Putrajaya",
+  };
+
+  // Extract DOB, Gender, and State from IC
   useEffect(() => {
     const ic = formData.icNumber.replace(/[-\s]/g, "");
+
     if (ic.length >= 6) {
+      // Extract DOB
       const year = ic.substring(0, 2);
       const month = ic.substring(2, 4);
       const day = ic.substring(4, 6);
@@ -141,12 +246,53 @@ export default function CustomerCreate() {
         setFormData((prev) => ({ ...prev, dateOfBirth: dob }));
       }
     }
+
+    if (ic.length >= 8) {
+      // Extract state from digits 7-8
+      const stateCode = ic.substring(6, 8);
+      const state = stateCodeMap[stateCode];
+      if (state) {
+        const postcode = statePostcodeMap[state];
+        const city = stateCityMap[state];
+        setFormData((prev) => ({
+          ...prev,
+          state,
+          city: city || prev.city,
+          postcode: postcode || prev.postcode,
+        }));
+      }
+    }
+
+    if (ic.length === 12) {
+      // Extract gender from last digit (odd=male, even=female)
+      const lastDigit = parseInt(ic.substring(11, 12));
+      const gender = lastDigit % 2 === 0 ? "female" : "male";
+      setFormData((prev) => ({ ...prev, gender }));
+    }
   }, [formData.icNumber]);
 
   // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Auto-format IC number with dashes
+    if (name === "icNumber") {
+      const cleaned = value.replace(/[-\s]/g, "");
+      let formatted = cleaned;
+
+      if (cleaned.length > 6 && cleaned.length <= 8) {
+        formatted = `${cleaned.slice(0, 6)}-${cleaned.slice(6)}`;
+      } else if (cleaned.length > 8) {
+        formatted = `${cleaned.slice(0, 6)}-${cleaned.slice(
+          6,
+          8
+        )}-${cleaned.slice(8, 12)}`;
+      }
+
+      setFormData((prev) => ({ ...prev, [name]: formatted }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
 
     // Clear error on change
     if (errors[name]) {
@@ -185,8 +331,10 @@ export default function CustomerCreate() {
         }
         break;
       case "phone":
-        if (!value.trim()) error = "Phone number is required";
-        else if (!validatePhone(value)) error = "Invalid phone format";
+        if (!value || !value.trim()) error = "Phone number is required";
+        else if (!value.startsWith("+"))
+          error = "Phone must include country code";
+        else if (value.length < 10) error = "Phone number is too short";
         break;
       case "email":
         if (value && !validateEmail(value)) error = "Invalid email format";
@@ -313,6 +461,61 @@ export default function CustomerCreate() {
     }
   };
 
+  // Handle camera capture
+  const handleCameraCapture = (type) => {
+    setCurrentCaptureType(type);
+    dispatch(openCamera({ contextId: type }));
+  };
+
+  // Process captured image from camera
+  useEffect(() => {
+    if (capturedImage && currentCaptureType) {
+      // Convert base64 to File object
+      fetch(capturedImage)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const file = new File([blob], `${currentCaptureType}.jpg`, {
+            type: "image/jpeg",
+          });
+
+          // Set the image based on type
+          switch (currentCaptureType) {
+            case "icFront":
+              setIcFrontImage(capturedImage);
+              setIcFrontFile(file);
+              setErrors((prev) => ({ ...prev, icFront: null }));
+              break;
+            case "icBack":
+              setIcBackImage(capturedImage);
+              setIcBackFile(file);
+              setErrors((prev) => ({ ...prev, icBack: null }));
+              break;
+            case "profile":
+              setProfilePhoto(capturedImage);
+              setProfilePhotoFile(file);
+              break;
+          }
+
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Photo Captured",
+              message: `${
+                currentCaptureType === "icFront"
+                  ? "IC Front"
+                  : currentCaptureType === "icBack"
+                  ? "IC Back"
+                  : "Profile Photo"
+              } captured successfully`,
+            })
+          );
+
+          // Reset capture type
+          setCurrentCaptureType(null);
+        });
+    }
+  }, [capturedImage, currentCaptureType, dispatch]);
+
   // Handle form submit - API INTEGRATED
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -331,19 +534,40 @@ export default function CustomerCreate() {
     setIsSubmitting(true);
 
     try {
+      // Parse phone number to extract country code
+      const parsePhoneNumber = (phoneValue) => {
+        if (!phoneValue) return { countryCode: "+60", phone: "" };
+
+        // Phone is in E.164 format (e.g., "+60123456789")
+        const match = phoneValue.match(/^(\+\d{1,4})(.+)$/);
+        if (match) {
+          return {
+            countryCode: match[1],
+            phone: match[2].replace(/\s/g, ""),
+          };
+        }
+        return { countryCode: "+60", phone: phoneValue };
+      };
+
+      const parsedPhone = parsePhoneNumber(formData.phone);
+      const parsedWhatsApp = parsePhoneNumber(
+        formData.whatsapp || formData.phone
+      );
+
       // Prepare data for API
       const customerData = {
         name: formData.name.trim(),
         ic_number: formData.icNumber.replace(/[-\s]/g, ""),
         ic_type: "mykad",
-        phone: formData.phone.trim(),
-        whatsapp: formData.whatsapp.trim() || formData.phone.trim(),
+        phone: parsedPhone.phone,
+        country_code: parsedPhone.countryCode,
+        whatsapp: parsedWhatsApp.phone,
         email: formData.email.trim() || null,
         address: formData.address.trim(),
-        city: formData.city.trim() || null, // ADD
-        state: formData.state || null, // ADD
-        postcode: formData.postcode.trim() || null, // ADD
-        nationality: formData.nationality || "Malaysian", // ADD
+        city: formData.city.trim() || null,
+        state: formData.state || null,
+        postcode: formData.postcode.trim() || null,
+        nationality: formData.nationality || "Malaysian",
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
         occupation: formData.occupation.trim() || null,
@@ -569,29 +793,40 @@ export default function CustomerCreate() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Phone */}
                   <div>
-                    <Input
+                    <PhoneInput
                       label="Phone Number"
-                      name="phone"
-                      placeholder="01X-XXX XXXX"
                       value={formData.phone}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
+                      onChange={(value) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          phone: value || "",
+                        }));
+                        if (errors.phone) {
+                          setErrors((prev) => ({ ...prev, phone: null }));
+                        }
+                      }}
                       error={touched.phone && errors.phone}
                       required
-                      leftIcon={Phone}
+                      placeholder="Enter phone number"
+                      defaultCountry="MY"
+                      helperText="Include country code (e.g., +60 for Malaysia)"
                     />
                   </div>
 
                   {/* WhatsApp */}
                   <div>
-                    <Input
+                    <PhoneInput
                       label="WhatsApp Number"
-                      name="whatsapp"
-                      placeholder="01X-XXX XXXX"
                       value={formData.whatsapp}
-                      onChange={handleChange}
+                      onChange={(value) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          whatsapp: value || "",
+                        }));
+                      }}
                       disabled={sameAsPhone}
-                      leftIcon={Phone}
+                      placeholder="Enter WhatsApp number"
+                      defaultCountry="MY"
                     />
                     <label className="flex items-center gap-2 mt-2 cursor-pointer">
                       <input
@@ -644,6 +879,7 @@ export default function CustomerCreate() {
                       placeholder="Enter city"
                       value={formData.city}
                       onChange={handleChange}
+                      hint="Auto-filled from IC state"
                     />
                   </div>
 
@@ -656,6 +892,7 @@ export default function CustomerCreate() {
                       value={formData.postcode}
                       onChange={handleChange}
                       maxLength={5}
+                      hint="Auto-filled from IC state"
                     />
                   </div>
 
@@ -722,6 +959,7 @@ export default function CustomerCreate() {
                       ref={icFrontRef}
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       onChange={(e) => handleImageUpload(e, "icFront")}
                       className="hidden"
                     />
@@ -732,48 +970,60 @@ export default function CustomerCreate() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
-                          className="relative"
+                          className="relative group"
                         >
-                          <img
-                            src={icFrontImage}
-                            alt="IC Front"
-                            className="w-full h-40 object-cover rounded-lg border border-zinc-200"
-                          />
+                          <div className="w-full h-48 bg-zinc-900 rounded-lg flex items-center justify-center overflow-hidden border border-zinc-200">
+                            <img
+                              src={icFrontImage}
+                              alt="IC Front"
+                              className="max-w-full max-h-full object-contain"
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeImage("icFront")}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            className="absolute top-2 right-2 p-1.5 bg-red-500/80 text-white rounded-full hover:bg-red-600 transition-colors backdrop-blur-sm opacity-0 group-hover:opacity-100"
                           >
                             <X className="w-4 h-4" />
                           </button>
-                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-emerald-500 text-white text-xs rounded-full flex items-center gap-1">
+                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-emerald-500/90 text-white text-xs rounded-full flex items-center gap-1 backdrop-blur-sm">
                             <Check className="w-3 h-3" />
                             Uploaded
                           </div>
                         </motion.div>
                       ) : (
-                        <motion.button
-                          key="upload"
-                          type="button"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          onClick={() => icFrontRef.current?.click()}
-                          className={cn(
-                            "w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors",
-                            errors.icFront
-                              ? "border-red-300 bg-red-50 text-red-500"
-                              : "border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500"
-                          )}
-                        >
-                          <Upload className="w-8 h-8" />
-                          <span className="text-sm font-medium">
-                            Upload IC Front
-                          </span>
-                          <span className="text-xs">
-                            Click or drag file here
-                          </span>
-                        </motion.button>
+                        <div className="space-y-2">
+                          <motion.button
+                            key="upload"
+                            type="button"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            onClick={() => icFrontRef.current?.click()}
+                            className={cn(
+                              "w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors",
+                              errors.icFront
+                                ? "border-red-300 bg-red-50 text-red-500"
+                                : "border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500"
+                            )}
+                          >
+                            <Upload className="w-8 h-8" />
+                            <span className="text-sm font-medium">
+                              Upload IC Front
+                            </span>
+                            <span className="text-xs">
+                              Click to upload or use camera
+                            </span>
+                          </motion.button>
+                          <button
+                            type="button"
+                            onClick={() => handleCameraCapture("icFront")}
+                            className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                          >
+                            <Camera className="w-4 h-4" />
+                            Take Photo with Camera
+                          </button>
+                        </div>
                       )}
                     </AnimatePresence>
                     {errors.icFront && (
@@ -793,6 +1043,7 @@ export default function CustomerCreate() {
                       ref={icBackRef}
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       onChange={(e) => handleImageUpload(e, "icBack")}
                       className="hidden"
                     />
@@ -803,48 +1054,60 @@ export default function CustomerCreate() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
-                          className="relative"
+                          className="relative group"
                         >
-                          <img
-                            src={icBackImage}
-                            alt="IC Back"
-                            className="w-full h-40 object-cover rounded-lg border border-zinc-200"
-                          />
+                          <div className="w-full h-48 bg-zinc-900 rounded-lg flex items-center justify-center overflow-hidden border border-zinc-200">
+                            <img
+                              src={icBackImage}
+                              alt="IC Back"
+                              className="max-w-full max-h-full object-contain"
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeImage("icBack")}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            className="absolute top-2 right-2 p-1.5 bg-red-500/80 text-white rounded-full hover:bg-red-600 transition-colors backdrop-blur-sm opacity-0 group-hover:opacity-100"
                           >
                             <X className="w-4 h-4" />
                           </button>
-                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-emerald-500 text-white text-xs rounded-full flex items-center gap-1">
+                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-emerald-500/90 text-white text-xs rounded-full flex items-center gap-1 backdrop-blur-sm">
                             <Check className="w-3 h-3" />
                             Uploaded
                           </div>
                         </motion.div>
                       ) : (
-                        <motion.button
-                          key="upload"
-                          type="button"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          onClick={() => icBackRef.current?.click()}
-                          className={cn(
-                            "w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors",
-                            errors.icBack
-                              ? "border-red-300 bg-red-50 text-red-500"
-                              : "border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500"
-                          )}
-                        >
-                          <Upload className="w-8 h-8" />
-                          <span className="text-sm font-medium">
-                            Upload IC Back
-                          </span>
-                          <span className="text-xs">
-                            Click or drag file here
-                          </span>
-                        </motion.button>
+                        <div className="space-y-2">
+                          <motion.button
+                            key="upload"
+                            type="button"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            onClick={() => icBackRef.current?.click()}
+                            className={cn(
+                              "w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 transition-colors",
+                              errors.icBack
+                                ? "border-red-300 bg-red-50 text-red-500"
+                                : "border-zinc-300 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500"
+                            )}
+                          >
+                            <Upload className="w-8 h-8" />
+                            <span className="text-sm font-medium">
+                              Upload IC Back
+                            </span>
+                            <span className="text-xs">
+                              Click to upload or use camera
+                            </span>
+                          </motion.button>
+                          <button
+                            type="button"
+                            onClick={() => handleCameraCapture("icBack")}
+                            className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                          >
+                            <Camera className="w-4 h-4" />
+                            Take Photo with Camera
+                          </button>
+                        </div>
                       )}
                     </AnimatePresence>
                     {errors.icBack && (
@@ -882,6 +1145,7 @@ export default function CustomerCreate() {
                   ref={profilePhotoRef}
                   type="file"
                   accept="image/*"
+                  capture="user"
                   onChange={(e) => handleImageUpload(e, "profile")}
                   className="hidden"
                 />
@@ -908,23 +1172,33 @@ export default function CustomerCreate() {
                       </button>
                     </motion.div>
                   ) : (
-                    <motion.button
-                      key="upload"
-                      type="button"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      onClick={() => profilePhotoRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-zinc-300 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-amber-500 hover:bg-amber-50 transition-colors text-zinc-400 hover:text-amber-500"
-                    >
-                      <div className="w-20 h-20 rounded-full bg-zinc-100 flex items-center justify-center">
-                        <Image className="w-8 h-8" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium">Upload Photo</p>
-                        <p className="text-xs">JPG, PNG up to 5MB</p>
-                      </div>
-                    </motion.button>
+                    <div className="space-y-3">
+                      <motion.button
+                        key="upload"
+                        type="button"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        onClick={() => profilePhotoRef.current?.click()}
+                        className="w-full aspect-square border-2 border-dashed border-zinc-300 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-amber-500 hover:bg-amber-50 transition-colors text-zinc-400 hover:text-amber-500"
+                      >
+                        <div className="w-20 h-20 rounded-full bg-zinc-100 flex items-center justify-center">
+                          <Image className="w-8 h-8" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium">Upload Photo</p>
+                          <p className="text-xs">JPG, PNG up to 5MB</p>
+                        </div>
+                      </motion.button>
+                      <button
+                        type="button"
+                        onClick={() => handleCameraCapture("profile")}
+                        className="w-full py-2.5 px-4 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                      >
+                        <Camera className="w-4 h-4" />
+                        Take Selfie with Camera
+                      </button>
+                    </div>
                   )}
                 </AnimatePresence>
               </div>

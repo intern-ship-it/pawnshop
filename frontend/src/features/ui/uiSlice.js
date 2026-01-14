@@ -18,7 +18,12 @@ const initialState = {
   settings: {
     company: { name: 'PawnSys', license: '' },
     loaded: false,
-  },  
+  },
+  camera: {
+    isOpen: false,
+    contextId: null,
+    capturedImage: null,
+  },
 }
 
 const uiSlice = createSlice({
@@ -66,6 +71,20 @@ const uiSlice = createSlice({
         lastUpdated: new Date().toISOString(),
       }
     },
+    openCamera: (state, action) => {
+      state.camera = {
+        isOpen: true,
+        contextId: action.payload.contextId, // e.g. item ID
+        capturedImage: null
+      }
+    },
+    closeCamera: (state) => {
+      state.camera = { ...state.camera, isOpen: false }
+    },
+    setCapturedImage: (state, action) => {
+      state.camera.capturedImage = action.payload
+      state.camera.isOpen = false
+    },
   },
 })
 
@@ -81,5 +100,8 @@ export const {
   setPageLoading,
   updateGoldPrice,
   setSettings,
+  openCamera,
+  closeCamera,
+  setCapturedImage,
 } = uiSlice.actions
 export default uiSlice.reducer

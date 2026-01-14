@@ -55,11 +55,11 @@ class CustomerController extends Controller
         $customer = Customer::where('branch_id', $branchId)
             ->where('ic_number', $icNumber)
             ->with([
-                'activePledges' => function ($query) {
-                    $query->select('id', 'customer_id', 'pledge_no', 'receipt_no', 'loan_amount', 'status', 'due_date')
-                        ->with('items:id,pledge_id,category_id,net_weight,net_value');
-                }
-            ])
+                    'activePledges' => function ($query) {
+                        $query->select('id', 'customer_id', 'pledge_no', 'receipt_no', 'loan_amount', 'status', 'due_date')
+                            ->with('items:id,pledge_id,category_id,net_weight,net_value');
+                    }
+                ])
             ->first();
 
         if (!$customer) {
@@ -87,7 +87,10 @@ class CustomerController extends Controller
             'gender' => 'nullable|in:male,female',
             'date_of_birth' => 'nullable|date',
             'nationality' => 'nullable|string|max:50',
+            'occupation' => 'nullable|string|max:100',
             'phone' => 'required|string|max:20',
+            'country_code' => 'nullable|string|max:5',
+            'whatsapp' => 'nullable|string|max:20',
             'phone_alt' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:100',
             'address_line1' => 'nullable|string|max:255',
@@ -141,7 +144,10 @@ class CustomerController extends Controller
             'date_of_birth' => $validated['date_of_birth'] ?? null,
             'age' => $age,
             'nationality' => $validated['nationality'] ?? 'Malaysian',
+            'occupation' => $validated['occupation'] ?? null,
             'phone' => $validated['phone'],
+            'country_code' => $validated['country_code'] ?? '+60',
+            'whatsapp' => $validated['whatsapp'] ?? null,
             'phone_alt' => $validated['phone_alt'] ?? null,
             'email' => $validated['email'] ?? null,
             'address_line1' => $validated['address_line1'] ?? null,
@@ -194,7 +200,10 @@ class CustomerController extends Controller
             'gender' => 'nullable|in:male,female',
             'date_of_birth' => 'nullable|date',
             'nationality' => 'nullable|string|max:50',
+            'occupation' => 'nullable|string|max:100',
             'phone' => 'sometimes|string|max:20',
+            'country_code' => 'nullable|string|max:5',
+            'whatsapp' => 'nullable|string|max:20',
             'phone_alt' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:100',
             'address_line1' => 'nullable|string|max:255',

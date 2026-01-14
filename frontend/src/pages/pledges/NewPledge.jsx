@@ -6,8 +6,9 @@ import {
   setSelectedCustomer,
 } from "@/features/customers/customersSlice";
 import { setPledges, addPledge } from "@/features/pledges/pledgesSlice";
-import { addToast } from "@/features/ui/uiSlice";
+import { addToast, openCamera } from "@/features/ui/uiSlice";
 import { customerService, pledgeService, settingsService } from "@/services";
+import { getToken } from "@/services/api";
 import storageService from "@/services/storageService";
 import goldPriceService from "@/services/goldPriceService";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
@@ -137,8 +138,8 @@ const purityOptions = [
   },
 ];
 
-// Percentage presets
-const percentagePresets = [80, 70, 60];
+// Percentage presets - will be loaded from API
+// const percentagePresets = [80, 70, 60]; // REMOVED - now dynamic
 
 // Empty item template
 const emptyItem = {
@@ -169,7 +170,9 @@ export default function NewPledge() {
   const [currentStep, setCurrentStep] = useState(1);
 
   // Step 1: Customer state
-  const [icSearch, setIcSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [customer, setCustomer] = useState(null);
   const [customerSearchResult, setCustomerSearchResult] = useState(null);
@@ -177,6 +180,24 @@ export default function NewPledge() {
 
   // Step 2: Items state
   const [items, setItems] = useState([{ ...emptyItem, id: "item-1" }]);
+
+  // Handle global camera capture
+  const { capturedImage, contextId } = useAppSelector(
+    (state) => state.ui.camera
+  );
+
+  useEffect(() => {
+    if (capturedImage && contextId) {
+      setItems((currentItems) =>
+        currentItems.map((item) => {
+          if (item.id === contextId) {
+            return { ...item, photo: capturedImage };
+          }
+          return item;
+        })
+      );
+    }
+  }, [capturedImage, contextId]);
 
   // Step 3: Valuation state
   const [loanPercentage, setLoanPercentage] = useState(70);
@@ -190,6 +211,13 @@ export default function NewPledge() {
   const [bankId, setBankId] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
+  const [handlingSettings, setHandlingSettings] = useState({
+    type: "fixed",
+    value: 0,
+    min_amount: 0,
+  });
+  const [handlingCharge, setHandlingCharge] = useState("");
+  const [netPayoutAmount, setNetPayoutAmount] = useState(0);
 
   // Step 5: Storage Assignment state - USING REAL API DATA ONLY
   const [vaults, setVaults] = useState([]);
@@ -224,6 +252,8 @@ export default function NewPledge() {
   const [backendCategories, setBackendCategories] = useState([]);
   const [backendPurities, setBackendPurities] = useState([]);
   const [backendBanks, setBackendBanks] = useState([]);
+  const [backendStoneDeductions, setBackendStoneDeductions] = useState([]);
+  const [marginPresets, setMarginPresets] = useState([]); // Dynamic margin presets
 
   // Fetch gold prices on mount
   useEffect(() => {
@@ -266,10 +296,128 @@ export default function NewPledge() {
       const bankResponse = await settingsService.getBanks();
       const banks = bankResponse.data?.data || bankResponse.data || [];
       setBackendBanks(banks);
+
+      const stoneResponse = await settingsService.getStoneDeductions();
+      const stoneDeductions =
+        stoneResponse.data?.data || stoneResponse.data || [];
+      setBackendStoneDeductions(stoneDeductions);
+
+      // Fetch margin presets
+      const marginResponse = await settingsService.getMarginPresets();
+      const settingsResponse = await settingsService.getAll();
+      const settingsData = settingsResponse.data || {};
+      const pledgeSettings = settingsData.pledge || [];
+
+      // Load handling settings
+      const hType =
+        pledgeSettings.find((s) => s.key_name === "handling_charge_type")
+          ?.value || "fixed";
+      const hValue = parseFloat(
+        pledgeSettings.find((s) => s.key_name === "handling_charge_value")
+          ?.value || 0
+      );
+      const hMin = parseFloat(
+        pledgeSettings.find((s) => s.key_name === "handling_charge_min")
+          ?.value || 0
+      );
+
+      const newHandlingSettings = {
+        type: hType,
+        value: hValue,
+        min_amount: hMin,
+      };
+
+      setHandlingSettings(newHandlingSettings);
+
+      const margins = marginResponse.data?.data || marginResponse.data || [];
+      // Normalize fields - map backend margin_percentage to value
+      const normalizedMargins = margins.map((m) => ({
+        ...m,
+        value: m.margin_percentage || m.value,
+        label: m.name || m.label || `${m.margin_percentage || m.value}%`,
+      }));
+      const activeMargins = normalizedMargins.filter(
+        (m) => m.is_active !== false
+      );
+      setMarginPresets(activeMargins);
+
+      // Set default margin percentage from presets
+      if (activeMargins.length > 0) {
+        const defaultPreset =
+          activeMargins.find((m) => m.is_default) || activeMargins[0];
+        setLoanPercentage(defaultPreset.value);
+      }
+
+      // Apply default stone deduction to existing items if they are empty
+      const defaultDeduction = stoneDeductions.find(
+        (d) => d.is_default && d.is_active !== false
+      );
+      if (defaultDeduction) {
+        setItems((currentItems) =>
+          currentItems.map((item) => {
+            if (!item.stoneDeduction && item.stoneDeductionType === "amount") {
+              return {
+                ...item,
+                stoneDeduction: defaultDeduction.value.toString(),
+                stoneDeductionType: defaultDeduction.deduction_type,
+              };
+            }
+            return item;
+          })
+        );
+      }
     } catch (error) {
       console.error("Error fetching backend data:", error);
+      // If API fails, set default fallback
+      setMarginPresets([{ id: 1, value: 70, label: "70%", is_default: true }]);
     }
   };
+
+  // Calculate handling charge when loan amount changes
+  useEffect(() => {
+    // Calculate total net value first to derive loan amount
+    const validItems = items.filter((i) => i.category && i.weight);
+    let totalNetValue = 0;
+
+    validItems.forEach((item) => {
+      const val = calculateItemValue(item);
+      totalNetValue += val.net;
+    });
+
+    const currentLoanAmount = totalNetValue * (loanPercentage / 100);
+
+    let calculatedCharge = 0;
+    if (handlingSettings.type === "percentage") {
+      calculatedCharge = Math.max(
+        currentLoanAmount * (handlingSettings.value / 100),
+        handlingSettings.min_amount
+      );
+    } else {
+      calculatedCharge = handlingSettings.value;
+    }
+
+    // Round to 2 decimals
+    calculatedCharge = Math.round(calculatedCharge * 100) / 100;
+
+    setHandlingCharge(calculatedCharge.toString());
+
+    // Set net payout
+    setNetPayoutAmount(Math.max(0, currentLoanAmount - calculatedCharge));
+  }, [items, loanPercentage, handlingSettings, goldPrices]);
+
+  // Update net payout when handling charge is manually edited
+  useEffect(() => {
+    const validItems = items.filter((i) => i.category && i.weight);
+    let totalNetValue = 0;
+    validItems.forEach((item) => {
+      const val = calculateItemValue(item);
+      totalNetValue += val.net;
+    });
+    const currentLoanAmount = totalNetValue * (loanPercentage / 100);
+    const charge = parseFloat(handlingCharge) || 0;
+
+    setNetPayoutAmount(Math.max(0, currentLoanAmount - charge));
+  }, [handlingCharge]); // Separated effect to avoid circular dependency loops if not careful
 
   // ============ STORAGE API FUNCTIONS - NO MOCK DATA ============
 
@@ -488,6 +636,27 @@ export default function NewPledge() {
     return found?.id || null;
   };
 
+  // Compute category options from backend data (with fallback to hardcoded)
+  const categoryOptions =
+    backendCategories.length > 0
+      ? backendCategories.map((cat) => ({
+          value: cat.code || cat.slug || cat.name_en,
+          label: `${cat.name_en}${cat.name_ms ? ` (${cat.name_ms})` : ""}`,
+        }))
+      : itemCategories;
+
+  // Compute purity options from backend data (with fallback to hardcoded)
+  const dynamicPurityOptions =
+    backendPurities.length > 0
+      ? backendPurities.map((purity) => ({
+          value: purity.code,
+          label: `${purity.code}${purity.karat ? ` (${purity.karat})` : ""}`,
+          priceKey: `price${purity.code}`,
+          karat: purity.karat || "",
+          percentage: purity.percentage || 0,
+        }))
+      : purityOptions;
+
   const fetchGoldPrices = async () => {
     try {
       setGoldPricesLoading(true);
@@ -580,7 +749,7 @@ export default function NewPledge() {
       return goldPrices[purity];
     }
 
-    const purityOption = purityOptions.find((p) => p.value === purity);
+    const purityOption = dynamicPurityOptions.find((p) => p.value === purity);
     if (!purityOption) return 295;
 
     const base999Price = goldPrice?.manualPrice || goldPrice?.price999 || 400;
@@ -649,102 +818,103 @@ export default function NewPledge() {
   const loanAmount = totals.netValue * (effectivePercentage / 100);
 
   // Customer search handler
-  const handleCustomerSearch = async () => {
-    const cleanIC = icSearch.replace(/[-\s]/g, "");
-
-    if (!cleanIC) {
-      dispatch(
-        addToast({
-          type: "warning",
-          title: "Required",
-          message: "Please enter IC number",
-        })
-      );
-      return;
-    }
-
-    if (!validateIC(cleanIC)) {
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Invalid IC",
-          message: "Please enter valid 12-digit IC",
-        })
-      );
-      return;
-    }
-
+  // Perform generic search
+  const performSearch = async (query = searchQuery) => {
+    if (!query) return;
     setIsSearching(true);
     setCustomerSearchResult(null);
-    setCustomerPledges([]);
 
     try {
-      const response = await customerService.searchByIC(cleanIC);
-      const responseData = response.data?.data || response.data;
-      const customerData = responseData?.customer || responseData;
+      const response = await customerService.getAll({
+        search: query,
+        per_page: 5,
+      });
+      const results = response.data?.data || response.data || [];
+      setSearchResults(results);
 
-      if (customerData && customerData.name) {
-        setCustomerSearchResult(customerData);
-        setCustomer(customerData);
-
-        let pledgesArray = [];
-        if (Array.isArray(customerData.active_pledges)) {
-          pledgesArray = customerData.active_pledges;
-        } else if (Array.isArray(responseData.existing_pledges)) {
-          pledgesArray = responseData.existing_pledges;
-        }
-
-        pledgesArray = pledgesArray.filter(
-          (p) =>
-            p &&
-            typeof p === "object" &&
-            ["active", "overdue"].includes(p.status)
-        );
-
-        setCustomerPledges(pledgesArray);
-
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Found",
-            message: `Customer: ${customerData.name}`,
-          })
-        );
-      } else {
+      if (results.length === 0) {
         setCustomerSearchResult("not_found");
         setCustomer(null);
         setCustomerPledges([]);
+      } else {
+        setShowResults(true);
+        // Auto-select if exact IC match
+        const cleanQuery = query.replace(/[-\s]/g, "");
+        const exactMatch = results.find((c) => c.ic_number === cleanQuery);
+        if (exactMatch) {
+          handleCustomerSelect(exactMatch);
+        }
       }
     } catch (error) {
       console.error("Search error:", error);
-      if (error.response?.status === 404) {
-        setCustomerSearchResult("not_found");
-        setCustomer(null);
-        setCustomerPledges([]);
-      } else {
-        dispatch(
-          addToast({
-            type: "error",
-            title: "Error",
-            message: "Failed to search customer",
-          })
-        );
-      }
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to search customer",
+        })
+      );
     } finally {
       setIsSearching(false);
     }
   };
+
+  // Handle selection from results
+  const handleCustomerSelect = async (selectedCustomer) => {
+    setCustomer(selectedCustomer);
+    setSearchQuery(selectedCustomer.name);
+    setShowResults(false);
+    setCustomerSearchResult(selectedCustomer);
+
+    // Fetch active pledges
+    try {
+      const response = await customerService.getActivePledges(
+        selectedCustomer.id
+      );
+      const pledges = response.data?.data || response.data || [];
+      setCustomerPledges(pledges);
+    } catch (err) {
+      console.error("Error fetching pledges:", err);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 3) {
+        performSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+        setShowResults(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Item handlers
   const addItem = () => {
     const defaultPurity = "916";
     const defaultPrice =
       goldPrices[defaultPurity] || getMarketPrice(defaultPurity);
+
+    // Find default stone deduction
+    const defaultStoneDeduction = backendStoneDeductions.find(
+      (d) => d.is_default && d.is_active !== false
+    );
+
     const newItem = {
       ...emptyItem,
       id: `item-${Date.now()}`,
       purity: defaultPurity,
       pricePerGram: defaultPrice.toFixed(2),
+      // Set default stone deduction if available
+      stoneDeduction: defaultStoneDeduction
+        ? defaultStoneDeduction.value.toString()
+        : "",
+      stoneDeductionType: defaultStoneDeduction
+        ? defaultStoneDeduction.deduction_type
+        : "amount",
     };
     setItems([...items, newItem]);
   };
@@ -796,13 +966,13 @@ export default function NewPledge() {
   // Payout auto-calculate
   useEffect(() => {
     if (payoutMethod === "cash") {
-      setCashAmount(loanAmount.toFixed(2));
+      setCashAmount(Number(netPayoutAmount).toFixed(2));
       setTransferAmount("");
     } else if (payoutMethod === "transfer") {
-      setTransferAmount(loanAmount.toFixed(2));
+      setTransferAmount(Number(netPayoutAmount).toFixed(2));
       setCashAmount("");
     }
-  }, [payoutMethod, loanAmount]);
+  }, [payoutMethod, netPayoutAmount]);
 
   // Signature canvas handlers
   const initSignatureCanvas = () => {
@@ -1053,12 +1223,12 @@ export default function NewPledge() {
         method: payoutMethod === "partial" ? "partial" : payoutMethod,
         cash_amount:
           payoutMethod === "cash" || payoutMethod === "partial"
-            ? parseFloat(cashAmount) || loanAmount
+            ? parseFloat(cashAmount) || netPayoutAmount
             : 0,
         transfer_amount:
           payoutMethod === "transfer" || payoutMethod === "partial"
             ? parseFloat(transferAmount) ||
-              (payoutMethod === "transfer" ? loanAmount : 0)
+              (payoutMethod === "transfer" ? netPayoutAmount : 0)
             : 0,
         reference_no: referenceNo || null,
       };
@@ -1074,6 +1244,7 @@ export default function NewPledge() {
         customer_id: customer.id,
         items: pledgeItems,
         loan_percentage: effectivePercentage,
+        handling_fee: parseFloat(handlingCharge) || 0,
         payment: payment,
         customer_signature: signature,
         terms_accepted: true,
@@ -1130,7 +1301,7 @@ export default function NewPledge() {
   const handlePrintReceipt = async (copyType = "customer") => {
     if (!createdPledgeId) return;
 
-    const token = localStorage.getItem("pawnsys_token");
+    const token = getToken();
     if (!token) {
       dispatch(
         addToast({
@@ -1374,23 +1545,47 @@ export default function NewPledge() {
                 </div>
               </div>
 
-              {/* IC Search */}
+              {/* Customer Search */}
               <div className="flex gap-3 mb-6">
-                <div className="flex-1">
+                <div className="flex-1 relative">
                   <Input
-                    placeholder="Enter IC Number (e.g., 880515-14-5678)"
-                    value={icSearch}
-                    onChange={(e) => setIcSearch(e.target.value)}
-                    onKeyDown={(e) =>
-                      e.key === "Enter" && handleCustomerSearch()
-                    }
-                    leftIcon={CreditCard}
+                    placeholder="Search by Name, IC, or Phone"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && performSearch()}
+                    leftIcon={Search}
                   />
+                  {/* Search Results Dropdown */}
+                  {showResults && searchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {searchResults.map((result) => (
+                        <div
+                          key={result.id}
+                          className="p-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 last:border-0"
+                          onClick={() => handleCustomerSelect(result)}
+                        >
+                          <p className="font-medium text-zinc-800">
+                            {result.name}
+                          </p>
+                          <div className="flex gap-4 text-xs text-zinc-500 mt-1">
+                            <span className="flex items-center gap-1">
+                              <CreditCard className="w-3 h-3" />
+                              {result.ic_number}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {result.phone}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="primary"
                   leftIcon={Search}
-                  onClick={handleCustomerSearch}
+                  onClick={() => performSearch()}
                   loading={isSearching}
                 >
                   Search
@@ -1572,7 +1767,7 @@ export default function NewPledge() {
                           Customer not found
                         </p>
                         <p className="text-sm text-amber-600">
-                          IC {formatIC(icSearch)} is not registered
+                          "{searchQuery}" is not found
                         </p>
                       </div>
                       <Button
@@ -1580,12 +1775,7 @@ export default function NewPledge() {
                         size="sm"
                         leftIcon={Plus}
                         onClick={() =>
-                          navigate(
-                            `/customers/new?ic=${icSearch.replace(
-                              /[-\s]/g,
-                              ""
-                            )}`
-                          )
+                          navigate(`/customers/new?search=${searchQuery}`)
                         }
                       >
                         Create New
@@ -1637,7 +1827,7 @@ export default function NewPledge() {
                   >
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-sm font-semibold text-zinc-700">
-                        Item #{index + 1}
+                        Item {index + 1}
                       </span>
                       <Button
                         variant="ghost"
@@ -1649,7 +1839,7 @@ export default function NewPledge() {
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                       <Select
                         label="Category"
                         value={item.category}
@@ -1658,7 +1848,7 @@ export default function NewPledge() {
                         }
                         options={[
                           { value: "", label: "Select..." },
-                          ...itemCategories,
+                          ...categoryOptions,
                         ]}
                         required
                       />
@@ -1676,7 +1866,7 @@ export default function NewPledge() {
                             marketPriceForPurity.toFixed(2)
                           );
                         }}
-                        options={purityOptions}
+                        options={dynamicPurityOptions}
                       />
                       <div>
                         <label className="block text-sm font-medium text-zinc-700 mb-1.5">
@@ -1697,12 +1887,13 @@ export default function NewPledge() {
                               )
                             }
                             leftIcon={DollarSign}
+                            style={{ minWidth: "110px" }}
                           />
                           {item.pricePerGram &&
                             parseFloat(item.pricePerGram) ===
                               (goldPrices[item.purity] ||
                                 getMarketPrice(item.purity)) && (
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                              <span className="absolute -right-14 top-1/2 -translate-y-1/2 text-[10px] text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded whitespace-nowrap">
                                 Market
                               </span>
                             )}
@@ -1728,7 +1919,7 @@ export default function NewPledge() {
                         leftIcon={Scale}
                         required
                       />
-                      <div>
+                      <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-zinc-700 mb-1.5">
                           Stone Deduction
                         </label>
@@ -1746,7 +1937,7 @@ export default function NewPledge() {
                                 e.target.value
                               )
                             }
-                            className="flex-1"
+                            className="w-28"
                           />
                           <Select
                             value={item.stoneDeductionType}
@@ -1762,7 +1953,7 @@ export default function NewPledge() {
                               { value: "percentage", label: "%" },
                               { value: "grams", label: "g" },
                             ]}
-                            className="w-20"
+                            className="w-24"
                           />
                         </div>
                       </div>
@@ -1804,17 +1995,28 @@ export default function NewPledge() {
                             </button>
                           </div>
                         ) : (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            leftIcon={Camera}
-                            onClick={() =>
-                              photoInputRefs.current[item.id]?.click()
-                            }
-                          >
-                            Upload Photo
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              leftIcon={Plus}
+                              onClick={() =>
+                                photoInputRefs.current[item.id]?.click()
+                              }
+                            >
+                              Upload
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              leftIcon={Camera}
+                              onClick={() =>
+                                dispatch(openCamera({ contextId: item.id }))
+                              }
+                            >
+                              Camera
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1934,7 +2136,7 @@ export default function NewPledge() {
                     <thead className="bg-zinc-50 border-b border-zinc-200">
                       <tr>
                         <th className="text-left px-4 py-3 font-semibold text-zinc-600">
-                          #
+                          No
                         </th>
                         <th className="text-left px-4 py-3 font-semibold text-zinc-600">
                           Item
@@ -1964,7 +2166,7 @@ export default function NewPledge() {
                         .filter((i) => i.category && i.weight)
                         .map((item, idx) => {
                           const calc = calculateItemValue(item);
-                          const category = itemCategories.find(
+                          const category = categoryOptions.find(
                             (c) => c.value === item.category
                           );
                           return (
@@ -2035,38 +2237,66 @@ export default function NewPledge() {
                 <label className="block text-sm font-semibold text-zinc-700 mb-3">
                   Select Loan Percentage (Margin)
                 </label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {percentagePresets.map((percent) => (
-                    <button
-                      key={percent}
+                {marginPresets.length > 0 ? (
+                  <>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {marginPresets.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setLoanPercentage(preset.value);
+                            setUseCustomPercentage(false);
+                          }}
+                          className={cn(
+                            "px-6 py-3 rounded-lg font-bold transition-all text-lg",
+                            !useCustomPercentage &&
+                              loanPercentage === preset.value
+                              ? "bg-amber-500 text-white shadow-lg"
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                          )}
+                        >
+                          {preset.value}%
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setUseCustomPercentage(true)}
+                        className={cn(
+                          "px-6 py-3 rounded-lg font-bold transition-all",
+                          useCustomPercentage
+                            ? "bg-amber-500 text-white shadow-lg"
+                            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                        )}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-amber-800">
+                          No Margin Presets Configured
+                        </p>
+                        <p className="text-sm text-amber-700 mt-1">
+                          Please configure margin presets in Settings, or enter
+                          a custom percentage below.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
                       type="button"
-                      onClick={() => {
-                        setLoanPercentage(percent);
-                        setUseCustomPercentage(false);
-                      }}
-                      className={cn(
-                        "px-6 py-3 rounded-lg font-bold transition-all text-lg",
-                        !useCustomPercentage && loanPercentage === percent
-                          ? "bg-amber-500 text-white shadow-lg"
-                          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                      )}
+                      variant="outline"
+                      onClick={() => setUseCustomPercentage(true)}
+                      className="mt-3"
                     >
-                      {percent}%
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setUseCustomPercentage(true)}
-                    className={cn(
-                      "px-6 py-3 rounded-lg font-bold transition-all",
-                      useCustomPercentage
-                        ? "bg-amber-500 text-white shadow-lg"
-                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                    )}
-                  >
-                    Custom
-                  </button>
-                </div>
+                      Enter Custom Percentage
+                    </Button>
+                  </div>
+                )}
 
                 {useCustomPercentage && (
                   <motion.div
@@ -2244,13 +2474,39 @@ export default function NewPledge() {
 
               {/* Loan Amount Display */}
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl mb-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-emerald-700 font-medium">
-                    Total Payout Amount
-                  </span>
-                  <span className="text-2xl font-bold text-emerald-600">
-                    {formatCurrency(loanAmount)}
-                  </span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-zinc-600 mb-1">
+                    <span>Loan Amount</span>
+                    <span className="font-semibold">
+                      {formatCurrency(loanAmount)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <Input
+                      label="Handling Charge / Processing Fee (RM)"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={handlingCharge}
+                      onChange={(e) => setHandlingCharge(e.target.value)}
+                      className="flex-1 bg-white"
+                      leftElement={
+                        <span className="text-zinc-500 font-medium ml-1">
+                          RM
+                        </span>
+                      }
+                    />
+                  </div>
+
+                  <div className="border-t border-emerald-200 my-2 pt-2 flex items-center justify-between">
+                    <span className="text-emerald-800 font-bold text-lg">
+                      Net Payout Amount
+                    </span>
+                    <span className="text-2xl font-bold text-emerald-600">
+                      {formatCurrency(netPayoutAmount)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -2649,7 +2905,7 @@ export default function NewPledge() {
                   {items
                     .filter((i) => i.category && i.weight)
                     .map((item, idx) => {
-                      const category = itemCategories.find(
+                      const category = categoryOptions.find(
                         (c) => c.value === item.category
                       );
                       const assignment = itemStorageAssignments[item.id];
@@ -2769,16 +3025,90 @@ export default function NewPledge() {
                 </div>
 
                 <div className="p-4 bg-zinc-50 rounded-xl">
-                  <h4 className="font-semibold text-zinc-800 mb-3">Items</h4>
-                  <p className="text-zinc-600">
-                    {items.filter((i) => i.category).length} item(s)
-                  </p>
-                  <p className="text-sm text-zinc-500">
-                    Total Weight: {totals.totalWeight.toFixed(2)}g
-                  </p>
-                  <p className="text-sm text-zinc-500">
-                    Net Value: {formatCurrency(totals.netValue)}
-                  </p>
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-semibold text-zinc-800">Items</h4>
+                    <div className="text-right text-xs text-zinc-500">
+                      <p>Total: {totals.totalWeight.toFixed(2)}g</p>
+                      <p className="font-medium text-zinc-700">
+                        {formatCurrency(totals.netValue)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {items
+                      .filter((i) => i.category && i.weight)
+                      .map((item, idx) => {
+                        const val = calculateItemValue(item);
+                        const category = categoryOptions.find(
+                          (c) => c.value === item.category
+                        );
+                        const purity = dynamicPurityOptions.find(
+                          (p) => p.value === item.purity
+                        );
+                        const storage = itemStorageAssignments[item.id];
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="bg-white p-3 rounded-lg border border-zinc-200 shadow-sm"
+                          >
+                            {/* Header Row */}
+                            <div className="flex justify-between items-start mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-[10px]">
+                                  {idx + 1}
+                                </span>
+                                <p className="font-semibold text-zinc-800 text-sm">
+                                  {category?.label || item.category}
+                                </p>
+                              </div>
+                              <p className="text-sm font-bold text-emerald-600">
+                                {formatCurrency(val.net)}
+                              </p>
+                            </div>
+
+                            {/* Details Row */}
+                            <div className="flex justify-between items-center text-xs text-zinc-500 ml-7">
+                              <div className="flex items-center gap-3">
+                                <span className="flex items-center gap-1">
+                                  <Scale className="w-3 h-3" />
+                                  {parseFloat(item.weight).toFixed(2)}g
+                                </span>
+                                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-medium">
+                                  {purity?.label || item.purity}
+                                </span>
+                                <span>RM {val.priceUsed.toFixed(2)}/g</span>
+                              </div>
+                              {storage && (
+                                <span className="flex items-center gap-1 text-blue-600">
+                                  <MapPin className="w-3 h-3" />
+                                  Slot {storage.slotNumber}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Description (if exists) */}
+                            {item.description && (
+                              <p
+                                className="text-[10px] text-zinc-400 ml-7 mt-1 line-clamp-1"
+                                title={item.description}
+                              >
+                                {item.description}
+                              </p>
+                            )}
+
+                            {/* Deduction (if exists) */}
+                            {val.deduction > 0 && (
+                              <p className="text-[10px] text-red-500 ml-7 mt-0.5">
+                                Stone deduction: -
+                                {formatCurrency(val.deduction)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
 
                 <div className="p-4 bg-emerald-50 rounded-xl">

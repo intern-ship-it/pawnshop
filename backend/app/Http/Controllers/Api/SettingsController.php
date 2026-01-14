@@ -367,11 +367,14 @@ class SettingsController extends Controller
     public function storeMarginPreset(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:100',
-            'margin_percentage' => 'required|numeric|min:0|max:100',
+            'value' => 'required|integer|min:1|max:100',
+            'label' => 'nullable|string|max:50',
             'is_default' => 'nullable|boolean',
             'sort_order' => 'nullable|integer',
         ]);
+
+        // Auto-generate label if not provided
+        $validated['label'] = $validated['label'] ?? ($validated['value'] . '%');
 
         $preset = MarginPreset::create($validated);
 
@@ -381,8 +384,8 @@ class SettingsController extends Controller
     public function updateMarginPreset(Request $request, MarginPreset $marginPreset): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:100',
-            'margin_percentage' => 'sometimes|numeric|min:0|max:100',
+            'value' => 'sometimes|integer|min:1|max:100',
+            'label' => 'sometimes|string|max:50',
             'is_default' => 'sometimes|boolean',
             'is_active' => 'sometimes|boolean',
             'sort_order' => 'nullable|integer',

@@ -70,6 +70,12 @@ backend/storage/app/public/receipts/*
 backend/storage/app/public/signatures/*
 !backend/storage/app/public/signatures/.gitkeep
 
+backend/storage/app/public/customers/*
+!backend/storage/app/public/customers/.gitkeep
+
+backend/storage/app/public/profile-photos/*
+!backend/storage/app/public/profile-photos/.gitkeep
+
 # Bootstrap cache
 backend/bootstrap/cache/*
 !backend/bootstrap/cache/.gitkeep

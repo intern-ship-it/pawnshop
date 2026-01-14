@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setPledges, setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
 import { pledgeService } from "@/services";
+import { getToken } from "@/services/api";
 import { formatCurrency, formatDate, formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -119,7 +120,8 @@ export default function PledgeList() {
   const handlePrint = async (pledgeId, e) => {
     if (e) e.stopPropagation();
 
-    const token = localStorage.getItem("pawnsys_token");
+    // Get token using the helper function (handles both localStorage and sessionStorage)
+    const token = getToken();
     if (!token) {
       dispatch(
         addToast({
@@ -150,12 +152,14 @@ export default function PledgeList() {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to generate receipt");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to generate receipt");
       }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       window.open(url, "_blank");
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
 
       dispatch(
         addToast({

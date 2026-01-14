@@ -27,6 +27,7 @@ import {
   Grid3X3,
   Gem,
   Scale,
+  Banknote,
   Save,
   Plus,
   Trash2,
@@ -49,6 +50,7 @@ import WhatsAppSettings from "./WhatsAppSettings";
 import storageService from "@/services/storageService";
 import InterestRatesTab from "./InterestRatesTab";
 import StoneDeductionTab from "./StoneDeductionTab";
+import HandlingChargesTab from "./HandlingChargesTab";
 
 // Default settings structure
 const defaultSettings = {
@@ -119,6 +121,7 @@ const tabs = [
   { id: "categories", label: "Categories", icon: Package },
   { id: "purities", label: "Purities", icon: Gem },
   { id: "stoneDeduction", label: "Stone Deduction", icon: Scale },
+  { id: "handling", label: "Handling Charges", icon: Banknote },
   { id: "racks", label: "Racks", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
 ];
@@ -358,6 +361,8 @@ export default function SettingsScreen() {
         return <PuritiesTab />;
       case "stoneDeduction":
         return <StoneDeductionTab />;
+      case "handling":
+        return <HandlingChargesTab />;
       case "racks":
         return <RacksTab settings={settings} updateSettings={updateSettings} />;
       case "whatsapp":
@@ -383,9 +388,9 @@ export default function SettingsScreen() {
         </Button>
       }
     >
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Tabs Sidebar */}
-        <div className="lg:w-64 flex-shrink-0">
+      <div className="flex flex-col lg:flex-row gap-6 relative">
+        {/* Tabs Sidebar - Fixed/Sticky */}
+        <div className="lg:w-64 flex-shrink-0 lg:sticky lg:top-4 lg:self-start">
           <Card className="p-2">
             <nav className="space-y-1">
               {tabs.map((tab) => {
@@ -461,8 +466,8 @@ export default function SettingsScreen() {
           </Card>
         </div>
 
-        {/* Tab Content */}
-        <div className="flex-1">
+        {/* Tab Content - Scrollable */}
+        <div className="flex-1 min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -1067,8 +1072,10 @@ function RacksTab({ settings, updateSettings }) {
     name: "",
     code: "",
     description: "",
+    number_of_boxes: 0,
   });
   const [boxFormData, setBoxFormData] = useState({
+    vault_id: "",
     name: "",
     total_slots: 20,
     description: "",
@@ -1110,6 +1117,7 @@ function RacksTab({ settings, updateSettings }) {
           description: vault.description,
           total_boxes: vault.total_boxes || 0,
           boxes_count: vault.boxes_count || 0,
+          total_slots: vault.total_slots || 0,
           is_active: vault.is_active,
         }));
         setVaults(mapped);
@@ -1166,11 +1174,17 @@ function RacksTab({ settings, updateSettings }) {
           vaultFormData.code ||
           vaultFormData.name.toUpperCase().replace(/\s+/g, "-"),
         description: vaultFormData.description || null,
+        number_of_boxes: parseInt(vaultFormData.number_of_boxes) || 0,
       });
 
       if (response.success) {
         await fetchVaults();
-        setVaultFormData({ name: "", code: "", description: "" });
+        setVaultFormData({
+          name: "",
+          code: "",
+          description: "",
+          number_of_boxes: 0,
+        });
         setShowAddVaultModal(false);
       } else {
         throw new Error(response.message || "Failed to create vault");
@@ -1184,21 +1198,29 @@ function RacksTab({ settings, updateSettings }) {
   };
 
   const handleAddBox = async () => {
-    if (!boxFormData.name || !selectedVault) return;
+    const targetVaultId = boxFormData.vault_id || selectedVault?.id;
+    if (!boxFormData.name || !targetVaultId) return;
 
     setIsAdding(true);
     try {
       const response = await storageService.createBox({
-        vault_id: selectedVault.id,
+        vault_id: parseInt(targetVaultId),
         name: boxFormData.name,
-        total_slots: parseInt(boxFormData.total_slots) || 20,
+        total_slots: 20,
         description: boxFormData.description || null,
       });
 
       if (response.success) {
-        await fetchBoxes(selectedVault.id);
-        await fetchVaults(); // Refresh vault counts
-        setBoxFormData({ name: "", total_slots: 20, description: "" });
+        if (selectedVault?.id === parseInt(targetVaultId)) {
+          await fetchBoxes(selectedVault.id);
+        }
+        await fetchVaults();
+        setBoxFormData({
+          vault_id: "",
+          name: "",
+          total_slots: 20,
+          description: "",
+        });
         setShowAddBoxModal(false);
       } else {
         throw new Error(response.message || "Failed to create box");
@@ -1214,8 +1236,12 @@ function RacksTab({ settings, updateSettings }) {
   const handleDeleteVault = async (id) => {
     const vault = vaults.find((v) => v.id === id);
     if (vault && vault.boxes_count > 0) {
-      alert(
-        `Cannot delete "${vault.name}" - it has ${vault.boxes_count} boxes. Please delete boxes first.`
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Cannot Delete",
+          message: `"${vault.name}" has ${vault.boxes_count} boxes. Delete boxes first.`,
+        })
       );
       return;
     }
@@ -1234,22 +1260,38 @@ function RacksTab({ settings, updateSettings }) {
           setSelectedVault(null);
         }
         await fetchVaults();
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Deleted",
+            message: `Vault "${vault?.name}" deleted successfully.`,
+          })
+        );
       } else {
         throw new Error(response.message || "Failed to delete vault");
       }
     } catch (err) {
       console.error("Error deleting vault:", err);
-      alert(err.message || "Failed to delete vault.");
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Delete Failed",
+          message: err.message || "Failed to delete vault.",
+        })
+      );
     } finally {
       setDeletingId(null);
     }
   };
-
   const handleDeleteBox = async (id) => {
     const box = boxes.find((b) => b.id === id);
     if (box && box.occupied_slots > 0) {
-      alert(
-        `Cannot delete "${box.name}" - it has ${box.occupied_slots} occupied slots. Please relocate items first.`
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Cannot Delete",
+          message: `"${box.name}" has ${box.occupied_slots} items. Relocate items first.`,
+        })
       );
       return;
     }
@@ -1265,13 +1307,26 @@ function RacksTab({ settings, updateSettings }) {
 
       if (response.success) {
         await fetchBoxes(selectedVault.id);
-        await fetchVaults(); // Refresh vault counts
+        await fetchVaults();
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Deleted",
+            message: `Box "${box?.name}" deleted successfully.`,
+          })
+        );
       } else {
         throw new Error(response.message || "Failed to delete box");
       }
     } catch (err) {
       console.error("Error deleting box:", err);
-      alert(err.message || "Failed to delete box.");
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Delete Failed",
+          message: err.message || "Failed to delete box.",
+        })
+      );
     } finally {
       setDeletingId(null);
     }
@@ -1422,12 +1477,18 @@ function RacksTab({ settings, updateSettings }) {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <div className="text-right">
                         <p className="text-sm font-semibold text-zinc-800">
                           {vault.boxes_count}
                         </p>
                         <p className="text-xs text-zinc-500">boxes</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-amber-600">
+                          {vault.total_slots || 0}
+                        </p>
+                        <p className="text-xs text-zinc-500">slots</p>
                       </div>
                       <Button
                         variant="ghost"
@@ -1475,8 +1536,15 @@ function RacksTab({ settings, updateSettings }) {
               variant="outline"
               size="sm"
               leftIcon={Plus}
-              onClick={() => setShowAddBoxModal(true)}
-              disabled={!selectedVault}
+              onClick={() => {
+                setBoxFormData({
+                  vault_id: selectedVault?.id || "",
+                  name: "",
+                  total_slots: 20,
+                  description: "",
+                });
+                setShowAddBoxModal(true);
+              }}
             >
               Add Box
             </Button>
@@ -1594,26 +1662,36 @@ function RacksTab({ settings, updateSettings }) {
         title="Add Vault"
         size="sm"
       >
-        <div className="p-5">
+        <div className="p-5 space-y-4">
           <Input
             label="Vault Name"
             value={vaultFormData.name}
-            onChange={(e) =>
-              setVaultFormData({ ...vaultFormData, name: e.target.value })
-            }
+            onChange={(e) => {
+              const name = e.target.value;
+              const autoCode = name
+                .toUpperCase()
+                .replace(/\s+/g, "-")
+                .substring(0, 20);
+              setVaultFormData({
+                ...vaultFormData,
+                name: name,
+                code: autoCode,
+              });
+            }}
             placeholder="e.g. Safe Room, High Value Storage"
+            required
           />
           <Input
-            label="Code (Optional)"
+            label="Code (Auto-generated)"
             value={vaultFormData.code}
             onChange={(e) =>
               setVaultFormData({
                 ...vaultFormData,
-                code: e.target.value.toUpperCase(),
+                code: e.target.value.toUpperCase().replace(/\s+/g, "-"),
               })
             }
-            placeholder="e.g. SAFE-1"
-            helperText="Auto-generated if left empty"
+            placeholder="Auto-generated from name"
+            helperText="You can edit if needed"
           />
           <Input
             label="Description (Optional)"
@@ -1626,6 +1704,33 @@ function RacksTab({ settings, updateSettings }) {
             }
             placeholder="e.g. For high-value items only"
           />
+
+          {/* NEW: Number of Boxes Field */}
+          <div>
+            <Input
+              label="Number of Boxes"
+              type="number"
+              min="0"
+              max="100"
+              value={vaultFormData.number_of_boxes}
+              onChange={(e) =>
+                setVaultFormData({
+                  ...vaultFormData,
+                  number_of_boxes: e.target.value,
+                })
+              }
+              placeholder="0"
+              helperText="Each box will have 20 slots"
+            />
+            {vaultFormData.number_of_boxes > 0 && (
+              <p className="text-sm text-amber-600 mt-2 flex items-center gap-1">
+                <Info className="w-4 h-4" />
+                Total: {vaultFormData.number_of_boxes * 20} slots (
+                {vaultFormData.number_of_boxes} boxes × 20 slots)
+              </p>
+            )}
+          </div>
+
           <div className="flex gap-3 mt-6">
             <Button
               variant="outline"
@@ -1652,10 +1757,27 @@ function RacksTab({ settings, updateSettings }) {
       <Modal
         isOpen={showAddBoxModal}
         onClose={() => setShowAddBoxModal(false)}
-        title={`Add Box to ${selectedVault?.name || "Vault"}`}
+        title="Add New Box"
         size="sm"
       >
-        <div className="p-5">
+        <div className="p-5 space-y-4">
+          <Select
+            label="Select Vault"
+            value={boxFormData.vault_id || selectedVault?.id || ""}
+            onChange={(e) =>
+              setBoxFormData({ ...boxFormData, vault_id: e.target.value })
+            }
+            options={[
+              { value: "", label: "Select vault..." },
+              ...vaults.map((v) => ({
+                value: v.id,
+                label: `${v.name} (${v.boxes_count} boxes, ${
+                  v.total_slots || 0
+                } slots)`,
+              })),
+            ]}
+            required
+          />
           <Input
             label="Box Name"
             value={boxFormData.name}
@@ -1663,17 +1785,16 @@ function RacksTab({ settings, updateSettings }) {
               setBoxFormData({ ...boxFormData, name: e.target.value })
             }
             placeholder="e.g. BOX-1, Shelf A"
+            required
           />
-          <Input
-            label="Number of Slots"
-            type="number"
-            value={boxFormData.total_slots}
-            onChange={(e) =>
-              setBoxFormData({ ...boxFormData, total_slots: e.target.value })
-            }
-            placeholder="20"
-            helperText="Each slot can hold one pledge item"
-          />
+
+          {/* Fixed 20 slots - read only display */}
+          <div className="p-3 bg-zinc-50 rounded-lg">
+            <p className="text-sm text-zinc-600">
+              <span className="font-medium">Slots per box:</span> 20 (fixed)
+            </p>
+          </div>
+
           <Input
             label="Description (Optional)"
             value={boxFormData.description}
@@ -1696,7 +1817,9 @@ function RacksTab({ settings, updateSettings }) {
               fullWidth
               onClick={handleAddBox}
               loading={isAdding}
-              disabled={!boxFormData.name}
+              disabled={
+                !boxFormData.name || (!boxFormData.vault_id && !selectedVault)
+              }
             >
               Add Box
             </Button>

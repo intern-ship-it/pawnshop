@@ -23,6 +23,8 @@ import {
   Percent,
   DollarSign,
   Weight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // Deduction type options
@@ -58,6 +60,14 @@ export default function StoneDeductionTab() {
   // Action states
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Pagination states - one for each category
+  const [categoryPages, setCategoryPages] = useState({
+    percentage: 1,
+    amount: 1,
+    grams: 1,
+  });
+  const ITEMS_PER_PAGE = 6; // 6 items per category page
 
   // Fetch deductions on mount
   useEffect(() => {
@@ -359,11 +369,36 @@ export default function StoneDeductionTab() {
     return found ? found.icon : Percent;
   };
 
-  // Group deductions by type
-  const groupedDeductions = DEDUCTION_TYPES.map((type) => ({
-    ...type,
-    deductions: deductions.filter((d) => d.deduction_type === type.value),
-  }));
+  // Group deductions by type with pagination info
+  const groupedDeductions = DEDUCTION_TYPES.map((type) => {
+    const allDeductions = deductions.filter(
+      (d) => d.deduction_type === type.value
+    );
+    const currentPage = categoryPages[type.value] || 1;
+    const totalPages = Math.ceil(allDeductions.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedDeductions = allDeductions.slice(
+      startIndex,
+      startIndex + ITEMS_PER_PAGE
+    );
+
+    return {
+      ...type,
+      deductions: paginatedDeductions,
+      allDeductions: allDeductions,
+      totalCount: allDeductions.length,
+      currentPage,
+      totalPages,
+    };
+  });
+
+  // Pagination handler
+  const handlePageChange = (category, page) => {
+    setCategoryPages((prev) => ({
+      ...prev,
+      [category]: page,
+    }));
+  };
 
   // Loading state
   if (isLoading) {
@@ -460,114 +495,169 @@ export default function StoneDeductionTab() {
           {groupedDeductions.map((group) => {
             const TypeIcon = group.icon;
             return (
-              <div key={group.value}>
-                <div className="flex items-center gap-2 mb-3">
-                  <TypeIcon className="w-4 h-4 text-zinc-500" />
+              <div
+                key={group.value}
+                className="border border-zinc-200 rounded-xl p-4 bg-white"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <TypeIcon className="w-4 h-4 text-amber-500" />
                   <span className="font-medium text-zinc-700">
                     {group.label}
                   </span>
                   <Badge variant="secondary" size="sm">
-                    {group.deductions.length}
+                    {group.totalCount}
                   </Badge>
                 </div>
 
-                {group.deductions.length === 0 ? (
-                  <p className="text-sm text-zinc-400 italic ml-6">
-                    No deductions
+                {group.totalCount === 0 ? (
+                  <p className="text-sm text-zinc-400 italic">
+                    No deductions in this category
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {group.deductions.map((deduction) => (
-                      <div
-                        key={deduction.id}
-                        className={cn(
-                          "p-4 rounded-xl border-2 transition-all relative",
-                          deduction.is_active !== false
-                            ? deduction.is_default
-                              ? "border-amber-300 bg-amber-50"
-                              : "border-zinc-200 bg-white"
-                            : "border-zinc-100 bg-zinc-50 opacity-60"
-                        )}
-                      >
-                        {/* Default Badge */}
-                        {deduction.is_default && (
-                          <div className="absolute -top-2 -right-2">
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-medium rounded-full">
-                              <Star className="w-3 h-3" /> Default
-                            </span>
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {group.deductions.map((deduction) => (
+                        <div
+                          key={deduction.id}
+                          className={cn(
+                            "p-4 rounded-xl border-2 transition-all relative",
+                            deduction.is_active !== false
+                              ? deduction.is_default
+                                ? "border-amber-300 bg-amber-50"
+                                : "border-zinc-200 bg-white"
+                              : "border-zinc-100 bg-zinc-50 opacity-60"
+                          )}
+                        >
+                          {/* Default Badge */}
+                          {deduction.is_default && (
+                            <div className="absolute -top-2 -right-2">
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-medium rounded-full">
+                                <Star className="w-3 h-3" /> Default
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <p className="font-medium text-zinc-800">
+                                {deduction.name}
+                              </p>
+                              <p className="text-2xl font-bold text-zinc-700 mt-1">
+                                {formatValue(deduction)}
+                              </p>
+                            </div>
+
+                            {/* Toggle */}
+                            <button
+                              onClick={() => handleToggle(deduction)}
+                              className={cn(
+                                "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                                deduction.is_active !== false
+                                  ? "bg-emerald-500 border-emerald-500"
+                                  : "border-zinc-300"
+                              )}
+                            >
+                              {deduction.is_active !== false && (
+                                <Check className="w-3 h-3 text-white" />
+                              )}
+                            </button>
                           </div>
-                        )}
 
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-medium text-zinc-800">
-                              {deduction.name}
-                            </p>
-                            <p className="text-2xl font-bold text-zinc-700 mt-1">
-                              {formatValue(deduction)}
-                            </p>
-                          </div>
-
-                          {/* Toggle */}
-                          <button
-                            onClick={() => handleToggle(deduction)}
-                            className={cn(
-                              "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
-                              deduction.is_active !== false
-                                ? "bg-emerald-500 border-emerald-500"
-                                : "border-zinc-300"
+                          {/* Actions */}
+                          <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
+                            {!deduction.is_default &&
+                              deduction.is_active !== false && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleSetDefault(deduction)}
+                                  className="text-amber-600 hover:text-amber-700 text-xs"
+                                >
+                                  <Star className="w-3 h-3 mr-1" />
+                                  Set Default
+                                </Button>
+                              )}
+                            {deduction.is_default && (
+                              <span className="text-xs text-amber-600">
+                                Active Default
+                              </span>
                             )}
-                          >
-                            {deduction.is_active !== false && (
-                              <Check className="w-3 h-3 text-white" />
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
-                          {!deduction.is_default &&
-                            deduction.is_active !== false && (
+                            <div className="flex items-center gap-1 ml-auto">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleSetDefault(deduction)}
-                                className="text-amber-600 hover:text-amber-700 text-xs"
+                                onClick={() => openEditModal(deduction)}
+                                className="text-zinc-400 hover:text-blue-500"
                               >
-                                <Star className="w-3 h-3 mr-1" />
-                                Set Default
+                                <Edit className="w-4 h-4" />
                               </Button>
-                            )}
-                          {deduction.is_default && (
-                            <span className="text-xs text-amber-600">
-                              Active Default
-                            </span>
-                          )}
-                          <div className="flex items-center gap-1 ml-auto">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditModal(deduction)}
-                              className="text-zinc-400 hover:text-blue-500"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setDeletingDeduction(deduction);
-                                setShowDeleteModal(true);
-                              }}
-                              className="text-zinc-400 hover:text-red-500"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setDeletingDeduction(deduction);
+                                  setShowDeleteModal(true);
+                                }}
+                                className="text-zinc-400 hover:text-red-500"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
+                      ))}
+                    </div>
+
+                    {/* Pagination Controls for this category */}
+                    {group.totalPages > 1 && (
+                      <div className="mt-4 flex items-center justify-between pt-3 border-t border-zinc-100">
+                        <span className="text-sm text-zinc-500">
+                          Showing {(group.currentPage - 1) * ITEMS_PER_PAGE + 1}
+                          -
+                          {Math.min(
+                            group.currentPage * ITEMS_PER_PAGE,
+                            group.totalCount
+                          )}{" "}
+                          of {group.totalCount}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handlePageChange(
+                                group.value,
+                                group.currentPage - 1
+                              )
+                            }
+                            disabled={group.currentPage === 1}
+                            className="flex items-center gap-1"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                            Prev
+                          </Button>
+                          <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded text-sm font-medium">
+                            {group.currentPage} / {group.totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handlePageChange(
+                                group.value,
+                                group.currentPage + 1
+                              )
+                            }
+                            disabled={group.currentPage === group.totalPages}
+                            className="flex items-center gap-1"
+                          >
+                            Next
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             );

@@ -39,12 +39,17 @@ cd ../backend
 composer install --no-dev --optimize-autoloader
 
 # Create storage directories if missing
-mkdir -p storage/app/public
+mkdir -p storage/app/public/customers/ic
+mkdir -p storage/app/public/customers/selfie
 mkdir -p storage/framework/cache/data
 mkdir -p storage/framework/sessions
 mkdir -p storage/framework/views
 mkdir -p storage/logs
 mkdir -p bootstrap/cache
+
+# Create symbolic link for storage (safe to run multiple times)
+echo "🔗 Creating storage symbolic link..."
+/opt/cpanel/ea-php82/root/usr/bin/php artisan storage:link 2>/dev/null || echo "  ℹ️  Storage link already exists"
 
 # Set permissions
 chmod -R 775 storage bootstrap/cache

@@ -19,6 +19,8 @@ import {
   RefreshCw,
   Edit,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 export default function CategoriesTab() {
@@ -47,6 +49,10 @@ export default function CategoriesTab() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10); // 10 items per page
+
   // Fetch categories on mount
   useEffect(() => {
     fetchCategories();
@@ -62,6 +68,8 @@ export default function CategoriesTab() {
         // Handle nested data structure
         const data = response.data?.data || response.data || [];
         setCategories(data);
+        // Reset to page 1 when data changes
+        setCurrentPage(1);
       } else {
         throw new Error(response.message || "Failed to fetch categories");
       }
@@ -296,6 +304,29 @@ export default function CategoriesTab() {
     );
   }
 
+  // Pagination calculations
+  const totalPages = Math.ceil(categories.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = categories.slice(indexOfFirstItem, indexOfLastItem);
+
+  // Pagination handlers
+  const goToPage = (pageNumber) => {
+    setCurrentPage(Math.min(Math.max(1, pageNumber), totalPages));
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
   return (
     <Card className="p-6">
       {/* Header */}
@@ -312,7 +343,10 @@ export default function CategoriesTab() {
             variant="ghost"
             size="sm"
             leftIcon={RefreshCw}
-            onClick={fetchCategories}
+            onClick={() => {
+              fetchCategories();
+              setCurrentPage(1);
+            }}
           >
             Refresh
           </Button>
@@ -346,69 +380,145 @@ export default function CategoriesTab() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className={cn(
-                "flex items-center justify-between p-4 rounded-xl border transition-all",
-                category.is_active !== false
-                  ? "border-zinc-200 bg-white"
-                  : "border-zinc-100 bg-zinc-50 opacity-60"
-              )}
-            >
-              <div className="flex items-center gap-4">
-                {/* Toggle Active */}
-                <button
-                  onClick={() => handleToggle(category)}
-                  className={cn(
-                    "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
-                    category.is_active !== false
-                      ? "bg-emerald-500 border-emerald-500"
-                      : "border-zinc-300"
-                  )}
-                >
-                  {category.is_active !== false && (
-                    <Check className="w-3 h-3 text-white" />
-                  )}
-                </button>
+        <>
+          <div className="space-y-2">
+            {currentItems.map((category) => (
+              <div
+                key={category.id}
+                className={cn(
+                  "flex items-center justify-between p-4 rounded-xl border transition-all",
+                  category.is_active !== false
+                    ? "border-zinc-200 bg-white"
+                    : "border-zinc-100 bg-zinc-50 opacity-60"
+                )}
+              >
+                <div className="flex items-center gap-4">
+                  {/* Toggle Active */}
+                  <button
+                    onClick={() => handleToggle(category)}
+                    className={cn(
+                      "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                      category.is_active !== false
+                        ? "bg-emerald-500 border-emerald-500"
+                        : "border-zinc-300"
+                    )}
+                  >
+                    {category.is_active !== false && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </button>
 
-                {/* Category Info */}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-zinc-800">
-                      {category.name_en}
-                    </p>
-                    <Badge variant="secondary" size="sm">
-                      {category.code}
-                    </Badge>
+                  {/* Category Info */}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-zinc-800">
+                        {category.name_en}
+                      </p>
+                      <Badge variant="secondary" size="sm">
+                        {category.code}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-zinc-500">{category.name_ms}</p>
                   </div>
-                  <p className="text-sm text-zinc-500">{category.name_ms}</p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEditModal(category)}
+                    className="text-zinc-400 hover:text-blue-500"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openDeleteModal(category)}
+                    className="text-zinc-400 hover:text-red-500"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1">
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-between border-t border-zinc-200 pt-4">
+              <div className="text-sm text-zinc-600">
+                Showing {indexOfFirstItem + 1} to{" "}
+                {Math.min(indexOfLastItem, categories.length)} of{" "}
+                {categories.length} categories
+              </div>
+              <div className="flex items-center gap-2">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => openEditModal(category)}
-                  className="text-zinc-400 hover:text-blue-500"
+                  onClick={goToPrevPage}
+                  disabled={currentPage === 1}
+                  className="flex items-center gap-1"
                 >
-                  <Edit className="w-4 h-4" />
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
                 </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => {
+                      // Show first page, last page, current page, and pages around current
+                      const showPage =
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1);
+
+                      if (!showPage) {
+                        // Show ellipsis for skipped pages
+                        if (
+                          page === currentPage - 2 ||
+                          page === currentPage + 2
+                        ) {
+                          return (
+                            <span key={page} className="px-2 text-zinc-400">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      }
+
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => goToPage(page)}
+                          className={cn(
+                            "px-3 py-1 rounded text-sm font-medium transition-colors",
+                            currentPage === page
+                              ? "bg-amber-500 text-white"
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                          )}
+                        >
+                          {page}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => openDeleteModal(category)}
-                  className="text-zinc-400 hover:text-red-500"
+                  onClick={goToNextPage}
+                  disabled={currentPage === totalPages}
+                  className="flex items-center gap-1"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  Next
+                  <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {/* Add Modal */}

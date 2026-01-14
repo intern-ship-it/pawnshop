@@ -33,6 +33,15 @@ const pledgeService = {
   },
 
   /**
+   * Search pledges by IC number, pledge number, or receipt number
+   * @param {string} query - Search query (IC, pledge number, or receipt)
+   * @returns {Promise}
+   */
+  async search(query) {
+    return apiGet('/pledges', { search: query, per_page: 1 })
+  },
+
+  /**
    * Calculate pledge before creating (preview)
    * @param {Object} pledgeData - Items, customer, etc.
    * @returns {Promise} - Calculated values

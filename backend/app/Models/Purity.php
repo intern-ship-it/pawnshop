@@ -22,4 +22,10 @@ class Purity extends Model
         'percentage' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    // Relationships
+    public function pledgeItems()
+    {
+        return $this->hasMany(\App\Models\PledgeItem::class, 'purity_id');
+    }
 }
