@@ -20,8 +20,6 @@ import {
   Building2,
   Shield,
   ShieldCheck,
-  Eye,
-  EyeOff,
   Key,
   Save,
   ArrowLeft,
@@ -70,8 +68,6 @@ export default function UserForm() {
   });
 
   const [errors, setErrors] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -599,27 +595,16 @@ export default function UserForm() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="relative">
+                <div>
                   <Input
                     label={isEdit ? "New Password" : "Password *"}
-                    type={showPassword ? "text" : "password"}
+                    type="password"
                     value={formData.password}
                     onChange={(e) => handleChange("password", e.target.value)}
                     placeholder="Minimum 8 characters"
                     error={errors.password}
                     leftIcon={Key}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-9 text-zinc-400 hover:text-zinc-600"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
 
                   {/* Password Strength Indicator */}
                   {formData.password &&
@@ -673,32 +658,17 @@ export default function UserForm() {
                 </div>
 
                 <div>
-                  <div className="relative">
-                    <Input
-                      label="Confirm Password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={formData.confirmPassword}
-                      onChange={(e) =>
-                        handleChange("confirmPassword", e.target.value)
-                      }
-                      placeholder="Confirm password"
-                      error={errors.confirmPassword}
-                      leftIcon={Key}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      className="absolute right-3 top-9 text-zinc-400 hover:text-zinc-600"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
+                  <Input
+                    label="Confirm Password"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) =>
+                      handleChange("confirmPassword", e.target.value)
+                    }
+                    placeholder="Confirm password"
+                    error={errors.confirmPassword}
+                    leftIcon={Key}
+                  />
 
                   {/* Password Match Indicator */}
                   {formData.confirmPassword && formData.password && (

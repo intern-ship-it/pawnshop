@@ -16,6 +16,7 @@ import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import Modal from "@/components/common/Modal";
+import { usePermission } from "@/components/auth/PermissionGate";
 import {
   Plus,
   Search,
@@ -54,6 +55,11 @@ export default function UserList() {
   const dispatch = useAppDispatch();
   const { role: currentUserRole } = useAppSelector((state) => state.auth);
   const currentRoleSlug = currentUserRole?.slug || currentUserRole || "";
+
+  // Permission checks
+  const canCreate = usePermission("users.create");
+  const canEdit = usePermission("users.edit");
+  const canDelete = usePermission("users.delete");
 
   // Data state
   const [users, setUsers] = useState([]);
@@ -335,13 +341,15 @@ export default function UserList() {
       title="User Management"
       subtitle="Manage system users and access control"
       actions={
-        <Button
-          variant="accent"
-          leftIcon={Plus}
-          onClick={() => navigate("/settings/users/new")}
-        >
-          Add User
-        </Button>
+        canCreate && (
+          <Button
+            variant="accent"
+            leftIcon={Plus}
+            onClick={() => navigate("/settings/users/new")}
+          >
+            Add User
+          </Button>
+        )
       }
     >
       {/* Stats Cards */}
@@ -551,26 +559,30 @@ export default function UserList() {
                       {/* Actions */}
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() =>
-                              navigate(`/settings/users/${user.id}/edit`)
-                            }
-                            className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit User"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() =>
+                                navigate(`/settings/users/${user.id}/edit`)
+                              }
+                              className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit User"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
 
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowResetModal(true);
-                            }}
-                            className="p-2 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                            title="Reset Password"
-                          >
-                            <Key className="w-4 h-4" />
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowResetModal(true);
+                              }}
+                              className="p-2 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="Reset Password"
+                            >
+                              <Key className="w-4 h-4" />
+                            </button>
+                          )}
 
                           <button
                             onClick={() => handleViewPermissions(user)}
@@ -580,16 +592,18 @@ export default function UserList() {
                             <ShieldCheck className="w-4 h-4" />
                           </button>
 
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowDeleteModal(true);
-                            }}
-                            className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete User"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowDeleteModal(true);
+                              }}
+                              className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete User"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>

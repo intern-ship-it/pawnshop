@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import { usePermission } from "@/components/auth/PermissionGate";
 import {
   Plus,
   Search,
@@ -45,6 +46,11 @@ export default function PledgeList() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { pledges } = useAppSelector((state) => state.pledges);
+
+  // Permission checks
+  const canCreate = usePermission("pledges.create");
+  const canPrint = usePermission("pledges.print");
+  const canDelete = usePermission("pledges.delete");
 
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -466,13 +472,15 @@ export default function PledgeList() {
           <Button variant="outline" leftIcon={Download} onClick={handleExport}>
             Export
           </Button>
-          <Button
-            variant="accent"
-            leftIcon={Plus}
-            onClick={() => navigate("/pledges/new")}
-          >
-            New Pledge
-          </Button>
+          {canCreate && (
+            <Button
+              variant="accent"
+              leftIcon={Plus}
+              onClick={() => navigate("/pledges/new")}
+            >
+              New Pledge
+            </Button>
+          )}
         </div>
       }
     >
@@ -756,8 +764,8 @@ export default function PledgeList() {
                               daysUntilDue <= 7
                                 ? "text-red-500"
                                 : daysUntilDue <= 30
-                                ? "text-amber-500"
-                                : "text-zinc-400"
+                                  ? "text-amber-500"
+                                  : "text-zinc-400"
                             )}
                           >
                             {daysUntilDue > 0
@@ -792,22 +800,25 @@ export default function PledgeList() {
                           </Button>
 
                           {/* Print Button */}
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={printingId === pledge.id}
-                            onClick={(e) => handlePrint(pledge.id, e)}
-                            title="Print Receipt"
-                          >
-                            {printingId === pledge.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <FileText className="w-4 h-4" />
-                            )}
-                          </Button>
+                          {canPrint && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={printingId === pledge.id}
+                              onClick={(e) => handlePrint(pledge.id, e)}
+                              title="Print Receipt"
+                            >
+                              {printingId === pledge.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <FileText className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
 
                           {/* Cancel Button - Only for active pledges with no renewals */}
-                          {pledge.status === "active" &&
+                          {canDelete &&
+                            pledge.status === "active" &&
                             pledge.renewalCount === 0 && (
                               <Button
                                 variant="ghost"

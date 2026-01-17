@@ -634,9 +634,33 @@ function CompanyTab({ settings, updateSettings }) {
     }
   };
 
-  const handleRemoveLogo = () => {
-    setLogoPreview(null);
-    window.dispatchEvent(new CustomEvent("logoUpdated", { detail: null }));
+  const handleRemoveLogo = async () => {
+    try {
+      setIsUploadingLogo(true);
+      await settingsService.deleteLogo();
+
+      setLogoPreview(null);
+      window.dispatchEvent(new CustomEvent("logoUpdated", { detail: null }));
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Logo Removed",
+          message: "Company logo has been removed",
+        })
+      );
+    } catch (err) {
+      console.error("Failed to delete logo:", err);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Delete Failed",
+          message: err.message || "Failed to remove logo. Please try again.",
+        })
+      );
+    } finally {
+      setIsUploadingLogo(false);
+    }
   };
 
   return (
@@ -1827,8 +1851,8 @@ function RacksTab({ settings, updateSettings }) {
                               occupancyPercent >= 90
                                 ? "bg-red-500"
                                 : occupancyPercent >= 70
-                                ? "bg-amber-500"
-                                : "bg-emerald-500"
+                                  ? "bg-amber-500"
+                                  : "bg-emerald-500"
                             )}
                             style={{ width: `${occupancyPercent}%` }}
                           />

@@ -196,6 +196,11 @@ const settingsService = {
     const response = await api.get('/settings/logo');
     return response.data;
   },
+
+  async deleteLogo() {
+    const response = await api.delete('/settings/logo');
+    return response.data;
+  },
 }
 
 export default settingsService

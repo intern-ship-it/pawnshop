@@ -623,6 +623,40 @@ class SettingsController extends Controller
     }
 
     /**
+     * Delete company logo
+     */
+    public function deleteLogo(Request $request): JsonResponse
+    {
+        try {
+            $branchId = $request->user()->branch_id;
+
+            // Find the logo setting
+            $setting = Setting::where('category', 'company')
+                ->where('key_name', 'logo')
+                ->where('branch_id', $branchId)
+                ->first();
+
+            if ($setting && $setting->value) {
+                // Delete the file from storage
+                $storagePath = str_replace('/storage/', '', $setting->value);
+                $fullPath = storage_path('app/public/' . $storagePath);
+
+                if (file_exists($fullPath)) {
+                    unlink($fullPath);
+                }
+
+                // Delete the setting from database
+                $setting->delete();
+            }
+
+            return $this->success(null, 'Logo removed successfully');
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to delete logo: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Serve the logo image file directly with CORS headers
      */
     public function serveLogoImage(Request $request)

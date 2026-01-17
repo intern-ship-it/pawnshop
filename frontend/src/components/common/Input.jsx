@@ -1,4 +1,5 @@
 import { forwardRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 
@@ -49,6 +50,45 @@ const Input = forwardRef(
         : "border-zinc-300 hover:border-zinc-400",
       inputClassName
     );
+
+    // Animation variants for eye icon
+    const iconVariants = {
+      initial: {
+        scale: 0.6,
+        opacity: 0,
+        rotate: -90,
+      },
+      animate: {
+        scale: 1,
+        opacity: 1,
+        rotate: 0,
+        transition: {
+          type: "spring",
+          stiffness: 500,
+          damping: 25,
+          duration: 0.3,
+        },
+      },
+      exit: {
+        scale: 0.6,
+        opacity: 0,
+        rotate: 90,
+        transition: {
+          duration: 0.15,
+        },
+      },
+      hover: {
+        scale: 1.1,
+        transition: {
+          type: "spring",
+          stiffness: 400,
+          damping: 10,
+        },
+      },
+      tap: {
+        scale: 0.9,
+      },
+    };
 
     return (
       <div
@@ -103,18 +143,39 @@ const Input = forwardRef(
           {(RightIcon || rightElement || isPassword) && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
               {isPassword ? (
-                <button
+                <motion.button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-zinc-400 hover:text-zinc-600 transition-colors"
+                  className="text-zinc-400 hover:text-amber-500 transition-colors p-1 rounded-full"
                   tabIndex={-1}
+                  whileHover="hover"
+                  whileTap="tap"
+                  variants={iconVariants}
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
+                  <AnimatePresence mode="wait" initial={false}>
+                    {showPassword ? (
+                      <motion.div
+                        key="eyeOff"
+                        variants={iconVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                      >
+                        <EyeOff className="w-5 h-5" />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="eye"
+                        variants={iconVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
               ) : RightIcon ? (
                 <RightIcon className="w-5 h-5 text-zinc-400" />
               ) : (

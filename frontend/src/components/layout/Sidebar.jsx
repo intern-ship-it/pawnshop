@@ -339,9 +339,6 @@ export default function Sidebar() {
                         isActive
                           ? "bg-amber-500/10 text-amber-500"
                           : "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
-                        item.highlight &&
-                          !isActive &&
-                          "border border-amber-500/30 bg-amber-500/5",
                         sidebarCollapsed && "justify-center px-2"
                       )}
                     >
@@ -354,20 +351,12 @@ export default function Sidebar() {
                           "w-5 h-5 flex-shrink-0 transition-colors",
                           isActive
                             ? "text-amber-500"
-                            : "text-zinc-400 group-hover:text-white",
-                          item.highlight && !isActive && "text-amber-500/70"
+                            : "text-zinc-400 group-hover:text-white"
                         )}
                       />
 
                       {!sidebarCollapsed && (
-                        <span
-                          className={cn(
-                            "text-sm font-medium",
-                            item.highlight && !isActive && "text-amber-500/90"
-                          )}
-                        >
-                          {item.name}
-                        </span>
+                        <span className="text-sm font-medium">{item.name}</span>
                       )}
 
                       {sidebarCollapsed && (

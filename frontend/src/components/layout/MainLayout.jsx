@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import Toast from "@/components/common/Toast";
-import { GlobalCameraModal } from "@/components/common";
+import { GlobalCameraModal, Breadcrumb } from "@/components/common";
 import { Loader2 } from "lucide-react";
 import { setSettings } from "@/features/ui/uiSlice";
 import settingsService from "@/services/settingsService";
@@ -138,6 +138,7 @@ export default function MainLayout() {
 
         <main className="pt-16">
           <div className="p-4 lg:p-6">
+            <Breadcrumb />
             <Outlet />
           </div>
         </main>

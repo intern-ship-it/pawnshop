@@ -10,6 +10,10 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Modal } from "@/components/common";
+import {
+  PermissionGate,
+  usePermission,
+} from "@/components/auth/PermissionGate";
 import { customerService } from "@/services";
 import { getStorageUrl } from "@/utils/helpers";
 import {
@@ -33,6 +37,11 @@ export default function CustomerList() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { customers, loading } = useAppSelector((state) => state.customers);
+
+  // Permission checks
+  const canCreate = usePermission("customers.create");
+  const canEdit = usePermission("customers.edit");
+  const canDelete = usePermission("customers.delete");
 
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -194,14 +203,16 @@ export default function CustomerList() {
           >
             Refresh
           </Button>
-          <Button
-            variant="accent"
-            leftIcon={Plus}
-            onClick={() => navigate("/customers/new")}
-            className="bg-amber-500 hover:bg-amber-600 text-white"
-          >
-            Add Customer
-          </Button>
+          {canCreate && (
+            <Button
+              variant="accent"
+              leftIcon={Plus}
+              onClick={() => navigate("/customers/new")}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              Add Customer
+            </Button>
+          )}
         </div>
       }
     >
@@ -427,23 +438,27 @@ export default function CustomerList() {
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/customers/${customer.id}/edit`);
-                        }}
-                        className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteClick(e, customer)}
-                        className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/customers/${customer.id}/edit`);
+                          }}
+                          className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={(e) => handleDeleteClick(e, customer)}
+                          className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
