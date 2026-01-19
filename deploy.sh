@@ -105,6 +105,10 @@ else
     echo "  ℹ️ Storage/customers not visible yet (will work after first upload)"
 fi
 
+# Run database migrations
+echo "📊 Running database migrations..."
+/opt/cpanel/ea-php82/root/usr/bin/php artisan migrate --force
+
 # Clear and cache Laravel (using PHP 8.2)
 echo "🧹 Clearing cache..."
 /opt/cpanel/ea-php82/root/usr/bin/php artisan config:clear
