@@ -361,7 +361,9 @@ export default function HardwareIntegration() {
     setIsSaving(true);
     try {
       const response = await hardwareService.create(formData);
-      if (response.success) {
+      // API returns { data: { success: true, data: {...} } } via axios
+      const result = response.data || response;
+      if (result.success) {
         await loadDevices(); // Reload list
         setShowAddModal(false);
         resetForm();
@@ -373,7 +375,7 @@ export default function HardwareIntegration() {
           })
         );
       } else {
-        throw new Error(response.message || "Failed to add device");
+        throw new Error(result.message || "Failed to add device");
       }
     } catch (error) {
       console.error("Error adding device:", error);
@@ -381,7 +383,10 @@ export default function HardwareIntegration() {
         addToast({
           type: "error",
           title: "Error",
-          message: error.response?.data?.message || "Failed to add device",
+          message:
+            error.response?.data?.message ||
+            error.message ||
+            "Failed to add device",
         })
       );
     } finally {
@@ -399,9 +404,10 @@ export default function HardwareIntegration() {
         selectedDevice.id,
         formData
       );
-      if (response.success) {
+      const result = response.data || response;
+      if (result.success) {
         await loadDevices(); // Reload list
-        setSelectedDevice(response.data);
+        setSelectedDevice(result.data);
         setIsEditing(false);
         dispatch(
           addToast({
@@ -411,7 +417,7 @@ export default function HardwareIntegration() {
           })
         );
       } else {
-        throw new Error(response.message || "Failed to update device");
+        throw new Error(result.message || "Failed to update device");
       }
     } catch (error) {
       console.error("Error updating device:", error);
@@ -419,7 +425,10 @@ export default function HardwareIntegration() {
         addToast({
           type: "error",
           title: "Error",
-          message: error.response?.data?.message || "Failed to update device",
+          message:
+            error.response?.data?.message ||
+            error.message ||
+            "Failed to update device",
         })
       );
     } finally {
@@ -433,7 +442,8 @@ export default function HardwareIntegration() {
 
     try {
       const response = await hardwareService.delete(deviceId);
-      if (response.success) {
+      const result = response.data || response;
+      if (result.success) {
         await loadDevices(); // Reload list
         if (selectedDevice?.id === deviceId) {
           setSelectedDevice(null);
@@ -446,7 +456,7 @@ export default function HardwareIntegration() {
           })
         );
       } else {
-        throw new Error(response.message || "Failed to delete device");
+        throw new Error(result.message || "Failed to delete device");
       }
     } catch (error) {
       console.error("Error deleting device:", error);
@@ -454,7 +464,10 @@ export default function HardwareIntegration() {
         addToast({
           type: "error",
           title: "Error",
-          message: error.response?.data?.message || "Failed to delete device",
+          message:
+            error.response?.data?.message ||
+            error.message ||
+            "Failed to delete device",
         })
       );
     }
@@ -464,19 +477,20 @@ export default function HardwareIntegration() {
   const handleToggleActive = async (deviceId) => {
     try {
       const response = await hardwareService.toggleActive(deviceId);
-      if (response.success) {
+      const result = response.data || response;
+      if (result.success) {
         await loadDevices(); // Reload list
         if (selectedDevice?.id === deviceId) {
           setSelectedDevice({
             ...selectedDevice,
-            is_active: response.data.is_active,
+            is_active: result.data.is_active,
           });
         }
         dispatch(
           addToast({
             type: "success",
             title: "Success",
-            message: response.message,
+            message: result.message,
           })
         );
       }
@@ -496,7 +510,8 @@ export default function HardwareIntegration() {
   const handleSetDefault = async (deviceId) => {
     try {
       const response = await hardwareService.setDefault(deviceId);
-      if (response.success) {
+      const result = response.data || response;
+      if (result.success) {
         await loadDevices(); // Reload list
         if (selectedDevice?.id === deviceId) {
           setSelectedDevice({ ...selectedDevice, is_default: true });
