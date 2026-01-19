@@ -295,8 +295,19 @@ export default function AuditLogScreen() {
     setShowDetailModal(true);
   };
 
-  // Export logs
+  // Export logs to CSV
   const handleExport = () => {
+    if (logs.length === 0) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "No Data",
+          message: "No logs to export",
+        })
+      );
+      return;
+    }
+
     const csv = [
       [
         "ID",
@@ -305,27 +316,119 @@ export default function AuditLogScreen() {
         "Action",
         "Module",
         "Description",
-        "Details",
+        "IP Address",
+        "Severity",
       ].join(","),
-      ...filteredLogs.map((log) =>
+      ...logs.map((log) =>
         [
           log.id,
-          log.timestamp,
-          log.user,
+          `"${formatTimestamp(log.created_at)}"`,
+          `"${log.user?.name || "System"}"`,
           log.action,
           log.module,
-          `"${log.description}"`,
-          `"${JSON.stringify(log.details).replace(/"/g, '""')}"`,
+          `"${(log.description || "").replace(/"/g, '""')}"`,
+          log.ip_address || "",
+          log.severity || "info",
         ].join(",")
       ),
     ].join("\n");
 
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `audit_log_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    dispatch(
+      addToast({
+        type: "success",
+        title: "Exported",
+        message: `Exported ${logs.length} log entries`,
+      })
+    );
+  };
+
+  // Print logs
+  const handlePrint = () => {
+    if (logs.length === 0) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "No Data",
+          message: "No logs to print",
+        })
+      );
+      return;
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Audit Log Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { text-align: center; margin-bottom: 10px; }
+          .subtitle { text-align: center; color: #666; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f5f5f5; font-weight: bold; }
+          tr:nth-child(even) { background-color: #fafafa; }
+          .footer { margin-top: 20px; font-size: 11px; color: #666; text-align: center; }
+          @media print {
+            body { padding: 0; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Audit Log Report</h1>
+        <p class="subtitle">Generated on ${new Date().toLocaleString()}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Date/Time</th>
+              <th>User</th>
+              <th>Action</th>
+              <th>Module</th>
+              <th>Description</th>
+              <th>IP Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${logs
+              .map(
+                (log) => `
+              <tr>
+                <td>${formatTimestamp(log.created_at)}</td>
+                <td>${log.user?.name || "System"}</td>
+                <td>${log.action}</td>
+                <td>${log.module}</td>
+                <td>${log.description || "-"}</td>
+                <td>${log.ip_address || "-"}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+        <p class="footer">Total: ${logs.length} entries | Printed from PawnSys</p>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
   };
 
   // Clear filters
@@ -353,7 +456,7 @@ export default function AuditLogScreen() {
           <Button variant="outline" leftIcon={Download} onClick={handleExport}>
             Export CSV
           </Button>
-          <Button variant="outline" leftIcon={Printer}>
+          <Button variant="outline" leftIcon={Printer} onClick={handlePrint}>
             Print
           </Button>
         </div>
