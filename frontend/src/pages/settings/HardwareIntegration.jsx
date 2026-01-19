@@ -1,7 +1,14 @@
+/**
+ * Hardware Integration Settings
+ * Manage printers, scanners, and other devices
+ *
+ * NOW USES API (dynamic) instead of localStorage
+ */
+
 import { useState, useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
-import { getToken } from "@/services/api";
+import hardwareService from "@/services/hardwareService";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -55,7 +62,7 @@ const CONNECTION_TYPES = {
   WIRELESS: "wireless",
 };
 
-// Default device templates
+// Default device templates (for quick add)
 const DEVICE_TEMPLATES = {
   epson_lq310: {
     name: "Epson LQ-310",
@@ -63,13 +70,13 @@ const DEVICE_TEMPLATES = {
     brand: "Epson",
     model: "LQ-310",
     connection: CONNECTION_TYPES.USB,
-    paperSize: "A5",
+    paper_size: "A5",
     description: "24-pin dot matrix printer for multi-copy receipts",
     settings: {
       copies: 2,
       charactersPerLine: 42,
-      cpi: 10, // Characters per inch
-      lpi: 6, // Lines per inch
+      cpi: 10,
+      lpi: 6,
     },
   },
   aiyin_an803: {
@@ -78,7 +85,7 @@ const DEVICE_TEMPLATES = {
     brand: "Xiamen Aiyin",
     model: "AN803",
     connection: CONNECTION_TYPES.USB,
-    paperSize: "80mm",
+    paper_size: "80mm",
     description: "Thermal receipt printer for barcode labels",
     settings: {
       labelWidth: 50,
@@ -103,9 +110,6 @@ const DEVICE_TEMPLATES = {
   },
 };
 
-// Local storage key
-const STORAGE_KEY = "pawnsys_hardware_devices";
-
 export default function HardwareIntegration() {
   const dispatch = useAppDispatch();
 
@@ -119,6 +123,7 @@ export default function HardwareIntegration() {
   const [testResult, setTestResult] = useState(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Form state for adding/editing device
   const [formData, setFormData] = useState({
@@ -127,86 +132,50 @@ export default function HardwareIntegration() {
     brand: "",
     model: "",
     connection: CONNECTION_TYPES.USB,
-    paperSize: "",
+    paper_size: "",
     description: "",
-    ipAddress: "",
+    ip_address: "",
     port: "",
-    isDefault: false,
-    isActive: true,
+    is_default: false,
+    is_active: true,
     settings: {},
   });
 
-  // Load devices from localStorage on mount
+  // Load devices from API on mount
   useEffect(() => {
     loadDevices();
   }, []);
 
-  const loadDevices = () => {
+  // ============================================
+  // API FUNCTIONS
+  // ============================================
+
+  const loadDevices = async () => {
+    setIsLoading(true);
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setDevices(JSON.parse(stored));
+      const response = await hardwareService.getAll();
+      if (response.success && response.data?.devices) {
+        setDevices(response.data.devices);
       } else {
-        // Initialize with default devices
-        const defaultDevices = [
-          {
-            id: "dev-1",
-            ...DEVICE_TEMPLATES.epson_lq310,
-            isDefault: true,
-            isActive: true,
-            status: "unknown",
-            lastTested: null,
-          },
-          {
-            id: "dev-2",
-            ...DEVICE_TEMPLATES.aiyin_an803,
-            isDefault: true,
-            isActive: true,
-            status: "unknown",
-            lastTested: null,
-          },
-          {
-            id: "dev-3",
-            ...DEVICE_TEMPLATES.henex_hc3208r,
-            isDefault: true,
-            isActive: true,
-            status: "unknown",
-            lastTested: null,
-          },
-        ];
-        setDevices(defaultDevices);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultDevices));
+        setDevices([]);
       }
     } catch (error) {
       console.error("Error loading devices:", error);
-    }
-  };
-
-  const saveDevices = (updatedDevices) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDevices));
-      setDevices(updatedDevices);
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Saved",
-          message: "Device settings saved successfully",
-        })
-      );
-    } catch (error) {
-      console.error("Error saving devices:", error);
       dispatch(
         addToast({
           type: "error",
           title: "Error",
-          message: "Failed to save device settings",
+          message: "Failed to load hardware devices",
         })
       );
+      setDevices([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Add new device
-  const handleAddDevice = () => {
+  const handleAddDevice = async () => {
     if (!formData.name || !formData.type) {
       dispatch(
         addToast({
@@ -218,72 +187,166 @@ export default function HardwareIntegration() {
       return;
     }
 
-    const newDevice = {
-      id: `dev-${Date.now()}`,
-      ...formData,
-      status: "unknown",
-      lastTested: null,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedDevices = [...devices, newDevice];
-    saveDevices(updatedDevices);
-    setShowAddModal(false);
-    resetForm();
+    setIsSaving(true);
+    try {
+      const response = await hardwareService.create(formData);
+      if (response.success) {
+        await loadDevices(); // Reload list
+        setShowAddModal(false);
+        resetForm();
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Success",
+            message: "Device added successfully",
+          })
+        );
+      } else {
+        throw new Error(response.message || "Failed to add device");
+      }
+    } catch (error) {
+      console.error("Error adding device:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.response?.data?.message || "Failed to add device",
+        })
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Update device
-  const handleUpdateDevice = () => {
+  const handleUpdateDevice = async () => {
     if (!selectedDevice) return;
 
-    const updatedDevices = devices.map((d) =>
-      d.id === selectedDevice.id
-        ? { ...d, ...formData, updatedAt: new Date().toISOString() }
-        : d
-    );
-    saveDevices(updatedDevices);
-    setIsEditing(false);
-    setSelectedDevice({ ...selectedDevice, ...formData });
+    setIsSaving(true);
+    try {
+      const response = await hardwareService.update(
+        selectedDevice.id,
+        formData
+      );
+      if (response.success) {
+        await loadDevices(); // Reload list
+        setSelectedDevice(response.data);
+        setIsEditing(false);
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Success",
+            message: "Device updated successfully",
+          })
+        );
+      } else {
+        throw new Error(response.message || "Failed to update device");
+      }
+    } catch (error) {
+      console.error("Error updating device:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.response?.data?.message || "Failed to update device",
+        })
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Delete device
-  const handleDeleteDevice = (deviceId) => {
+  const handleDeleteDevice = async (deviceId) => {
     if (!confirm("Are you sure you want to delete this device?")) return;
 
-    const updatedDevices = devices.filter((d) => d.id !== deviceId);
-    saveDevices(updatedDevices);
-
-    if (selectedDevice?.id === deviceId) {
-      setSelectedDevice(null);
+    try {
+      const response = await hardwareService.delete(deviceId);
+      if (response.success) {
+        await loadDevices(); // Reload list
+        if (selectedDevice?.id === deviceId) {
+          setSelectedDevice(null);
+        }
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Success",
+            message: "Device deleted successfully",
+          })
+        );
+      } else {
+        throw new Error(response.message || "Failed to delete device");
+      }
+    } catch (error) {
+      console.error("Error deleting device:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.response?.data?.message || "Failed to delete device",
+        })
+      );
     }
   };
 
   // Toggle device active status
-  const handleToggleActive = (deviceId) => {
-    const updatedDevices = devices.map((d) =>
-      d.id === deviceId ? { ...d, isActive: !d.isActive } : d
-    );
-    saveDevices(updatedDevices);
-
-    if (selectedDevice?.id === deviceId) {
-      setSelectedDevice({
-        ...selectedDevice,
-        isActive: !selectedDevice.isActive,
-      });
+  const handleToggleActive = async (deviceId) => {
+    try {
+      const response = await hardwareService.toggleActive(deviceId);
+      if (response.success) {
+        await loadDevices(); // Reload list
+        if (selectedDevice?.id === deviceId) {
+          setSelectedDevice({
+            ...selectedDevice,
+            is_active: response.data.is_active,
+          });
+        }
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Success",
+            message: response.message,
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Error toggling device:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to toggle device status",
+        })
+      );
     }
   };
 
   // Set as default for type
-  const handleSetDefault = (deviceId, deviceType) => {
-    const updatedDevices = devices.map((d) => ({
-      ...d,
-      isDefault:
-        d.id === deviceId ? true : d.type === deviceType ? false : d.isDefault,
-    }));
-    saveDevices(updatedDevices);
-
-    if (selectedDevice?.id === deviceId) {
-      setSelectedDevice({ ...selectedDevice, isDefault: true });
+  const handleSetDefault = async (deviceId) => {
+    try {
+      const response = await hardwareService.setDefault(deviceId);
+      if (response.success) {
+        await loadDevices(); // Reload list
+        if (selectedDevice?.id === deviceId) {
+          setSelectedDevice({ ...selectedDevice, is_default: true });
+        }
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Success",
+            message: "Device set as default",
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Error setting default:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to set default device",
+        })
+      );
     }
   };
 
@@ -295,72 +358,38 @@ export default function HardwareIntegration() {
     setTestResult(null);
 
     try {
-      // Simulate testing based on device type
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const response = await hardwareService.testConnection(device.id);
 
-      let result = { success: false, message: "", details: [] };
+      if (response.success) {
+        setTestResult({
+          success: response.data.success,
+          message: response.data.message,
+          details: response.data.details || [],
+        });
 
-      switch (device.type) {
-        case DEVICE_TYPES.DOT_MATRIX_PRINTER:
-        case DEVICE_TYPES.THERMAL_PRINTER:
-          // For printers, we check if browser can detect printers
-          result = {
-            success: true,
-            message: "Printer is accessible via browser print dialog",
-            details: [
-              {
-                label: "Connection",
-                value: device.connection.toUpperCase(),
-                status: "ok",
-              },
-              { label: "Paper Size", value: device.paperSize, status: "ok" },
-              { label: "Status", value: "Ready", status: "ok" },
-            ],
-          };
-          break;
+        // Reload to get updated status
+        await loadDevices();
 
-        case DEVICE_TYPES.BARCODE_SCANNER:
-          result = {
-            success: true,
-            message: "Scanner configured in keyboard wedge mode",
-            details: [
-              { label: "Mode", value: "Keyboard Wedge", status: "ok" },
-              { label: "Suffix", value: "Enter Key", status: "ok" },
-              {
-                label: "Connection",
-                value: device.connection.toUpperCase(),
-                status: "ok",
-              },
-            ],
-          };
-          break;
-
-        default:
-          result = {
-            success: false,
-            message: "Unknown device type",
-            details: [],
-          };
+        // Update selected device status
+        if (selectedDevice?.id === device.id) {
+          setSelectedDevice({
+            ...selectedDevice,
+            status: response.data.status,
+            last_tested_at: response.data.last_tested_at,
+          });
+        }
+      } else {
+        setTestResult({
+          success: false,
+          message: response.message || "Test failed",
+          details: [],
+        });
       }
-
-      setTestResult(result);
-
-      // Update device status
-      const updatedDevices = devices.map((d) =>
-        d.id === device.id
-          ? {
-              ...d,
-              status: result.success ? "connected" : "error",
-              lastTested: new Date().toISOString(),
-            }
-          : d
-      );
-      setDevices(updatedDevices);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDevices));
     } catch (error) {
+      console.error("Error testing device:", error);
       setTestResult({
         success: false,
-        message: error.message || "Test failed",
+        message: error.response?.data?.message || "Connection test failed",
         details: [],
       });
     } finally {
@@ -368,147 +397,10 @@ export default function HardwareIntegration() {
     }
   };
 
-  // Test print
-  const handleTestPrint = async (device) => {
-    const token = getToken();
-    if (!token) {
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Error",
-          message: "Please login again",
-        })
-      );
-      return;
-    }
+  // ============================================
+  // HELPER FUNCTIONS
+  // ============================================
 
-    setIsTesting(true);
-
-    try {
-      if (device.type === DEVICE_TYPES.DOT_MATRIX_PRINTER) {
-        // Generate test receipt for dot matrix
-        const testText = `
-==========================================
-           TEST PRINT
-         PAJAK GADAI BERLESEN
-==========================================
-
-Device: ${device.name}
-Model: ${device.brand} ${device.model}
-Paper: ${device.paperSize}
-Time: ${new Date().toLocaleString("en-MY")}
-
-------------------------------------------
-This is a test print to verify that your
-dot matrix printer is working correctly.
-
-Characters per line: 42
-------------------------------------------
-
-1234567890123456789012345678901234567890XX
-
-==========================================
-        TEST PRINT COMPLETE
-==========================================
-`;
-
-        const printWindow = window.open("", "_blank", "width=450,height=600");
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Test Print - ${device.name}</title>
-            <style>
-              @page { size: ${device.paperSize} portrait; margin: 10mm; }
-              body {
-                font-family: 'Courier New', monospace;
-                font-size: 11px;
-                line-height: 1.3;
-                white-space: pre;
-                margin: 10mm;
-              }
-            </style>
-          </head>
-          <body>${testText}</body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => printWindow.print(), 300);
-
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Test Print Sent",
-            message: "Check your dot matrix printer",
-          })
-        );
-      } else if (device.type === DEVICE_TYPES.THERMAL_PRINTER) {
-        // Generate test label for thermal
-        const printWindow = window.open("", "_blank", "width=400,height=400");
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Test Label - ${device.name}</title>
-            <style>
-              @page { size: 50mm 25mm; margin: 0; }
-              body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-              }
-              .label {
-                width: 50mm;
-                height: 25mm;
-                padding: 2mm;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                border: 1px dashed #ccc;
-              }
-              .title { font-size: 10pt; font-weight: bold; }
-              .info { font-size: 7pt; margin-top: 2mm; }
-              .time { font-size: 6pt; color: #666; margin-top: 1mm; }
-            </style>
-          </head>
-          <body>
-            <div class="label">
-              <div class="title">TEST LABEL</div>
-              <div class="info">${device.name}</div>
-              <div class="info">${device.settings?.labelWidth || 50}mm x ${device.settings?.labelHeight || 25}mm</div>
-              <div class="time">${new Date().toLocaleString("en-MY")}</div>
-            </div>
-          </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => printWindow.print(), 300);
-
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Test Label Sent",
-            message: "Check your thermal printer",
-          })
-        );
-      }
-    } catch (error) {
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Test Failed",
-          message: error.message,
-        })
-      );
-    } finally {
-      setIsTesting(false);
-    }
-  };
-
-  // Reset form
   const resetForm = () => {
     setFormData({
       name: "",
@@ -516,26 +408,20 @@ Characters per line: 42
       brand: "",
       model: "",
       connection: CONNECTION_TYPES.USB,
-      paperSize: "",
+      paper_size: "",
       description: "",
-      ipAddress: "",
+      ip_address: "",
       port: "",
-      isDefault: false,
-      isActive: true,
+      is_default: false,
+      is_active: true,
       settings: {},
     });
   };
 
-  // Load template
-  const handleLoadTemplate = (templateKey) => {
+  const applyTemplate = (templateKey) => {
     const template = DEVICE_TEMPLATES[templateKey];
     if (template) {
-      setFormData({
-        ...formData,
-        ...template,
-        isDefault: false,
-        isActive: true,
-      });
+      setFormData({ ...formData, ...template });
     }
   };
 
@@ -610,18 +496,40 @@ Characters per line: 42
     return acc;
   }, {});
 
+  // ============================================
+  // RENDER
+  // ============================================
+
+  if (isLoading) {
+    return (
+      <PageWrapper
+        title="Hardware Integration"
+        subtitle="Manage printers, scanners, and other devices"
+      >
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+        </div>
+      </PageWrapper>
+    );
+  }
+
   return (
     <PageWrapper
       title="Hardware Integration"
       subtitle="Manage printers, scanners, and other devices"
       actions={
-        <Button
-          variant="primary"
-          leftIcon={Plus}
-          onClick={() => setShowAddModal(true)}
-        >
-          Add Device
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" leftIcon={RefreshCw} onClick={loadDevices}>
+            Refresh
+          </Button>
+          <Button
+            variant="primary"
+            leftIcon={Plus}
+            onClick={() => setShowAddModal(true)}
+          >
+            Add Device
+          </Button>
+        </div>
       }
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -644,7 +552,7 @@ Characters per line: 42
               </div>
               <div>
                 <p className="text-2xl font-bold text-amber-600">
-                  {devices.filter((d) => d.isActive).length}
+                  {devices.filter((d) => d.is_active).length}
                 </p>
                 <p className="text-xs text-zinc-500">Active</p>
               </div>
@@ -652,96 +560,109 @@ Characters per line: 42
           </Card>
 
           {/* Devices by Type */}
-          {Object.entries(groupedDevices).map(([type, typeDevices]) => {
-            const TypeIcon = getDeviceTypeIcon(type);
-            return (
-              <Card key={type} className="overflow-hidden">
-                <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-3 flex items-center gap-2">
-                  <TypeIcon className="w-4 h-4 text-amber-600" />
-                  <h3 className="font-semibold text-zinc-800">
-                    {getDeviceTypeLabel(type)}
-                  </h3>
-                  <span className="ml-auto text-xs text-zinc-500">
-                    {typeDevices.length}
-                  </span>
-                </div>
-                <div className="divide-y divide-zinc-100">
-                  {typeDevices.map((device) => {
-                    const ConnectionIcon = getConnectionIcon(device.connection);
-                    return (
-                      <div
-                        key={device.id}
-                        onClick={() => {
-                          setSelectedDevice(device);
-                          setFormData(device);
-                          setIsEditing(false);
-                        }}
-                        className={cn(
-                          "p-3 cursor-pointer transition-colors",
-                          selectedDevice?.id === device.id
-                            ? "bg-amber-50 border-l-4 border-amber-500"
-                            : "hover:bg-zinc-50"
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={cn(
-                                "w-2 h-2 rounded-full",
-                                device.status === "connected"
-                                  ? "bg-emerald-500"
-                                  : device.status === "error"
-                                    ? "bg-red-500"
-                                    : "bg-zinc-300"
-                              )}
-                            />
-                            <div>
-                              <p className="font-medium text-zinc-800 text-sm">
-                                {device.name}
-                              </p>
-                              <div className="flex items-center gap-2 text-xs text-zinc-500">
-                                <ConnectionIcon className="w-3 h-3" />
-                                <span>{device.connection.toUpperCase()}</span>
-                                {device.isDefault && (
-                                  <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-medium">
-                                    Default
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          {!device.isActive && (
-                            <span className="text-xs text-zinc-400">
-                              Disabled
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            );
-          })}
-
-          {devices.length === 0 && (
+          {Object.keys(groupedDevices).length === 0 ? (
             <Card className="p-8 text-center">
-              <Printer className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-              <p className="text-zinc-500">No devices configured</p>
+              <Settings className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
+              <h3 className="font-semibold text-zinc-600 mb-2">No Devices</h3>
+              <p className="text-sm text-zinc-500 mb-4">
+                Add your first hardware device to get started.
+              </p>
               <Button
-                variant="outline"
+                variant="primary"
                 size="sm"
                 leftIcon={Plus}
                 onClick={() => setShowAddModal(true)}
-                className="mt-3"
               >
                 Add Device
               </Button>
             </Card>
+          ) : (
+            Object.entries(groupedDevices).map(([type, typeDevices]) => {
+              const TypeIcon = getDeviceTypeIcon(type);
+              return (
+                <Card key={type} className="overflow-hidden">
+                  <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-3 flex items-center gap-2">
+                    <TypeIcon className="w-4 h-4 text-amber-600" />
+                    <h3 className="font-semibold text-zinc-800">
+                      {getDeviceTypeLabel(type)}
+                    </h3>
+                    <span className="ml-auto text-xs text-zinc-500">
+                      {typeDevices.length}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-zinc-100">
+                    {typeDevices.map((device) => {
+                      const ConnectionIcon = getConnectionIcon(
+                        device.connection
+                      );
+                      return (
+                        <div
+                          key={device.id}
+                          onClick={() => {
+                            setSelectedDevice(device);
+                            setFormData({
+                              name: device.name || "",
+                              type: device.type || "",
+                              brand: device.brand || "",
+                              model: device.model || "",
+                              connection:
+                                device.connection || CONNECTION_TYPES.USB,
+                              paper_size: device.paper_size || "",
+                              description: device.description || "",
+                              ip_address: device.ip_address || "",
+                              port: device.port || "",
+                              is_default: device.is_default || false,
+                              is_active: device.is_active ?? true,
+                              settings: device.settings || {},
+                            });
+                            setIsEditing(false);
+                          }}
+                          className={cn(
+                            "p-3 cursor-pointer transition-colors",
+                            selectedDevice?.id === device.id
+                              ? "bg-amber-50 border-l-4 border-amber-500"
+                              : "hover:bg-zinc-50"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={cn(
+                                  "w-2 h-2 rounded-full",
+                                  device.status === "connected"
+                                    ? "bg-emerald-500"
+                                    : device.status === "error"
+                                      ? "bg-red-500"
+                                      : "bg-zinc-300"
+                                )}
+                              />
+                              <span className="font-medium text-zinc-800">
+                                {device.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {device.is_default && (
+                                <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                                  Default
+                                </span>
+                              )}
+                              <ConnectionIcon className="w-4 h-4 text-zinc-400" />
+                            </div>
+                          </div>
+                          <p className="text-xs text-zinc-500 mt-1">
+                            {device.brand} {device.model}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              );
+            })
           )}
         </div>
 
-        {/* Device Details */}
+        {/* Device Details / Edit Panel */}
         <div className="lg:col-span-2">
           {selectedDevice ? (
             <Card className="overflow-hidden">
@@ -766,10 +687,10 @@ Characters per line: 42
                       </p>
                       <div className="flex items-center gap-2 mt-2">
                         {getStatusBadge(selectedDevice.status)}
-                        {selectedDevice.isDefault && (
+                        {selectedDevice.is_default && (
                           <Badge variant="warning">Default</Badge>
                         )}
-                        {!selectedDevice.isActive && (
+                        {!selectedDevice.is_active && (
                           <Badge variant="default">Disabled</Badge>
                         )}
                       </div>
@@ -799,7 +720,7 @@ Characters per line: 42
               {/* Content */}
               <div className="p-6">
                 {isEditing ? (
-                  /* Edit Form */
+                  // Edit Form
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <Input
@@ -817,27 +738,17 @@ Characters per line: 42
                           setFormData({ ...formData, type: e.target.value })
                         }
                         options={[
-                          {
-                            value: DEVICE_TYPES.DOT_MATRIX_PRINTER,
-                            label: "Dot Matrix Printer",
-                          },
-                          {
-                            value: DEVICE_TYPES.THERMAL_PRINTER,
-                            label: "Thermal Printer",
-                          },
-                          {
-                            value: DEVICE_TYPES.BARCODE_SCANNER,
-                            label: "Barcode Scanner",
-                          },
-                          {
-                            value: DEVICE_TYPES.WEIGHING_SCALE,
-                            label: "Weighing Scale",
-                          },
+                          { value: "", label: "Select type..." },
+                          ...Object.entries(DEVICE_TYPES).map(
+                            ([key, value]) => ({
+                              value,
+                              label: getDeviceTypeLabel(value),
+                            })
+                          ),
                         ]}
                         required
                       />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         label="Brand"
@@ -854,10 +765,9 @@ Characters per line: 42
                         }
                       />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <Select
-                        label="Connection Type"
+                        label="Connection"
                         value={formData.connection}
                         onChange={(e) =>
                           setFormData({
@@ -865,49 +775,35 @@ Characters per line: 42
                             connection: e.target.value,
                           })
                         }
-                        options={[
-                          { value: CONNECTION_TYPES.USB, label: "USB" },
-                          {
-                            value: CONNECTION_TYPES.ETHERNET,
-                            label: "Ethernet / Network",
-                          },
-                          {
-                            value: CONNECTION_TYPES.SERIAL,
-                            label: "Serial (COM)",
-                          },
-                          {
-                            value: CONNECTION_TYPES.BLUETOOTH,
-                            label: "Bluetooth",
-                          },
-                          {
-                            value: CONNECTION_TYPES.WIRELESS,
-                            label: "Wireless (WiFi)",
-                          },
-                        ]}
+                        options={Object.entries(CONNECTION_TYPES).map(
+                          ([key, value]) => ({
+                            value,
+                            label: key,
+                          })
+                        )}
                       />
                       <Input
                         label="Paper Size"
-                        value={formData.paperSize}
+                        value={formData.paper_size}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            paperSize: e.target.value,
+                            paper_size: e.target.value,
                           })
                         }
-                        placeholder="e.g., A5, 80mm, 50x25mm"
+                        placeholder="A5, 80mm, etc."
                       />
                     </div>
-
                     {(formData.connection === CONNECTION_TYPES.ETHERNET ||
                       formData.connection === CONNECTION_TYPES.WIRELESS) && (
                       <div className="grid grid-cols-2 gap-4">
                         <Input
                           label="IP Address"
-                          value={formData.ipAddress}
+                          value={formData.ip_address}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              ipAddress: e.target.value,
+                              ip_address: e.target.value,
                             })
                           }
                           placeholder="192.168.1.100"
@@ -922,7 +818,6 @@ Characters per line: 42
                         />
                       </div>
                     )}
-
                     <Input
                       label="Description"
                       value={formData.description}
@@ -932,209 +827,111 @@ Characters per line: 42
                           description: e.target.value,
                         })
                       }
-                      placeholder="Brief description of this device"
+                      placeholder="Optional description"
                     />
-
-                    {/* Device-specific settings */}
-                    {formData.type === DEVICE_TYPES.DOT_MATRIX_PRINTER && (
-                      <div className="p-4 bg-zinc-50 rounded-xl">
-                        <h4 className="font-semibold text-zinc-800 mb-3">
-                          Printer Settings
-                        </h4>
-                        <div className="grid grid-cols-3 gap-4">
-                          <Input
-                            label="Copies"
-                            type="number"
-                            min="1"
-                            max="4"
-                            value={formData.settings?.copies || 2}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  copies: parseInt(e.target.value),
-                                },
-                              })
-                            }
-                          />
-                          <Input
-                            label="Chars/Line"
-                            type="number"
-                            value={formData.settings?.charactersPerLine || 42}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  charactersPerLine: parseInt(e.target.value),
-                                },
-                              })
-                            }
-                          />
-                          <Input
-                            label="CPI"
-                            type="number"
-                            value={formData.settings?.cpi || 10}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  cpi: parseInt(e.target.value),
-                                },
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.type === DEVICE_TYPES.THERMAL_PRINTER && (
-                      <div className="p-4 bg-zinc-50 rounded-xl">
-                        <h4 className="font-semibold text-zinc-800 mb-3">
-                          Label Settings
-                        </h4>
-                        <div className="grid grid-cols-3 gap-4">
-                          <Input
-                            label="Width (mm)"
-                            type="number"
-                            value={formData.settings?.labelWidth || 50}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  labelWidth: parseInt(e.target.value),
-                                },
-                              })
-                            }
-                          />
-                          <Input
-                            label="Height (mm)"
-                            type="number"
-                            value={formData.settings?.labelHeight || 25}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  labelHeight: parseInt(e.target.value),
-                                },
-                              })
-                            }
-                          />
-                          <Input
-                            label="DPI"
-                            type="number"
-                            value={formData.settings?.dpi || 203}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  dpi: parseInt(e.target.value),
-                                },
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.type === DEVICE_TYPES.BARCODE_SCANNER && (
-                      <div className="p-4 bg-zinc-50 rounded-xl">
-                        <h4 className="font-semibold text-zinc-800 mb-3">
-                          Scanner Settings
-                        </h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          <Select
-                            label="Mode"
-                            value={formData.settings?.mode || "keyboard_wedge"}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  mode: e.target.value,
-                                },
-                              })
-                            }
-                            options={[
-                              {
-                                value: "keyboard_wedge",
-                                label: "Keyboard Wedge",
-                              },
-                              { value: "serial", label: "Serial Mode" },
-                              { value: "hid", label: "HID Mode" },
-                            ]}
-                          />
-                          <Select
-                            label="Suffix"
-                            value={formData.settings?.suffix || "enter"}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                settings: {
-                                  ...formData.settings,
-                                  suffix: e.target.value,
-                                },
-                              })
-                            }
-                            options={[
-                              { value: "enter", label: "Enter Key" },
-                              { value: "tab", label: "Tab Key" },
-                              { value: "none", label: "None" },
-                            ]}
-                          />
-                        </div>
-                        <div className="flex items-center gap-6 mt-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={formData.settings?.beepOnScan ?? true}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  settings: {
-                                    ...formData.settings,
-                                    beepOnScan: e.target.checked,
-                                  },
-                                })
-                              }
-                              className="w-4 h-4 rounded border-zinc-300 text-amber-500 focus:ring-amber-500"
-                            />
-                            <span className="text-sm text-zinc-700">
-                              Beep on Scan
-                            </span>
-                          </label>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.is_default}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              is_default: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded border-zinc-300 text-amber-600 focus:ring-amber-500"
+                        />
+                        <span className="text-sm text-zinc-700">
+                          Set as default for this type
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.is_active}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              is_active: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded border-zinc-300 text-amber-600 focus:ring-amber-500"
+                        />
+                        <span className="text-sm text-zinc-700">Active</span>
+                      </label>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-4 border-t">
                       <Button
                         variant="outline"
                         onClick={() => {
                           setIsEditing(false);
-                          setFormData(selectedDevice);
+                          setFormData({
+                            name: selectedDevice.name || "",
+                            type: selectedDevice.type || "",
+                            brand: selectedDevice.brand || "",
+                            model: selectedDevice.model || "",
+                            connection:
+                              selectedDevice.connection || CONNECTION_TYPES.USB,
+                            paper_size: selectedDevice.paper_size || "",
+                            description: selectedDevice.description || "",
+                            ip_address: selectedDevice.ip_address || "",
+                            port: selectedDevice.port || "",
+                            is_default: selectedDevice.is_default || false,
+                            is_active: selectedDevice.is_active ?? true,
+                            settings: selectedDevice.settings || {},
+                          });
                         }}
                       >
                         Cancel
                       </Button>
                       <Button
                         variant="primary"
-                        leftIcon={Save}
+                        leftIcon={isSaving ? Loader2 : Save}
                         onClick={handleUpdateDevice}
+                        disabled={isSaving}
+                        className={isSaving ? "animate-pulse" : ""}
                       >
-                        Save Changes
+                        {isSaving ? "Saving..." : "Save Changes"}
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  /* View Mode */
+                  // View Details
                   <div className="space-y-6">
-                    {/* Info Grid */}
+                    {/* Quick Actions */}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={TestTube}
+                        onClick={() => handleTestDevice(selectedDevice)}
+                      >
+                        Test Connection
+                      </Button>
+                      {!selectedDevice.is_default && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={Zap}
+                          onClick={() => handleSetDefault(selectedDevice.id)}
+                        >
+                          Set as Default
+                        </Button>
+                      )}
+                      <Button
+                        variant={
+                          selectedDevice.is_active ? "outline" : "primary"
+                        }
+                        size="sm"
+                        leftIcon={selectedDevice.is_active ? WifiOff : Wifi}
+                        onClick={() => handleToggleActive(selectedDevice.id)}
+                      >
+                        {selectedDevice.is_active ? "Disable" : "Enable"}
+                      </Button>
+                    </div>
+
+                    {/* Device Info Grid */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="p-3 bg-zinc-50 rounded-lg">
                         <p className="text-xs text-zinc-500">Type</p>
@@ -1145,21 +942,21 @@ Characters per line: 42
                       <div className="p-3 bg-zinc-50 rounded-lg">
                         <p className="text-xs text-zinc-500">Connection</p>
                         <p className="font-medium text-zinc-800">
-                          {selectedDevice.connection.toUpperCase()}
+                          {selectedDevice.connection?.toUpperCase()}
                         </p>
                       </div>
                       <div className="p-3 bg-zinc-50 rounded-lg">
                         <p className="text-xs text-zinc-500">Paper Size</p>
                         <p className="font-medium text-zinc-800">
-                          {selectedDevice.paperSize || "N/A"}
+                          {selectedDevice.paper_size || "N/A"}
                         </p>
                       </div>
                       <div className="p-3 bg-zinc-50 rounded-lg">
                         <p className="text-xs text-zinc-500">Last Tested</p>
                         <p className="font-medium text-zinc-800">
-                          {selectedDevice.lastTested
+                          {selectedDevice.last_tested_at
                             ? new Date(
-                                selectedDevice.lastTested
+                                selectedDevice.last_tested_at
                               ).toLocaleDateString("en-MY")
                             : "Never"}
                         </p>
@@ -1174,6 +971,33 @@ Characters per line: 42
                           <p className="text-sm text-blue-800">
                             {selectedDevice.description}
                           </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Network Info */}
+                    {(selectedDevice.ip_address || selectedDevice.port) && (
+                      <div className="p-4 bg-zinc-50 rounded-xl">
+                        <h4 className="font-semibold text-zinc-800 mb-3">
+                          Network Configuration
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          {selectedDevice.ip_address && (
+                            <div className="text-sm">
+                              <p className="text-zinc-500">IP Address</p>
+                              <p className="font-medium text-zinc-800">
+                                {selectedDevice.ip_address}
+                              </p>
+                            </div>
+                          )}
+                          {selectedDevice.port && (
+                            <div className="text-sm">
+                              <p className="text-zinc-500">Port</p>
+                              <p className="font-medium text-zinc-800">
+                                {selectedDevice.port}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1197,7 +1021,7 @@ Characters per line: 42
                                       ? value
                                         ? "Yes"
                                         : "No"
-                                      : value}
+                                      : String(value)}
                                   </p>
                                 </div>
                               )
@@ -1205,111 +1029,18 @@ Characters per line: 42
                           </div>
                         </div>
                       )}
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-3 pt-4 border-t border-zinc-200">
-                      <Button
-                        variant="primary"
-                        leftIcon={TestTube}
-                        onClick={() => handleTestDevice(selectedDevice)}
-                      >
-                        Test Connection
-                      </Button>
-
-                      {(selectedDevice.type ===
-                        DEVICE_TYPES.DOT_MATRIX_PRINTER ||
-                        selectedDevice.type ===
-                          DEVICE_TYPES.THERMAL_PRINTER) && (
-                        <Button
-                          variant="outline"
-                          leftIcon={Printer}
-                          onClick={() => handleTestPrint(selectedDevice)}
-                          loading={isTesting}
-                        >
-                          Test Print
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        leftIcon={selectedDevice.isActive ? X : Check}
-                        onClick={() => handleToggleActive(selectedDevice.id)}
-                      >
-                        {selectedDevice.isActive ? "Disable" : "Enable"}
-                      </Button>
-
-                      {!selectedDevice.isDefault && (
-                        <Button
-                          variant="outline"
-                          leftIcon={Zap}
-                          onClick={() =>
-                            handleSetDefault(
-                              selectedDevice.id,
-                              selectedDevice.type
-                            )
-                          }
-                        >
-                          Set as Default
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Help Section */}
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                      <div className="flex items-start gap-3">
-                        <HelpCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-amber-800">
-                            Setup Help
-                          </p>
-                          <p className="text-sm text-amber-700 mt-1">
-                            {selectedDevice.type ===
-                              DEVICE_TYPES.DOT_MATRIX_PRINTER &&
-                              "For Epson LQ-310: Connect via USB, install driver from epson.com.my, set paper to A5 continuous form."}
-                            {selectedDevice.type ===
-                              DEVICE_TYPES.THERMAL_PRINTER &&
-                              "For Aiyin AN803: Install driver from help.aiyin.com, set label size to 50mm x 25mm in printer preferences."}
-                            {selectedDevice.type ===
-                              DEVICE_TYPES.BARCODE_SCANNER &&
-                              "Scanner works in keyboard wedge mode - just scan and it types the barcode followed by Enter key."}
-                          </p>
-                          {selectedDevice.brand === "Epson" && (
-                            <a
-                              href="https://www.epson.com.my/Support"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline mt-2"
-                            >
-                              Download Driver{" "}
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                          {selectedDevice.brand === "Xiamen Aiyin" && (
-                            <a
-                              href="https://help.aiyin.com"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline mt-2"
-                            >
-                              Download Driver{" "}
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>
             </Card>
           ) : (
             <Card className="p-12 text-center">
-              <Settings className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-zinc-800 mb-2">
+              <Settings className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-zinc-600 mb-2">
                 Select a Device
               </h3>
               <p className="text-zinc-500">
-                Click on a device from the list to view details and settings
+                Click on a device from the list to view details and settings.
               </p>
             </Card>
           )}
@@ -1323,40 +1054,39 @@ Characters per line: 42
           setShowAddModal(false);
           resetForm();
         }}
-        title="Add New Device"
+        title="Add Hardware Device"
         size="lg"
       >
-        <div className="p-6 space-y-4">
+        <div className="space-y-4">
           {/* Quick Templates */}
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-            <p className="text-sm font-medium text-amber-800 mb-3">
-              Quick Templates
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleLoadTemplate("epson_lq310")}
-              >
-                Epson LQ-310
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleLoadTemplate("aiyin_an803")}
-              >
-                Aiyin AN803
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleLoadTemplate("henex_hc3208r")}
-              >
-                Henex HC-3208R
-              </Button>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Quick Setup Templates
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(DEVICE_TEMPLATES).map(([key, template]) => (
+                <button
+                  key={key}
+                  onClick={() => applyTemplate(key)}
+                  className={cn(
+                    "p-3 rounded-lg border-2 text-left transition-colors",
+                    formData.name === template.name
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-zinc-200 hover:border-amber-300"
+                  )}
+                >
+                  <p className="font-medium text-sm text-zinc-800">
+                    {template.name}
+                  </p>
+                  <p className="text-xs text-zinc-500">{template.brand}</p>
+                </button>
+              ))}
             </div>
           </div>
 
+          <hr className="border-zinc-200" />
+
+          {/* Form Fields */}
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Device Name"
@@ -1364,7 +1094,6 @@ Characters per line: 42
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder="e.g., Receipt Printer 1"
               required
             />
             <Select
@@ -1374,25 +1103,15 @@ Characters per line: 42
                 setFormData({ ...formData, type: e.target.value })
               }
               options={[
-                { value: "", label: "Select Type..." },
-                {
-                  value: DEVICE_TYPES.DOT_MATRIX_PRINTER,
-                  label: "Dot Matrix Printer",
-                },
-                {
-                  value: DEVICE_TYPES.THERMAL_PRINTER,
-                  label: "Thermal Printer",
-                },
-                {
-                  value: DEVICE_TYPES.BARCODE_SCANNER,
-                  label: "Barcode Scanner",
-                },
-                { value: DEVICE_TYPES.WEIGHING_SCALE, label: "Weighing Scale" },
+                { value: "", label: "Select type..." },
+                ...Object.entries(DEVICE_TYPES).map(([key, value]) => ({
+                  value,
+                  label: getDeviceTypeLabel(value),
+                })),
               ]}
               required
             />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Brand"
@@ -1400,7 +1119,6 @@ Characters per line: 42
               onChange={(e) =>
                 setFormData({ ...formData, brand: e.target.value })
               }
-              placeholder="e.g., Epson"
             />
             <Input
               label="Model"
@@ -1408,56 +1126,67 @@ Characters per line: 42
               onChange={(e) =>
                 setFormData({ ...formData, model: e.target.value })
               }
-              placeholder="e.g., LQ-310"
             />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <Select
-              label="Connection Type"
+              label="Connection"
               value={formData.connection}
               onChange={(e) =>
                 setFormData({ ...formData, connection: e.target.value })
               }
-              options={[
-                { value: CONNECTION_TYPES.USB, label: "USB" },
-                {
-                  value: CONNECTION_TYPES.ETHERNET,
-                  label: "Ethernet / Network",
-                },
-                { value: CONNECTION_TYPES.SERIAL, label: "Serial (COM)" },
-                { value: CONNECTION_TYPES.BLUETOOTH, label: "Bluetooth" },
-                { value: CONNECTION_TYPES.WIRELESS, label: "Wireless (WiFi)" },
-              ]}
+              options={Object.entries(CONNECTION_TYPES).map(([key, value]) => ({
+                value,
+                label: key,
+              }))}
             />
             <Input
               label="Paper Size"
-              value={formData.paperSize}
+              value={formData.paper_size}
               onChange={(e) =>
-                setFormData({ ...formData, paperSize: e.target.value })
+                setFormData({ ...formData, paper_size: e.target.value })
               }
-              placeholder="e.g., A5, 80mm"
+              placeholder="A5, 80mm, etc."
             />
           </div>
-
+          {(formData.connection === CONNECTION_TYPES.ETHERNET ||
+            formData.connection === CONNECTION_TYPES.WIRELESS) && (
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="IP Address"
+                value={formData.ip_address}
+                onChange={(e) =>
+                  setFormData({ ...formData, ip_address: e.target.value })
+                }
+                placeholder="192.168.1.100"
+              />
+              <Input
+                label="Port"
+                value={formData.port}
+                onChange={(e) =>
+                  setFormData({ ...formData, port: e.target.value })
+                }
+                placeholder="9100"
+              />
+            </div>
+          )}
           <Input
             label="Description"
             value={formData.description}
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
-            placeholder="Brief description"
+            placeholder="Optional description"
           />
-
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={formData.isDefault}
+                checked={formData.is_default}
                 onChange={(e) =>
-                  setFormData({ ...formData, isDefault: e.target.checked })
+                  setFormData({ ...formData, is_default: e.target.checked })
                 }
-                className="w-4 h-4 rounded border-zinc-300 text-amber-500 focus:ring-amber-500"
+                className="w-4 h-4 rounded border-zinc-300 text-amber-600 focus:ring-amber-500"
               />
               <span className="text-sm text-zinc-700">
                 Set as default for this type
@@ -1465,7 +1194,8 @@ Characters per line: 42
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-4 border-t">
             <Button
               variant="outline"
               onClick={() => {
@@ -1475,8 +1205,14 @@ Characters per line: 42
             >
               Cancel
             </Button>
-            <Button variant="primary" leftIcon={Plus} onClick={handleAddDevice}>
-              Add Device
+            <Button
+              variant="primary"
+              leftIcon={isSaving ? Loader2 : Plus}
+              onClick={handleAddDevice}
+              disabled={isSaving}
+              className={isSaving ? "animate-pulse" : ""}
+            >
+              {isSaving ? "Adding..." : "Add Device"}
             </Button>
           </div>
         </div>
@@ -1490,103 +1226,125 @@ Characters per line: 42
           setTestingDevice(null);
           setTestResult(null);
         }}
-        title={`Testing: ${testingDevice?.name || "Device"}`}
+        title="Test Device Connection"
         size="md"
       >
-        <div className="p-6">
-          {isTesting ? (
-            <div className="text-center py-8">
-              <Loader2 className="w-12 h-12 animate-spin text-amber-500 mx-auto mb-4" />
-              <p className="text-zinc-600">Testing connection...</p>
-              <p className="text-sm text-zinc-400 mt-1">
-                This may take a few seconds
-              </p>
-            </div>
-          ) : testResult ? (
-            <div className="space-y-4">
-              <div
-                className={cn(
-                  "p-4 rounded-xl flex items-center gap-3",
-                  testResult.success
-                    ? "bg-emerald-50 border border-emerald-200"
-                    : "bg-red-50 border border-red-200"
-                )}
-              >
-                {testResult.success ? (
-                  <CheckCircle className="w-6 h-6 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="w-6 h-6 text-red-600" />
-                )}
-                <div>
-                  <p
-                    className={cn(
-                      "font-semibold",
-                      testResult.success ? "text-emerald-800" : "text-red-800"
-                    )}
-                  >
-                    {testResult.success
-                      ? "Connection Successful"
-                      : "Connection Failed"}
-                  </p>
-                  <p
-                    className={cn(
-                      "text-sm",
-                      testResult.success ? "text-emerald-600" : "text-red-600"
-                    )}
-                  >
-                    {testResult.message}
-                  </p>
-                </div>
+        {testingDevice && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-zinc-50 rounded-lg">
+              {(() => {
+                const DeviceIcon = getDeviceTypeIcon(testingDevice.type);
+                return <DeviceIcon className="w-8 h-8 text-amber-600" />;
+              })()}
+              <div>
+                <p className="font-semibold text-zinc-800">
+                  {testingDevice.name}
+                </p>
+                <p className="text-sm text-zinc-500">
+                  {testingDevice.brand} {testingDevice.model}
+                </p>
               </div>
+            </div>
 
-              {testResult.details.length > 0 && (
-                <div className="space-y-2">
-                  {testResult.details.map((detail, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
-                    >
-                      <span className="text-zinc-600">{detail.label}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-zinc-800">
-                          {detail.value}
-                        </span>
-                        {detail.status === "ok" && (
-                          <Check className="w-4 h-4 text-emerald-500" />
-                        )}
-                        {detail.status === "error" && (
-                          <X className="w-4 h-4 text-red-500" />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowTestModal(false);
-                    setTestResult(null);
-                  }}
+            {isTesting ? (
+              <div className="flex flex-col items-center py-8">
+                <Loader2 className="w-12 h-12 animate-spin text-amber-600 mb-4" />
+                <p className="text-zinc-600">Testing connection...</p>
+              </div>
+            ) : testResult ? (
+              <div className="space-y-4">
+                <div
+                  className={cn(
+                    "p-4 rounded-lg border",
+                    testResult.success
+                      ? "bg-emerald-50 border-emerald-200"
+                      : "bg-red-50 border-red-200"
+                  )}
                 >
-                  Close
-                </Button>
-                {(testingDevice?.type === DEVICE_TYPES.DOT_MATRIX_PRINTER ||
-                  testingDevice?.type === DEVICE_TYPES.THERMAL_PRINTER) && (
-                  <Button
-                    variant="primary"
-                    leftIcon={Printer}
-                    onClick={() => handleTestPrint(testingDevice)}
-                  >
-                    Test Print
-                  </Button>
+                  <div className="flex items-start gap-3">
+                    {testResult.success ? (
+                      <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                    )}
+                    <div>
+                      <p
+                        className={cn(
+                          "font-medium",
+                          testResult.success
+                            ? "text-emerald-800"
+                            : "text-red-800"
+                        )}
+                      >
+                        {testResult.success
+                          ? "Connection Successful"
+                          : "Connection Failed"}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-sm",
+                          testResult.success
+                            ? "text-emerald-700"
+                            : "text-red-700"
+                        )}
+                      >
+                        {testResult.message}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {testResult.details && testResult.details.length > 0 && (
+                  <div className="space-y-2">
+                    {testResult.details.map((detail, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
+                      >
+                        <span className="text-sm text-zinc-600">
+                          {detail.label}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-zinc-800">
+                            {detail.value}
+                          </span>
+                          {detail.status === "ok" && (
+                            <Check className="w-4 h-4 text-emerald-500" />
+                          )}
+                          {detail.status === "error" && (
+                            <X className="w-4 h-4 text-red-500" />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
+            ) : null}
+
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTestModal(false);
+                  setTestingDevice(null);
+                  setTestResult(null);
+                }}
+              >
+                Close
+              </Button>
+              {!isTesting && (
+                <Button
+                  variant="primary"
+                  leftIcon={RefreshCw}
+                  onClick={() => handleTestDevice(testingDevice)}
+                >
+                  Test Again
+                </Button>
+              )}
             </div>
-          ) : null}
-        </div>
+          </div>
+        )}
       </Modal>
     </PageWrapper>
   );

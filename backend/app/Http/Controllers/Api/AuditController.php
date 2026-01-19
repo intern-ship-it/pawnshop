@@ -11,7 +11,7 @@ use Illuminate\Http\JsonResponse;
 class AuditController extends Controller
 {
     /**
-     * Get audit logs
+     * Get audit logs with filters and stats
      */
     public function auditLogs(Request $request): JsonResponse
     {
@@ -35,7 +35,24 @@ class AuditController extends Controller
             $query->where('action', $action);
         }
 
-        // Filter by date
+        // Date range filter
+        if ($dateRange = $request->get('date_range')) {
+            $today = now()->startOfDay();
+
+            switch ($dateRange) {
+                case 'today':
+                    $query->where('created_at', '>=', $today);
+                    break;
+                case 'week':
+                    $query->where('created_at', '>=', $today->copy()->subWeek());
+                    break;
+                case 'month':
+                    $query->where('created_at', '>=', $today->copy()->subMonth());
+                    break;
+            }
+        }
+
+        // Custom date range
         if ($from = $request->get('from_date')) {
             $query->whereDate('created_at', '>=', $from);
         }
@@ -43,20 +60,38 @@ class AuditController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
-        // Search
+        // Search - include description
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
-                $q->where('record_type', 'like', "%{$search}%")
+                $q->where('description', 'like', "%{$search}%")
+                    ->orWhere('record_type', 'like', "%{$search}%")
                     ->orWhereHas('user', function ($uq) use ($search) {
                         $uq->where('name', 'like', "%{$search}%");
                     });
             });
         }
 
-        $logs = $query->orderBy('created_at', 'desc')
-            ->paginate($request->get('per_page', 20));
+        // Get stats before pagination
+        $statsQuery = AuditLog::where('branch_id', $branchId);
+        $today = now()->startOfDay();
 
-        return $this->paginated($logs);
+        $stats = [
+            'total' => (clone $statsQuery)->count(),
+            'today' => (clone $statsQuery)->where('created_at', '>=', $today)->count(),
+            'transactions' => (clone $statsQuery)
+                ->whereIn('action', ['create', 'update'])
+                ->whereIn('module', ['pledge', 'renewal', 'redemption'])
+                ->count(),
+            'overrides' => (clone $statsQuery)->where('action', 'override')->count(),
+        ];
+
+        $logs = $query->orderBy('created_at', 'desc')
+            ->paginate($request->get('per_page', 50));
+
+        return $this->success([
+            'logs' => $logs,
+            'stats' => $stats,
+        ]);
     }
 
     /**
@@ -145,6 +180,35 @@ class AuditController extends Controller
             'by_module' => $actionsByModule,
             'by_user' => $actionsByUser,
             'passkey_verifications' => $passkeyUsage,
+        ]);
+    }
+
+    /**
+     * Get filter options for audit logs
+     */
+    public function getOptions(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $query = AuditLog::where('branch_id', $branchId);
+
+        // Get unique modules
+        $modules = (clone $query)->distinct()->pluck('module')->filter()->values();
+
+        // Get unique actions  
+        $actions = (clone $query)->distinct()->pluck('action')->filter()->values();
+
+        // Get users who have logs
+        $userIds = (clone $query)->distinct()->pluck('user_id')->filter();
+        $users = \App\Models\User::whereIn('id', $userIds)
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
+        return $this->success([
+            'modules' => $modules,
+            'actions' => $actions,
+            'users' => $users,
         ]);
     }
 }

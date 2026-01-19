@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\PrintController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\GoldPriceController;
 use App\Http\Controllers\Api\DotMatrixPrintController;
+use App\Http\Controllers\Api\HardwareController;
 
 /*
 |--------------------------------------------------------------------------
@@ -461,6 +462,30 @@ Route::middleware('auth:sanctum')->group(function () {
         });
     });
 
+    // Hardware Devices
+    Route::prefix('hardware')->group(function () {
+        // Options (no permission needed - for dropdowns)
+        Route::get('/options', [HardwareController::class, 'getOptions']);
+
+        // View permissions
+        Route::middleware('check.permission:settings,view')->group(function () {
+            Route::get('/', [HardwareController::class, 'index']);
+            Route::get('/defaults', [HardwareController::class, 'getDefaults']);
+            Route::get('/{hardwareDevice}', [HardwareController::class, 'show']);
+        });
+
+        // Edit permissions
+        Route::middleware('check.permission:settings,edit')->group(function () {
+            Route::post('/', [HardwareController::class, 'store']);
+            Route::put('/{hardwareDevice}', [HardwareController::class, 'update']);
+            Route::delete('/{hardwareDevice}', [HardwareController::class, 'destroy']);
+            Route::post('/{hardwareDevice}/toggle-active', [HardwareController::class, 'toggleActive']);
+            Route::post('/{hardwareDevice}/set-default', [HardwareController::class, 'setDefault']);
+            Route::post('/{hardwareDevice}/update-status', [HardwareController::class, 'updateStatus']);
+            Route::post('/{hardwareDevice}/test', [HardwareController::class, 'testConnection']);
+        });
+    });
+
     // Print
     Route::prefix('print')->group(function () {
         // Pledge print
@@ -498,6 +523,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Audit Logs
     Route::prefix('audit')->middleware('check.permission:audit,view')->group(function () {
         Route::get('/logs', [AuditController::class, 'auditLogs']);
+        Route::get('/options', [AuditController::class, 'getOptions']);
         Route::get('/passkey-logs', [AuditController::class, 'passkeyLogs']);
         Route::get('/activity-summary', [AuditController::class, 'activitySummary']);
     });

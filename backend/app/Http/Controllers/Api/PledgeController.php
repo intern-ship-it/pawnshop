@@ -9,6 +9,7 @@ use App\Models\PledgePayment;
 use App\Models\Customer;
 use App\Models\GoldPrice;
 use App\Models\Slot;
+use App\Models\AuditLog;
 use App\Services\InterestCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -441,6 +442,32 @@ class PledgeController extends Controller
 
             $pledge->load(['customer', 'items.category', 'items.purity', 'payments']);
 
+            // Audit log - pledge created
+            try {
+                AuditLog::create([
+                    'branch_id' => $branchId,
+                    'user_id' => $userId,
+                    'action' => 'create',
+                    'module' => 'pledge',
+                    'description' => "Created pledge {$pledge->pledge_no} for {$customer->name} - RM" . number_format($pledge->loan_amount, 2),
+                    'record_type' => 'Pledge',
+                    'record_id' => $pledge->id,
+                    'new_values' => [
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer' => $customer->name,
+                        'loan_amount' => $pledge->loan_amount,
+                        'items_count' => count($validated['items']),
+                    ],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                    'severity' => 'info',
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                // Don't fail pledge creation if audit logging fails
+                Log::warning('Audit log failed: ' . $e->getMessage());
+            }
+
             return $this->success($pledge, 'Pledge created successfully', 201);
 
         } catch (\Exception $e) {
@@ -703,6 +730,27 @@ class PledgeController extends Controller
             ]);
 
             DB::commit();
+
+            // Audit log - pledge cancelled
+            try {
+                AuditLog::create([
+                    'branch_id' => $branchId,
+                    'user_id' => $request->user()->id,
+                    'action' => 'cancel',
+                    'module' => 'pledge',
+                    'description' => "Cancelled pledge {$pledge->pledge_no} - Reason: " . ($request->input('reason', 'No reason')),
+                    'record_type' => 'Pledge',
+                    'record_id' => $pledge->id,
+                    'old_values' => ['status' => 'active'],
+                    'new_values' => ['status' => 'cancelled'],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                    'severity' => 'warning',
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Audit log failed: ' . $e->getMessage());
+            }
 
             return $this->success([
                 'message' => 'Pledge cancelled successfully',

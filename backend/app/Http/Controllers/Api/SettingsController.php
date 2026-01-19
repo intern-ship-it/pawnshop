@@ -12,8 +12,10 @@ use App\Models\StoneDeduction;
 use App\Models\InterestRate;
 use App\Models\TermsCondition;
 use App\Models\MarginPreset;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class SettingsController extends Controller
@@ -105,6 +107,27 @@ class SettingsController extends Controller
             );
         }
 
+        // Audit log - settings updated
+        try {
+            $settingKeys = array_column($validated['settings'], 'key_name');
+            AuditLog::create([
+                'branch_id' => $branchId,
+                'user_id' => $userId,
+                'action' => 'update',
+                'module' => 'settings',
+                'description' => 'Updated settings: ' . implode(', ', array_slice($settingKeys, 0, 5)) . (count($settingKeys) > 5 ? '...' : ''),
+                'record_type' => 'Setting',
+                'record_id' => null,
+                'new_values' => $validated['settings'],
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
+
         return $this->success(null, 'Settings updated successfully');
     }
 
@@ -159,6 +182,26 @@ class SettingsController extends Controller
                 'created_by' => $request->user()->id,
             ]
         );
+
+        // Audit log - gold prices updated
+        try {
+            AuditLog::create([
+                'branch_id' => $branchId,
+                'user_id' => $request->user()->id,
+                'action' => 'update',
+                'module' => 'settings',
+                'description' => "Updated gold prices - 999: RM{$validated['price_999']}, 916: RM{$validated['price_916']}",
+                'record_type' => 'GoldPrice',
+                'record_id' => $goldPrice->id,
+                'new_values' => $validated,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
 
         return $this->success($goldPrice, 'Gold prices updated successfully');
     }

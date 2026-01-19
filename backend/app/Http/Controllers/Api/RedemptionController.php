@@ -7,10 +7,12 @@ use App\Models\Redemption;
 use App\Models\Pledge;
 use App\Models\PledgeItem;
 use App\Models\Slot;
+use App\Models\AuditLog;
 use App\Services\InterestCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class RedemptionController extends Controller
@@ -145,7 +147,8 @@ class RedemptionController extends Controller
             }
 
             // Generate redemption number
-            $redemptionNo = sprintf('RDM-%s-%s-%04d',
+            $redemptionNo = sprintf(
+                'RDM-%s-%s-%04d',
                 $pledge->branch->code,
                 date('Y'),
                 Redemption::where('branch_id', $branchId)->whereYear('created_at', date('Y'))->count() + 1
@@ -181,6 +184,32 @@ class RedemptionController extends Controller
             DB::commit();
 
             $redemption->load(['pledge.customer', 'pledge.items']);
+
+            // Audit log - redemption processed
+            try {
+                AuditLog::create([
+                    'branch_id' => $branchId,
+                    'user_id' => $userId,
+                    'action' => 'create',
+                    'module' => 'redemption',
+                    'description' => "Processed redemption {$redemption->redemption_no} for pledge {$pledge->pledge_no} - RM" . number_format($calculation['total_payable'], 2),
+                    'record_type' => 'Redemption',
+                    'record_id' => $redemption->id,
+                    'new_values' => [
+                        'redemption_no' => $redemption->redemption_no,
+                        'pledge_no' => $pledge->pledge_no,
+                        'principal' => $pledge->loan_amount,
+                        'interest' => $calculation['total_interest'],
+                        'total_payable' => $calculation['total_payable'],
+                    ],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                    'severity' => 'info',
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Audit log failed: ' . $e->getMessage());
+            }
 
             return $this->success($redemption, 'Redemption processed successfully', 201);
 

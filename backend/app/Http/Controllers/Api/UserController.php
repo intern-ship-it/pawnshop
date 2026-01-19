@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Permission;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -89,6 +91,30 @@ class UserController extends Controller
         }
 
         $user->load(['role', 'branch']);
+
+        // Audit log - user created
+        try {
+            AuditLog::create([
+                'branch_id' => $request->user()->branch_id,
+                'user_id' => $request->user()->id,
+                'action' => 'create',
+                'module' => 'user',
+                'description' => "Created user {$user->name} ({$user->employee_id})",
+                'record_type' => 'User',
+                'record_id' => $user->id,
+                'new_values' => [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role->name ?? null,
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
 
         return $this->success($user, 'User created successfully', 201);
     }
@@ -179,6 +205,26 @@ class UserController extends Controller
 
         $user->load(['role', 'branch']);
 
+        // Audit log - user updated
+        try {
+            AuditLog::create([
+                'branch_id' => $request->user()->branch_id,
+                'user_id' => $request->user()->id,
+                'action' => 'update',
+                'module' => 'user',
+                'description' => "Updated user {$user->name}",
+                'record_type' => 'User',
+                'record_id' => $user->id,
+                'new_values' => $validated,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
+
         return $this->success($user, 'User updated successfully');
     }
 
@@ -201,10 +247,33 @@ class UserController extends Controller
             return $this->error('Cannot delete super admin', 422);
         }
 
+        $userName = $user->name;
+        $userEmail = $user->email;
+
         // Detach custom permissions
         $user->customPermissions()->detach();
 
         $user->delete();
+
+        // Audit log - user deleted
+        try {
+            AuditLog::create([
+                'branch_id' => $request->user()->branch_id,
+                'user_id' => $request->user()->id,
+                'action' => 'delete',
+                'module' => 'user',
+                'description' => "Deleted user {$userName} ({$userEmail})",
+                'record_type' => 'User',
+                'record_id' => null,
+                'old_values' => ['name' => $userName, 'email' => $userEmail],
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'warning',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
 
         return $this->success(null, 'User deleted successfully');
     }

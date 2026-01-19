@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Renewal;
 use App\Models\Pledge;
 use App\Models\RenewalInterestBreakdown;
+use App\Models\AuditLog;
 use App\Services\InterestCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class RenewalController extends Controller
@@ -316,6 +318,32 @@ class RenewalController extends Controller
             DB::commit();
 
             $renewal->load(['pledge.customer', 'interestBreakdown']);
+
+            // Audit log - renewal processed
+            try {
+                AuditLog::create([
+                    'branch_id' => $branchId,
+                    'user_id' => $userId,
+                    'action' => 'create',
+                    'module' => 'renewal',
+                    'description' => "Processed renewal {$renewal->renewal_no} for pledge {$pledge->pledge_no} - RM" . number_format($totalPayable, 2),
+                    'record_type' => 'Renewal',
+                    'record_id' => $renewal->id,
+                    'new_values' => [
+                        'renewal_no' => $renewal->renewal_no,
+                        'pledge_no' => $pledge->pledge_no,
+                        'months' => $renewalMonths,
+                        'interest_amount' => $calculation['total_interest'],
+                        'total_payable' => $totalPayable,
+                    ],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                    'severity' => 'info',
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Audit log failed: ' . $e->getMessage());
+            }
 
             return $this->success($renewal, 'Renewal processed successfully', 201);
 

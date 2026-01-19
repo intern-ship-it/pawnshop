@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Pledge;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class CustomerController extends Controller
 {
@@ -55,11 +57,11 @@ class CustomerController extends Controller
         $customer = Customer::where('branch_id', $branchId)
             ->where('ic_number', $icNumber)
             ->with([
-                    'activePledges' => function ($query) {
-                        $query->select('id', 'customer_id', 'pledge_no', 'receipt_no', 'loan_amount', 'status', 'due_date')
-                            ->with('items:id,pledge_id,category_id,net_weight,net_value');
-                    }
-                ])
+                'activePledges' => function ($query) {
+                    $query->select('id', 'customer_id', 'pledge_no', 'receipt_no', 'loan_amount', 'status', 'due_date')
+                        ->with('items:id,pledge_id,category_id,net_weight,net_value');
+                }
+            ])
             ->first();
 
         if (!$customer) {
@@ -162,6 +164,30 @@ class CustomerController extends Controller
             'created_by' => $userId,
         ]);
 
+        // Audit log - customer created
+        try {
+            AuditLog::create([
+                'branch_id' => $branchId,
+                'user_id' => $userId,
+                'action' => 'create',
+                'module' => 'customer',
+                'description' => "Created customer {$customer->customer_no} - {$customer->name}",
+                'record_type' => 'Customer',
+                'record_id' => $customer->id,
+                'new_values' => [
+                    'customer_no' => $customer->customer_no,
+                    'name' => $customer->name,
+                    'ic_number' => $customer->ic_number,
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
+
         return $this->success($customer, 'Customer created successfully', 201);
     }
 
@@ -245,7 +271,29 @@ class CustomerController extends Controller
             $validated['selfie_photo'] = $request->file('selfie_photo')->store('customers/selfie', 'public');
         }
 
+        $oldValues = $customer->only(['name', 'phone', 'address_line1']);
         $customer->update($validated);
+
+        // Audit log - customer updated
+        try {
+            AuditLog::create([
+                'branch_id' => $request->user()->branch_id,
+                'user_id' => $request->user()->id,
+                'action' => 'update',
+                'module' => 'customer',
+                'description' => "Updated customer {$customer->customer_no} - {$customer->name}",
+                'record_type' => 'Customer',
+                'record_id' => $customer->id,
+                'old_values' => $oldValues,
+                'new_values' => $validated,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
 
         return $this->success($customer, 'Customer updated successfully');
     }

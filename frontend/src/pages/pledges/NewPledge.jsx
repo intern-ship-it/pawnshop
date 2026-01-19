@@ -1037,8 +1037,8 @@ export default function NewPledge() {
 
       const receiptText = data.data.receipt_text;
 
-      // Open print window with plain text formatting
-      const printWindow = window.open("", "_blank", "width=450,height=600");
+      // Open print window with dot matrix optimized formatting
+      const printWindow = window.open("", "_blank", "width=500,height=700");
 
       if (!printWindow) {
         dispatch(
@@ -1051,37 +1051,130 @@ export default function NewPledge() {
         return;
       }
 
+      // Dot matrix optimized CSS
+      // A5 = 148mm x 210mm, 10 CPI = ~42 characters per line
       printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Resit - ${createdReceiptNo}</title>
+        <title>Resit Pajak Gadai - ${createdReceiptNo}</title>
         <style>
-          @page { size: A5 portrait; margin: 10mm; }
-          @media print {
-            body { margin: 0; padding: 0; }
+          /* Page setup for A5 continuous paper */
+          @page {
+            size: A5 portrait;
+            margin: 8mm 10mm;
           }
+          
+          /* Print media styles */
+          @media print {
+            html, body {
+              width: 148mm;
+              height: auto;
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            
+            /* Hide browser headers/footers */
+            @page { margin: 8mm 10mm; }
+          }
+          
+          /* Screen preview */
+          @media screen {
+            body {
+              max-width: 148mm;
+              margin: 20px auto;
+              padding: 20px;
+              background: #f0f0f0;
+            }
+            .receipt-container {
+              background: white;
+              padding: 15px;
+              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+          }
+          
+          /* Base styles - Optimized for dot matrix */
           body {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 11px;
-            line-height: 1.3;
-            white-space: pre;
-            margin: 10mm;
-            padding: 0;
-            background: #fff;
+            font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+            font-size: 12px;
+            line-height: 1.4;
             color: #000;
+            background: #fff;
+          }
+          
+          .receipt-container {
+            white-space: pre;
+            font-size: 12px;
+            letter-spacing: 0;
+            word-spacing: normal;
+          }
+          
+          /* Print button - only shows on screen */
+          .print-controls {
+            text-align: center;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f8f8f8;
+            border-bottom: 1px solid #ddd;
+          }
+          
+          .print-btn {
+            background: #d97706;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+          }
+          
+          .print-btn:hover {
+            background: #b45309;
+          }
+          
+          .close-btn {
+            background: #6b7280;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-left: 10px;
+          }
+          
+          .printer-note {
+            font-size: 11px;
+            color: #666;
+            margin-top: 10px;
+          }
+          
+          @media print {
+            .print-controls { display: none !important; }
           }
         </style>
       </head>
-      <body>${receiptText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</body>
+      <body>
+        <div class="print-controls">
+          <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
+          <button class="close-btn" onclick="window.close()">✕ Tutup</button>
+          <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5</strong></p>
+        </div>
+        <div class="receipt-container">${receiptText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+        <script>
+          // Auto-focus for printing
+          window.onload = function() {
+            document.querySelector('.print-btn').focus();
+          }
+        </script>
+      </body>
       </html>
     `);
       printWindow.document.close();
       printWindow.focus();
-
-      setTimeout(() => {
-        printWindow.print();
-      }, 300);
 
       dispatch(
         addToast({

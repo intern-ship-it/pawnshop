@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -74,6 +75,28 @@ class AuthController extends Controller
         // Create token
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Log successful login
+        try {
+            AuditLog::create([
+                'branch_id' => $user->branch_id,
+                'user_id' => $user->id,
+                'action' => 'login',
+                'module' => 'auth',
+                'description' => "User {$user->name} logged in",
+                'record_type' => 'User',
+                'record_id' => $user->id,
+                'metadata' => [
+                    'browser' => $this->parseBrowser($request->userAgent()),
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            // Silently fail - don't block login if audit logging fails
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
@@ -109,6 +132,27 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
+        $user = $request->user();
+
+        // Log logout before revoking token
+        try {
+            AuditLog::create([
+                'branch_id' => $user->branch_id,
+                'user_id' => $user->id,
+                'action' => 'logout',
+                'module' => 'auth',
+                'description' => "User {$user->name} logged out",
+                'record_type' => 'User',
+                'record_id' => $user->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            // Silently fail
+        }
+
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
@@ -458,5 +502,23 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Password has been reset successfully. You can now login with your new password.',
         ]);
+    }
+
+    /**
+     * Parse browser name from user agent
+     */
+    private function parseBrowser(?string $ua): string
+    {
+        if (!$ua)
+            return 'Unknown';
+        if (str_contains($ua, 'Chrome'))
+            return 'Chrome';
+        if (str_contains($ua, 'Firefox'))
+            return 'Firefox';
+        if (str_contains($ua, 'Safari'))
+            return 'Safari';
+        if (str_contains($ua, 'Edge'))
+            return 'Edge';
+        return 'Other';
     }
 }
