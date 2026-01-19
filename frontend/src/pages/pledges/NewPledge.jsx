@@ -260,6 +260,13 @@ export default function NewPledge() {
   const [backendStoneDeductions, setBackendStoneDeductions] = useState([]);
   const [marginPresets, setMarginPresets] = useState([]); // Dynamic margin presets
 
+  // Dynamic interest rates from settings
+  const [interestRates, setInterestRates] = useState({
+    standard: 0.5, // First 6 months
+    extended: 1.5, // Renewed before due date
+    overdue: 2.0, // Overdue > 6 months
+  });
+
   // Fetch gold prices on mount
   useEffect(() => {
     fetchGoldPrices();
@@ -370,6 +377,37 @@ export default function NewPledge() {
             return item;
           })
         );
+      }
+
+      // Fetch interest rates from settings
+      try {
+        const interestResponse = await settingsService.getInterestRates();
+        const rates =
+          interestResponse.data?.data || interestResponse.data || [];
+
+        // Map rates by type
+        const ratesMap = {
+          standard: 0.5, // default
+          extended: 1.5, // default
+          overdue: 2.0, // default
+        };
+
+        rates.forEach((rate) => {
+          if (rate.is_active !== false && rate.rate_percentage) {
+            if (rate.rate_type === "standard") {
+              ratesMap.standard = parseFloat(rate.rate_percentage);
+            } else if (rate.rate_type === "extended") {
+              ratesMap.extended = parseFloat(rate.rate_percentage);
+            } else if (rate.rate_type === "overdue") {
+              ratesMap.overdue = parseFloat(rate.rate_percentage);
+            }
+          }
+        });
+
+        setInterestRates(ratesMap);
+      } catch (interestError) {
+        console.error("Error fetching interest rates:", interestError);
+        // Keep default rates
       }
     } catch (error) {
       console.error("Error fetching backend data:", error);
@@ -952,6 +990,120 @@ export default function NewPledge() {
     );
   };
 
+  // Handle Dot Matrix Print (Epson LQ-310)
+  const handleDotMatrixPrint = async (copyType = "customer") => {
+    if (!createdPledgeId) return;
+
+    const token = getToken();
+    if (!token) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please login again",
+        })
+      );
+      return;
+    }
+
+    setIsPrinting(true);
+    try {
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pledge-receipt/${createdPledgeId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ copy_type: copyType }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to generate receipt");
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.data?.receipt_text) {
+        throw new Error("Invalid response from server");
+      }
+
+      const receiptText = data.data.receipt_text;
+
+      // Open print window with plain text formatting
+      const printWindow = window.open("", "_blank", "width=450,height=600");
+
+      if (!printWindow) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Popup Blocked",
+            message: "Please allow popups for this site to print.",
+          })
+        );
+        return;
+      }
+
+      printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Resit - ${createdReceiptNo}</title>
+        <style>
+          @page { size: A5 portrait; margin: 10mm; }
+          @media print {
+            body { margin: 0; padding: 0; }
+          }
+          body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.3;
+            white-space: pre;
+            margin: 10mm;
+            padding: 0;
+            background: #fff;
+            color: #000;
+          }
+        </style>
+      </head>
+      <body>${receiptText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</body>
+      </html>
+    `);
+      printWindow.document.close();
+      printWindow.focus();
+
+      setTimeout(() => {
+        printWindow.print();
+      }, 300);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipt Ready",
+          message: `${copyType === "office" ? "Office" : "Customer"} copy sent to printer`,
+        })
+      );
+    } catch (error) {
+      console.error("Dot matrix print error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Error",
+          message: error.message || "Failed to print receipt",
+        })
+      );
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   const handleItemPhoto = (e, itemId) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1512,7 +1664,7 @@ export default function NewPledge() {
     }
   };
 
-  // Handle printing barcode stickers
+  // Handle printing barcode stickers (Thermal Printer - AN803)
   const handlePrintBarcodes = async () => {
     if (!createdPledgeId) return;
 
@@ -1533,7 +1685,7 @@ export default function NewPledge() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-      // Get the pledge items for barcodes
+      // Get pledge items
       const pledgeResponse = await fetch(
         `${apiUrl}/pledges/${createdPledgeId}`,
         {
@@ -1549,9 +1701,6 @@ export default function NewPledge() {
       }
 
       const pledgeData = await pledgeResponse.json();
-      console.log("Pledge data for barcodes:", pledgeData);
-
-      // Items are under data.pledge.items (not data.items)
       const pledgeItems =
         pledgeData.data?.pledge?.items || pledgeData.data?.items || [];
 
@@ -1566,7 +1715,7 @@ export default function NewPledge() {
         return;
       }
 
-      // Fetch batch barcodes - correct endpoint is /print/barcodes/batch
+      // Fetch batch barcodes
       const barcodeResponse = await fetch(`${apiUrl}/print/barcodes/batch`, {
         method: "POST",
         headers: {
@@ -1583,9 +1732,6 @@ export default function NewPledge() {
       }
 
       const barcodeData = await barcodeResponse.json();
-      console.log("Barcode response:", barcodeData);
-
-      // Handle different response structures
       const barcodes = barcodeData.data || barcodeData || [];
 
       if (barcodes.length === 0) {
@@ -1593,18 +1739,16 @@ export default function NewPledge() {
           addToast({
             type: "warning",
             title: "No Barcodes",
-            message:
-              "No barcodes were generated. Items may not have barcodes assigned.",
+            message: "No barcodes were generated.",
           })
         );
         return;
       }
 
-      // Open barcode print window
-      const printWindow = window.open("", "_blank");
+      // Open barcode print window - Optimized for 50mm x 25mm thermal labels
+      const printWindow = window.open("", "_blank", "width=400,height=600");
 
       if (!printWindow) {
-        // Popup was blocked
         dispatch(
           addToast({
             type: "error",
@@ -1616,68 +1760,128 @@ export default function NewPledge() {
       }
 
       printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Barcode Stickers - ${createdReceiptNo}</title>
-          <style>
-            @page { size: 50mm 25mm; margin: 0; }
-            body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
-            .barcode-container { 
-              page-break-after: always; 
-              width: 48mm; 
-              height: 23mm; 
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Barcode Labels - ${createdReceiptNo}</title>
+        <style>
+          /* Thermal label: 50mm x 25mm */
+          @page {
+            size: 50mm 25mm;
+            margin: 0;
+          }
+          
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+          }
+          
+          .label {
+            width: 50mm;
+            height: 25mm;
+            padding: 1.5mm;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+          }
+          
+          .label:last-child {
+            page-break-after: auto;
+          }
+          
+          .pledge-no {
+            font-size: 8pt;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 1mm;
+          }
+          
+          .barcode-image {
+            max-width: 45mm;
+            height: 10mm;
+            object-fit: contain;
+          }
+          
+          .barcode-text {
+            font-family: 'Courier New', monospace;
+            font-size: 7pt;
+            text-align: center;
+            margin-top: 0.5mm;
+            letter-spacing: 1px;
+          }
+          
+          .item-info {
+            font-size: 6pt;
+            text-align: center;
+            color: #333;
+            margin-top: 0.5mm;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 48mm;
+          }
+          
+          @media print {
+            body { -webkit-print-color-adjust: exact; }
+            .label { border: none; }
+          }
+          
+          @media screen {
+            .label {
               border: 1px dashed #ccc;
-              padding: 2mm;
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
+              margin: 5px auto;
+              background: #fff;
             }
-            .barcode-container:last-child { page-break-after: auto; }
-            .barcode-image { max-width: 44mm; height: auto; }
-            .barcode-text { font-size: 8px; margin-top: 2px; text-align: center; }
-            .pledge-no { font-weight: bold; font-size: 10px; }
-          </style>
-        </head>
-        <body>
-          ${barcodes
-            .map(
-              (barcode) => `
-            <div class="barcode-container">
-              <div class="pledge-no">${barcode.pledge_no || ""}</div>
-              <img class="barcode-image" src="${
-                barcode.image
-              }" alt="Barcode" onerror="this.style.display='none'" />
-              <div class="barcode-text">${barcode.barcode || ""}</div>
-              <div class="barcode-text">${barcode.category || ""} - ${
-                barcode.purity || ""
-              } - ${barcode.weight || ""}</div>
-            </div>
-          `
-            )
-            .join("")}
-        </body>
-        </html>
-      `);
+          }
+        </style>
+      </head>
+      <body>
+        ${barcodes
+          .map(
+            (barcode) => `
+          <div class="label">
+            <div class="pledge-no">${barcode.pledge_no || createdReceiptNo}</div>
+            <img 
+              class="barcode-image" 
+              src="${barcode.image}" 
+              alt="Barcode"
+              onerror="this.style.display='none'"
+            />
+            <div class="barcode-text">${barcode.barcode || ""}</div>
+            <div class="item-info">${barcode.category || ""} | ${barcode.purity || ""} | ${barcode.weight || ""}</div>
+          </div>
+        `
+          )
+          .join("")}
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+
       printWindow.document.close();
       printWindow.focus();
-
-      // Delay print to ensure content is loaded
-      setTimeout(() => {
-        try {
-          printWindow.print();
-        } catch (printError) {
-          console.error("Print error:", printError);
-        }
-      }, 1000);
 
       dispatch(
         addToast({
           type: "success",
-          title: "Barcodes Generated",
-          message: `${barcodes.length} barcode sticker(s) ready for printing.`,
+          title: "Labels Ready",
+          message: `${barcodes.length} barcode label(s) ready for printing.`,
         })
       );
     } catch (error) {
@@ -2406,7 +2610,6 @@ export default function NewPledge() {
                   </p>
                 </div>
               </div>
-
               {/* Items Breakdown Table */}
               <div className="border border-zinc-200 rounded-xl overflow-hidden mb-6">
                 <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
@@ -2515,7 +2718,6 @@ export default function NewPledge() {
                   </table>
                 </div>
               </div>
-
               {/* Loan Percentage Selection */}
               <div className="border border-zinc-200 rounded-xl p-4 mb-6">
                 <label className="block text-sm font-semibold text-zinc-700 mb-3">
@@ -2601,7 +2803,6 @@ export default function NewPledge() {
                   </motion.div>
                 )}
               </div>
-
               {/* Loan Calculation Summary */}
               <div className="bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-200 rounded-xl p-6 mb-6">
                 <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-amber-800">
@@ -2638,7 +2839,7 @@ export default function NewPledge() {
                 </div>
               </div>
 
-              {/* Interest & Repayment Information - ENHANCED */}
+              {/* Interest & Repayment Information - FIXED VERSION */}
               <div className="border border-blue-200 bg-blue-50 rounded-xl p-4 mb-6">
                 <h5 className="font-semibold text-blue-800 mb-4 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" />
@@ -2650,23 +2851,17 @@ export default function NewPledge() {
                   {[
                     {
                       id: "standard",
-                      label: "Standard (0.5%)",
-                      rate: 0.5,
-                      months: 6,
+                      label: `Standard (${interestRates.standard}%)`,
                       color: "blue",
                     },
                     {
                       id: "renewed",
-                      label: "Renewed (1.5%)",
-                      rate: 1.5,
-                      months: 6,
+                      label: `Renewed (${interestRates.extended}%)`,
                       color: "amber",
                     },
                     {
                       id: "overdue",
-                      label: "Overdue (2.0%)",
-                      rate: 2.0,
-                      months: 6,
+                      label: `Overdue (${interestRates.overdue}%)`,
                       color: "red",
                     },
                   ].map((scenario) => (
@@ -2680,8 +2875,8 @@ export default function NewPledge() {
                           ? scenario.color === "blue"
                             ? "bg-blue-600 text-white"
                             : scenario.color === "amber"
-                            ? "bg-amber-500 text-white"
-                            : "bg-red-500 text-white"
+                              ? "bg-amber-500 text-white"
+                              : "bg-red-500 text-white"
                           : "bg-white text-zinc-600 hover:bg-zinc-100"
                       )}
                     >
@@ -2690,9 +2885,44 @@ export default function NewPledge() {
                   ))}
                 </div>
 
+                {/* Scenario Description */}
+                <div className="mb-3 p-2 bg-white rounded-lg border border-blue-100">
+                  <p className="text-xs text-zinc-600">
+                    {interestScenario === "standard" && (
+                      <>
+                        <strong className="text-blue-600">
+                          Standard Scenario:
+                        </strong>{" "}
+                        Customer redeems/pays within 6 months. Interest at{" "}
+                        {interestRates.standard}% per month.
+                      </>
+                    )}
+                    {interestScenario === "renewed" && (
+                      <>
+                        <strong className="text-amber-600">
+                          Renewed Scenario:
+                        </strong>{" "}
+                        First 6 months at {interestRates.standard}%, then
+                        customer renews - next 6 months at{" "}
+                        {interestRates.extended}% per month.
+                      </>
+                    )}
+                    {interestScenario === "overdue" && (
+                      <>
+                        <strong className="text-red-600">
+                          Overdue Scenario:
+                        </strong>{" "}
+                        First 6 months at {interestRates.standard}%, then
+                        overdue without renewal - {interestRates.overdue}% per
+                        month applies.
+                      </>
+                    )}
+                  </p>
+                </div>
+
                 {/* Monthly Breakdown Table */}
                 <div className="bg-white rounded-lg border border-blue-100 overflow-hidden">
-                  <div className="overflow-x-auto max-h-48 overflow-y-auto">
+                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-zinc-50 sticky top-0">
                         <tr>
@@ -2712,27 +2942,87 @@ export default function NewPledge() {
                       </thead>
                       <tbody className="divide-y divide-zinc-100">
                         {(() => {
-                          const rate =
-                            interestScenario === "standard"
-                              ? 0.005
-                              : interestScenario === "renewed"
-                              ? 0.015
-                              : 0.02;
-                          const monthlyInterest = loanAmount * rate;
-                          let cumulative = 0;
                           const rows = [];
-                          for (let i = 1; i <= 12; i++) {
+                          let cumulative = 0;
+
+                          // FIXED: Show only 6 months for standard, 12 for renewed/overdue
+                          const totalMonths =
+                            interestScenario === "standard" ? 6 : 12;
+
+                          for (let i = 1; i <= totalMonths; i++) {
+                            let ratePercent;
+                            let rateColor;
+
+                            if (i <= 6) {
+                              // First 6 months ALWAYS at standard rate
+                              ratePercent = interestRates.standard;
+                              rateColor = "text-blue-600";
+                            } else {
+                              // After 6 months, rate depends on scenario
+                              if (interestScenario === "renewed") {
+                                ratePercent = interestRates.extended;
+                                rateColor = "text-amber-600";
+                              } else if (interestScenario === "overdue") {
+                                ratePercent = interestRates.overdue;
+                                rateColor = "text-red-600";
+                              } else {
+                                ratePercent = interestRates.standard;
+                                rateColor = "text-blue-600";
+                              }
+                            }
+
+                            const rate = ratePercent / 100;
+                            const monthlyInterest = loanAmount * rate;
                             cumulative += monthlyInterest;
+
+                            const isNewRatePeriod =
+                              i > 6 && interestScenario !== "standard";
+
                             rows.push(
                               <tr
                                 key={i}
-                                className={i <= 6 ? "" : "bg-zinc-50/50"}
+                                className={cn(
+                                  isNewRatePeriod &&
+                                    interestScenario === "renewed" &&
+                                    "bg-amber-50/50",
+                                  isNewRatePeriod &&
+                                    interestScenario === "overdue" &&
+                                    "bg-red-50/50",
+                                  i === 6 &&
+                                    interestScenario !== "standard" &&
+                                    "border-b-2 border-zinc-300"
+                                )}
                               >
                                 <td className="px-3 py-2 text-zinc-700">
-                                  Month {i}
+                                  <div className="flex items-center gap-2">
+                                    Month {i}
+                                    {i === 6 &&
+                                      interestScenario !== "standard" && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-zinc-200 text-zinc-600 rounded">
+                                          Due Date
+                                        </span>
+                                      )}
+                                    {i === 7 &&
+                                      interestScenario === "renewed" && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 text-amber-700 rounded">
+                                          Renewed
+                                        </span>
+                                      )}
+                                    {i === 7 &&
+                                      interestScenario === "overdue" && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-red-200 text-red-700 rounded">
+                                          Overdue
+                                        </span>
+                                      )}
+                                  </div>
                                 </td>
-                                <td className="px-3 py-2 text-right text-zinc-600">
-                                  {(rate * 100).toFixed(1)}%
+                                <td
+                                  className={cn(
+                                    "px-3 py-2 text-right font-medium",
+                                    rateColor
+                                  )}
+                                >
+                                  {ratePercent.toFixed(2)}%
                                 </td>
                                 <td className="px-3 py-2 text-right font-medium text-zinc-800">
                                   {formatCurrency(monthlyInterest)}
@@ -2740,11 +3030,7 @@ export default function NewPledge() {
                                 <td
                                   className={cn(
                                     "px-3 py-2 text-right font-bold",
-                                    interestScenario === "standard"
-                                      ? "text-blue-600"
-                                      : interestScenario === "renewed"
-                                      ? "text-amber-600"
-                                      : "text-red-600"
+                                    rateColor
                                   )}
                                 >
                                   {formatCurrency(cumulative)}
@@ -2759,88 +3045,124 @@ export default function NewPledge() {
                   </div>
                 </div>
 
-                {/* Summary */}
+                {/* Summary Cards */}
                 <div className="mt-4 grid grid-cols-3 gap-3">
-                  <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
-                    <p className="text-xs text-zinc-500">Monthly Interest</p>
-                    <p
-                      className={cn(
-                        "text-lg font-bold",
-                        interestScenario === "standard"
-                          ? "text-blue-600"
-                          : interestScenario === "renewed"
+                  {(() => {
+                    const standardMonthly =
+                      loanAmount * (interestRates.standard / 100);
+                    const renewedMonthly =
+                      loanAmount * (interestRates.extended / 100);
+                    const overdueMonthly =
+                      loanAmount * (interestRates.overdue / 100);
+
+                    let monthlyDisplay, sixMonthTotal, twelveMonthTotal;
+
+                    if (interestScenario === "standard") {
+                      monthlyDisplay = standardMonthly;
+                      sixMonthTotal = standardMonthly * 6;
+                      twelveMonthTotal = null;
+                    } else if (interestScenario === "renewed") {
+                      monthlyDisplay = renewedMonthly;
+                      sixMonthTotal = standardMonthly * 6;
+                      twelveMonthTotal =
+                        standardMonthly * 6 + renewedMonthly * 6;
+                    } else {
+                      monthlyDisplay = overdueMonthly;
+                      sixMonthTotal = standardMonthly * 6;
+                      twelveMonthTotal =
+                        standardMonthly * 6 + overdueMonthly * 6;
+                    }
+
+                    const colorClass =
+                      interestScenario === "standard"
+                        ? "text-blue-600"
+                        : interestScenario === "renewed"
                           ? "text-amber-600"
-                          : "text-red-600"
-                      )}
-                    >
-                      {formatCurrency(
-                        loanAmount *
-                          (interestScenario === "standard"
-                            ? 0.005
-                            : interestScenario === "renewed"
-                            ? 0.015
-                            : 0.02)
-                      )}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
-                    <p className="text-xs text-zinc-500">6 Months Total</p>
-                    <p
-                      className={cn(
-                        "text-lg font-bold",
-                        interestScenario === "standard"
-                          ? "text-blue-600"
-                          : interestScenario === "renewed"
-                          ? "text-amber-600"
-                          : "text-red-600"
-                      )}
-                    >
-                      {formatCurrency(
-                        loanAmount *
-                          (interestScenario === "standard"
-                            ? 0.005
-                            : interestScenario === "renewed"
-                            ? 0.015
-                            : 0.02) *
-                          6
-                      )}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
-                    <p className="text-xs text-zinc-500">12 Months Total</p>
-                    <p
-                      className={cn(
-                        "text-lg font-bold",
-                        interestScenario === "standard"
-                          ? "text-blue-600"
-                          : interestScenario === "renewed"
-                          ? "text-amber-600"
-                          : "text-red-600"
-                      )}
-                    >
-                      {formatCurrency(
-                        loanAmount *
-                          (interestScenario === "standard"
-                            ? 0.005
-                            : interestScenario === "renewed"
-                            ? 0.015
-                            : 0.02) *
-                          12
-                      )}
-                    </p>
-                  </div>
+                          : "text-red-600";
+
+                    return (
+                      <>
+                        <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
+                          <p className="text-xs text-zinc-500">
+                            {interestScenario === "standard"
+                              ? "Monthly Interest"
+                              : "Monthly (After Renewal/Overdue)"}
+                          </p>
+                          <p className={cn("text-lg font-bold", colorClass)}>
+                            {formatCurrency(monthlyDisplay)}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
+                          <p className="text-xs text-zinc-500">
+                            {interestScenario === "standard"
+                              ? "6 Months Total"
+                              : "First 6 Months (Standard)"}
+                          </p>
+                          <p className="text-lg font-bold text-blue-600">
+                            {formatCurrency(sixMonthTotal)}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 text-center border border-blue-100">
+                          <p className="text-xs text-zinc-500">
+                            {interestScenario === "standard"
+                              ? "If Redeemed"
+                              : "12 Months Total"}
+                          </p>
+                          <p
+                            className={cn(
+                              "text-lg font-bold",
+                              interestScenario === "standard"
+                                ? "text-emerald-600"
+                                : colorClass
+                            )}
+                          >
+                            {interestScenario === "standard"
+                              ? formatCurrency(sixMonthTotal) + " max"
+                              : formatCurrency(twelveMonthTotal)}
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Rate Info */}
                 <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs text-amber-700">
-                    <strong>Note:</strong> Standard rate (0.5%) applies for the
-                    first 6 months. If renewed, rate increases to 1.5%. If
-                    overdue without renewal, rate becomes 2.0%.
+                  <p className="text-xs text-amber-700 font-semibold mb-1">
+                    Interest Rate Rules:
                   </p>
+                  <ul className="text-xs text-amber-700 space-y-0.5">
+                    <li
+                      className={cn(
+                        interestScenario === "standard" && "font-bold"
+                      )}
+                    >
+                      • <strong>Standard ({interestRates.standard}%)</strong> -
+                      First 6 months / Redemption within term
+                    </li>
+                    <li
+                      className={cn(
+                        interestScenario === "renewed" && "font-bold"
+                      )}
+                    >
+                      • <strong>Renewed ({interestRates.extended}%)</strong> -
+                      Renewal before due date (months 7-12)
+                    </li>
+                    <li
+                      className={cn(
+                        interestScenario === "overdue" && "font-bold"
+                      )}
+                    >
+                      • <strong>Overdue ({interestRates.overdue}%)</strong> -
+                      Overdue &gt; 6 months without renewal
+                    </li>
+                    <li>
+                      • After settling overdue, next renewal reverts to{" "}
+                      {interestRates.extended}%
+                    </li>
+                  </ul>
                 </div>
               </div>
-
               {/* Due Date Info */}
               <div className="mt-4 p-4 bg-zinc-100 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -2911,12 +3233,14 @@ export default function NewPledge() {
                       min="0"
                       step="0.01"
                       value={handlingCharge}
-                      onChange={(e) => setHandlingCharge(e.target.value)}
-                      className="flex-1 bg-white"
-                      inputClassName="pl-12"
+                      readOnly
+                      disabled
+                      className="flex-1 bg-zinc-100"
+                      inputClassName="pl-12 cursor-not-allowed"
                       leftElement={
                         <span className="text-zinc-500 font-medium">RM</span>
                       }
+                      helperText="Auto-calculated from settings"
                     />
                   </div>
 
@@ -3284,8 +3608,8 @@ export default function NewPledge() {
                                 slot.is_occupied
                                   ? "Occupied"
                                   : isAssignedInPledge
-                                  ? "Assigned in this pledge"
-                                  : "Available - Click to assign"
+                                    ? "Assigned in this pledge"
+                                    : "Available - Click to assign"
                               }
                             >
                               {slot.slot_number}
@@ -3778,6 +4102,32 @@ export default function NewPledge() {
             <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">
               Print Options
             </p>
+
+            {/* Dot Matrix Print Buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="primary"
+                leftIcon={Printer}
+                onClick={() => handleDotMatrixPrint("office")}
+                loading={isPrinting}
+                disabled={isPrinting || isSendingWhatsApp}
+                className="bg-zinc-600 hover:bg-zinc-700"
+              >
+                Office Copy
+              </Button>
+              <Button
+                variant="primary"
+                leftIcon={Printer}
+                onClick={() => handleDotMatrixPrint("customer")}
+                loading={isPrinting}
+                disabled={isPrinting || isSendingWhatsApp}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                Customer Copy
+              </Button>
+            </div>
+
+            {/* Other options */}
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
@@ -3785,29 +4135,9 @@ export default function NewPledge() {
                 leftIcon={Copy}
                 onClick={handlePrintBothCopies}
                 loading={isPrinting}
-                disabled={isPrinting || isSendingWhatsApp}
+                disabled={isPrinting}
               >
-                Both Copies
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={Printer}
-                onClick={() => handlePrintReceipt("customer")}
-                loading={isPrinting}
-                disabled={isPrinting || isSendingWhatsApp}
-              >
-                Customer Copy
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={Printer}
-                onClick={() => handlePrintReceipt("office")}
-                loading={isPrinting}
-                disabled={isPrinting || isSendingWhatsApp}
-              >
-                Office Copy
+                PDF Copies
               </Button>
               <Button
                 variant="outline"
@@ -3815,9 +4145,9 @@ export default function NewPledge() {
                 leftIcon={Barcode}
                 onClick={handlePrintBarcodes}
                 loading={isPrinting}
-                disabled={isPrinting || isSendingWhatsApp}
+                disabled={isPrinting}
               >
-                Barcode Stickers
+                Barcodes
               </Button>
             </div>
           </div>

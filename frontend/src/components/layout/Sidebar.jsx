@@ -28,6 +28,7 @@ import {
   ScrollText,
   Grid3X3,
   Calendar,
+  Printer,
 } from "lucide-react";
 
 /**
@@ -161,6 +162,13 @@ const menuConfig = [
         icon: ScrollText,
         exact: true,
         permission: "audit.view",
+      },
+      {
+        name: "Hardware",
+        path: "/settings/hardware",
+        icon: Printer,
+        exact: true,
+        permission: "settings.view",
       },
     ],
   },

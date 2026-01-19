@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\WhatsAppController;
 use App\Http\Controllers\Api\PrintController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\GoldPriceController;
+use App\Http\Controllers\Api\DotMatrixPrintController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -465,6 +467,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('check.permission:pledges,print')->group(function () {
             Route::get('/pledge-receipt/{pledge}/preview', [PrintController::class, 'previewPledgeReceipt']);
             Route::post('/pledge-receipt/{pledge}', [PrintController::class, 'pledgeReceipt']);
+        });
+
+
+        // Dot Matrix Printing (Epson LQ-310)
+        Route::prefix('dot-matrix')->group(function () {
+            Route::post('/pledge-receipt/{pledge}', [DotMatrixPrintController::class, 'pledgeReceipt'])
+                ->middleware('check.permission:pledges,print');
+            Route::post('/renewal-receipt/{renewal}', [DotMatrixPrintController::class, 'renewalReceipt'])
+                ->middleware('check.permission:renewals,print');
+            Route::post('/redemption-receipt/{redemption}', [DotMatrixPrintController::class, 'redemptionReceipt'])
+                ->middleware('check.permission:redemptions,print');
         });
 
         // Barcode print
