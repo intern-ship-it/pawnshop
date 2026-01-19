@@ -10,6 +10,11 @@ return new class extends Migration {
      */
     public function up(): void
     {
+        // Skip if table already exists (prevents deployment errors)
+        if (Schema::hasTable('audit_logs')) {
+            return;
+        }
+
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('branch_id')->nullable()->constrained()->onDelete('set null');
