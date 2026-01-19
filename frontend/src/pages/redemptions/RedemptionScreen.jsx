@@ -3,7 +3,7 @@
  * API Integrated Version
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
   DollarSign,
   Search,
@@ -43,6 +44,7 @@ import {
   ShieldCheck,
   FileCheck,
   Loader2,
+  ScanLine,
 } from "lucide-react";
 
 export default function RedemptionScreen() {
@@ -50,11 +52,15 @@ export default function RedemptionScreen() {
   const dispatch = useAppDispatch();
   const { selectedPledge } = useAppSelector((state) => state.pledges);
 
+  // Search input ref for barcode scanner
+  const searchInputRef = useRef(null);
+
   // State
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [pledge, setPledge] = useState(null);
   const [searchResult, setSearchResult] = useState(null);
+  const [wasScanned, setWasScanned] = useState(false);
 
   // Calculation state (from API)
   const [calculation, setCalculation] = useState(null);
@@ -77,6 +83,50 @@ export default function RedemptionScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
+
+  // Barcode scanner detection - auto-search when barcode is scanned
+  const handleBarcodeScanned = useCallback(
+    (barcode) => {
+      setSearchQuery(barcode);
+      setWasScanned(true);
+
+      dispatch(
+        addToast({
+          type: "info",
+          title: "Barcode Scanned",
+          message: `Searching for: ${barcode}`,
+        })
+      );
+
+      // Auto-trigger search after a brief delay
+      setTimeout(() => {
+        handleSearch();
+      }, 100);
+    },
+    [dispatch]
+  );
+
+  // Initialize barcode scanner hook
+  const { inputRef: barcodeInputRef, isScanning } = useBarcodeScanner({
+    onScan: handleBarcodeScanned,
+    minLength: 5,
+    playSound: true,
+  });
+
+  // Merge refs
+  const mergeRefs = useCallback(
+    (...refs) =>
+      (element) => {
+        refs.forEach((ref) => {
+          if (typeof ref === "function") {
+            ref(element);
+          } else if (ref) {
+            ref.current = element;
+          }
+        });
+      },
+    []
+  );
 
   // Fetch banks on mount
   useEffect(() => {
@@ -281,14 +331,14 @@ export default function RedemptionScreen() {
           paymentMethod === "cash"
             ? totalReceived
             : paymentMethod === "partial"
-            ? parseFloat(cashAmount) || 0
-            : 0,
+              ? parseFloat(cashAmount) || 0
+              : 0,
         transfer_amount:
           paymentMethod === "transfer"
             ? totalReceived
             : paymentMethod === "partial"
-            ? parseFloat(transferAmount) || 0
-            : 0,
+              ? parseFloat(transferAmount) || 0
+              : 0,
         bank_id: paymentMethod !== "cash" && bankId ? parseInt(bankId) : null,
         reference_no: referenceNo || null,
         terms_accepted: true,
@@ -389,14 +439,39 @@ export default function RedemptionScreen() {
         <motion.div variants={itemVariants}>
           <Card className="p-6 mb-6">
             <div className="flex items-center gap-4">
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <Input
-                  placeholder="Enter Pledge No, Receipt No, or IC Number..."
+                  ref={mergeRefs(barcodeInputRef, searchInputRef)}
+                  placeholder="Enter Pledge No, Receipt No, or scan barcode..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setWasScanned(false);
+                  }}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  leftIcon={Search}
+                  leftIcon={isScanning ? ScanLine : Search}
+                  className={
+                    isScanning ? "ring-2 ring-emerald-400 ring-opacity-50" : ""
+                  }
                 />
+                {/* Scanning indicator */}
+                {isScanning && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <span className="text-xs text-emerald-600 font-medium animate-pulse">
+                      Scanning...
+                    </span>
+                    <ScanLine className="w-4 h-4 text-emerald-500 animate-pulse" />
+                  </div>
+                )}
+                {/* Scanned badge */}
+                {wasScanned && !isScanning && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Badge variant="success" size="sm">
+                      <ScanLine className="w-3 h-3 mr-1" />
+                      Scanned
+                    </Badge>
+                  </div>
+                )}
               </div>
               <Button
                 variant="primary"

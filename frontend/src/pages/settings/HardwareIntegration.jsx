@@ -43,6 +43,8 @@ import {
   Copy,
   Volume2,
   VolumeX,
+  Clock,
+  BookOpen,
 } from "lucide-react";
 
 // Device types
@@ -110,6 +112,174 @@ const DEVICE_TEMPLATES = {
   },
 };
 
+// Device Setup Guides
+const DEVICE_SETUP_GUIDES = {
+  [DEVICE_TYPES.DOT_MATRIX_PRINTER]: {
+    title: "Dot Matrix Printer Setup",
+    icon: Receipt,
+    difficulty: "Medium",
+    timeRequired: "10-15 minutes",
+    steps: [
+      {
+        title: "Install Drivers",
+        description:
+          "Download and install the printer driver from the manufacturer's website. For Epson LQ-310, visit epson.com/support.",
+        important: true,
+      },
+      {
+        title: "Connect the Printer",
+        description:
+          "Connect the printer to your computer using USB or parallel cable. Ensure the power is on.",
+      },
+      {
+        title: "Load Paper",
+        description:
+          'Insert continuous paper (A5 or 9.5" x 5.5") into the paper feeder. Align the paper holes with the tractor feed pins.',
+      },
+      {
+        title: "Set as Windows Default (Optional)",
+        description:
+          "Go to Settings > Printers & Scanners > Set as default if this is your main receipt printer.",
+      },
+      {
+        title: "Configure in PawnSys",
+        description:
+          "Add the printer in Hardware Integration with the correct settings. Set copies to 2 for office and customer copies.",
+      },
+      {
+        title: "Test Print",
+        description:
+          "Click 'Test Connection' to verify the printer is working. A test page will be printed.",
+      },
+    ],
+    tips: [
+      "Use genuine Epson ribbons for best print quality",
+      "Set CPI (characters per inch) to 10 for standard receipts",
+      "Clean the print head monthly to prevent smudging",
+    ],
+    troubleshooting: [
+      {
+        problem: "Printer not detected",
+        solution: "Reinstall driver and try a different USB port",
+      },
+      { problem: "Faded print", solution: "Replace the ink ribbon cartridge" },
+      {
+        problem: "Paper jamming",
+        solution: "Check paper alignment and tractor feed adjustment",
+      },
+    ],
+  },
+  [DEVICE_TYPES.THERMAL_PRINTER]: {
+    title: "Thermal Printer Setup",
+    icon: Barcode,
+    difficulty: "Easy",
+    timeRequired: "5-10 minutes",
+    steps: [
+      {
+        title: "Install Drivers",
+        description:
+          "Most thermal printers are plug-and-play. If needed, install drivers from the manufacturer.",
+      },
+      {
+        title: "Connect via USB",
+        description:
+          "Connect the thermal printer to your computer using the provided USB cable.",
+        important: true,
+      },
+      {
+        title: "Load Thermal Paper",
+        description:
+          "Open the paper cover and insert the thermal paper roll with the thermal side facing up (shiny side down).",
+      },
+      {
+        title: "Configure Paper Size",
+        description:
+          "Set the label/receipt size in printer preferences. Common sizes: 80mm, 58mm, 50x25mm labels.",
+      },
+      {
+        title: "Add to PawnSys",
+        description:
+          "Configure the printer in Hardware Integration with correct paper size and DPI settings.",
+      },
+    ],
+    tips: [
+      "Store thermal paper away from heat and sunlight",
+      "Use appropriate paper width for your printer model",
+      "Clean print head with isopropyl alcohol if print quality degrades",
+    ],
+    troubleshooting: [
+      {
+        problem: "Blank prints",
+        solution: "Paper loaded wrong side up - flip the roll",
+      },
+      {
+        problem: "Partial printing",
+        solution: "Check paper width setting matches actual paper",
+      },
+      {
+        problem: "Faded prints",
+        solution: "Increase print density in printer settings",
+      },
+    ],
+  },
+  [DEVICE_TYPES.BARCODE_SCANNER]: {
+    title: "Barcode Scanner Setup",
+    icon: ScanLine,
+    difficulty: "Easy",
+    timeRequired: "2-5 minutes",
+    steps: [
+      {
+        title: "Connect the Scanner",
+        description:
+          "Plug the USB receiver (for wireless) or cable into your computer. The scanner should beep when connected.",
+        important: true,
+      },
+      {
+        title: "Keyboard Wedge Mode",
+        description:
+          "Most scanners work in 'keyboard wedge' mode - they type the barcode directly into any focused text field.",
+      },
+      {
+        title: "Configure Suffix",
+        description:
+          "By default, scanners add 'Enter' after scanning. This is ideal for PawnSys search fields.",
+      },
+      {
+        title: "Test Scanning",
+        description:
+          "Open any text field (like Notepad) and scan a barcode. The code should appear and auto-submit.",
+      },
+      {
+        title: "Add to PawnSys",
+        description:
+          "Register the scanner in Hardware Integration for status tracking and configuration backup.",
+      },
+    ],
+    tips: [
+      "Keep the scanner lens clean for reliable scanning",
+      "For wireless scanners, charge fully before first use",
+      "Position 10-15cm from barcode for optimal scanning",
+      "PawnSys auto-detects barcode input in search fields",
+    ],
+    troubleshooting: [
+      {
+        problem: "Scanner not responding",
+        solution:
+          "Check USB connection, try different port, or re-pair wireless receiver",
+      },
+      {
+        problem: "Wrong characters",
+        solution:
+          "Scanner may be in wrong keyboard layout mode - scan reset barcode from manual",
+      },
+      {
+        problem: "Slow scanning",
+        solution: "Ensure barcode labels are clean and not damaged",
+      },
+    ],
+  },
+};
+
 export default function HardwareIntegration() {
   const dispatch = useAppDispatch();
 
@@ -119,6 +289,7 @@ export default function HardwareIntegration() {
   const [isEditing, setIsEditing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(null); // Device type for guide
   const [testingDevice, setTestingDevice] = useState(null);
   const [testResult, setTestResult] = useState(null);
   const [isTesting, setIsTesting] = useState(false);
@@ -586,9 +757,21 @@ export default function HardwareIntegration() {
                     <h3 className="font-semibold text-zinc-800">
                       {getDeviceTypeLabel(type)}
                     </h3>
-                    <span className="ml-auto text-xs text-zinc-500">
+                    <span className="text-xs text-zinc-500">
                       {typeDevices.length}
                     </span>
+                    {DEVICE_SETUP_GUIDES[type] && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowSetupGuide(type);
+                        }}
+                        className="ml-auto flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 hover:underline"
+                      >
+                        <BookOpen className="w-3 h-3" />
+                        Setup Guide
+                      </button>
+                    )}
                   </div>
                   <div className="divide-y divide-zinc-100">
                     {typeDevices.map((device) => {
@@ -697,6 +880,17 @@ export default function HardwareIntegration() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {DEVICE_SETUP_GUIDES[selectedDevice.type] && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setShowSetupGuide(selectedDevice.type)}
+                        className="text-white hover:bg-white/20"
+                        title="Setup Guide"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -1034,14 +1228,66 @@ export default function HardwareIntegration() {
               </div>
             </Card>
           ) : (
-            <Card className="p-12 text-center">
-              <Settings className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-zinc-600 mb-2">
-                Select a Device
-              </h3>
-              <p className="text-zinc-500">
-                Click on a device from the list to view details and settings.
-              </p>
+            <Card className="p-8">
+              <div className="text-center mb-6">
+                <Settings className="w-16 h-16 text-zinc-200 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-zinc-600 mb-2">
+                  Select a Device
+                </h3>
+                <p className="text-zinc-500">
+                  Click on a device from the list to view details and settings.
+                </p>
+              </div>
+
+              {/* Quick Setup Guides */}
+              <div className="border-t border-zinc-200 pt-6 mt-6">
+                <h4 className="font-semibold text-zinc-700 mb-4 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  Quick Setup Guides
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {Object.entries(DEVICE_SETUP_GUIDES).map(([type, guide]) => {
+                    const GuideIcon = guide.icon;
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setShowSetupGuide(type)}
+                        className="flex items-center gap-3 p-4 bg-zinc-50 hover:bg-amber-50 rounded-lg border border-zinc-200 hover:border-amber-300 transition-colors text-left"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                          <GuideIcon className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-zinc-800">
+                            {guide.title}
+                          </p>
+                          <p className="text-xs text-zinc-500">
+                            {guide.difficulty} • {guide.timeRequired}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Barcode Scanner Note */}
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-start gap-3">
+                    <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-800">
+                        Barcode Scanner Tip
+                      </p>
+                      <p className="text-sm text-blue-700 mt-1">
+                        Most USB barcode scanners work immediately as "keyboard
+                        wedge" devices. Simply plug in the scanner, focus any
+                        search field in PawnSys, and scan a barcode. The barcode
+                        value will be typed automatically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </Card>
           )}
         </div>
@@ -1342,6 +1588,137 @@ export default function HardwareIntegration() {
                   Test Again
                 </Button>
               )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Setup Guide Modal */}
+      <Modal
+        isOpen={!!showSetupGuide}
+        onClose={() => setShowSetupGuide(null)}
+        title={DEVICE_SETUP_GUIDES[showSetupGuide]?.title || "Setup Guide"}
+        size="lg"
+      >
+        {showSetupGuide && DEVICE_SETUP_GUIDES[showSetupGuide] && (
+          <div className="space-y-6">
+            {/* Header Info */}
+            <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-amber-50 to-amber-100 rounded-lg">
+              {(() => {
+                const GuideIcon = DEVICE_SETUP_GUIDES[showSetupGuide].icon;
+                return (
+                  <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center">
+                    <GuideIcon className="w-6 h-6 text-white" />
+                  </div>
+                );
+              })()}
+              <div>
+                <h3 className="font-semibold text-zinc-800">
+                  {DEVICE_SETUP_GUIDES[showSetupGuide].title}
+                </h3>
+                <div className="flex items-center gap-3 text-sm text-zinc-600 mt-1">
+                  <span className="flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    {DEVICE_SETUP_GUIDES[showSetupGuide].difficulty}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {DEVICE_SETUP_GUIDES[showSetupGuide].timeRequired}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div>
+              <h4 className="font-semibold text-zinc-800 mb-3 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Setup Steps
+              </h4>
+              <div className="space-y-3">
+                {DEVICE_SETUP_GUIDES[showSetupGuide].steps.map(
+                  (step, index) => (
+                    <div
+                      key={index}
+                      className={cn(
+                        "flex gap-3 p-3 rounded-lg border",
+                        step.important
+                          ? "bg-amber-50 border-amber-200"
+                          : "bg-zinc-50 border-zinc-200"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold",
+                          step.important
+                            ? "bg-amber-500 text-white"
+                            : "bg-zinc-300 text-zinc-700"
+                        )}
+                      >
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-zinc-800">
+                          {step.title}
+                        </p>
+                        <p className="text-sm text-zinc-600 mt-1">
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div>
+              <h4 className="font-semibold text-zinc-800 mb-3 flex items-center gap-2">
+                <Info className="w-4 h-4 text-blue-500" />
+                Pro Tips
+              </h4>
+              <ul className="space-y-2">
+                {DEVICE_SETUP_GUIDES[showSetupGuide].tips.map((tip, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2 text-sm text-zinc-600"
+                  >
+                    <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Troubleshooting */}
+            <div>
+              <h4 className="font-semibold text-zinc-800 mb-3 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-500" />
+                Troubleshooting
+              </h4>
+              <div className="space-y-2">
+                {DEVICE_SETUP_GUIDES[showSetupGuide].troubleshooting.map(
+                  (item, index) => (
+                    <div
+                      key={index}
+                      className="p-3 bg-zinc-50 rounded-lg border border-zinc-200"
+                    >
+                      <p className="font-medium text-red-600 text-sm">
+                        ⚠️ {item.problem}
+                      </p>
+                      <p className="text-sm text-zinc-600 mt-1">
+                        ✓ {item.solution}
+                      </p>
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t">
+              <Button variant="primary" onClick={() => setShowSetupGuide(null)}>
+                Got it!
+              </Button>
             </div>
           </div>
         )}
