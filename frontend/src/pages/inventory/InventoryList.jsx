@@ -38,6 +38,8 @@ import {
   Download,
   Barcode,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // Purity labels
@@ -100,6 +102,10 @@ export default function InventoryList() {
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Load data on mount
   useEffect(() => {
     fetchInventory();
@@ -132,7 +138,7 @@ export default function InventoryList() {
             type: "error",
             title: "Error",
             message: "Failed to load inventory",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -143,7 +149,7 @@ export default function InventoryList() {
           type: "error",
           title: "Error",
           message: error.message || "Failed to load inventory",
-        })
+        }),
       );
     } finally {
       setIsLoading(false);
@@ -169,7 +175,7 @@ export default function InventoryList() {
     setIsLoading(true);
     try {
       const response = await inventoryService.searchByBarcode(
-        searchQuery.trim()
+        searchQuery.trim(),
       );
       if (response.success && response.data) {
         setInventoryItems([response.data]);
@@ -178,7 +184,7 @@ export default function InventoryList() {
             type: "success",
             title: "Found",
             message: `Item found: ${response.data.barcode}`,
-          })
+          }),
         );
       } else {
         dispatch(
@@ -186,7 +192,7 @@ export default function InventoryList() {
             type: "warning",
             title: "Not Found",
             message: "No item found with this barcode",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -305,15 +311,27 @@ export default function InventoryList() {
         inventorySummary.total_value ||
         inventoryItems.reduce(
           (sum, i) => sum + (parseFloat(i.estimated_value) || 0),
-          0
+          0,
         ),
       noLocation: inventoryItems.filter(
         (i) =>
-          !i.slot_id && !i.storage_location && i.pledge?.status !== "redeemed"
+          !i.slot_id && !i.storage_location && i.pledge?.status !== "redeemed",
       ).length,
     }),
-    [inventorySummary, inventoryItems]
+    [inventorySummary, inventoryItems],
   );
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredItems, currentPage, itemsPerPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter, purityFilter, locationFilter, statusFilter]);
 
   // Check if filters are active
   const hasActiveFilters =
@@ -327,13 +345,14 @@ export default function InventoryList() {
     setPurityFilter("all");
     setLocationFilter("all");
     setSearchQuery("");
+    setCurrentPage(1);
     fetchInventory();
   };
 
   // Toggle item selection
   const toggleItemSelection = (id) => {
     setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -361,7 +380,7 @@ export default function InventoryList() {
           type: "warning",
           title: "No Items",
           message: "Please select items to print",
-        })
+        }),
       );
       return;
     }
@@ -437,7 +456,7 @@ export default function InventoryList() {
                 <span>${item.weight || 0}g | ${purName}</span>
                 <span>${(item.pledge?.customer?.name || "Customer").substring(
                   0,
-                  15
+                  15,
                 )}</span>
               </div>
             </div>
@@ -484,7 +503,7 @@ export default function InventoryList() {
           type: "success",
           title: "Print",
           message: `Printing ${selectedData.length} barcode labels`,
-        })
+        }),
       );
     } else {
       setIsPrinting(false);
@@ -493,7 +512,7 @@ export default function InventoryList() {
           type: "error",
           title: "Error",
           message: "Please allow popups to print",
-        })
+        }),
       );
     }
   };
@@ -514,36 +533,60 @@ export default function InventoryList() {
           body { font-family: Arial, sans-serif; background: #fff; }
           .stickers-container { display: flex; flex-wrap: wrap; gap: 15px; padding: 15px; }
           .sticker { 
-            width: 260px; 
-            border: 2px solid #f59e0b; 
+            width: 280px; 
+            border: 2px solid #d97706; 
             border-radius: 8px;
-            padding: 12px; 
+            padding: 0; 
             page-break-inside: avoid;
             background: #fff;
+            overflow: hidden;
           }
           .sticker-header { 
-            background: #f59e0b; 
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
             color: white; 
-            padding: 6px 10px; 
-            margin: -12px -12px 10px -12px;
-            border-radius: 6px 6px 0 0;
+            padding: 8px 12px; 
             font-weight: bold;
-            font-size: 14px;
+            font-size: 13px;
+            letter-spacing: 0.5px;
           }
-          .sticker-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; }
-          .sticker-label { color: #666; }
-          .sticker-value { font-weight: bold; }
+          .sticker-body {
+            padding: 10px 12px;
+          }
+          .sticker-row { 
+            display: table;
+            width: 100%;
+            margin-bottom: 5px; 
+            font-size: 11px; 
+          }
+          .sticker-label { 
+            display: table-cell;
+            width: 70px;
+            color: #666; 
+            font-weight: 500;
+            vertical-align: top;
+          }
+          .sticker-value { 
+            display: table-cell;
+            font-weight: 600; 
+            color: #1f2937;
+          }
           .sticker-barcode { 
             text-align: center; 
-            margin-top: 10px; 
-            padding-top: 10px; 
-            border-top: 1px dashed #ddd; 
+            padding: 8px 12px 10px;
+            border-top: 1px dashed #e5e7eb; 
+            background: #fafafa;
           }
-          .sticker-barcode svg { max-width: 100%; height: 40px; }
-          .barcode-text { font-size: 9px; font-family: monospace; margin-top: 3px; }
+          .sticker-barcode svg { max-width: 100%; height: 38px; }
+          .barcode-text { 
+            font-size: 9px; 
+            font-family: 'Courier New', monospace; 
+            margin-top: 4px; 
+            color: #374151;
+            letter-spacing: 1px;
+          }
           @media print { 
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .sticker { border: 1px solid #f59e0b; } 
+            .sticker { border: 1.5px solid #d97706; } 
           }
         </style>
       </head>
@@ -563,32 +606,34 @@ export default function InventoryList() {
                 (typeof item.purity === "string" ? item.purity : "916");
               return `
             <div class="sticker">
-              <div class="sticker-header">📦 ${
+              <div class="sticker-header">${
                 item.pledge?.pledge_no || "N/A"
               }</div>
-              <div class="sticker-row">
-                <span class="sticker-label">Customer:</span>
-                <span class="sticker-value">${
-                  item.pledge?.customer?.name || "N/A"
-                }</span>
-              </div>
-              <div class="sticker-row">
-                <span class="sticker-label">Item:</span>
-                <span class="sticker-value">${catName}</span>
-              </div>
-              <div class="sticker-row">
-                <span class="sticker-label">Purity:</span>
-                <span class="sticker-value">${purName}</span>
-              </div>
-              <div class="sticker-row">
-                <span class="sticker-label">Weight:</span>
-                <span class="sticker-value">${item.weight || 0}g</span>
-              </div>
-              <div class="sticker-row">
-                <span class="sticker-label">Value:</span>
-                <span class="sticker-value">RM ${parseFloat(
-                  item.estimated_value || 0
-                ).toLocaleString()}</span>
+              <div class="sticker-body">
+                <div class="sticker-row">
+                  <span class="sticker-label">Customer:</span>
+                  <span class="sticker-value">${
+                    item.pledge?.customer?.name || "N/A"
+                  }</span>
+                </div>
+                <div class="sticker-row">
+                  <span class="sticker-label">Item:</span>
+                  <span class="sticker-value">${catName}</span>
+                </div>
+                <div class="sticker-row">
+                  <span class="sticker-label">Purity:</span>
+                  <span class="sticker-value">${purName}</span>
+                </div>
+                <div class="sticker-row">
+                  <span class="sticker-label">Weight:</span>
+                  <span class="sticker-value">${item.weight || 0}g</span>
+                </div>
+                <div class="sticker-row">
+                  <span class="sticker-label">Value:</span>
+                  <span class="sticker-value">RM ${parseFloat(
+                    item.estimated_value || 0,
+                  ).toLocaleString()}</span>
+                </div>
               </div>
               <div class="sticker-barcode">
                 <svg id="sticker-barcode-${index}"></svg>
@@ -638,7 +683,7 @@ export default function InventoryList() {
           type: "success",
           title: "Print",
           message: `Printing ${selectedData.length} pack stickers`,
-        })
+        }),
       );
     } else {
       setIsPrinting(false);
@@ -647,7 +692,7 @@ export default function InventoryList() {
           type: "error",
           title: "Error",
           message: "Please allow popups to print",
-        })
+        }),
       );
     }
   };
@@ -696,7 +741,7 @@ export default function InventoryList() {
             <span>${item.weight || 0}g | ${purName}</span>
             <span>${(item.pledge?.customer?.name || "Customer").substring(
               0,
-              15
+              15,
             )}</span>
           </div>
         </div>
@@ -749,7 +794,7 @@ export default function InventoryList() {
             type: "success",
             title: "Location Updated",
             message: "Item location has been updated",
-          })
+          }),
         );
         setShowLocationModal(false);
         setEditingItem(null);
@@ -760,7 +805,7 @@ export default function InventoryList() {
             type: "error",
             title: "Error",
             message: response.message || "Failed to update location",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -769,7 +814,7 @@ export default function InventoryList() {
           type: "error",
           title: "Error",
           message: error.message || "Failed to update location",
-        })
+        }),
       );
     } finally {
       setIsSaving(false);
@@ -810,7 +855,7 @@ export default function InventoryList() {
         type: "success",
         title: "Export",
         message: `Exported ${csvData.length} items to CSV`,
-      })
+      }),
     );
   };
 
@@ -984,7 +1029,7 @@ export default function InventoryList() {
               <button
                 className={cn(
                   "p-2 transition-colors",
-                  viewMode === "table" ? "bg-zinc-100" : "hover:bg-zinc-50"
+                  viewMode === "table" ? "bg-zinc-100" : "hover:bg-zinc-50",
                 )}
                 onClick={() => setViewMode("table")}
                 title="List View"
@@ -994,7 +1039,7 @@ export default function InventoryList() {
               <button
                 className={cn(
                   "p-2 transition-colors",
-                  viewMode === "grid" ? "bg-zinc-100" : "hover:bg-zinc-50"
+                  viewMode === "grid" ? "bg-zinc-100" : "hover:bg-zinc-50",
                 )}
                 onClick={() => setViewMode("grid")}
                 title="Grid View"
@@ -1006,7 +1051,7 @@ export default function InventoryList() {
                   "p-2 transition-colors",
                   viewMode === "map"
                     ? "bg-amber-100 text-amber-700"
-                    : "hover:bg-zinc-50"
+                    : "hover:bg-zinc-50",
                 )}
                 onClick={() => setViewMode("map")}
                 title="Rack Map View"
@@ -1130,7 +1175,13 @@ export default function InventoryList() {
           >
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-zinc-500">
-                Showing <strong>{filteredItems.length}</strong> items
+                Showing <strong>{paginatedItems.length}</strong> of{" "}
+                <strong>{filteredItems.length}</strong> items
+                {totalPages > 1 && (
+                  <span className="ml-1">
+                    (Page {currentPage} of {totalPages})
+                  </span>
+                )}
               </p>
               <button
                 className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1"
@@ -1145,12 +1196,12 @@ export default function InventoryList() {
               </button>
             </div>
 
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-zinc-50 border-b border-zinc-200">
+                <table className="w-full" style={{ minWidth: "1000px" }}>
+                  <thead className="bg-gradient-to-r from-zinc-100 to-zinc-50 border-b-2 border-amber-200">
                     <tr>
-                      <th className="p-4 text-left w-10">
+                      <th className="p-4 text-left w-12">
                         <button onClick={toggleSelectAll}>
                           {selectAll ? (
                             <CheckSquare className="w-5 h-5 text-amber-500" />
@@ -1159,37 +1210,64 @@ export default function InventoryList() {
                           )}
                         </button>
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "140px" }}
+                      >
                         Item
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "140px" }}
+                      >
                         Barcode
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "120px" }}
+                      >
                         Pledge
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "120px" }}
+                      >
                         Customer
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "70px" }}
+                      >
                         Weight
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "80px" }}
+                      >
                         Purity
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "160px" }}
+                      >
                         Location
                       </th>
-                      <th className="p-4 text-left text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "100px" }}
+                      >
                         Status
                       </th>
-                      <th className="p-4 text-center text-xs font-semibold text-zinc-500 uppercase">
+                      <th
+                        className="p-4 text-center text-xs font-bold text-zinc-700 uppercase tracking-wider"
+                        style={{ minWidth: "100px" }}
+                      >
                         Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {filteredItems.length === 0 ? (
+                    {paginatedItems.length === 0 ? (
                       <tr>
                         <td
                           colSpan={10}
@@ -1200,7 +1278,7 @@ export default function InventoryList() {
                         </td>
                       </tr>
                     ) : (
-                      filteredItems.map((item) => {
+                      paginatedItems.map((item) => {
                         const status = getStatusConfig(item.pledge?.status);
                         const StatusIcon = status.icon;
                         const isSelected = selectedItems.includes(item.id);
@@ -1213,7 +1291,7 @@ export default function InventoryList() {
                             animate={{ opacity: 1 }}
                             className={cn(
                               "hover:bg-zinc-50",
-                              isSelected && "bg-amber-50"
+                              isSelected && "bg-amber-50",
                             )}
                           >
                             <td className="p-4">
@@ -1254,7 +1332,7 @@ export default function InventoryList() {
                                   navigate(
                                     `/pledges/${
                                       item.pledge?.id || item.pledge_id
-                                    }`
+                                    }`,
                                   )
                                 }
                                 className="text-amber-600 hover:text-amber-700 font-medium"
@@ -1263,8 +1341,10 @@ export default function InventoryList() {
                               </button>
                             </td>
                             <td className="p-4">
-                              <p className="text-zinc-800">
-                                {item.pledge?.customer?.name || "Unknown"}
+                              <p className="font-semibold text-zinc-800 capitalize">
+                                {(
+                                  item.pledge?.customer?.name || "Unknown"
+                                ).toLowerCase()}
                               </p>
                             </td>
                             <td className="p-4">
@@ -1308,7 +1388,7 @@ export default function InventoryList() {
                                     navigate(
                                       `/pledges/${
                                         item.pledge?.id || item.pledge_id
-                                      }`
+                                      }`,
                                     )
                                   }
                                 >
@@ -1342,6 +1422,113 @@ export default function InventoryList() {
                 </table>
               </div>
             </Card>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 p-4 bg-white rounded-lg border border-zinc-200">
+                <div className="flex items-center gap-2 text-sm text-zinc-600">
+                  <span>Show</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="border border-zinc-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span>per page</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {/* First page */}
+                    {currentPage > 3 && (
+                      <>
+                        <button
+                          onClick={() => setCurrentPage(1)}
+                          className="w-8 h-8 rounded-md text-sm hover:bg-zinc-100"
+                        >
+                          1
+                        </button>
+                        {currentPage > 4 && <span className="px-1">...</span>}
+                      </>
+                    )}
+
+                    {/* Page numbers around current */}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(
+                        (page) =>
+                          page >= currentPage - 2 &&
+                          page <= currentPage + 2 &&
+                          page >= 1 &&
+                          page <= totalPages,
+                      )
+                      .map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={cn(
+                            "w-8 h-8 rounded-md text-sm font-medium transition-colors",
+                            page === currentPage
+                              ? "bg-amber-500 text-white"
+                              : "hover:bg-zinc-100",
+                          )}
+                        >
+                          {page}
+                        </button>
+                      ))}
+
+                    {/* Last page */}
+                    {currentPage < totalPages - 2 && (
+                      <>
+                        {currentPage < totalPages - 3 && (
+                          <span className="px-1">...</span>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          className="w-8 h-8 rounded-md text-sm hover:bg-zinc-100"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentPage(Math.min(totalPages, currentPage + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <p className="text-sm text-zinc-500">
+                  {(currentPage - 1) * itemsPerPage + 1} -{" "}
+                  {Math.min(currentPage * itemsPerPage, filteredItems.length)}{" "}
+                  of {filteredItems.length}
+                </p>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -1355,7 +1542,13 @@ export default function InventoryList() {
           >
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-zinc-500">
-                Showing <strong>{filteredItems.length}</strong> items
+                Showing <strong>{paginatedItems.length}</strong> of{" "}
+                <strong>{filteredItems.length}</strong> items
+                {totalPages > 1 && (
+                  <span className="ml-1">
+                    (Page {currentPage} of {totalPages})
+                  </span>
+                )}
               </p>
               <button
                 className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1"
@@ -1371,13 +1564,13 @@ export default function InventoryList() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {filteredItems.length === 0 ? (
+              {paginatedItems.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <Package className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
                   <p className="text-zinc-500">No items found</p>
                 </div>
               ) : (
-                filteredItems.map((item) => {
+                paginatedItems.map((item) => {
                   const status = getStatusConfig(item.pledge?.status);
                   const isSelected = selectedItems.includes(item.id);
                   const location = formatLocation(item);
@@ -1391,7 +1584,7 @@ export default function InventoryList() {
                       <Card
                         className={cn(
                           "p-4 cursor-pointer transition-all hover:shadow-md",
-                          isSelected && "ring-2 ring-amber-500 bg-amber-50"
+                          isSelected && "ring-2 ring-amber-500 bg-amber-50",
                         )}
                       >
                         <div className="flex items-start justify-between mb-3">
@@ -1450,7 +1643,7 @@ export default function InventoryList() {
                             fullWidth
                             onClick={() =>
                               navigate(
-                                `/pledges/${item.pledge?.id || item.pledge_id}`
+                                `/pledges/${item.pledge?.id || item.pledge_id}`,
                               )
                             }
                           >
@@ -1464,6 +1657,88 @@ export default function InventoryList() {
                 })
               )}
             </div>
+
+            {/* Pagination Controls for Grid View */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 p-4 bg-white rounded-lg border border-zinc-200">
+                <div className="flex items-center gap-2 text-sm text-zinc-600">
+                  <span>Show</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="border border-zinc-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span>per page</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let page;
+                      if (totalPages <= 5) {
+                        page = i + 1;
+                      } else if (currentPage <= 3) {
+                        page = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        page = totalPages - 4 + i;
+                      } else {
+                        page = currentPage - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={cn(
+                            "w-8 h-8 rounded-md text-sm font-medium transition-colors",
+                            page === currentPage
+                              ? "bg-amber-500 text-white"
+                              : "hover:bg-zinc-100",
+                          )}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentPage(Math.min(totalPages, currentPage + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <p className="text-sm text-zinc-500">
+                  {(currentPage - 1) * itemsPerPage + 1} -{" "}
+                  {Math.min(currentPage * itemsPerPage, filteredItems.length)}{" "}
+                  of {filteredItems.length}
+                </p>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

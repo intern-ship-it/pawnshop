@@ -161,7 +161,7 @@ export default function NewPledge() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { selectedCustomer, customers } = useAppSelector(
-    (state) => state.customers
+    (state) => state.customers,
   );
   const { goldPrice } = useAppSelector((state) => state.ui);
 
@@ -187,7 +187,7 @@ export default function NewPledge() {
 
   // Handle global camera capture
   const { capturedImage, contextId } = useAppSelector(
-    (state) => state.ui.camera
+    (state) => state.ui.camera,
   );
 
   useEffect(() => {
@@ -198,7 +198,7 @@ export default function NewPledge() {
             return { ...item, photo: capturedImage };
           }
           return item;
-        })
+        }),
       );
     }
   }, [capturedImage, contextId]);
@@ -326,11 +326,11 @@ export default function NewPledge() {
           ?.value || "fixed";
       const hValue = parseFloat(
         pledgeSettings.find((s) => s.key_name === "handling_charge_value")
-          ?.value || 0
+          ?.value || 0,
       );
       const hMin = parseFloat(
         pledgeSettings.find((s) => s.key_name === "handling_charge_min")
-          ?.value || 0
+          ?.value || 0,
       );
 
       const newHandlingSettings = {
@@ -349,7 +349,7 @@ export default function NewPledge() {
         label: m.name || m.label || `${m.margin_percentage || m.value}%`,
       }));
       const activeMargins = normalizedMargins.filter(
-        (m) => m.is_active !== false
+        (m) => m.is_active !== false,
       );
       setMarginPresets(activeMargins);
 
@@ -362,7 +362,7 @@ export default function NewPledge() {
 
       // Apply default stone deduction to existing items if they are empty
       const defaultDeduction = stoneDeductions.find(
-        (d) => d.is_default && d.is_active !== false
+        (d) => d.is_default && d.is_active !== false,
       );
       if (defaultDeduction) {
         setItems((currentItems) =>
@@ -375,7 +375,7 @@ export default function NewPledge() {
               };
             }
             return item;
-          })
+          }),
         );
       }
 
@@ -433,7 +433,7 @@ export default function NewPledge() {
     if (handlingSettings.type === "percentage") {
       calculatedCharge = Math.max(
         currentLoanAmount * (handlingSettings.value / 100),
-        handlingSettings.min_amount
+        handlingSettings.min_amount,
       );
     } else {
       calculatedCharge = handlingSettings.value;
@@ -502,7 +502,7 @@ export default function NewPledge() {
 
       // Auto-select first box with available slots
       const boxWithSlots = boxesData.find(
-        (b) => (b.available_slots || b.total_slots - b.occupied_slots) > 0
+        (b) => (b.available_slots || b.total_slots - b.occupied_slots) > 0,
       );
       if (boxWithSlots) {
         setSelectedBox(boxWithSlots.id);
@@ -565,7 +565,7 @@ export default function NewPledge() {
           type: "error",
           title: "No Slots Available",
           message: "No available slots in this box",
-        })
+        }),
       );
       return;
     }
@@ -576,7 +576,7 @@ export default function NewPledge() {
           type: "warning",
           title: "Not Enough Slots",
           message: `Need ${validItems.length} slots but only ${availableSlots.length} available in this box`,
-        })
+        }),
       );
     }
 
@@ -599,7 +599,7 @@ export default function NewPledge() {
         type: "success",
         title: "Auto-Assigned",
         message: `${Object.keys(assignments).length} items assigned to storage`,
-      })
+      }),
     );
   };
 
@@ -611,14 +611,14 @@ export default function NewPledge() {
           type: "error",
           title: "Slot Occupied",
           message: "This slot is already occupied",
-        })
+        }),
       );
       return;
     }
 
     // Check if slot is already assigned to another item in this pledge
     const existingAssignment = Object.entries(itemStorageAssignments).find(
-      ([id, assignment]) => assignment.slotId === slot.id && id !== itemId
+      ([id, assignment]) => assignment.slotId === slot.id && id !== itemId,
     );
 
     if (existingAssignment) {
@@ -627,7 +627,7 @@ export default function NewPledge() {
           type: "warning",
           title: "Slot Already Assigned",
           message: "This slot is assigned to another item in this pledge",
-        })
+        }),
       );
       return;
     }
@@ -647,7 +647,7 @@ export default function NewPledge() {
         type: "success",
         title: "Assigned",
         message: `Item assigned to Slot ${slot.slot_number}`,
-      })
+      }),
     );
   };
 
@@ -666,7 +666,7 @@ export default function NewPledge() {
       (c) =>
         c.code?.toLowerCase() === categoryValue?.toLowerCase() ||
         c.name?.toLowerCase() === categoryValue?.toLowerCase() ||
-        c.slug?.toLowerCase() === categoryValue?.toLowerCase()
+        c.slug?.toLowerCase() === categoryValue?.toLowerCase(),
     );
     return found?.id || null;
   };
@@ -674,7 +674,7 @@ export default function NewPledge() {
   // Helper to get purity ID from purity value/code
   const getPurityId = (purityValue) => {
     const found = backendPurities.find(
-      (p) => p.code === purityValue || p.name === purityValue
+      (p) => p.code === purityValue || p.name === purityValue,
     );
     return found?.id || null;
   };
@@ -772,7 +772,7 @@ export default function NewPledge() {
             return { ...item, pricePerGram: marketPrice.toFixed(2) };
           }
           return item;
-        })
+        }),
       );
     }
   }, [goldPrices]);
@@ -852,7 +852,7 @@ export default function NewPledge() {
         totalWeight: acc.totalWeight + (parseFloat(item.weight) || 0),
       };
     },
-    { grossValue: 0, totalDeduction: 0, netValue: 0, totalWeight: 0 }
+    { grossValue: 0, totalDeduction: 0, netValue: 0, totalWeight: 0 },
   );
 
   const effectivePercentage = useCustomPercentage
@@ -895,7 +895,7 @@ export default function NewPledge() {
           type: "error",
           title: "Error",
           message: "Failed to search customer",
-        })
+        }),
       );
     } finally {
       setIsSearching(false);
@@ -913,7 +913,7 @@ export default function NewPledge() {
     // Fetch active pledges
     try {
       const response = await customerService.getActivePledges(
-        selectedCustomer.id
+        selectedCustomer.id,
       );
       const pledges = response.data?.data || response.data || [];
       setCustomerPledges(pledges);
@@ -949,7 +949,7 @@ export default function NewPledge() {
 
     // Find default stone deduction
     const defaultStoneDeduction = backendStoneDeductions.find(
-      (d) => d.is_default && d.is_active !== false
+      (d) => d.is_default && d.is_active !== false,
     );
 
     const newItem = {
@@ -975,7 +975,7 @@ export default function NewPledge() {
           type: "warning",
           title: "Required",
           message: "At least one item is required",
-        })
+        }),
       );
       return;
     }
@@ -986,7 +986,9 @@ export default function NewPledge() {
 
   const updateItem = (id, field, value) => {
     setItems(
-      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+      items.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item,
+      ),
     );
   };
 
@@ -1001,7 +1003,7 @@ export default function NewPledge() {
           type: "error",
           title: "Error",
           message: "Please login again",
-        })
+        }),
       );
       return;
     }
@@ -1021,7 +1023,7 @@ export default function NewPledge() {
             Accept: "application/json",
           },
           body: JSON.stringify({ copy_type: copyType }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1046,7 +1048,7 @@ export default function NewPledge() {
             type: "error",
             title: "Popup Blocked",
             message: "Please allow popups for this site to print.",
-          })
+          }),
         );
         return;
       }
@@ -1181,7 +1183,7 @@ export default function NewPledge() {
           type: "success",
           title: "Receipt Ready",
           message: `${copyType === "office" ? "Office" : "Customer"} copy sent to printer`,
-        })
+        }),
       );
     } catch (error) {
       console.error("Dot matrix print error:", error);
@@ -1190,7 +1192,7 @@ export default function NewPledge() {
           type: "error",
           title: "Print Error",
           message: error.message || "Failed to print receipt",
-        })
+        }),
       );
     } finally {
       setIsPrinting(false);
@@ -1207,7 +1209,7 @@ export default function NewPledge() {
           type: "error",
           title: "Invalid",
           message: "Please upload an image",
-        })
+        }),
       );
       return;
     }
@@ -1295,7 +1297,7 @@ export default function NewPledge() {
           type: "error",
           title: "Invalid File",
           message: "Please upload an image file (PNG, JPG, etc.)",
-        })
+        }),
       );
       return;
     }
@@ -1322,14 +1324,14 @@ export default function NewPledge() {
               type: "error",
               title: "Required",
               message: "Please select a customer",
-            })
+            }),
           );
           return false;
         }
         return true;
       case 2:
         const validItems = items.filter(
-          (item) => item.category && item.weight && parseFloat(item.weight) > 0
+          (item) => item.category && item.weight && parseFloat(item.weight) > 0,
         );
         if (validItems.length === 0) {
           dispatch(
@@ -1337,7 +1339,7 @@ export default function NewPledge() {
               type: "error",
               title: "Required",
               message: "Please add at least one item with category and weight",
-            })
+            }),
           );
           return false;
         }
@@ -1349,7 +1351,7 @@ export default function NewPledge() {
               type: "error",
               title: "Invalid",
               message: "Loan percentage must be between 1-100%",
-            })
+            }),
           );
           return false;
         }
@@ -1364,7 +1366,7 @@ export default function NewPledge() {
                 type: "error",
                 title: "Mismatch",
                 message: "Cash + Transfer must equal loan amount",
-              })
+              }),
             );
             return false;
           }
@@ -1374,7 +1376,7 @@ export default function NewPledge() {
                 type: "error",
                 title: "Required",
                 message: "Bank details required for transfer",
-              })
+              }),
             );
             return false;
           }
@@ -1385,7 +1387,7 @@ export default function NewPledge() {
               type: "error",
               title: "Required",
               message: "Bank details required for transfer",
-            })
+            }),
           );
           return false;
         }
@@ -1403,7 +1405,7 @@ export default function NewPledge() {
               message: `${
                 itemsNeedingStorage.length - assignedCount
               } item(s) have no storage location.`,
-            })
+            }),
           );
         }
         return true;
@@ -1434,7 +1436,7 @@ export default function NewPledge() {
           type: "error",
           title: "Required",
           message: "Customer signature is required",
-        })
+        }),
       );
       return;
     }
@@ -1445,7 +1447,7 @@ export default function NewPledge() {
           type: "error",
           title: "Required",
           message: "Please agree to terms and conditions",
-        })
+        }),
       );
       return;
     }
@@ -1488,7 +1490,7 @@ export default function NewPledge() {
         });
 
       const hasInvalidItems = pledgeItems.some(
-        (item) => !item.category_id || !item.purity_id
+        (item) => !item.category_id || !item.purity_id,
       );
       if (hasInvalidItems) {
         dispatch(
@@ -1497,7 +1499,7 @@ export default function NewPledge() {
             title: "Error",
             message:
               "Could not find category or purity IDs. Please check settings.",
-          })
+          }),
         );
         setIsSubmitting(false);
         return;
@@ -1536,7 +1538,7 @@ export default function NewPledge() {
 
       console.log(
         "Submitting pledge data:",
-        JSON.stringify(pledgeData, null, 2)
+        JSON.stringify(pledgeData, null, 2),
       );
 
       const response = await pledgeService.create(pledgeData);
@@ -1547,7 +1549,7 @@ export default function NewPledge() {
 
       setCreatedPledgeId(createdPledge.id);
       setCreatedReceiptNo(
-        createdPledge.receipt_no || createdPledge.pledge_no || createdPledge.id
+        createdPledge.receipt_no || createdPledge.pledge_no || createdPledge.id,
       );
       setIsSubmitting(false);
       setShowSuccessModal(true);
@@ -1561,14 +1563,14 @@ export default function NewPledge() {
             createdPledge.pledge_no ||
             createdPledge.id
           } created successfully`,
-        })
+        }),
       );
 
       // Auto-send WhatsApp if customer has phone number
       if (customer?.phone) {
         try {
           const whatsappResponse = await pledgeService.sendWhatsApp(
-            createdPledge.id
+            createdPledge.id,
           );
           if (whatsappResponse.success || whatsappResponse.data?.success) {
             dispatch(
@@ -1578,7 +1580,7 @@ export default function NewPledge() {
                 message:
                   whatsappResponse.data?.message ||
                   "Receipt sent to customer via WhatsApp",
-              })
+              }),
             );
           }
         } catch (whatsappError) {
@@ -1593,7 +1595,7 @@ export default function NewPledge() {
               type: "warning",
               title: "WhatsApp Not Sent",
               message: errorMessage,
-            })
+            }),
           );
           console.error("WhatsApp auto-send error:", whatsappError);
         }
@@ -1627,7 +1629,7 @@ export default function NewPledge() {
           type: "error",
           title: "Error",
           message: "Please login again",
-        })
+        }),
       );
       return;
     }
@@ -1648,7 +1650,7 @@ export default function NewPledge() {
             Accept: "application/pdf",
           },
           body: JSON.stringify({ copy_type: copyType }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -1671,7 +1673,7 @@ export default function NewPledge() {
           type: "success",
           title: "Receipt Generated",
           message: "PDF opened in new tab. Use Ctrl+P to print.",
-        })
+        }),
       );
     } catch (error) {
       console.error("Print error:", error);
@@ -1680,7 +1682,7 @@ export default function NewPledge() {
           type: "error",
           title: "Print Error",
           message: error.message || "Failed to generate receipt",
-        })
+        }),
       );
     } finally {
       setIsPrinting(false);
@@ -1703,7 +1705,7 @@ export default function NewPledge() {
             title: "WhatsApp Sent",
             message:
               response.data?.message || "Receipt sent to customer via WhatsApp",
-          })
+          }),
         );
       } else {
         throw new Error(response.data?.message || "Failed to send WhatsApp");
@@ -1722,7 +1724,7 @@ export default function NewPledge() {
           type: "error",
           title: "WhatsApp Error",
           message: errorMessage,
-        })
+        }),
       );
     } finally {
       setIsSendingWhatsApp(false);
@@ -1748,7 +1750,7 @@ export default function NewPledge() {
           type: "success",
           title: "Receipts Generated",
           message: "Both Office and Customer copies are ready for printing.",
-        })
+        }),
       );
     } catch (error) {
       console.error("Print both error:", error);
@@ -1768,7 +1770,7 @@ export default function NewPledge() {
           type: "error",
           title: "Error",
           message: "Please login again",
-        })
+        }),
       );
       return;
     }
@@ -1786,7 +1788,7 @@ export default function NewPledge() {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
-        }
+        },
       );
 
       if (!pledgeResponse.ok) {
@@ -1803,7 +1805,7 @@ export default function NewPledge() {
             type: "warning",
             title: "No Items",
             message: "No items found to generate barcodes",
-          })
+          }),
         );
         return;
       }
@@ -1833,7 +1835,7 @@ export default function NewPledge() {
             type: "warning",
             title: "No Barcodes",
             message: "No barcodes were generated.",
-          })
+          }),
         );
         return;
       }
@@ -1847,7 +1849,7 @@ export default function NewPledge() {
             type: "error",
             title: "Popup Blocked",
             message: "Please allow popups for this site to print barcodes.",
-          })
+          }),
         );
         return;
       }
@@ -1879,12 +1881,10 @@ export default function NewPledge() {
           .label {
             width: 50mm;
             height: 25mm;
-            padding: 1.5mm;
+            padding: 1.5mm 2mm;
             page-break-after: always;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
             overflow: hidden;
           }
           
@@ -1892,36 +1892,79 @@ export default function NewPledge() {
             page-break-after: auto;
           }
           
+          /* Header Row - Pledge No and Category */
+          .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 0.5mm;
+            border-bottom: 0.3mm solid #333;
+            padding-bottom: 0.5mm;
+          }
+          
           .pledge-no {
-            font-size: 8pt;
+            font-size: 7pt;
             font-weight: bold;
-            text-align: center;
-            margin-bottom: 1mm;
+            color: #000;
+          }
+          
+          .category {
+            font-size: 6pt;
+            font-weight: 600;
+            color: #333;
+            text-transform: uppercase;
+          }
+          
+          /* Barcode Section */
+          .barcode-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
           }
           
           .barcode-image {
-            max-width: 45mm;
-            height: 10mm;
+            max-width: 44mm;
+            height: 9mm;
             object-fit: contain;
           }
           
           .barcode-text {
             font-family: 'Courier New', monospace;
-            font-size: 7pt;
+            font-size: 6.5pt;
             text-align: center;
-            margin-top: 0.5mm;
-            letter-spacing: 1px;
+            margin-top: 0.3mm;
+            letter-spacing: 0.5px;
+            font-weight: 500;
           }
           
-          .item-info {
-            font-size: 6pt;
-            text-align: center;
-            color: #333;
+          /* Footer Row - Details */
+          .footer-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            border-top: 0.3mm solid #333;
+            padding-top: 0.5mm;
             margin-top: 0.5mm;
+          }
+          
+          .purity-weight {
+            font-size: 6.5pt;
+            font-weight: bold;
+            color: #000;
+          }
+          
+          .customer-name {
+            font-size: 5.5pt;
+            color: #333;
+            max-width: 22mm;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 48mm;
+            text-align: right;
           }
           
           @media print {
@@ -1943,17 +1986,25 @@ export default function NewPledge() {
           .map(
             (barcode) => `
           <div class="label">
-            <div class="pledge-no">${barcode.pledge_no || createdReceiptNo}</div>
-            <img 
-              class="barcode-image" 
-              src="${barcode.image}" 
-              alt="Barcode"
-              onerror="this.style.display='none'"
-            />
-            <div class="barcode-text">${barcode.barcode || ""}</div>
-            <div class="item-info">${barcode.category || ""} | ${barcode.purity || ""} | ${barcode.weight || ""}</div>
+            <div class="header-row">
+              <span class="pledge-no">${barcode.pledge_no || createdReceiptNo}</span>
+              <span class="category">${barcode.category || "Gold Item"}</span>
+            </div>
+            <div class="barcode-section">
+              <img 
+                class="barcode-image" 
+                src="${barcode.image}" 
+                alt="Barcode"
+                onerror="this.style.display='none'"
+              />
+              <div class="barcode-text">${barcode.barcode || ""}</div>
+            </div>
+            <div class="footer-row">
+              <span class="purity-weight">${barcode.purity || "916"} • ${barcode.weight || "0g"}</span>
+              <span class="customer-name">${barcode.customer || ""}</span>
+            </div>
           </div>
-        `
+        `,
           )
           .join("")}
         <script>
@@ -1975,7 +2026,7 @@ export default function NewPledge() {
           type: "success",
           title: "Labels Ready",
           message: `${barcodes.length} barcode label(s) ready for printing.`,
-        })
+        }),
       );
     } catch (error) {
       console.error("Barcode print error:", error);
@@ -1984,7 +2035,7 @@ export default function NewPledge() {
           type: "error",
           title: "Barcode Error",
           message: error.message || "Failed to generate barcodes",
-        })
+        }),
       );
     } finally {
       setIsPrinting(false);
@@ -2016,7 +2067,7 @@ export default function NewPledge() {
   // Check if slot is assigned in current pledge
   const isSlotAssignedInPledge = (slotId) => {
     return Object.values(itemStorageAssignments).some(
-      (a) => a.slotId === slotId
+      (a) => a.slotId === slotId,
     );
   };
 
@@ -2058,7 +2109,7 @@ export default function NewPledge() {
                         "border-emerald-500 bg-emerald-500 text-white",
                       !isActive &&
                         !isCompleted &&
-                        "border-zinc-300 bg-white text-zinc-400"
+                        "border-zinc-300 bg-white text-zinc-400",
                     )}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -2075,7 +2126,7 @@ export default function NewPledge() {
                         "text-xs lg:text-sm font-medium",
                         isActive && "text-amber-600",
                         isCompleted && "text-emerald-600",
-                        !isActive && !isCompleted && "text-zinc-400"
+                        !isActive && !isCompleted && "text-zinc-400",
                       )}
                     >
                       {step.title}
@@ -2089,7 +2140,7 @@ export default function NewPledge() {
                   <div
                     className={cn(
                       "w-6 lg:w-12 xl:w-16 h-0.5 mx-1 lg:mx-2",
-                      isCompleted ? "bg-emerald-500" : "bg-zinc-200"
+                      isCompleted ? "bg-emerald-500" : "bg-zinc-200",
                     )}
                   />
                 )}
@@ -2196,7 +2247,7 @@ export default function NewPledge() {
                           </div>
                           <p className="text-sm text-zinc-500 font-mono">
                             {formatIC(
-                              customer.ic_number || customer.icNumber || ""
+                              customer.ic_number || customer.icNumber || "",
                             )}
                           </p>
                           <p className="text-sm text-zinc-500">
@@ -2256,7 +2307,7 @@ export default function NewPledge() {
                                     day: "2-digit",
                                     month: "short",
                                     year: "numeric",
-                                  }
+                                  },
                                 )
                               : "N/A";
 
@@ -2289,7 +2340,7 @@ export default function NewPledge() {
                                         "text-xs px-2 py-0.5 rounded-full font-medium",
                                         status === "overdue"
                                           ? "bg-red-100 text-red-700"
-                                          : "bg-emerald-100 text-emerald-700"
+                                          : "bg-emerald-100 text-emerald-700",
                                       )}
                                     >
                                       {status === "overdue"
@@ -2304,7 +2355,7 @@ export default function NewPledge() {
                                       e.stopPropagation();
                                       window.open(
                                         `/pledges/${pledge.id}`,
-                                        "_blank"
+                                        "_blank",
                                       );
                                     }}
                                     className="p-1.5 text-zinc-400 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors"
@@ -2320,7 +2371,7 @@ export default function NewPledge() {
 
                         {/* Warning if customer has overdue pledges */}
                         {customerPledges.some(
-                          (p) => (p.status || "").toLowerCase() === "overdue"
+                          (p) => (p.status || "").toLowerCase() === "overdue",
                         ) && (
                           <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -2444,7 +2495,7 @@ export default function NewPledge() {
                           updateItem(
                             item.id,
                             "pricePerGram",
-                            marketPriceForPurity.toFixed(2)
+                            marketPriceForPurity.toFixed(2),
                           );
                         }}
                         options={dynamicPurityOptions}
@@ -2464,7 +2515,7 @@ export default function NewPledge() {
                               updateItem(
                                 item.id,
                                 "pricePerGram",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             leftIcon={DollarSign}
@@ -2515,7 +2566,7 @@ export default function NewPledge() {
                               updateItem(
                                 item.id,
                                 "stoneDeduction",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             className="w-28"
@@ -2526,7 +2577,7 @@ export default function NewPledge() {
                               updateItem(
                                 item.id,
                                 "stoneDeductionType",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             options={[
@@ -2629,7 +2680,7 @@ export default function NewPledge() {
                             <span className="font-semibold text-red-600">
                               -{" "}
                               {formatCurrency(
-                                calculateItemValue(item).deduction
+                                calculateItemValue(item).deduction,
                               )}
                             </span>
                           </div>
@@ -2747,7 +2798,7 @@ export default function NewPledge() {
                         .map((item, idx) => {
                           const calc = calculateItemValue(item);
                           const category = categoryOptions.find(
-                            (c) => c.value === item.category
+                            (c) => c.value === item.category,
                           );
                           return (
                             <tr key={item.id} className="hover:bg-zinc-50">
@@ -2832,7 +2883,7 @@ export default function NewPledge() {
                             !useCustomPercentage &&
                               loanPercentage === preset.value
                               ? "bg-amber-500 text-white shadow-lg"
-                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200",
                           )}
                         >
                           {preset.value}%
@@ -2845,7 +2896,7 @@ export default function NewPledge() {
                           "px-6 py-3 rounded-lg font-bold transition-all",
                           useCustomPercentage
                             ? "bg-amber-500 text-white shadow-lg"
-                            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200",
                         )}
                       >
                         Custom
@@ -2970,7 +3021,7 @@ export default function NewPledge() {
                             : scenario.color === "amber"
                               ? "bg-amber-500 text-white"
                               : "bg-red-500 text-white"
-                          : "bg-white text-zinc-600 hover:bg-zinc-100"
+                          : "bg-white text-zinc-600 hover:bg-zinc-100",
                       )}
                     >
                       {scenario.label}
@@ -3083,7 +3134,7 @@ export default function NewPledge() {
                                     "bg-red-50/50",
                                   i === 6 &&
                                     interestScenario !== "standard" &&
-                                    "border-b-2 border-zinc-300"
+                                    "border-b-2 border-zinc-300",
                                 )}
                               >
                                 <td className="px-3 py-2 text-zinc-700">
@@ -3112,7 +3163,7 @@ export default function NewPledge() {
                                 <td
                                   className={cn(
                                     "px-3 py-2 text-right font-medium",
-                                    rateColor
+                                    rateColor,
                                   )}
                                 >
                                   {ratePercent.toFixed(2)}%
@@ -3123,12 +3174,12 @@ export default function NewPledge() {
                                 <td
                                   className={cn(
                                     "px-3 py-2 text-right font-bold",
-                                    rateColor
+                                    rateColor,
                                   )}
                                 >
                                   {formatCurrency(cumulative)}
                                 </td>
-                              </tr>
+                              </tr>,
                             );
                           }
                           return rows;
@@ -3206,7 +3257,7 @@ export default function NewPledge() {
                               "text-lg font-bold",
                               interestScenario === "standard"
                                 ? "text-emerald-600"
-                                : colorClass
+                                : colorClass,
                             )}
                           >
                             {interestScenario === "standard"
@@ -3227,7 +3278,7 @@ export default function NewPledge() {
                   <ul className="text-xs text-amber-700 space-y-0.5">
                     <li
                       className={cn(
-                        interestScenario === "standard" && "font-bold"
+                        interestScenario === "standard" && "font-bold",
                       )}
                     >
                       • <strong>Standard ({interestRates.standard}%)</strong> -
@@ -3235,7 +3286,7 @@ export default function NewPledge() {
                     </li>
                     <li
                       className={cn(
-                        interestScenario === "renewed" && "font-bold"
+                        interestScenario === "renewed" && "font-bold",
                       )}
                     >
                       • <strong>Renewed ({interestRates.extended}%)</strong> -
@@ -3243,7 +3294,7 @@ export default function NewPledge() {
                     </li>
                     <li
                       className={cn(
-                        interestScenario === "overdue" && "font-bold"
+                        interestScenario === "overdue" && "font-bold",
                       )}
                     >
                       • <strong>Overdue ({interestRates.overdue}%)</strong> -
@@ -3273,7 +3324,7 @@ export default function NewPledge() {
                   <p className="text-sm text-zinc-500">Due Date</p>
                   <p className="font-bold text-zinc-800">
                     {new Date(
-                      Date.now() + 180 * 24 * 60 * 60 * 1000
+                      Date.now() + 180 * 24 * 60 * 60 * 1000,
                     ).toLocaleDateString("en-MY", {
                       day: "2-digit",
                       month: "short",
@@ -3371,7 +3422,7 @@ export default function NewPledge() {
                         "p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2",
                         payoutMethod === method.value
                           ? "border-amber-500 bg-amber-50"
-                          : "border-zinc-200 hover:border-zinc-300"
+                          : "border-zinc-200 hover:border-zinc-300",
                       )}
                     >
                       <method.icon
@@ -3379,7 +3430,7 @@ export default function NewPledge() {
                           "w-6 h-6",
                           payoutMethod === method.value
                             ? "text-amber-600"
-                            : "text-zinc-400"
+                            : "text-zinc-400",
                         )}
                       />
                       <span
@@ -3387,7 +3438,7 @@ export default function NewPledge() {
                           "font-medium",
                           payoutMethod === method.value
                             ? "text-amber-600"
-                            : "text-zinc-600"
+                            : "text-zinc-600",
                         )}
                       >
                         {method.label}
@@ -3467,15 +3518,15 @@ export default function NewPledge() {
                         Math.abs(
                           (parseFloat(cashAmount) || 0) +
                             (parseFloat(transferAmount) || 0) -
-                            loanAmount
+                            loanAmount,
                         ) < 0.01
                           ? "text-emerald-600"
-                          : "text-red-600"
+                          : "text-red-600",
                       )}
                     >
                       {formatCurrency(
                         (parseFloat(cashAmount) || 0) +
-                          (parseFloat(transferAmount) || 0)
+                          (parseFloat(transferAmount) || 0),
                       )}
                     </span>
                   </div>
@@ -3659,7 +3710,7 @@ export default function NewPledge() {
                       <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                         {slots.map((slot) => {
                           const isAssignedInPledge = isSlotAssignedInPledge(
-                            slot.id
+                            slot.id,
                           );
 
                           return (
@@ -3669,10 +3720,10 @@ export default function NewPledge() {
                               disabled={slot.is_occupied}
                               onClick={() => {
                                 const validItems = items.filter(
-                                  (i) => i.category && i.weight
+                                  (i) => i.category && i.weight,
                                 );
                                 const unassignedItem = validItems.find(
-                                  (item) => !itemStorageAssignments[item.id]
+                                  (item) => !itemStorageAssignments[item.id],
                                 );
                                 if (unassignedItem) {
                                   handleSlotAssign(unassignedItem.id, slot);
@@ -3683,7 +3734,7 @@ export default function NewPledge() {
                                       title: "All Items Assigned",
                                       message:
                                         "All items already have storage assigned",
-                                    })
+                                    }),
                                   );
                                 }
                               }}
@@ -3695,7 +3746,7 @@ export default function NewPledge() {
                                   !isAssignedInPledge &&
                                   "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
                                 isAssignedInPledge &&
-                                  "bg-amber-500 text-white ring-2 ring-amber-300"
+                                  "bg-amber-500 text-white ring-2 ring-amber-300",
                               )}
                               title={
                                 slot.is_occupied
@@ -3744,7 +3795,7 @@ export default function NewPledge() {
                     .filter((i) => i.category && i.weight)
                     .map((item, idx) => {
                       const category = categoryOptions.find(
-                        (c) => c.value === item.category
+                        (c) => c.value === item.category,
                       );
                       const assignment = itemStorageAssignments[item.id];
 
@@ -3879,10 +3930,10 @@ export default function NewPledge() {
                       .map((item, idx) => {
                         const val = calculateItemValue(item);
                         const category = categoryOptions.find(
-                          (c) => c.value === item.category
+                          (c) => c.value === item.category,
                         );
                         const purity = dynamicPurityOptions.find(
-                          (p) => p.value === item.purity
+                          (p) => p.value === item.purity,
                         );
                         const storage = itemStorageAssignments[item.id];
 
@@ -3971,11 +4022,11 @@ export default function NewPledge() {
                   {Object.keys(itemStorageAssignments).length > 0 && (
                     <p className="text-sm text-zinc-500">
                       {getVaultName(
-                        Object.values(itemStorageAssignments)[0]?.vaultId
+                        Object.values(itemStorageAssignments)[0]?.vaultId,
                       )}{" "}
                       →{" "}
                       {getBoxName(
-                        Object.values(itemStorageAssignments)[0]?.boxId
+                        Object.values(itemStorageAssignments)[0]?.boxId,
                       )}
                     </p>
                   )}
@@ -4080,7 +4131,7 @@ export default function NewPledge() {
                     <p className="font-medium text-amber-800">
                       Due Date:{" "}
                       {new Date(
-                        Date.now() + 180 * 24 * 60 * 60 * 1000
+                        Date.now() + 180 * 24 * 60 * 60 * 1000,
                       ).toLocaleDateString("en-MY", {
                         day: "numeric",
                         month: "long",

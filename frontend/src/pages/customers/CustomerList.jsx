@@ -71,7 +71,7 @@ export default function CustomerList() {
           type: "error",
           title: "Error",
           message: "Failed to load customers",
-        })
+        }),
       );
     } finally {
       setIsRefreshing(false);
@@ -112,7 +112,7 @@ export default function CustomerList() {
           type: "success",
           title: "Deleted",
           message: `${customerName} has been deleted`,
-        })
+        }),
       );
       // Refresh list after successful delete
       fetchCustomers();
@@ -126,7 +126,7 @@ export default function CustomerList() {
             type: "warning",
             title: "Not Found",
             message: "Customer already deleted. Refreshing list...",
-          })
+          }),
         );
         fetchCustomers();
       } else if (status === 422) {
@@ -135,7 +135,7 @@ export default function CustomerList() {
             type: "error",
             title: "Cannot Delete",
             message: message || "Customer has active pledges",
-          })
+          }),
         );
       } else {
         dispatch(
@@ -143,7 +143,7 @@ export default function CustomerList() {
             type: "error",
             title: "Error",
             message: message || "Failed to delete customer",
-          })
+          }),
         );
       }
     } finally {
@@ -297,7 +297,7 @@ export default function CustomerList() {
                       "px-4 py-2 text-sm font-medium rounded-lg transition-all",
                       filterStatus === filter.key
                         ? "bg-amber-500 text-white shadow-sm"
-                        : "bg-zinc-100 text-zinc-600 hover:bg-amber-50 hover:text-amber-600"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-amber-50 hover:text-amber-600",
                     )}
                   >
                     {filter.label}
@@ -308,7 +308,7 @@ export default function CustomerList() {
           </div>
 
           {/* Table Header */}
-          <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-zinc-50 border-b border-zinc-100 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+          <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-gradient-to-r from-zinc-100 to-zinc-50 border-b-2 border-amber-200 text-xs font-bold text-zinc-700 uppercase tracking-wider">
             <div className="col-span-3">Customer</div>
             <div className="col-span-2">IC Number</div>
             <div className="col-span-3">Contact</div>
@@ -364,14 +364,14 @@ export default function CustomerList() {
                         <span
                           className={cn(
                             "text-lg font-semibold text-amber-600",
-                            customer.selfie_photo && "hidden"
+                            customer.selfie_photo && "hidden",
                           )}
                         >
                           {customer.name?.charAt(0)?.toUpperCase() || "C"}
                         </span>
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-zinc-800 truncate">
+                        <p className="font-semibold text-zinc-800 truncate text-[15px]">
                           {customer.name}
                         </p>
                         <p className="text-xs text-zinc-400">
@@ -411,7 +411,7 @@ export default function CustomerList() {
                         "inline-flex px-2.5 py-1 text-xs font-medium rounded-full",
                         customer.active_pledges > 0
                           ? "bg-emerald-100 text-emerald-700"
-                          : "bg-zinc-100 text-zinc-600"
+                          : "bg-zinc-100 text-zinc-600",
                       )}
                     >
                       {customer.active_pledges > 0 ? "Active" : "Inactive"}
