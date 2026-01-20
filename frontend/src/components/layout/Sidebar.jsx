@@ -163,13 +163,6 @@ const menuConfig = [
         exact: true,
         permission: "audit.view",
       },
-      {
-        name: "Hardware",
-        path: "/settings/hardware",
-        icon: Printer,
-        exact: true,
-        permission: "settings.view",
-      },
     ],
   },
 ];
@@ -278,7 +271,7 @@ export default function Sidebar() {
       className={cn(
         "fixed left-0 top-0 z-40 h-screen bg-zinc-900 text-white",
         "flex flex-col transition-all duration-300 ease-in-out",
-        sidebarCollapsed ? "w-20" : "w-64"
+        sidebarCollapsed ? "w-20" : "w-64",
       )}
     >
       {/* Logo */}
@@ -286,7 +279,7 @@ export default function Sidebar() {
         <div
           className={cn(
             "flex items-center gap-3 transition-all duration-300",
-            sidebarCollapsed && "justify-center w-full"
+            sidebarCollapsed && "justify-center w-full",
           )}
         >
           {/* Logo Image or Fallback */}
@@ -347,7 +340,7 @@ export default function Sidebar() {
                         isActive
                           ? "bg-amber-500/10 text-amber-500"
                           : "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
-                        sidebarCollapsed && "justify-center px-2"
+                        sidebarCollapsed && "justify-center px-2",
                       )}
                     >
                       {isActive && (
@@ -359,7 +352,7 @@ export default function Sidebar() {
                           "w-5 h-5 flex-shrink-0 transition-colors",
                           isActive
                             ? "text-amber-500"
-                            : "text-zinc-400 group-hover:text-white"
+                            : "text-zinc-400 group-hover:text-white",
                         )}
                       />
 
@@ -386,7 +379,7 @@ export default function Sidebar() {
         <div
           className={cn(
             "flex items-center gap-3 p-2 rounded-lg bg-zinc-800/50 mb-3",
-            sidebarCollapsed && "justify-center"
+            sidebarCollapsed && "justify-center",
           )}
         >
           <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-zinc-900 font-semibold text-sm flex-shrink-0">
@@ -411,7 +404,7 @@ export default function Sidebar() {
             "flex items-center gap-3 w-full px-3 py-2 rounded-lg",
             "text-zinc-400 hover:text-red-400 hover:bg-red-500/10",
             "transition-all duration-200",
-            sidebarCollapsed && "justify-center px-2"
+            sidebarCollapsed && "justify-center px-2",
           )}
         >
           <LogOut className="w-5 h-5" />
@@ -425,7 +418,7 @@ export default function Sidebar() {
           className={cn(
             "flex items-center justify-center w-full py-2 mt-2 rounded-lg",
             "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
-            "transition-all duration-200"
+            "transition-all duration-200",
           )}
         >
           {sidebarCollapsed ? (
