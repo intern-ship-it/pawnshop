@@ -95,7 +95,7 @@ export default function RedemptionScreen() {
           type: "info",
           title: "Barcode Scanned",
           message: `Searching for: ${barcode}`,
-        })
+        }),
       );
 
       // Auto-trigger search after a brief delay
@@ -103,7 +103,7 @@ export default function RedemptionScreen() {
         handleSearch();
       }, 100);
     },
-    [dispatch]
+    [dispatch],
   );
 
   // Initialize barcode scanner hook
@@ -125,7 +125,7 @@ export default function RedemptionScreen() {
           }
         });
       },
-    []
+    [],
   );
 
   // Fetch banks on mount
@@ -173,7 +173,7 @@ export default function RedemptionScreen() {
           type: "error",
           title: "Error",
           message: "Failed to calculate redemption amount",
-        })
+        }),
       );
     } finally {
       setIsCalculating(false);
@@ -188,7 +188,7 @@ export default function RedemptionScreen() {
           type: "warning",
           title: "Required",
           message: "Please enter a pledge ID, receipt number, or IC",
-        })
+        }),
       );
       return;
     }
@@ -199,10 +199,45 @@ export default function RedemptionScreen() {
     setCalculation(null);
     setItems([]);
 
-    try {
-      // Try searching by receipt number first
-      const response = await pledgeService.getByReceipt(searchQuery.trim());
+    // Helper function to extract pledge number from barcode
+    // Barcode format: PLG-HQ-2026-0002-01 (pledge number + item suffix)
+    // Pledge format: PLG-HQ-2026-0002
+    const extractPledgeNumber = (query) => {
+      // Check if it's a barcode with item suffix (ends with -XX where XX is 2 digits)
+      const barcodePattern = /^(PLG-[A-Z]+-\d{4}-\d{4})-(\d{2})$/i;
+      const match = query.match(barcodePattern);
+      if (match) {
+        return match[1]; // Return just the pledge number part
+      }
+      return query; // Return as-is if not a barcode
+    };
+
+    const searchWithQuery = async (query) => {
+      const response = await pledgeService.getByReceipt(query);
       const data = response.data?.data || response.data;
+      return data;
+    };
+
+    try {
+      let query = searchQuery.trim();
+      let data = null;
+
+      // First, try searching with the original query
+      try {
+        data = await searchWithQuery(query);
+      } catch (error) {
+        // If search fails and query looks like a barcode, try extracting pledge number
+        const pledgeNo = extractPledgeNumber(query);
+        if (pledgeNo !== query) {
+          console.log(`Barcode detected, trying pledge number: ${pledgeNo}`);
+          try {
+            data = await searchWithQuery(pledgeNo);
+          } catch (innerError) {
+            // Both searches failed
+            data = null;
+          }
+        }
+      }
 
       if (data) {
         // Transform API response to frontend format
@@ -240,7 +275,7 @@ export default function RedemptionScreen() {
               type: "success",
               title: "Found",
               message: `Pledge ${pledgeData.pledgeNo} loaded`,
-            })
+            }),
           );
 
           // Fetch calculation
@@ -252,7 +287,7 @@ export default function RedemptionScreen() {
               type: "error",
               title: "Invalid Status",
               message: `Pledge is ${pledgeData.status}. Cannot process redemption.`,
-            })
+            }),
           );
         }
       } else {
@@ -262,7 +297,7 @@ export default function RedemptionScreen() {
             type: "error",
             title: "Not Found",
             message: "No pledge found with this ID",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -273,7 +308,7 @@ export default function RedemptionScreen() {
           type: "error",
           title: "Not Found",
           message: "No pledge found with this ID",
-        })
+        }),
       );
     } finally {
       setIsSearching(false);
@@ -291,7 +326,7 @@ export default function RedemptionScreen() {
           type: "warning",
           title: "Verification Required",
           message: "Please verify IC and items before processing",
-        })
+        }),
       );
       return;
     }
@@ -313,9 +348,9 @@ export default function RedemptionScreen() {
           type: "error",
           title: "Insufficient",
           message: `Amount must be at least ${formatCurrency(
-            totalPayableAmount
+            totalPayableAmount,
           )}`,
-        })
+        }),
       );
       return;
     }
@@ -371,11 +406,11 @@ export default function RedemptionScreen() {
             type: "success",
             title: "Success",
             message: "Redemption processed successfully. Items released!",
-          })
+          }),
         );
       } else {
         throw new Error(
-          response.data?.message || "Failed to process redemption"
+          response.data?.message || "Failed to process redemption",
         );
       }
     } catch (error) {
@@ -388,7 +423,7 @@ export default function RedemptionScreen() {
             error.response?.data?.message ||
             error.message ||
             "Failed to process redemption",
-        })
+        }),
       );
     } finally {
       setIsProcessing(false);
@@ -670,7 +705,7 @@ export default function RedemptionScreen() {
                             <div
                               className={cn(
                                 "w-12 h-12 bg-amber-100 rounded-lg items-center justify-center",
-                                itemPhoto ? "hidden" : "flex"
+                                itemPhoto ? "hidden" : "flex",
                               )}
                             >
                               <Package className="w-6 h-6 text-amber-600" />
@@ -690,7 +725,7 @@ export default function RedemptionScreen() {
                                   item.purity}{" "}
                                 •{" "}
                                 {parseFloat(
-                                  item.net_weight || item.netWeight || 0
+                                  item.net_weight || item.netWeight || 0,
                                 ).toFixed(2)}
                                 g
                               </p>
@@ -705,22 +740,38 @@ export default function RedemptionScreen() {
                               <div className="flex items-center gap-1 mt-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
                                 <Building2 className="w-3 h-3" />
                                 <span>
+                                  {/* Try multiple possible location formats from API */}
                                   {item.location_string ||
+                                    item.storage_location ||
+                                    // Check for nested storage structure
+                                    (item.slot?.box?.vault?.name
+                                      ? `${item.slot.box.vault.name} → Box ${item.slot.box.box_number} → Slot ${item.slot.slot_number}`
+                                      : null) ||
+                                    // Check for direct vault/box/slot objects
                                     (item.vault
-                                      ? `${item.vault.code} / Box ${item.box?.box_number} / Slot ${item.slot?.slot_number}`
-                                      : "Not Assigned")}
+                                      ? `${item.vault.name || item.vault.code} → Box ${item.box?.box_number} → Slot ${item.slot?.slot_number}`
+                                      : null) ||
+                                    // Check for flat field names
+                                    (item.vault_name
+                                      ? `${item.vault_name} → Box ${item.box_number} → Slot ${item.slot_number}`
+                                      : null) ||
+                                    // Check for slot_id with box relation
+                                    (item.slot_id && item.slot
+                                      ? `${item.slot.box?.vault?.name || "Vault"} → Box ${item.slot.box?.box_number || "?"} → Slot ${item.slot.slot_number}`
+                                      : null) ||
+                                    "Not Assigned"}
                                 </span>
                               </div>
                             </div>
                           </div>
                           <p className="font-bold text-zinc-800">
                             {formatCurrency(
-                              item.net_value || item.netValue || 0
+                              item.net_value || item.netValue || 0,
                             )}
                           </p>
                         </div>
                       );
-                    }
+                    },
                   )}
                 </div>
               </Card>
@@ -842,7 +893,7 @@ export default function RedemptionScreen() {
                           "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border font-medium transition-all",
                           paymentMethod === method.id
                             ? "bg-emerald-500 text-white border-emerald-500"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-emerald-300"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:border-emerald-300",
                         )}
                       >
                         <method.icon className="w-4 h-4" />
@@ -888,22 +939,22 @@ export default function RedemptionScreen() {
                         Math.abs(
                           (parseFloat(cashAmount) || 0) +
                             (parseFloat(transferAmount) || 0) -
-                            totalPayable
+                            totalPayable,
                         ) < 0.01
                           ? "bg-emerald-50 text-emerald-700"
-                          : "bg-red-50 text-red-700"
+                          : "bg-red-50 text-red-700",
                       )}
                     >
                       <span>Cash + Transfer</span>
                       <span className="font-bold">
                         {formatCurrency(
                           (parseFloat(cashAmount) || 0) +
-                            (parseFloat(transferAmount) || 0)
+                            (parseFloat(transferAmount) || 0),
                         )}
                         {Math.abs(
                           (parseFloat(cashAmount) || 0) +
                             (parseFloat(transferAmount) || 0) -
-                            totalPayable
+                            totalPayable,
                         ) < 0.01
                           ? " ✓"
                           : ` (need ${formatCurrency(totalPayable)})`}
@@ -966,7 +1017,7 @@ export default function RedemptionScreen() {
                       <span className="text-blue-700">Change</span>
                       <span className="font-bold text-blue-700">
                         {formatCurrency(
-                          parseFloat(amountReceived) - totalPayable
+                          parseFloat(amountReceived) - totalPayable,
                         )}
                       </span>
                     </div>
@@ -988,7 +1039,7 @@ export default function RedemptionScreen() {
                       ? Math.abs(
                           (parseFloat(cashAmount) || 0) +
                             (parseFloat(transferAmount) || 0) -
-                            totalPayable
+                            totalPayable,
                         ) >= 0.01
                       : !amountReceived ||
                         parseFloat(amountReceived) < totalPayable)

@@ -62,17 +62,29 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/gold-prices', [DashboardController::class, 'goldPrices']);
     });
 
-    // Gold Prices (MetalPriceAPI - Live Prices)
+    /**
+     * Gold Price Routes - KPKT Compliance
+     * PRIMARY: Metals.Dev (real-time BID/ASK)
+     * SECONDARY: BNM Kijang Emas (official reference)
+     */
     Route::prefix('gold-prices')->group(function () {
-        Route::get('/current', [GoldPriceController::class, 'current']);
-        Route::get('/carat', [GoldPriceController::class, 'carat']);
-        Route::get('/dashboard', [GoldPriceController::class, 'dashboard']);
-        Route::get('/historical/{date}', [GoldPriceController::class, 'historical']);
+        // Basic Operations
+        Route::get('/latest', [GoldPriceController::class, 'latest']);
+        Route::post('/fetch', [GoldPriceController::class, 'fetch']);
+        Route::get('/date/{date}', [GoldPriceController::class, 'forDate']);
         Route::get('/history', [GoldPriceController::class, 'history']);
-        Route::post('/calculate', [GoldPriceController::class, 'calculate']);
-        Route::post('/refresh', [GoldPriceController::class, 'refresh']);
-        Route::post('/manual', [GoldPriceController::class, 'setManual']);
-        Route::get('/usage', [GoldPriceController::class, 'usage']);
+
+        // Manual Entry (requires settings.edit permission)
+        Route::post('/manual', [GoldPriceController::class, 'manual'])
+            ->middleware('permission:settings.edit');
+
+        // KPKT Compliance & Audit
+        Route::get('/audit', [GoldPriceController::class, 'audit']);
+        Route::get('/compare', [GoldPriceController::class, 'compare']);
+        Route::get('/compliance-report', [GoldPriceController::class, 'complianceReport']);
+
+        // API Source Status
+        Route::get('/sources', [GoldPriceController::class, 'sources']);
     });
 
     // Branches

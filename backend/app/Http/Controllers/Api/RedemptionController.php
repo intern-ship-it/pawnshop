@@ -62,7 +62,7 @@ class RedemptionController extends Controller
         $pledge = Pledge::where('id', $validated['pledge_id'])
             ->where('branch_id', $branchId)
             ->where('status', 'active')
-            ->with(['items.category', 'items.purity'])
+            ->with(['items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot'])
             ->first();
 
         if (!$pledge) {

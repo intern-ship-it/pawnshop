@@ -66,13 +66,14 @@ class ReconciliationController extends Controller
         try {
             // Count expected items
             $expectedItems = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                    $q->where('branch_id', $branchId)->where('status', 'active');
-                })
+                $q->where('branch_id', $branchId)->where('status', 'active');
+            })
                 ->where('status', 'stored')
                 ->count();
 
             // Generate reconciliation number
-            $reconciliationNo = sprintf('RCN-%s-%s-%04d',
+            $reconciliationNo = sprintf(
+                'RCN-%s-%s-%04d',
                 $request->user()->branch->code,
                 date('Ymd'),
                 Reconciliation::where('branch_id', $branchId)->whereDate('created_at', Carbon::today())->count() + 1
@@ -133,19 +134,31 @@ class ReconciliationController extends Controller
             return $this->error('This item has already been scanned', 422);
         }
 
-        // Find the item
+        // Find the item by barcode OR by pledge_no (more flexible scanning)
+        $barcode = $validated['barcode'];
+
+        // First try exact barcode match
         $item = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId);
-            })
-            ->where('barcode', $validated['barcode'])
+            $q->where('branch_id', $branchId);
+        })
+            ->where('barcode', $barcode)
             ->first();
+
+        // If not found, try matching by pledge_no (in case user scanned pledge receipt)
+        if (!$item) {
+            $item = PledgeItem::whereHas('pledge', function ($q) use ($branchId, $barcode) {
+                $q->where('branch_id', $branchId)
+                    ->where('pledge_no', $barcode);
+            })
+                ->first();
+        }
 
         $status = 'unexpected';
         $pledgeItemId = null;
 
         if ($item) {
             $pledgeItemId = $item->id;
-            
+
             if ($item->status === 'stored' && $item->pledge->status === 'active') {
                 $status = 'matched';
             } else {
@@ -201,8 +214,8 @@ class ReconciliationController extends Controller
 
         // Calculate missing items
         $expectedBarcodes = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->where('status', 'active');
-            })
+            $q->where('branch_id', $branchId)->where('status', 'active');
+        })
             ->where('status', 'stored')
             ->pluck('barcode')
             ->toArray();
@@ -218,7 +231,7 @@ class ReconciliationController extends Controller
         // Record missing items
         foreach ($missingBarcodes as $barcode) {
             $item = PledgeItem::where('barcode', $barcode)->first();
-            
+
             ReconciliationItem::create([
                 'reconciliation_id' => $reconciliation->id,
                 'pledge_item_id' => $item?->id,
@@ -318,8 +331,8 @@ class ReconciliationController extends Controller
                 'matched' => $reconciliation->matched_items,
                 'missing' => $reconciliation->missing_items,
                 'unexpected' => $reconciliation->unexpected_items,
-                'accuracy_rate' => $reconciliation->expected_items > 0 
-                    ? round(($reconciliation->matched_items / $reconciliation->expected_items) * 100, 2) 
+                'accuracy_rate' => $reconciliation->expected_items > 0
+                    ? round(($reconciliation->matched_items / $reconciliation->expected_items) * 100, 2)
                     : 100,
             ],
             'items' => [

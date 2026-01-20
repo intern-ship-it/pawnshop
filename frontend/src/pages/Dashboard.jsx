@@ -5,7 +5,7 @@
  * UPDATED: Added Payment Split bar inside each summary card (Pledges/Renewals/Redemptions)
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAppSelector, useAppDispatch } from "@/app/hooks";
 import {
@@ -54,7 +54,7 @@ const PaymentSplitBar = ({
     <div
       className={cn(
         "mt-3 pt-3 border-t border-zinc-100",
-        size === "lg" && "mt-4 pt-4"
+        size === "lg" && "mt-4 pt-4",
       )}
     >
       <div className="flex items-center justify-between text-xs mb-1.5">
@@ -101,6 +101,21 @@ export default function Dashboard() {
   const { user, role } = useAppSelector((state) => state.auth);
   const { goldPrice } = useAppSelector((state) => state.ui);
 
+  // Get gold price settings from localStorage
+  const [goldPriceSettings, setGoldPriceSettings] = useState(() => {
+    try {
+      const stored = localStorage.getItem("pawnsys_settings");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed?.goldPrice || { source: "api", manualPrice: 0 };
+      }
+    } catch (e) {}
+    return { source: "api", manualPrice: 0 };
+  });
+
+  // Local gold prices state (for manual mode)
+  const [localGoldPrices, setLocalGoldPrices] = useState(null);
+
   // Get dashboard state from Redux (connected to API)
   const {
     summary,
@@ -108,11 +123,66 @@ export default function Dashboard() {
     paymentSplit,
     dueReminders,
     overduePledges,
-    goldPrices,
+    goldPrices: apiGoldPrices,
     loading,
     error,
     lastFetched,
   } = useAppSelector((state) => state.dashboard);
+
+  // Compute effective gold prices (manual or API)
+  const goldPrices = localGoldPrices || apiGoldPrices;
+
+  // Listen for settings updates
+  useEffect(() => {
+    const handleSettingsUpdate = (event) => {
+      if (event.detail?.goldPrice) {
+        const newSettings = event.detail.goldPrice;
+        setGoldPriceSettings(newSettings);
+
+        // If manual mode, calculate prices locally
+        if (newSettings.source === "manual" && newSettings.manualPrice > 0) {
+          const price999 = parseFloat(newSettings.manualPrice);
+          setLocalGoldPrices({
+            price_999: price999,
+            price_916: price999 * 0.916,
+            price_875: price999 * 0.875,
+            price_750: price999 * 0.75,
+            price_585: price999 * 0.585,
+            price_375: price999 * 0.375,
+            source: "manual",
+            price_date: new Date().toISOString().split("T")[0],
+          });
+        } else {
+          // API mode - clear local prices, use API data
+          setLocalGoldPrices(null);
+        }
+      }
+    };
+
+    window.addEventListener("settingsUpdated", handleSettingsUpdate);
+    return () =>
+      window.removeEventListener("settingsUpdated", handleSettingsUpdate);
+  }, []);
+
+  // On mount, check if manual mode is active
+  useEffect(() => {
+    if (
+      goldPriceSettings.source === "manual" &&
+      goldPriceSettings.manualPrice > 0
+    ) {
+      const price999 = parseFloat(goldPriceSettings.manualPrice);
+      setLocalGoldPrices({
+        price_999: price999,
+        price_916: price999 * 0.916,
+        price_875: price999 * 0.875,
+        price_750: price999 * 0.75,
+        price_585: price999 * 0.585,
+        price_375: price999 * 0.375,
+        source: "manual",
+        price_date: new Date().toISOString().split("T")[0],
+      });
+    }
+  }, []);
 
   // Fetch dashboard data on mount
   useEffect(() => {
@@ -177,16 +247,21 @@ export default function Dashboard() {
       {/* Page Title + Quick Actions */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-800">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-zinc-800 to-zinc-600 bg-clip-text text-transparent">
             Dashboard Overview
           </h1>
-          <p className="text-zinc-500 mt-1">
-            Welcome back, {user?.name || "User"}! Here's your business summary
-            for today.
+          <p className="text-zinc-600 mt-1 font-medium">
+            Welcome back,{" "}
+            <span className="text-amber-600">{user?.name || "User"}</span>!
+            Here's your business summary for today.
           </p>
           {lastFetched && (
-            <p className="text-xs text-zinc-400 mt-1">
-              Last updated: {new Date(lastFetched).toLocaleTimeString()}
+            <p className="text-xs text-zinc-500 mt-2 flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-full w-fit">
+              <Clock className="w-3 h-3 text-amber-500" />
+              <span>Last updated:</span>
+              <span className="font-medium text-amber-600">
+                {new Date(lastFetched).toLocaleTimeString()}
+              </span>
             </p>
           )}
         </div>
@@ -203,14 +278,14 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => navigate("/pledges/new")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 text-white rounded-lg font-medium hover:bg-zinc-800 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all shadow-lg shadow-amber-500/25"
           >
             <Plus className="w-4 h-4" />
             New Pledge
           </button>
           <button
             onClick={() => navigate("/renewals")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-200 text-amber-700 rounded-lg font-medium hover:bg-amber-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-300 text-amber-700 rounded-lg font-medium hover:bg-amber-50 transition-colors"
           >
             <RefreshCw className="w-4 h-4 text-amber-500" />
             Renew
@@ -263,7 +338,7 @@ export default function Dashboard() {
                 "text-xs font-bold px-2 py-0.5 rounded-full",
                 summary?.monthlyGrowth >= 0
                   ? "text-emerald-600 bg-emerald-50"
-                  : "text-red-600 bg-red-50"
+                  : "text-red-600 bg-red-50",
               )}
             >
               {stats.todayPledges.trend}
@@ -391,7 +466,7 @@ export default function Dashboard() {
             <p className="text-lg font-bold text-zinc-800">
               {formatCurrency(
                 stats.paymentSplit.cashAmount +
-                  stats.paymentSplit.transferAmount
+                  stats.paymentSplit.transferAmount,
               )}
             </p>
             <p className="text-xs text-zinc-500">Total collected</p>
@@ -483,10 +558,42 @@ export default function Dashboard() {
         {/* Gold Prices */}
         <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-zinc-800">Gold Prices (RM/g)</h3>
-            {goldPrices?.updated_at && (
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-zinc-800">
+                Gold Prices (RM/g)
+              </h3>
+              {/* Source Badge */}
+              {goldPrices?.source && (
+                <span
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded-full font-medium",
+                    goldPrices.source === "metals_dev" ||
+                      goldPrices.source === "api"
+                      ? "bg-green-100 text-green-700"
+                      : goldPrices.source === "bnm" ||
+                          goldPrices.source === "bnm_kijang"
+                        ? "bg-blue-100 text-blue-700"
+                        : goldPrices.source === "manual"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-zinc-100 text-zinc-600",
+                  )}
+                >
+                  {goldPrices.source === "metals_dev"
+                    ? "🟢 Metals.Dev"
+                    : goldPrices.source === "bnm" ||
+                        goldPrices.source === "bnm_kijang"
+                      ? "🔵 BNM"
+                      : goldPrices.source === "manual"
+                        ? "📝 Manual"
+                        : goldPrices.source === "api"
+                          ? "🟢 API"
+                          : goldPrices.source}
+                </span>
+              )}
+            </div>
+            {goldPrices?.price_date && (
               <span className="text-xs text-zinc-400">
-                Updated: {new Date(goldPrices.updated_at).toLocaleDateString()}
+                {new Date(goldPrices.price_date).toLocaleDateString()}
               </span>
             )}
           </div>
@@ -494,33 +601,25 @@ export default function Dashboard() {
             <div className="bg-amber-50 rounded-lg p-3">
               <p className="text-xs text-amber-600 font-medium">999 (24K)</p>
               <p className="text-lg font-bold text-amber-700">
-                {formatCurrency(
-                  goldPrices?.price_999 || goldPrice?.price999 || 305.5
-                )}
+                {formatCurrency(goldPrices?.price_999 || 0)}
               </p>
             </div>
             <div className="bg-amber-50 rounded-lg p-3">
               <p className="text-xs text-amber-600 font-medium">916 (22K)</p>
               <p className="text-lg font-bold text-amber-700">
-                {formatCurrency(
-                  goldPrices?.price_916 || goldPrice?.price916 || 280.25
-                )}
+                {formatCurrency(goldPrices?.price_916 || 0)}
               </p>
             </div>
             <div className="bg-zinc-50 rounded-lg p-3">
               <p className="text-xs text-zinc-500 font-medium">875 (21K)</p>
               <p className="text-lg font-bold text-zinc-700">
-                {formatCurrency(
-                  goldPrices?.price_875 || goldPrice?.price875 || 267.3
-                )}
+                {formatCurrency(goldPrices?.price_875 || 0)}
               </p>
             </div>
             <div className="bg-zinc-50 rounded-lg p-3">
               <p className="text-xs text-zinc-500 font-medium">750 (18K)</p>
               <p className="text-lg font-bold text-zinc-700">
-                {formatCurrency(
-                  goldPrices?.price_750 || goldPrice?.price750 || 229.15
-                )}
+                {formatCurrency(goldPrices?.price_750 || 0)}
               </p>
             </div>
           </div>
@@ -553,8 +652,8 @@ export default function Dashboard() {
                         pledge.urgency === "1 day"
                           ? "bg-red-500"
                           : pledge.urgency === "3 days"
-                          ? "bg-amber-500"
-                          : "bg-blue-500"
+                            ? "bg-amber-500"
+                            : "bg-blue-500",
                       )}
                     ></div>
                     <div>
@@ -576,8 +675,8 @@ export default function Dashboard() {
                         pledge.urgency === "1 day"
                           ? "text-red-500"
                           : pledge.urgency === "3 days"
-                          ? "text-amber-500"
-                          : "text-blue-500"
+                            ? "text-amber-500"
+                            : "text-blue-500",
                       )}
                     >
                       Due in {pledge.urgency}

@@ -150,14 +150,14 @@ export default function SettingsScreen() {
         setStorageItem(STORAGE_KEYS.SETTINGS, settings);
         setHasChanges(false);
         window.dispatchEvent(
-          new CustomEvent("settingsUpdated", { detail: settings })
+          new CustomEvent("settingsUpdated", { detail: settings }),
         );
         dispatch(
           addToast({
             type: "success",
             title: "Saved",
             message: "Settings have been saved successfully",
-          })
+          }),
         );
       } else {
         throw new Error(response.message || "Save failed");
@@ -168,14 +168,14 @@ export default function SettingsScreen() {
       setStorageItem(STORAGE_KEYS.SETTINGS, settings);
       setHasChanges(false);
       window.dispatchEvent(
-        new CustomEvent("settingsUpdated", { detail: settings })
+        new CustomEvent("settingsUpdated", { detail: settings }),
       );
       dispatch(
         addToast({
           type: "warning",
           title: "Saved Locally",
           message: "Settings saved locally. Will sync to server when online.",
-        })
+        }),
       );
     } finally {
       setIsSaving(false);
@@ -258,9 +258,22 @@ export default function SettingsScreen() {
       }
       if (pledgeMap.grace_period_days) {
         result.interestRules.gracePeriodDays = parseInt(
-          pledgeMap.grace_period_days
+          pledgeMap.grace_period_days,
         );
       }
+    }
+
+    // Transform gold_price settings - NEW
+    if (apiData.gold_price && Array.isArray(apiData.gold_price)) {
+      const goldPriceMap = {};
+      apiData.gold_price.forEach((s) => {
+        goldPriceMap[s.key_name] = s.value;
+      });
+      result.goldPrice = {
+        ...result.goldPrice,
+        source: goldPriceMap.source || "api",
+        manualPrice: parseFloat(goldPriceMap.manual_price) || 0,
+      };
     }
 
     return result;
@@ -302,7 +315,23 @@ export default function SettingsScreen() {
           category: "company",
           key_name: "receipt_footer",
           value: settings.company.receiptFooter,
-        }
+        },
+      );
+    }
+
+    // Gold Price settings - NEW
+    if (settings.goldPrice) {
+      apiSettings.push(
+        {
+          category: "gold_price",
+          key_name: "source",
+          value: settings.goldPrice.source || "api",
+        },
+        {
+          category: "gold_price",
+          key_name: "manual_price",
+          value: String(settings.goldPrice.manualPrice || 0),
+        },
       );
     }
 
@@ -404,7 +433,7 @@ export default function SettingsScreen() {
                       "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all",
                       activeTab === tab.id
                         ? "bg-amber-500/10 text-amber-600 font-medium"
-                        : "text-zinc-600 hover:bg-zinc-50"
+                        : "text-zinc-600 hover:bg-zinc-50",
                     )}
                   >
                     <Icon
@@ -412,7 +441,7 @@ export default function SettingsScreen() {
                         "w-5 h-5",
                         activeTab === tab.id
                           ? "text-amber-500"
-                          : "text-zinc-400"
+                          : "text-zinc-400",
                       )}
                     />
                     {tab.label}
@@ -579,7 +608,7 @@ function CompanyTab({ settings, updateSettings }) {
           type: "error",
           title: "Invalid File",
           message: "Please upload PNG, JPG, or SVG file",
-        })
+        }),
       );
       return;
     }
@@ -591,7 +620,7 @@ function CompanyTab({ settings, updateSettings }) {
           type: "error",
           title: "File Too Large",
           message: "Logo must be less than 2MB",
-        })
+        }),
       );
       return;
     }
@@ -607,7 +636,7 @@ function CompanyTab({ settings, updateSettings }) {
 
         // Dispatch event for sidebar/other components to update
         window.dispatchEvent(
-          new CustomEvent("logoUpdated", { detail: logoUrl })
+          new CustomEvent("logoUpdated", { detail: logoUrl }),
         );
 
         dispatch(
@@ -615,7 +644,7 @@ function CompanyTab({ settings, updateSettings }) {
             type: "success",
             title: "Logo Uploaded",
             message: "Company logo updated successfully",
-          })
+          }),
         );
       } else {
         throw new Error(response.message || "Upload failed");
@@ -627,7 +656,7 @@ function CompanyTab({ settings, updateSettings }) {
           type: "error",
           title: "Upload Failed",
           message: err.message || "Failed to upload logo. Please try again.",
-        })
+        }),
       );
     } finally {
       setIsUploadingLogo(false);
@@ -647,7 +676,7 @@ function CompanyTab({ settings, updateSettings }) {
           type: "success",
           title: "Logo Removed",
           message: "Company logo has been removed",
-        })
+        }),
       );
     } catch (err) {
       console.error("Failed to delete logo:", err);
@@ -656,7 +685,7 @@ function CompanyTab({ settings, updateSettings }) {
           type: "error",
           title: "Delete Failed",
           message: err.message || "Failed to remove logo. Please try again.",
-        })
+        }),
       );
     } finally {
       setIsUploadingLogo(false);
@@ -717,7 +746,7 @@ function CompanyTab({ settings, updateSettings }) {
                   className={cn(
                     "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
                     "bg-amber-500 text-white hover:bg-amber-600",
-                    isUploadingLogo && "opacity-50 cursor-not-allowed"
+                    isUploadingLogo && "opacity-50 cursor-not-allowed",
                   )}
                 >
                   <Upload className="w-4 h-4" />
@@ -889,9 +918,9 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
             type: "success",
             title: "Gold Price Updated",
             message: `Live price: RM ${Number(
-              apiPrices?.price999 || goldPrice.manualPrice || 0
+              apiPrices?.price999 || goldPrice.manualPrice || 0,
             ).toFixed(2)}/g`,
-          })
+          }),
         );
       } else {
         // Manual mode - just update timestamp
@@ -901,9 +930,9 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
             type: "success",
             title: "Price Updated",
             message: `Manual price: RM ${Number(
-              goldPrice.manualPrice || 0
+              goldPrice.manualPrice || 0,
             ).toFixed(2)}/g`,
-          })
+          }),
         );
       }
     } catch (err) {
@@ -913,7 +942,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
           type: "error",
           title: "Refresh Failed",
           message: "Could not refresh gold price. Please try again.",
-        })
+        }),
       );
     } finally {
       setIsRefreshing(false);
@@ -942,10 +971,21 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
         </span>
       );
     }
-    if (apiPrices?.source === "metalpriceapi") {
+    if (
+      apiPrices?.source === "metals_dev" ||
+      apiPrices?.source === "metalpriceapi" ||
+      apiPrices?.source === "api"
+    ) {
       return (
         <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
           🟢 Live
+        </span>
+      );
+    }
+    if (apiPrices?.source === "bnm" || apiPrices?.source === "bnm_kijang") {
+      return (
+        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">
+          🔵 BNM
         </span>
       );
     }
@@ -995,7 +1035,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
                     "text-sm mt-1 flex items-center gap-1",
                     apiPrices.change.direction === "up"
                       ? "text-green-200"
-                      : "text-red-200"
+                      : "text-red-200",
                   )}
                 >
                   {apiPrices.change.direction === "up" ? (
@@ -1014,7 +1054,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
               <Clock className="w-3 h-3" />
               Last updated:{" "}
               {new Date(
-                apiPrices?.lastUpdated || goldPrice.lastUpdated
+                apiPrices?.lastUpdated || goldPrice.lastUpdated,
               ).toLocaleString()}
             </p>
           </div>
@@ -1041,7 +1081,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
               "flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all",
               goldPrice.source === "manual"
                 ? "border-amber-500 bg-amber-50"
-                : "border-zinc-200 hover:border-zinc-300"
+                : "border-zinc-200 hover:border-zinc-300",
             )}
           >
             <input
@@ -1057,7 +1097,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
                 "w-5 h-5 rounded-full border-2 flex items-center justify-center",
                 goldPrice.source === "manual"
                   ? "border-amber-500"
-                  : "border-zinc-300"
+                  : "border-zinc-300",
               )}
             >
               {goldPrice.source === "manual" && (
@@ -1077,7 +1117,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
               "flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all",
               goldPrice.source === "api"
                 ? "border-amber-500 bg-amber-50"
-                : "border-zinc-200 hover:border-zinc-300"
+                : "border-zinc-200 hover:border-zinc-300",
             )}
           >
             <input
@@ -1093,7 +1133,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
                 "w-5 h-5 rounded-full border-2 flex items-center justify-center",
                 goldPrice.source === "api"
                   ? "border-amber-500"
-                  : "border-zinc-300"
+                  : "border-zinc-300",
               )}
             >
               {goldPrice.source === "api" && (
@@ -1129,7 +1169,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
         <div
           className={cn(
             "p-4 rounded-xl",
-            apiError ? "bg-red-50" : "bg-green-50"
+            apiError ? "bg-red-50" : "bg-green-50",
           )}
         >
           {apiError ? (
@@ -1140,7 +1180,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
           ) : (
             <p className="text-sm text-green-600 flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              Connected to MetalPriceAPI. Prices update automatically.
+              Connected to Metals.Dev + BNM. Prices update automatically.
             </p>
           )}
         </div>
@@ -1235,7 +1275,7 @@ function MarginTab({ settings, updateSettings }) {
               "p-4 rounded-xl border-2 transition-all",
               preset.isDefault
                 ? "border-amber-500 bg-amber-50"
-                : "border-zinc-200 hover:border-zinc-300"
+                : "border-zinc-200 hover:border-zinc-300",
             )}
           >
             <div className="flex items-center justify-between mb-3">
@@ -1482,13 +1522,13 @@ function RacksTab({ settings, updateSettings }) {
           type: "error",
           title: "Cannot Delete",
           message: `"${vault.name}" has ${vault.boxes_count} boxes. Delete boxes first.`,
-        })
+        }),
       );
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete "${vault?.name}"? This action cannot be undone.`
+      `Are you sure you want to delete "${vault?.name}"? This action cannot be undone.`,
     );
     if (!confirmed) return;
 
@@ -1506,7 +1546,7 @@ function RacksTab({ settings, updateSettings }) {
             type: "success",
             title: "Deleted",
             message: `Vault "${vault?.name}" deleted successfully.`,
-          })
+          }),
         );
       } else {
         throw new Error(response.message || "Failed to delete vault");
@@ -1518,7 +1558,7 @@ function RacksTab({ settings, updateSettings }) {
           type: "error",
           title: "Delete Failed",
           message: err.message || "Failed to delete vault.",
-        })
+        }),
       );
     } finally {
       setDeletingId(null);
@@ -1532,13 +1572,13 @@ function RacksTab({ settings, updateSettings }) {
           type: "error",
           title: "Cannot Delete",
           message: `"${box.name}" has ${box.occupied_slots} items. Relocate items first.`,
-        })
+        }),
       );
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete "${box?.name}"? This action cannot be undone.`
+      `Are you sure you want to delete "${box?.name}"? This action cannot be undone.`,
     );
     if (!confirmed) return;
 
@@ -1554,7 +1594,7 @@ function RacksTab({ settings, updateSettings }) {
             type: "success",
             title: "Deleted",
             message: `Box "${box?.name}" deleted successfully.`,
-          })
+          }),
         );
       } else {
         throw new Error(response.message || "Failed to delete box");
@@ -1566,7 +1606,7 @@ function RacksTab({ settings, updateSettings }) {
           type: "error",
           title: "Delete Failed",
           message: err.message || "Failed to delete box.",
-        })
+        }),
       );
     } finally {
       setDeletingId(null);
@@ -1578,7 +1618,7 @@ function RacksTab({ settings, updateSettings }) {
   const totalSlots = boxes.reduce((sum, b) => sum + (b.total_slots || 0), 0);
   const occupiedSlots = boxes.reduce(
     (sum, b) => sum + (b.occupied_slots || 0),
-    0
+    0,
   );
 
   // Loading state
@@ -1695,7 +1735,7 @@ function RacksTab({ settings, updateSettings }) {
                       "flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all",
                       isSelected
                         ? "border-amber-500 bg-amber-50"
-                        : "border-zinc-200 hover:border-zinc-300"
+                        : "border-zinc-200 hover:border-zinc-300",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -1704,7 +1744,7 @@ function RacksTab({ settings, updateSettings }) {
                           "w-10 h-10 rounded-lg flex items-center justify-center",
                           isSelected
                             ? "bg-amber-500 text-white"
-                            : "bg-zinc-100 text-zinc-600"
+                            : "bg-zinc-100 text-zinc-600",
                         )}
                       >
                         <span className="font-bold">{letter}</span>
@@ -1741,7 +1781,7 @@ function RacksTab({ settings, updateSettings }) {
                         disabled={deletingId === `vault-${vault.id}`}
                         className={cn(
                           "text-zinc-400 hover:text-red-500",
-                          vault.boxes_count > 0 && "opacity-50"
+                          vault.boxes_count > 0 && "opacity-50",
                         )}
                         title={
                           vault.boxes_count > 0
@@ -1852,7 +1892,7 @@ function RacksTab({ settings, updateSettings }) {
                                 ? "bg-red-500"
                                 : occupancyPercent >= 70
                                   ? "bg-amber-500"
-                                  : "bg-emerald-500"
+                                  : "bg-emerald-500",
                             )}
                             style={{ width: `${occupancyPercent}%` }}
                           />
@@ -1873,7 +1913,7 @@ function RacksTab({ settings, updateSettings }) {
                         disabled={deletingId === `box-${box.id}`}
                         className={cn(
                           "text-zinc-400 hover:text-red-500",
-                          box.occupied_slots > 0 && "opacity-50"
+                          box.occupied_slots > 0 && "opacity-50",
                         )}
                         title={
                           box.occupied_slots > 0

@@ -108,7 +108,7 @@ export default function RenewalScreen() {
           type: "info",
           title: "Barcode Scanned",
           message: `Searching for: ${barcode}`,
-        })
+        }),
       );
 
       // Auto-trigger search after a brief delay
@@ -120,7 +120,7 @@ export default function RenewalScreen() {
         }
       }, 100);
     },
-    [dispatch]
+    [dispatch],
   );
 
   // Initialize barcode scanner hook
@@ -142,7 +142,7 @@ export default function RenewalScreen() {
           }
         });
       },
-    []
+    [],
   );
 
   // Fetch banks on mount
@@ -229,7 +229,7 @@ export default function RenewalScreen() {
           type: "warning",
           title: "Required",
           message: "Please enter a pledge ID, receipt number, or IC",
-        })
+        }),
       );
       return;
     }
@@ -239,12 +239,45 @@ export default function RenewalScreen() {
     setPledge(null);
     setCalculation(null);
 
-    try {
-      // Search by IC number, pledge number, or receipt number (using byReceipt which now supports all)
-      const response = await pledgeService.getByReceipt(searchQuery.trim());
+    // Helper function to extract pledge number from barcode
+    // Barcode format: PLG-HQ-2026-0002-01 (pledge number + item suffix)
+    // Pledge format: PLG-HQ-2026-0002
+    const extractPledgeNumber = (query) => {
+      // Check if it's a barcode with item suffix (ends with -XX where XX is 2 digits)
+      const barcodePattern = /^(PLG-[A-Z]+-\d{4}-\d{4})-(\d{2})$/i;
+      const match = query.match(barcodePattern);
+      if (match) {
+        return match[1]; // Return just the pledge number part
+      }
+      return query; // Return as-is if not a barcode
+    };
 
-      // Get direct response data
+    const searchWithQuery = async (query) => {
+      const response = await pledgeService.getByReceipt(query);
       const data = response.data?.data || response.data;
+      return data;
+    };
+
+    try {
+      let query = searchQuery.trim();
+      let data = null;
+
+      // First, try searching with the original query
+      try {
+        data = await searchWithQuery(query);
+      } catch (error) {
+        // If search fails and query looks like a barcode, try extracting pledge number
+        const pledgeNo = extractPledgeNumber(query);
+        if (pledgeNo !== query) {
+          console.log(`Barcode detected, trying pledge number: ${pledgeNo}`);
+          try {
+            data = await searchWithQuery(pledgeNo);
+          } catch (innerError) {
+            // Both searches failed
+            data = null;
+          }
+        }
+      }
 
       if (data) {
         // Transform API response to frontend format
@@ -282,7 +315,7 @@ export default function RenewalScreen() {
               type: "success",
               title: "Found",
               message: `Pledge ${pledgeData.pledgeNo} loaded`,
-            })
+            }),
           );
 
           // Fetch calculation
@@ -294,7 +327,7 @@ export default function RenewalScreen() {
               type: "error",
               title: "Invalid Status",
               message: `Pledge is ${pledgeData.status}. Cannot process renewal.`,
-            })
+            }),
           );
         }
       } else {
@@ -304,7 +337,7 @@ export default function RenewalScreen() {
             type: "error",
             title: "Not Found",
             message: "Pledge not found. Please check the ID and try again.",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -315,7 +348,7 @@ export default function RenewalScreen() {
           type: "error",
           title: "Not Found",
           message: "Pledge not found. Please check the ID and try again.",
-        })
+        }),
       );
     } finally {
       setIsSearching(false);
@@ -343,9 +376,9 @@ export default function RenewalScreen() {
           type: "error",
           title: "Insufficient",
           message: `Amount must be at least ${formatCurrency(
-            totalPayableAmount
+            totalPayableAmount,
           )}`,
-        })
+        }),
       );
       return;
     }
@@ -405,7 +438,7 @@ export default function RenewalScreen() {
             type: "success",
             title: "Success",
             message: "Renewal processed successfully",
-          })
+          }),
         );
       } else {
         throw new Error(response.data?.message || "Failed to process renewal");
@@ -420,7 +453,7 @@ export default function RenewalScreen() {
             error.response?.data?.message ||
             error.message ||
             "Failed to process renewal",
-        })
+        }),
       );
     } finally {
       setIsProcessing(false);
@@ -453,7 +486,7 @@ export default function RenewalScreen() {
           type: "error",
           title: "Error",
           message: "Cannot print receipt - renewal ID not found",
-        })
+        }),
       );
       return;
     }
@@ -470,7 +503,7 @@ export default function RenewalScreen() {
             type: "error",
             title: "Error",
             message: "Please login again",
-          })
+          }),
         );
         return;
       }
@@ -488,7 +521,7 @@ export default function RenewalScreen() {
             "Content-Type": "application/json",
             Accept: "application/pdf",
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -509,7 +542,7 @@ export default function RenewalScreen() {
           type: "success",
           title: "Success",
           message: "Receipt opened in new tab",
-        })
+        }),
       );
     } catch (error) {
       console.error("Print receipt error:", error);
@@ -521,7 +554,7 @@ export default function RenewalScreen() {
             error.response?.data?.message ||
             error.message ||
             "Failed to print receipt",
-        })
+        }),
       );
     } finally {
       setIsPrintingReceipt(false);
@@ -899,7 +932,7 @@ export default function RenewalScreen() {
                           ? "text-red-600"
                           : daysUntilDue <= 7
                             ? "text-amber-600"
-                            : "text-zinc-800"
+                            : "text-zinc-800",
                       )}
                     >
                       {formatDate(pledge.dueDate)}
@@ -925,7 +958,7 @@ export default function RenewalScreen() {
                         ? "bg-red-50 text-red-700"
                         : daysUntilDue <= 7
                           ? "bg-amber-50 text-amber-700"
-                          : "bg-green-50 text-green-700"
+                          : "bg-green-50 text-green-700",
                     )}
                   >
                     <Clock className="w-4 h-4" />
@@ -972,7 +1005,7 @@ export default function RenewalScreen() {
                           <div
                             className={cn(
                               "w-12 h-12 bg-amber-100 rounded-lg items-center justify-center",
-                              itemPhoto ? "hidden" : "flex"
+                              itemPhoto ? "hidden" : "flex",
                             )}
                           >
                             <Package className="w-6 h-6 text-amber-600" />
@@ -992,7 +1025,7 @@ export default function RenewalScreen() {
                                 item.purity}{" "}
                               •{" "}
                               {parseFloat(
-                                item.net_weight || item.netWeight || 0
+                                item.net_weight || item.netWeight || 0,
                               ).toFixed(2)}
                               g
                             </p>
@@ -1018,7 +1051,7 @@ export default function RenewalScreen() {
                         <div className="text-right">
                           <p className="font-bold text-zinc-800">
                             {formatCurrency(
-                              item.net_value || item.netValue || 0
+                              item.net_value || item.netValue || 0,
                             )}
                           </p>
                         </div>
@@ -1060,7 +1093,7 @@ export default function RenewalScreen() {
                           "px-4 py-2 rounded-lg border font-medium transition-all",
                           extensionMonths === months
                             ? "bg-amber-500 text-white border-amber-500"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-amber-300"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:border-amber-300",
                         )}
                       >
                         {months}M
@@ -1138,7 +1171,7 @@ export default function RenewalScreen() {
                           "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border font-medium transition-all",
                           paymentMethod === method.id
                             ? "bg-amber-500 text-white border-amber-500"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-amber-300"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:border-amber-300",
                         )}
                       >
                         <method.icon className="w-4 h-4" />
@@ -1185,14 +1218,14 @@ export default function RenewalScreen() {
                           (parseFloat(transferAmount) || 0) >=
                           totalPayable
                           ? "bg-amber-50 text-amber-700"
-                          : "bg-red-50 text-red-700"
+                          : "bg-red-50 text-red-700",
                       )}
                     >
                       <span>Cash + Transfer</span>
                       <span className="font-bold">
                         {formatCurrency(
                           (parseFloat(cashAmount) || 0) +
-                            (parseFloat(transferAmount) || 0)
+                            (parseFloat(transferAmount) || 0),
                         )}
                         {(parseFloat(cashAmount) || 0) +
                           (parseFloat(transferAmount) || 0) >=
@@ -1258,7 +1291,7 @@ export default function RenewalScreen() {
                       <span className="text-blue-700">Change</span>
                       <span className="font-bold text-blue-700">
                         {formatCurrency(
-                          parseFloat(amountReceived) - totalPayable
+                          parseFloat(amountReceived) - totalPayable,
                         )}
                       </span>
                     </div>
