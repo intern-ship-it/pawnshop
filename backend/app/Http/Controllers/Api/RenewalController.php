@@ -41,11 +41,20 @@ class RenewalController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
-        // Search by pledge number
+        // Search by pledge number (handle barcode scanner format without hyphens)
         if ($search = $request->get('search')) {
-            $query->whereHas('pledge', function ($q) use ($search) {
-                $q->where('pledge_no', 'like', "%{$search}%")
-                    ->orWhere('receipt_no', 'like', "%{$search}%");
+            // Normalize: remove hyphens and uppercase
+            $searchNormalized = strtoupper(str_replace('-', '', $search));
+
+            $query->whereHas('pledge', function ($q) use ($search, $searchNormalized) {
+                $q->where(function ($q2) use ($search, $searchNormalized) {
+                    // Match with hyphens (original format)
+                    $q2->where('pledge_no', 'like', "%{$search}%")
+                        ->orWhere('receipt_no', 'like', "%{$search}%")
+                        // Match without hyphens (barcode scanner format)
+                        ->orWhereRaw("REPLACE(pledge_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
+                        ->orWhereRaw("REPLACE(receipt_no, '-', '') LIKE ?", ["%{$searchNormalized}%"]);
+                });
             });
         }
 

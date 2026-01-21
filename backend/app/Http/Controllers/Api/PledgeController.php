@@ -76,11 +76,17 @@ class PledgeController extends Controller
         $branchId = $request->user()->branch_id;
         $searchTerm = trim($receiptNo);
 
+        // Normalize for barcode scanner format (remove hyphens and uppercase)
+        $searchNormalized = strtoupper(str_replace('-', '', $searchTerm));
+
         // Search by receipt_no, pledge_no, or customer IC
         $pledge = Pledge::where('branch_id', $branchId)
-            ->where(function ($query) use ($searchTerm) {
+            ->where(function ($query) use ($searchTerm, $searchNormalized) {
                 $query->where('receipt_no', $searchTerm)
                     ->orWhere('pledge_no', $searchTerm)
+                    // Handle barcode scanner format (without hyphens)
+                    ->orWhereRaw("REPLACE(receipt_no, '-', '') = ?", [$searchNormalized])
+                    ->orWhereRaw("REPLACE(pledge_no, '-', '') = ?", [$searchNormalized])
                     ->orWhereHas('customer', function ($q) use ($searchTerm) {
                         // Remove dashes/spaces from IC for matching
                         $cleanIC = preg_replace('/[-\s]/', '', $searchTerm);

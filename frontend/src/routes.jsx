@@ -36,13 +36,13 @@ const PledgeDetail = lazy(() => import("@/pages/pledges/PledgeDetail"));
 // Transaction pages
 const RenewalScreen = lazy(() => import("@/pages/renewals/RenewalScreen"));
 const RedemptionScreen = lazy(
-  () => import("@/pages/redemptions/RedemptionScreen")
+  () => import("@/pages/redemptions/RedemptionScreen"),
 );
 
 // Inventory pages
 const InventoryList = lazy(() => import("@/pages/inventory/InventoryList"));
 const StockReconciliation = lazy(
-  () => import("@/pages/inventory/StockReconciliation")
+  () => import("@/pages/inventory/StockReconciliation"),
 );
 const RackMap = lazy(() => import("@/pages/inventory/RackMap"));
 
@@ -59,11 +59,12 @@ const UserList = lazy(() => import("@/pages/settings/UserList"));
 const UserForm = lazy(() => import("@/pages/settings/UserForm"));
 const AuditLogScreen = lazy(() => import("@/pages/settings/AuditLogScreen"));
 const WhatsAppSettings = lazy(
-  () => import("@/pages/settings/WhatsAppSettings")
+  () => import("@/pages/settings/WhatsAppSettings"),
 );
 const HardwareIntegration = lazy(
-  () => import("@/pages/settings/HardwareIntegration")
+  () => import("@/pages/settings/HardwareIntegration"),
 );
+const PrintTestPage = lazy(() => import("@/pages/settings/PrintTestPage"));
 
 // Wrap component with Suspense
 const withSuspense = (Component) => (
@@ -133,6 +134,7 @@ export const router = createBrowserRouter([
       { path: "settings/audit-log", element: withSuspense(AuditLogScreen) },
       { path: "settings/whatsapp", element: withSuspense(WhatsAppSettings) },
       { path: "settings/hardware", element: withSuspense(HardwareIntegration) },
+      { path: "settings/print-test", element: withSuspense(PrintTestPage) },
     ],
   },
 
@@ -171,4 +173,5 @@ export const ROUTES = {
   AUDIT_LOG: "/settings/audit-log",
   WHATSAPP_SETTINGS: "/settings/whatsapp",
   HARDWARE_SETTINGS: "/settings/hardware",
+  PRINT_TEST: "/settings/print-test",
 };

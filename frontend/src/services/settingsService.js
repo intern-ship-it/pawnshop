@@ -186,20 +186,20 @@ const settingsService = {
     const formData = new FormData();
     formData.append('logo', file);
 
-    const response = await api.post('/settings/logo', formData, {
+    // Note: axios interceptor already unwraps response.data, 
+    // so we just return the result directly (no .data)
+    return await api.post('/settings/logo', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data;
   },
 
   async getLogo() {
-    const response = await api.get('/settings/logo');
-    return response.data;
+    // Interceptor unwraps response.data, returns {success, message, data} or just the data
+    return await api.get('/settings/logo');
   },
 
   async deleteLogo() {
-    const response = await api.delete('/settings/logo');
-    return response.data;
+    return await api.delete('/settings/logo');
   },
 }
 

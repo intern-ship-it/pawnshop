@@ -8,572 +8,475 @@ use App\Models\Renewal;
 use App\Models\Redemption;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Carbon\Carbon;
 
 class DotMatrixPrintController extends Controller
 {
-    // Column width for A5 paper (42 characters at 10 CPI)
-    private const COL_WIDTH = 42;
-
     /**
-     * Generate dot matrix pledge receipt (plain text)
+     * Generate pledge receipt - Malaysian Pawnshop Format
+     * Returns HTML that matches the original blue form design
+     * A5 Landscape: 210mm x 148mm - Exactly 2 pages (Receipt + Terms)
      */
     public function pledgeReceipt(Request $request, Pledge $pledge): JsonResponse
     {
-        if ($pledge->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
-
-        $validated = $request->validate([
-            'copy_type' => 'required|in:office,customer,both',
-        ]);
-
-        $pledge->load([
-            'customer',
-            'items.category',
-            'items.purity',
-            'items.vault',
-            'items.box',
-            'branch',
-        ]);
-
-        // Get company settings
-        $settings = $this->getCompanySettings($pledge->branch);
-
-        $receipt = $this->generatePledgeReceipt($pledge, $settings, $validated['copy_type']);
-
-        // Record print
         try {
-            \App\Models\PledgeReceipt::create([
-                'pledge_id' => $pledge->id,
-                'print_type' => $pledge->receipt_printed ? 'reprint' : 'original',
-                'copy_type' => $validated['copy_type'],
-                'printer_type' => 'dot_matrix',
-                'is_chargeable' => $pledge->receipt_printed ?? false,
-                'charge_amount' => ($pledge->receipt_printed ?? false) ? 2.00 : 0,
-                'printed_by' => $request->user()->id,
-                'printed_at' => now(),
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            $validated = $request->validate([
+                'copy_type' => 'required|in:office,customer,both',
             ]);
+
+            $pledge->load([
+                'customer',
+                'items.category',
+                'items.purity',
+                'items.vault',
+                'items.box',
+                'branch',
+            ]);
+
+            // Get company settings including logo
+            $settings = $this->getCompanySettings($pledge->branch);
+
+            $receiptHtml = $this->generatePledgeReceiptHtml($pledge, $settings, $validated['copy_type']);
+            $termsHtml = $this->generateTermsPageHtml($pledge, $settings);
+
+            // Record print (optional - wrapped in try-catch)
+            try {
+                if (class_exists('\App\Models\PledgeReceipt')) {
+                    \App\Models\PledgeReceipt::create([
+                        'pledge_id' => $pledge->id,
+                        'print_type' => $pledge->receipt_printed ? 'reprint' : 'original',
+                        'copy_type' => $validated['copy_type'],
+                        'printer_type' => 'dot_matrix',
+                        'is_chargeable' => $pledge->receipt_printed ?? false,
+                        'charge_amount' => ($pledge->receipt_printed ?? false) ? 2.00 : 0,
+                        'printed_by' => $request->user()->id,
+                        'printed_at' => now(),
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // Table may not exist - continue silently
+            }
+
+            $pledge->update([
+                'receipt_printed' => true,
+                'receipt_print_count' => ($pledge->receipt_print_count ?? 0) + 1,
+            ]);
+
+            return $this->success([
+                'receipt_text' => $receiptHtml,
+                'terms_text' => $termsHtml,
+                'pledge_no' => $pledge->pledge_no,
+                'copy_type' => $validated['copy_type'],
+                'orientation' => 'landscape',
+                'format' => 'html',
+            ]);
+
         } catch (\Exception $e) {
-            // Table may not exist
+            \Log::error('DotMatrix Print Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
         }
-
-        $pledge->update([
-            'receipt_printed' => true,
-            'receipt_print_count' => ($pledge->receipt_print_count ?? 0) + 1,
-        ]);
-
-        return $this->success([
-            'receipt_text' => $receipt,
-            'pledge_no' => $pledge->pledge_no,
-            'copy_type' => $validated['copy_type'],
-        ]);
     }
 
     /**
-     * Generate dot matrix renewal receipt
-     */
-    public function renewalReceipt(Request $request, Renewal $renewal): JsonResponse
-    {
-        if ($renewal->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
-
-        $renewal->load([
-            'pledge.customer',
-            'pledge.items.category',
-            'pledge.items.purity',
-            'pledge.branch',
-        ]);
-
-        $settings = $this->getCompanySettings($renewal->pledge->branch);
-        $receipt = $this->generateRenewalReceipt($renewal, $settings);
-
-        return $this->success([
-            'receipt_text' => $receipt,
-            'renewal_no' => $renewal->renewal_no,
-        ]);
-    }
-
-    /**
-     * Generate dot matrix redemption receipt
-     */
-    public function redemptionReceipt(Request $request, Redemption $redemption): JsonResponse
-    {
-        if ($redemption->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
-
-        $redemption->load([
-            'pledge.customer',
-            'pledge.items.category',
-            'pledge.items.purity',
-            'pledge.branch',
-        ]);
-
-        $settings = $this->getCompanySettings($redemption->pledge->branch);
-        $receipt = $this->generateRedemptionReceipt($redemption, $settings);
-
-        return $this->success([
-            'receipt_text' => $receipt,
-            'redemption_no' => $redemption->redemption_no,
-        ]);
-    }
-
-    /**
-     * Get company settings with defaults
+     * Get company settings with defaults - INCLUDING LOGO
      */
     private function getCompanySettings($branch): array
     {
-        $companySettings = \App\Models\Setting::where('category', 'company')->get();
-        $receiptSettings = \App\Models\Setting::where('category', 'receipt')->get();
-
         $settingsMap = [];
-        foreach ($companySettings as $setting) {
-            $settingsMap[$setting->key_name] = $setting->value;
+
+        try {
+            if (class_exists('\App\Models\Setting')) {
+                $companySettings = \App\Models\Setting::where('category', 'company')->get();
+                $receiptSettings = \App\Models\Setting::where('category', 'receipt')->get();
+
+                foreach ($companySettings as $setting) {
+                    $settingsMap[$setting->key_name] = $setting->value;
+                }
+                foreach ($receiptSettings as $setting) {
+                    $settingsMap['receipt_' . $setting->key_name] = $setting->value;
+                }
+            }
+        } catch (\Exception $e) {
+            // Settings table may not exist - use defaults
         }
-        foreach ($receiptSettings as $setting) {
-            $settingsMap['receipt_' . $setting->key_name] = $setting->value;
+
+        // Get logo URL - check multiple possible keys
+        $logoUrl = $settingsMap['logo'] ?? $settingsMap['logo_url'] ?? $settingsMap['company_logo'] ?? null;
+
+        // If logo is a relative path, make it absolute
+        if ($logoUrl && !str_starts_with($logoUrl, 'http') && !str_starts_with($logoUrl, 'data:')) {
+            $logoUrl = url('storage/' . ltrim($logoUrl, '/'));
         }
 
         return [
             'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
-            'license_no' => $settingsMap['license_no'] ?? $branch->license_no ?? 'PG/XXX/2024',
-            'address' => $settingsMap['address'] ?? $branch->address ?? '',
-            'phone' => $settingsMap['phone'] ?? $branch->phone ?? '',
+            'company_name_chinese' => $settingsMap['name_chinese'] ?? '新泰當',
+            'company_name_tamil' => $settingsMap['name_tamil'] ?? 'அடகு கடை',
+            'registration_no' => $settingsMap['registration_no'] ?? '',
+            'license_no' => $settingsMap['license_no'] ?? $branch->license_no ?? '',
+            'established_year' => $settingsMap['established_year'] ?? '1966',
+            'address' => $settingsMap['address'] ?? $branch->address ?? '123 Jalan Utama, 55100 Kuala Lumpur',
+            'phone' => $settingsMap['phone'] ?? $branch->phone ?? '03-12345678',
+            'phone2' => $settingsMap['phone2'] ?? '',
             'fax' => $settingsMap['fax'] ?? '',
-            'business_hours' => $settingsMap['business_hours'] ?? '9.00 pagi - 5.30 petang',
-            'business_days' => $settingsMap['business_days'] ?? '(Sabtu - Khamis)',
-            'closed_days' => $settingsMap['closed_days'] ?? 'Hari Jumaat & Hari Kelepasan Am Tutup',
-            'initial_rate' => $settingsMap['receipt_initial_rate'] ?? '0.50',
+            'business_hours' => $settingsMap['business_hours'] ?? '8.30AM - 6.00PM',
+            'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
+            'closed_days' => $settingsMap['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA',
+            'handling_fee' => $settingsMap['receipt_handling_fee'] ?? $settingsMap['handling_fee'] ?? '50 SEN',
+            'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
+            'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
+            'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
             'branch_code' => $branch->code ?? 'HQ',
+            'logo_url' => $logoUrl, // Logo URL or null - shows only if exists
         ];
     }
 
     /**
-     * Generate pledge receipt text - Malaysian Pawnshop Format
+     * Generate styled HTML receipt - Page 1 of 2
+     * FIXED: Proper A5 Landscape sizing - fits exactly in 1 page
      */
-    private function generatePledgeReceipt(Pledge $pledge, array $settings, string $copyType): string
+    private function generatePledgeReceiptHtml(Pledge $pledge, array $settings, string $copyType): string
     {
-        $lines = [];
-        $w = self::COL_WIDTH;
         $customer = $pledge->customer;
-
-        // ============ HEADER ============
-        $lines[] = str_repeat('=', $w);
-        $lines[] = $this->center('PAJAK GADAI BERLESEN', $w);
-        $lines[] = $this->center(strtoupper($settings['company_name']), $w);
-        $lines[] = str_repeat('-', $w);
-
-        // Address
-        $lines[] = $this->wordWrap($settings['address'], $w);
-        if ($settings['phone'] || $settings['fax']) {
-            $contact = 'Tel: ' . $settings['phone'];
-            if ($settings['fax']) {
-                $contact .= ' Fax: ' . $settings['fax'];
-            }
-            $lines[] = $contact;
-        }
-
-        // Business hours
-        $lines[] = '';
-        $lines[] = 'Waktu Perniagaan:';
-        $lines[] = $settings['business_hours'] . ' ' . $settings['business_days'];
-        $lines[] = $settings['closed_days'];
-        $lines[] = str_repeat('=', $w);
-        $lines[] = '';
-
-        // ============ COPY TYPE & PLEDGE NUMBER ============
-        $copyLabel = $copyType === 'office' ? 'SALINAN PEJABAT' : 'SALINAN PELANGGAN';
-        $lines[] = $this->leftRight($copyLabel, 'NOMBOR SIRI', $w);
-        $lines[] = $this->leftRight('', $pledge->pledge_no, $w);
-        $lines[] = '';
-
-        // ============ CUSTOMER DETAILS ============
-        $lines[] = str_repeat('-', $w);
-        $lines[] = 'NAMA:';
-        $lines[] = strtoupper($customer->name);
-        $lines[] = '';
-
-        // Address
-        $lines[] = 'ALAMAT:';
-        $address = $this->formatCustomerAddress($customer);
-        $lines[] = $this->wordWrap($address, $w);
-        $lines[] = '';
-
-        // IC Details Row
-        $lines[] = str_repeat('-', $w);
-        $icNumber = $this->formatIC($customer->ic_number);
-        $birthYear = $this->extractBirthYear($customer);
-        $race = $this->getRace($customer);
-        $gender = $this->getGender($customer);
-
-        $lines[] = $this->labelValue('NO. KAD PENGENALAN', $icNumber, $w);
-        $row2 = sprintf('TAHUN LAHIR: %s   BANGSA: %s', $birthYear, $race);
-        $lines[] = $row2;
-        $lines[] = sprintf('JANTINA: %s', $gender);
-        $lines[] = str_repeat('-', $w);
-        $lines[] = '';
-
-        // ============ ITEM DETAILS ============
-        $lines[] = 'PERIHAL BARANG YANG DIGADAI:';
-        $totalWeight = 0;
-        $itemNo = 1;
-        foreach ($pledge->items as $item) {
-            $itemName = $item->category->name_ms ?? $item->category->name_en ?? 'Barang Kemas';
-            $purity = $item->purity->name ?? $item->purity->code ?? '';
-            $weight = $item->net_weight ?? 0;
-            $totalWeight += $weight;
-
-            $lines[] = sprintf('%d. %s (%s)', $itemNo++, strtoupper($itemName), $purity);
-        }
-        $lines[] = '';
-
-        // ============ INTEREST & REDEMPTION INFO ============
-        $lines[] = str_repeat('-', $w);
-        $interestRate = $pledge->interest_rate ?? 2;
-        $monthlyInterest = ($pledge->loan_amount ?? 0) * ($interestRate / 100);
-        $initialRate = $settings['initial_rate'];
-
-        $lines[] = $this->leftRight('KADAR PENGENALAN:', $initialRate . ' SEN', $w);
-        $lines[] = $this->leftRight('KEUNTUNGAN:', 'BULANAN ' . number_format($interestRate, 0) . '%', $w);
-        $lines[] = $this->leftRight('MASA PENEBUSAN:', '6 BULAN', $w);
-        $lines[] = str_repeat('-', $w);
-        $lines[] = '';
-
-        // ============ FINANCIAL DETAILS ============
         $loanAmount = $pledge->loan_amount ?? 0;
-        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
-        $dueDate = $pledge->due_date;
+        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal']) / 100);
 
-        $lines[] = 'RINGGIT:';
-        $lines[] = strtoupper($this->numberToMalayWords($loanAmount)) . ' SAHAJA';
-        $lines[] = '';
-
-        // Date row
-        $lines[] = str_repeat('-', $w);
-        $lines[] = $this->leftRight('TARIKH', 'HARI LAMA', $w);
-        $lines[] = $this->leftRight(
-            $pledgeDate->format('d/m/Y'),
-            $dueDate->format('d/m/Y'),
-            $w
-        );
-        $lines[] = '';
-
-        // Weight and interest
-        $lines[] = $this->leftRight(
-            'BERAT (LEBIH KURANG):',
-            number_format($totalWeight, 2) . 'g',
-            $w
-        );
-        $lines[] = $this->leftRight(
-            'FAEDAH BULANAN:',
-            number_format($monthlyInterest, 2),
-            $w
-        );
-        $lines[] = str_repeat('-', $w);
-
-        // Loan amount
-        $lines[] = '';
-        $lines[] = $this->leftRight('PINJAMAN (RM):', number_format($loanAmount, 2), $w);
-        $lines[] = str_repeat('=', $w);
-        $lines[] = '';
-
-        // ============ TERMS ============
-        $lines[] = 'SYARAT-SYARAT:';
-        $lines[] = $this->wordWrap('1. Tempoh gadaian adalah 6 bulan.', $w);
-        $lines[] = $this->wordWrap('2. Barang tidak ditebus akan dilelong.', $w);
-        $lines[] = $this->wordWrap('3. Bawa resit ini semasa menebus.', $w);
-        $lines[] = '';
-
-        // ============ FOOTER ============
-        $lines[] = str_repeat('=', $w);
-        $lines[] = $this->center('Terima kasih', $w);
-        $lines[] = $this->center('Sila simpan resit ini', $w);
-        $lines[] = str_repeat('=', $w);
-        $lines[] = '';
-        $lines[] = $this->center('Dicetak: ' . now()->format('d/m/Y H:i:s'), $w);
-
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Format customer full address
-     */
-    private function formatCustomerAddress($customer): string
-    {
-        $parts = array_filter([
-            $customer->address_line1,
-            $customer->address_line2,
-            $customer->postcode . ' ' . $customer->city,
-            strtoupper($customer->state ?? ''),
-        ]);
-        return implode(', ', $parts);
-    }
-
-    /**
-     * Extract birth year from customer
-     */
-    private function extractBirthYear($customer): string
-    {
-        if ($customer->date_of_birth) {
-            return $customer->date_of_birth->format('Y');
-        }
-
-        // Try to extract from IC number (format: YYMMDD-XX-XXXX)
-        $ic = preg_replace('/[^0-9]/', '', $customer->ic_number ?? '');
-        if (strlen($ic) >= 6) {
-            $yy = substr($ic, 0, 2);
-            $year = ((int) $yy > 50) ? '19' . $yy : '20' . $yy;
-            return $year;
-        }
-
-        return '-';
-    }
-
-    /**
-     * Get race/ethnicity from customer
-     */
-    private function getRace($customer): string
-    {
-        // Check nationality field
-        $nationality = strtolower($customer->nationality ?? '');
-
-        if (str_contains($nationality, 'malay'))
-            return 'MELAYU';
-        if (str_contains($nationality, 'chinese') || str_contains($nationality, 'cina'))
-            return 'CINA';
-        if (str_contains($nationality, 'indian') || str_contains($nationality, 'india'))
-            return 'INDIA';
-
-        // Try to derive from IC number (position 7-8 is state code)
-        // This is an approximation - not reliable
-        return 'WARGANEGARA';
-    }
-
-    /**
-     * Get gender in Malay
-     */
-    private function getGender($customer): string
-    {
-        $gender = strtolower($customer->gender ?? '');
-
-        if ($gender === 'male' || $gender === 'm' || $gender === 'lelaki') {
-            return 'LELAKI';
-        }
-        if ($gender === 'female' || $gender === 'f' || $gender === 'perempuan') {
-            return 'PEREMPUAN';
-        }
-
-        return '-';
-    }
-
-    /**
-     * Left-right aligned text (for labels and values)
-     */
-    private function leftRight(string $left, string $right, int $width): string
-    {
-        $left = mb_substr($left, 0, $width - mb_strlen($right) - 1);
-        $spaces = $width - mb_strlen($left) - mb_strlen($right);
-        return $left . str_repeat(' ', max(1, $spaces)) . $right;
-    }
-
-    /**
-     * Generate renewal receipt text
-     */
-    private function generateRenewalReceipt(Renewal $renewal, array $settings): string
-    {
-        $lines = [];
-        $w = self::COL_WIDTH;
-        $pledge = $renewal->pledge;
-
-        // Header
-        $lines[] = str_repeat('=', $w);
-        $lines[] = $this->center('PAJAK GADAI BERLESEN', $w);
-        $lines[] = $this->center($settings['company_name'], $w);
-        $lines[] = str_repeat('=', $w);
-        $lines[] = '';
-        $lines[] = $this->center('RESIT PEMBAHARUAN', $w);
-        $lines[] = '';
-
-        // Info
-        $lines[] = str_repeat('-', $w);
-        $lines[] = $this->labelValue('No. Pembaharuan', $renewal->renewal_no, $w);
-        $lines[] = $this->labelValue('No. Pajak Asal', $pledge->pledge_no, $w);
-        $lines[] = $this->labelValue('Tarikh', $renewal->created_at->format('d/m/Y H:i'), $w);
-        $lines[] = $this->labelValue('Tarikh Tamat Baru', $renewal->new_due_date->format('d/m/Y'), $w);
-        $lines[] = str_repeat('-', $w);
-        $lines[] = '';
-
-        // Customer
-        $lines[] = $this->labelValue('Nama', $pledge->customer->name, $w);
-        $lines[] = $this->labelValue('No. K/P', $this->formatIC($pledge->customer->ic_number), $w);
-        $lines[] = '';
-
-        // Financial
-        $lines[] = str_repeat('=', $w);
-        $lines[] = $this->labelValue('Nilai Pokok', 'RM ' . number_format($renewal->principal_amount, 2), $w);
-        $lines[] = $this->labelValue('Faedah Dibayar', 'RM ' . number_format($renewal->interest_paid, 2), $w);
-        $lines[] = str_repeat('-', $w);
-        $lines[] = $this->labelValue('JUMLAH BAYAR', 'RM ' . number_format($renewal->total_paid, 2), $w);
-        $lines[] = str_repeat('=', $w);
-        $lines[] = '';
-
-        // Footer
-        $lines[] = $this->center('Terima kasih', $w);
-        $lines[] = $this->center('Dicetak: ' . now()->format('d/m/Y H:i:s'), $w);
-
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Generate redemption receipt text
-     */
-    private function generateRedemptionReceipt(Redemption $redemption, array $settings): string
-    {
-        $lines = [];
-        $w = self::COL_WIDTH;
-        $pledge = $redemption->pledge;
-
-        // Header
-        $lines[] = str_repeat('=', $w);
-        $lines[] = $this->center('PAJAK GADAI BERLESEN', $w);
-        $lines[] = $this->center($settings['company_name'], $w);
-        $lines[] = str_repeat('=', $w);
-        $lines[] = '';
-        $lines[] = $this->center('RESIT TEBUSAN', $w);
-        $lines[] = '';
-
-        // Info
-        $lines[] = str_repeat('-', $w);
-        $lines[] = $this->labelValue('No. Tebusan', $redemption->redemption_no, $w);
-        $lines[] = $this->labelValue('No. Pajak', $pledge->pledge_no, $w);
-        $lines[] = $this->labelValue('Tarikh', $redemption->created_at->format('d/m/Y H:i'), $w);
-        $lines[] = str_repeat('-', $w);
-        $lines[] = '';
-
-        // Customer
-        $lines[] = $this->labelValue('Nama', $pledge->customer->name, $w);
-        $lines[] = $this->labelValue('No. K/P', $this->formatIC($pledge->customer->ic_number), $w);
-        $lines[] = '';
-
-        // Items redeemed
-        $lines[] = 'BARANG DITEBUS:';
-        $itemNo = 1;
+        $totalWeight = 0;
         foreach ($pledge->items as $item) {
-            $lines[] = sprintf(
-                '%d. %s - %s',
-                $itemNo++,
-                $item->category->name_ms ?? $item->category->name_en,
-                number_format($item->net_weight, 3) . 'g'
-            );
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
-        $lines[] = '';
 
-        // Financial
-        $lines[] = str_repeat('=', $w);
-        $lines[] = $this->labelValue('Nilai Pokok', 'RM ' . number_format($redemption->principal_amount, 2), $w);
-        $lines[] = $this->labelValue('Faedah', 'RM ' . number_format($redemption->interest_amount, 2), $w);
-        $lines[] = str_repeat('-', $w);
-        $lines[] = $this->labelValue('JUMLAH BAYAR', 'RM ' . number_format($redemption->total_amount, 2), $w);
-        $lines[] = str_repeat('=', $w);
-        $lines[] = '';
+        $itemsHtml = $this->buildItemsHtml($pledge->items);
 
-        // Acknowledgment
-        $lines[] = $this->center('PENGESAHAN PENERIMAAN', $w);
-        $lines[] = '';
-        $lines[] = 'Saya mengesahkan telah menerima';
-        $lines[] = 'barang-barang tersebut di atas.';
-        $lines[] = '';
-        $lines[] = '';
-        $lines[] = str_repeat('.', 30);
-        $lines[] = 'Tandatangan Pelanggan';
-        $lines[] = '';
+        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+        if (is_string($pledgeDate))
+            $pledgeDate = Carbon::parse($pledgeDate);
+        $dueDate = $pledge->due_date;
+        if (is_string($dueDate))
+            $dueDate = Carbon::parse($dueDate);
 
-        // Footer
-        $lines[] = str_repeat('=', $w);
-        $lines[] = $this->center('Terima kasih', $w);
-        $lines[] = $this->center('Dicetak: ' . now()->format('d/m/Y H:i:s'), $w);
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $citizenship = $this->getCitizenship($customer);
+        $race = $this->getRace($customer);
+        $birthYear = $this->extractBirthYear($customer);
+        $age = $this->calculateAge($customer);
+        $gender = $this->getGender($customer);
+        $address = $this->formatCustomerAddress($customer);
+        $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
+        $copyLabel = $copyType === 'office' ? 'SALINAN PEJABAT' : 'SALINAN PELANGGAN';
+        $catatan = $pledge->reference_no ?? $pledge->notes ?? '';
 
-        return implode("\n", $lines);
+        // Logo HTML - only show if exists in settings
+        $logoHtml = '';
+        if (!empty($settings['logo_url'])) {
+            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url']) . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
+        }
+
+        // Established badge - only show if year exists
+        $estHtml = '';
+        if (!empty($settings['established_year'])) {
+            $estHtml = '<div class="established">SEJAK<br>' . htmlspecialchars($settings['established_year']) . '</div>';
+        }
+
+        return <<<HTML
+<div class="receipt">
+    <div class="header">
+        <div class="header-left">
+            {$logoHtml}
+            <div class="company-info">
+                <div class="company-name">{$settings['company_name']} <span>({$settings['registration_no']})</span></div>
+                <div class="company-multilang">{$settings['company_name_chinese']} {$settings['company_name_tamil']}</div>
+                <div class="company-address">{$settings['address']}</div>
+            </div>
+        </div>
+        <div class="header-right">
+            {$estHtml}
+            <div class="phone-box">📞 {$settings['phone']}</div>
+            <div class="business-hours">BUKA 7 HARI<br>{$settings['business_days']} : {$settings['business_hours']}<br>{$settings['closed_days']}</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="left-section">
+            <div class="section-header">Perihal terperinci artikel yang digadai:-</div>
+            <div class="items-box">{$itemsHtml}</div>
+            <div class="section-header">Butir-butir terperinci mengenai pemajak gadai:-</div>
+            <div class="customer-row"><span class="customer-label">No. Kad Pengenalan:</span><span class="customer-value">{$icNumber}</span></div>
+            <div class="customer-row"><span class="customer-label">Nama:</span><span class="customer-value">{$customer->name}</span></div>
+            <div class="customer-row">
+                <span class="customer-label">Kerakyatan:</span><span class="customer-value">{$citizenship} ({$race})</span>
+                <span class="customer-label">Tahun Lahir:</span><span class="customer-value">{$birthYear} ({$age})</span>
+                <span class="customer-label">Jantina:</span><span class="customer-value">{$gender}</span>
+            </div>
+            <div class="customer-row"><span class="customer-label">Alamat:</span><span class="customer-value" style="flex:1;">{$address}</span></div>
+        </div>
+        <div class="right-section">
+            <div class="ticket-box"><div class="ticket-label">NO. TIKET:</div><div class="ticket-number">{$pledge->pledge_no}</div></div>
+            <div class="info-box"><div class="info-row"><span>CAJ PENGENDALIAN</span><span>TEMPOH TAMAT</span></div><div class="info-row"><b>{$settings['handling_fee']}</b><b>{$settings['redemption_period']}</b></div></div>
+            <div class="info-box"><div style="font-weight:bold;">KADAR KEUNTUNGAN BULANAN</div><div>{$settings['interest_rate_normal']}% Sebulan : Dalam tempoh 6 bulan</div><div>{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div></div>
+            <div class="catatan-box"><div class="catatan-label">Catatan:</div><div>{$catatan}</div></div>
+            <div class="keuntungan-box">KEUNTUNGAN DIKENA = RM {$this->formatNumber($monthlyInterest)} SEBULAN</div>
+        </div>
+    </div>
+
+    <div class="amount-section">
+        <div class="amount-words">Amaun: {$amountWords} SAHAJA</div>
+        <div class="amount-row">
+            <div class="amount-figure">Pinjaman RM {$this->formatNumber($loanAmount, 0)}***</div>
+            <div class="date-box"><div class="date-label">Tarikh Dipajak</div><div class="date-value">{$pledgeDate->format('d/m/Y')}</div></div>
+            <div class="date-box"><div class="date-label">Tarikh Cukup Tempoh</div><div class="date-value">{$dueDate->format('d/m/Y')}</div></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-text">Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
+        <div class="footer-text">Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No:</div>
+        <div class="footer-bottom"><div class="copy-label">{$copyLabel}</div><div class="weight-info">Berat (Emas, Batu): <b>{$this->formatNumber($totalWeight, 2)}g</b></div></div>
+    </div>
+</div>
+<style>
+@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.receipt{width:202mm;height:140mm;padding:3mm;border:2px solid #1a4a7a;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2mm;border-bottom:2px solid #1a4a7a;padding-bottom:2mm}
+.header-left{display:flex;align-items:flex-start;gap:3mm;flex:1}
+.logo{height:14mm;width:auto;max-width:18mm;object-fit:contain}
+.company-info{flex:1}
+.company-name{font-size:16px;font-weight:bold;color:#c41e3a;margin-bottom:1px}
+.company-name span{font-size:11px;color:#1a4a7a;font-weight:normal}
+.company-multilang{font-size:13px;font-weight:bold;color:#c41e3a;margin-bottom:2px}
+.company-address{font-size:9px;color:#1a4a7a}
+.header-right{text-align:right;min-width:45mm}
+.established{background:#c41e3a;color:white;padding:3px 6px;border-radius:50%;font-size:8px;font-weight:bold;display:inline-block;margin-bottom:2mm;line-height:1.1}
+.phone-box{background:#c41e3a;color:white;padding:2px 5px;font-size:10px;margin-bottom:2mm;display:inline-block}
+.business-hours{font-size:8px;text-align:right;color:#c41e3a;font-weight:bold;line-height:1.3}
+.main-content{display:flex;gap:3mm}
+.left-section{flex:1;border:1px solid #1a4a7a;padding:2mm}
+.right-section{width:52mm;min-width:52mm}
+.section-header{background:#e8f0f8;padding:1mm 2mm;font-weight:bold;font-size:9px;border-bottom:1px solid #1a4a7a;margin-bottom:2mm}
+.items-box{border:1px solid #1a4a7a;min-height:22mm;padding:2mm;margin-bottom:2mm}
+.item-line{font-size:10px;margin-bottom:1mm}
+.ticket-box{border:2px solid #c41e3a;padding:2mm;text-align:center;margin-bottom:2mm;background:#fff8f8}
+.ticket-label{font-size:9px;color:#c41e3a;font-weight:bold}
+.ticket-number{font-size:16px;font-weight:bold;color:#c41e3a;font-family:'Courier New',monospace}
+.info-box{border:1px solid #1a4a7a;padding:2mm;font-size:9px;margin-bottom:2mm}
+.info-row{display:flex;justify-content:space-between}
+.customer-row{display:flex;gap:3mm;margin-bottom:2mm;font-size:10px;flex-wrap:wrap}
+.customer-label{font-weight:bold;min-width:22mm}
+.customer-value{border-bottom:1px dotted #1a4a7a;min-width:30mm}
+.catatan-box{border:1px solid #1a4a7a;padding:2mm;min-height:10mm;margin-bottom:2mm}
+.catatan-label{font-size:9px;font-weight:bold}
+.keuntungan-box{background:#fffde8;border:1px solid #d4a800;padding:2mm;font-size:10px;font-weight:bold;text-align:center}
+.amount-section{border:2px solid #1a4a7a;padding:2mm;margin-top:2mm;background:#f8fafc}
+.amount-words{font-size:10px;font-weight:bold;margin-bottom:2mm}
+.amount-row{display:flex;justify-content:space-between;align-items:center}
+.amount-figure{font-size:14px;font-weight:bold}
+.date-box{text-align:center;border:1px solid #1a4a7a;padding:2mm 4mm}
+.date-label{font-size:8px;color:#666}
+.date-value{font-size:11px;font-weight:bold}
+.footer{margin-top:2mm;font-size:8px;border-top:1px solid #1a4a7a;padding-top:2mm}
+.footer-text{margin-bottom:1mm}
+.footer-bottom{display:flex;justify-content:space-between;align-items:flex-end;margin-top:2mm}
+.copy-label{font-size:11px;font-weight:bold;color:#c41e3a}
+.weight-info{text-align:right;font-size:9px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+HTML;
     }
 
-    // ==================== HELPER METHODS ====================
-
     /**
-     * Center text
+     * Generate Terms and Conditions page - Page 2 of 2
+     * FIXED: Proper A5 Landscape sizing - fits exactly in 1 page
      */
-    private function center(string $text, int $width): string
+    private function generateTermsPageHtml(Pledge $pledge, array $settings): string
     {
-        $text = mb_substr($text, 0, $width);
-        $padding = max(0, $width - mb_strlen($text));
-        $leftPad = intval($padding / 2);
-        return str_repeat(' ', $leftPad) . $text;
+        return <<<HTML
+<div class="terms-page">
+    <div class="terms-section">
+        <div class="terms-title">TERMA DAN SYARAT</div>
+        <div class="term-item"><b>1.</b> Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.</div>
+        <div class="term-item"><b>2.</b> Kadar untung adalah tidak melebihi <u>dua peratus (2%)</u> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <u>lima puluh sen (50¢)</u> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.</div>
+        <div class="term-item"><b>3.</b> Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amoun pampasan adalah satu per empat <u>(25%)</u> lebih daripada jumlah pinjaman.</div>
+        <div class="term-item"><b>4.</b> Mana-mana sandaran hendaklah ditebus dalam masa <u>enam bulan</u> dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.</div>
+        <div class="term-item"><b>5.</b> Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.</div>
+        <div class="term-item"><b>6.</b> Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.</div>
+        <div class="term-item"><b>7.</b> Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <u>dua ratus ringgit</u> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <u>dua ratus ringgit</u> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.</div>
+        <div class="term-item"><b>8.</b> Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai pejabat adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.</div>
+        <div class="term-item"><b>9.</b> Sila maklumkan kami jika sekiranya anda menukarkan alamat.</div>
+        <div class="term-item"><b>10.</b> Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.</div>
+        <div class="term-item"><b>11.</b> Barang-barang curian tidak diterima.</div>
+        <div class="term-item"><b>12.</b> Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.</div>
+        <div class="notice-box">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>
+    </div>
+    <div class="redeemer-section">
+        <div class="redeemer-title">Butir-butir Penebus</div>
+        <div class="redeemer-field"><div class="redeemer-label">No. K/P:</div><div class="redeemer-line"></div></div>
+        <div class="redeemer-field"><div class="redeemer-label">Nama:</div><div class="redeemer-line"></div><div class="redeemer-line"></div></div>
+        <div class="redeemer-field"><div class="redeemer-label">Kerakyatan:</div><div class="redeemer-line"></div></div>
+        <div class="redeemer-field-row"><div><div class="redeemer-label">Tahun Lahir:</div><div class="redeemer-line"></div></div><div><div class="redeemer-label">Umur:</div><div class="redeemer-line"></div></div></div>
+        <div class="redeemer-field"><div class="redeemer-label">Jantina:</div><div class="redeemer-line"></div></div>
+        <div class="redeemer-field"><div class="redeemer-label">H/P No:</div><div class="redeemer-line"></div></div>
+        <div class="redeemer-field"><div class="redeemer-label">Alamat:</div><div class="redeemer-line"></div><div class="redeemer-line"></div><div class="redeemer-line"></div></div>
+        <div class="barcode-placeholder">|||||||||||||||||||||||</div>
+        <div class="redeemer-field"><div class="redeemer-label">Cap Jari / Tandatangan:</div><div class="signature-box">Cap Jari / Tandatangan</div></div>
+    </div>
+</div>
+<style>
+@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.terms-page{width:202mm;height:136mm;padding:2.5mm;display:flex;gap:3mm;font-family:Arial,sans-serif;font-size:9px;color:#1a4a7a;background:#fff;overflow:hidden}
+.terms-section{flex:1.4}
+.redeemer-section{flex:0.6;min-width:52mm;border:2px solid #1a4a7a;padding:2mm}
+.terms-title{font-size:13px;font-weight:bold;text-align:center;margin-bottom:2.5mm;text-decoration:underline}
+.term-item{margin-bottom:1.8mm;text-align:justify;line-height:1.35}
+.notice-box{border:2px solid #c41e3a;padding:2.5mm;margin-top:2.5mm;text-align:center;font-weight:bold;font-size:10px;color:#c41e3a;background:#fff8f8;line-height:1.3}
+.redeemer-title{font-size:10px;font-weight:bold;text-align:center;margin-bottom:2mm;border-bottom:1px solid #1a4a7a;padding-bottom:1.5mm}
+.redeemer-field{margin-bottom:2mm}
+.redeemer-label{font-size:8px;margin-bottom:0.5mm}
+.redeemer-line{border-bottom:1px dotted #1a4a7a;min-height:4mm;margin-bottom:1mm}
+.redeemer-field-row{display:flex;gap:2mm;margin-bottom:2mm}
+.redeemer-field-row>div{flex:1}
+.barcode-placeholder{border:1px solid #1a4a7a;height:9mm;margin:1.5mm 0;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:12px;letter-spacing:2px;color:#1a4a7a}
+.signature-box{border:1px solid #1a4a7a;height:12mm;margin-top:1mm;display:flex;align-items:center;justify-content:center;font-size:7px;color:#999}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+HTML;
     }
 
-    /**
-     * Label-value pair
-     */
-    private function labelValue(string $label, string $value, int $width): string
+    private function buildItemsHtml($items): string
     {
-        $separator = ': ';
-        $labelWidth = mb_strlen($label . $separator);
-        $valueWidth = $width - $labelWidth;
-        $value = mb_substr($value, 0, $valueWidth);
-        return $label . $separator . $value;
+        $html = '';
+        $groupedItems = [];
+        foreach ($items as $item) {
+            $categoryName = strtoupper($item->category->name_ms ?? $item->category->name_en ?? 'BARANG KEMAS');
+            $purity = $item->purity->code ?? '';
+            $karat = $item->purity->karat ?? '';
+            $condition = strtoupper($item->condition ?? '');
+            $key = $categoryName . '|' . $purity . '|' . $condition;
+            if (!isset($groupedItems[$key])) {
+                $groupedItems[$key] = ['name' => $categoryName, 'purity' => $purity, 'karat' => $karat, 'condition' => $condition, 'count' => 0];
+            }
+            $groupedItems[$key]['count']++;
+        }
+        foreach ($groupedItems as $item) {
+            $qty = $item['count'];
+            $qtyWord = strtoupper($this->numberToMalayWord($qty));
+            $purityDisplay = $item['purity'] . ($item['karat'] ? ' (' . $item['karat'] . ')' : '');
+            $conditionText = '';
+            if ($item['condition'] && $item['condition'] !== 'GOOD') {
+                $conditionMap = ['BENT' => 'BENGKOK', 'BROKEN' => 'ROSAK', 'DAMAGED' => 'ROSAK', 'SCRATCHED' => 'CALAR'];
+                $conditionText = $conditionMap[$item['condition']] ?? $item['condition'];
+            }
+            $line = "({$qty}) {$qtyWord} {$item['name']} EMAS" . ($conditionText ? " ({$conditionText})" : '');
+            $html .= "<div class='item-line'>{$line}</div>";
+            if ($purityDisplay)
+                $html .= "<div class='item-line' style='margin-left:10px;'>({$purityDisplay})</div>";
+        }
+        return $html ?: "<div class='item-line'>Tiada item</div>";
     }
 
-    /**
-     * Word wrap for long text
-     */
-    private function wordWrap(string $text, int $width): string
+    private function formatNumber($number, $decimals = 2): string
     {
-        return wordwrap($text, $width, "\n", true);
+        return number_format((float) $number, $decimals);
     }
-
-    /**
-     * Format IC number
-     */
     private function formatIC(?string $ic): string
     {
         if (!$ic)
             return '-';
         $ic = preg_replace('/[^0-9]/', '', $ic);
-        if (strlen($ic) === 12) {
-            return substr($ic, 0, 6) . '-' . substr($ic, 6, 2) . '-' . substr($ic, 8, 4);
+        return strlen($ic) === 12 ? substr($ic, 0, 6) . '-' . substr($ic, 6, 2) . '-' . substr($ic, 8, 4) : ($ic ?: '-');
+    }
+    private function formatCustomerAddress($customer): string
+    {
+        $parts = array_filter([$customer->address_line1 ?? $customer->address ?? '', $customer->address_line2 ?? '', trim(($customer->postcode ?? '') . ' ' . ($customer->city ?? '')), strtoupper($customer->state ?? '')]);
+        return implode(', ', $parts) ?: '-';
+    }
+    private function getCitizenship($customer): string
+    {
+        $n = strtoupper($customer->nationality ?? '');
+        return str_contains($n, 'MALAYSIA') ? 'MALAYSIA' : ($n ?: 'WARGANEGARA');
+    }
+    private function getRace($customer): string
+    {
+        if (!empty($customer->race)) {
+            $r = strtoupper($customer->race);
+            $map = ['MALAY' => 'MELAYU', 'CHINESE' => 'CINA', 'INDIAN' => 'INDIA', 'OTHERS' => 'LAIN-LAIN'];
+            return $map[$r] ?? $r;
         }
-        return $ic;
+        return 'MELAYU';
+    }
+    private function extractBirthYear($customer): string
+    {
+        if (!empty($customer->date_of_birth)) {
+            try {
+                $d = $customer->date_of_birth;
+                if (is_string($d))
+                    $d = Carbon::parse($d);
+                return $d->format('Y');
+            } catch (\Exception $e) {
+            }
+        }
+        $ic = preg_replace('/[^0-9]/', '', $customer->ic_number ?? '');
+        if (strlen($ic) >= 6) {
+            $yy = substr($ic, 0, 2);
+            return ((int) $yy > (int) date('y')) ? '19' . $yy : '20' . $yy;
+        }
+        return '-';
+    }
+    private function calculateAge($customer): string
+    {
+        $y = $this->extractBirthYear($customer);
+        if ($y === '-')
+            return '-';
+        $age = (int) date('Y') - (int) $y;
+        return ($age < 0 || $age > 150) ? '-' : (string) $age;
+    }
+    private function getGender($customer): string
+    {
+        $g = strtolower($customer->gender ?? '');
+        if (in_array($g, ['male', 'm', 'lelaki']))
+            return 'LELAKI';
+        if (in_array($g, ['female', 'f', 'perempuan']))
+            return 'PEREMPUAN';
+        return '-';
+    }
+    private function numberToMalayWord(int $n): string
+    {
+        $w = [1 => 'SATU', 2 => 'DUA', 3 => 'TIGA', 4 => 'EMPAT', 5 => 'LIMA', 6 => 'ENAM', 7 => 'TUJUH', 8 => 'LAPAN', 9 => 'SEMBILAN', 10 => 'SEPULUH'];
+        return $w[$n] ?? (string) $n;
     }
 
-    /**
-     * Convert number to Malay words
-     */
     private function numberToMalayWords(float $number): string
     {
         $ones = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'lapan', 'sembilan'];
         $tens = ['', 'sepuluh', 'dua puluh', 'tiga puluh', 'empat puluh', 'lima puluh', 'enam puluh', 'tujuh puluh', 'lapan puluh', 'sembilan puluh'];
         $teens = ['sepuluh', 'sebelas', 'dua belas', 'tiga belas', 'empat belas', 'lima belas', 'enam belas', 'tujuh belas', 'lapan belas', 'sembilan belas'];
-
         $ringgit = intval($number);
         $sen = round(($number - $ringgit) * 100);
-
         $words = '';
-
+        if ($ringgit >= 1000000) {
+            $m = intval($ringgit / 1000000);
+            $words .= ($m == 1 ? 'sejuta' : $this->numberToMalayWords($m) . ' juta');
+            $ringgit %= 1000000;
+            if ($ringgit > 0)
+                $words .= ' ';
+        }
         if ($ringgit >= 1000) {
-            $thousands = intval($ringgit / 1000);
-            $words .= ($thousands == 1 ? 'seribu' : $this->numberToMalayWords($thousands) . ' ribu');
+            $t = intval($ringgit / 1000);
+            $words .= ($t == 1 ? 'seribu' : $this->numberToMalayWords($t) . ' ribu');
             $ringgit %= 1000;
             if ($ringgit > 0)
                 $words .= ' ';
         }
-
         if ($ringgit >= 100) {
-            $hundreds = intval($ringgit / 100);
-            $words .= ($hundreds == 1 ? 'seratus' : $ones[$hundreds] . ' ratus');
+            $h = intval($ringgit / 100);
+            $words .= ($h == 1 ? 'seratus' : $ones[$h] . ' ratus');
             $ringgit %= 100;
             if ($ringgit > 0)
                 $words .= ' ';
         }
-
         if ($ringgit >= 20) {
             $words .= $tens[intval($ringgit / 10)];
             $ringgit %= 10;
@@ -584,9 +487,8 @@ class DotMatrixPrintController extends Controller
         } elseif ($ringgit > 0) {
             $words .= $ones[$ringgit];
         }
-
+        $words = $words ?: 'sifar';
         $words .= ' ringgit';
-
         if ($sen > 0) {
             $words .= ' dan ';
             if ($sen >= 20) {
@@ -601,7 +503,7 @@ class DotMatrixPrintController extends Controller
             }
             $words .= ' sen';
         }
-
         return ucfirst(trim($words));
     }
+
 }

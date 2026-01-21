@@ -192,19 +192,36 @@ export default function Sidebar() {
     const loadLogo = async () => {
       try {
         const response = await settingsService.getLogo();
-        // Note: The API interceptor already unwraps response.data
-        if (response?.logo_url) {
+
+        // Handle both wrapped {success, data} and unwrapped {logo_url} formats
+        const logoData = response?.data || response;
+        const logoUrl = logoData?.logo_url || logoData?.path;
+
+        if (logoUrl) {
+          // Construct full URL if needed
+          let fullUrl = logoUrl;
+          if (!logoUrl.startsWith("http")) {
+            const baseUrl =
+              window.location.hostname === "localhost" ||
+              window.location.hostname === "127.0.0.1"
+                ? "http://localhost:8000"
+                : window.location.origin;
+            fullUrl = baseUrl + (logoUrl.startsWith("/") ? "" : "/") + logoUrl;
+          }
+
           // Fetch as blob to avoid cross-origin issues
           try {
-            const imgResponse = await fetch(response.logo_url);
+            const imgResponse = await fetch(fullUrl);
             if (imgResponse.ok) {
               const blob = await imgResponse.blob();
               const blobUrl = URL.createObjectURL(blob);
               setCompanyLogo(blobUrl);
+            } else {
+              setCompanyLogo(fullUrl);
             }
           } catch (fetchErr) {
             // Fallback to direct URL
-            setCompanyLogo(response.logo_url);
+            setCompanyLogo(fullUrl);
           }
         }
       } catch (err) {

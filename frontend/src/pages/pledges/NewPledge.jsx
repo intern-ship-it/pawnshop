@@ -6,7 +6,11 @@ import {
   setSelectedCustomer,
 } from "@/features/customers/customersSlice";
 import { setPledges, addPledge } from "@/features/pledges/pledgesSlice";
-import { addToast, openCamera } from "@/features/ui/uiSlice";
+import {
+  addToast,
+  openCamera,
+  clearCapturedImage,
+} from "@/features/ui/uiSlice";
 import { customerService, pledgeService, settingsService } from "@/services";
 import { getToken } from "@/services/api";
 import storageService from "@/services/storageService";
@@ -1063,15 +1067,15 @@ export default function NewPledge() {
         <style>
           /* Page setup for A5 continuous paper */
           @page {
-            size: A5 portrait;
-            margin: 8mm 10mm;
+            size: A5 landscape;
+            margin: 5mm 8mm;
           }
           
           /* Print media styles */
           @media print {
             html, body {
-              width: 148mm;
-              height: auto;
+              width: 210mm;
+              height: 148mm;
               margin: 0;
               padding: 0;
               -webkit-print-color-adjust: exact;
@@ -1085,7 +1089,7 @@ export default function NewPledge() {
           /* Screen preview */
           @media screen {
             body {
-              max-width: 148mm;
+              max-width: 210mm;
               margin: 20px auto;
               padding: 20px;
               background: #f0f0f0;
@@ -1163,7 +1167,7 @@ export default function NewPledge() {
         <div class="print-controls">
           <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
           <button class="close-btn" onclick="window.close()">✕ Tutup</button>
-          <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5</strong></p>
+          <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
         </div>
         <div class="receipt-container">${receiptText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
         <script>
@@ -2151,7 +2155,7 @@ export default function NewPledge() {
       </div>
 
       {/* Step Content */}
-      <Card className="max-w-4xl mx-auto">
+      <Card className="max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto">
         <AnimatePresence mode="wait">
           {/* Step 1: Customer Selection */}
           {currentStep === 1 && (
@@ -2471,7 +2475,7 @@ export default function NewPledge() {
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                       <Select
                         label="Category"
                         value={item.category}
@@ -2551,7 +2555,7 @@ export default function NewPledge() {
                         leftIcon={Scale}
                         required
                       />
-                      <div className="md:col-span-2">
+                      <div className="col-span-2 lg:col-span-2 xl:col-span-2">
                         <label className="block text-sm font-medium text-zinc-700 mb-1.5">
                           Stone Deduction
                         </label>
@@ -3370,23 +3374,8 @@ export default function NewPledge() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <Input
-                      label="Handling Charge / Processing Fee (RM)"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={handlingCharge}
-                      readOnly
-                      disabled
-                      className="flex-1 bg-zinc-100"
-                      inputClassName="pl-12 cursor-not-allowed"
-                      leftElement={
-                        <span className="text-zinc-500 font-medium">RM</span>
-                      }
-                      helperText="Auto-calculated from settings"
-                    />
-                  </div>
+                  {/* Handling Charge - Hidden from UI but still applied */}
+                  <input type="hidden" value={handlingCharge} />
 
                   <div className="border-t border-emerald-200 my-2 pt-2 flex items-center justify-between">
                     <span className="text-emerald-800 font-bold text-lg">
@@ -4340,6 +4329,8 @@ export default function NewPledge() {
                 setCreatedReceiptNo(null);
                 setIsPrinting(false);
                 setIsSendingWhatsApp(false);
+                // Clear any captured images from global camera state
+                dispatch(clearCapturedImage());
               }}
             >
               New Pledge

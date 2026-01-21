@@ -85,6 +85,10 @@ const uiSlice = createSlice({
       state.camera.capturedImage = action.payload
       state.camera.isOpen = false
     },
+    clearCapturedImage: (state) => {
+      state.camera.capturedImage = null
+      state.camera.contextId = null
+    },
   },
 })
 
@@ -103,5 +107,6 @@ export const {
   openCamera,
   closeCamera,
   setCapturedImage,
+  clearCapturedImage,
 } = uiSlice.actions
 export default uiSlice.reducer

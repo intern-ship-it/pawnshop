@@ -534,41 +534,39 @@ function CompanyTab({ settings, updateSettings }) {
       try {
         const response = await settingsService.getLogo();
 
-        // Note: The API interceptor already unwraps response.data,
-        // so response here is {logo_url: '...', path: '...'} directly
-        if (response?.logo_url) {
+        // Handle both wrapped {success, data} and unwrapped {logo_url} formats
+        // The response could be {success: true, data: {logo_url}} or just {logo_url}
+        const logoData = response?.data || response;
+        const logoUrl = logoData?.logo_url || logoData?.path;
+
+        if (logoUrl) {
           // Fetch the image as a blob to avoid cross-origin issues
           try {
-            const imgResponse = await fetch(response.logo_url);
+            // Construct full URL if needed
+            let fullUrl = logoUrl;
+            if (!logoUrl.startsWith("http")) {
+              const baseUrl =
+                window.location.hostname === "localhost" ||
+                window.location.hostname === "127.0.0.1"
+                  ? "http://localhost:8000"
+                  : window.location.origin;
+              fullUrl =
+                baseUrl + (logoUrl.startsWith("/") ? "" : "/") + logoUrl;
+            }
+
+            const imgResponse = await fetch(fullUrl);
             if (imgResponse.ok) {
               const blob = await imgResponse.blob();
               const blobUrl = URL.createObjectURL(blob);
               setLogoPreview(blobUrl);
             } else {
               // Fallback to direct URL
-              setLogoPreview(response.logo_url);
+              setLogoPreview(fullUrl);
             }
           } catch (fetchErr) {
+            console.error("Error fetching logo:", fetchErr);
             // Fallback to direct URL
-            setLogoPreview(response.logo_url);
-          }
-        } else if (response?.path) {
-          // Fallback - construct full URL dynamically and fetch as blob
-          const baseUrl =
-            window.location.hostname === "localhost" ||
-            window.location.hostname === "127.0.0.1"
-              ? "http://localhost:8000"
-              : window.location.origin;
-          const fullUrl = baseUrl + response.path;
-          try {
-            const imgResponse = await fetch(fullUrl);
-            if (imgResponse.ok) {
-              const blob = await imgResponse.blob();
-              const blobUrl = URL.createObjectURL(blob);
-              setLogoPreview(blobUrl);
-            }
-          } catch (fetchErr) {
-            console.error("Error fetching logo from path:", fetchErr);
+            setLogoPreview(logoUrl);
           }
         }
       } catch (err) {
