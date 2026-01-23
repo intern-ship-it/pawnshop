@@ -10,11 +10,6 @@ import { addToast } from "@/features/ui/uiSlice";
 import reconciliationService from "@/services/reconciliationService";
 import { apiGet } from "@/services/api";
 import { formatCurrency } from "@/utils/formatters";
-import {
-  getStorageItem,
-  setStorageItem,
-  STORAGE_KEYS,
-} from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -50,6 +45,7 @@ import {
   ListChecks,
   CalendarClock,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 export default function StockReconciliation() {
@@ -65,6 +61,7 @@ export default function StockReconciliation() {
   const [isStarting, setIsStarting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [loadError, setLoadError] = useState(null); // New error state
 
   // UI State
   const [scanInput, setScanInput] = useState("");
@@ -94,6 +91,7 @@ export default function StockReconciliation() {
 
   const fetchInitialData = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       // Fetch past reconciliations
       const reconResponse = await reconciliationService.getReconciliations({
@@ -104,14 +102,14 @@ export default function StockReconciliation() {
 
         // Check for in-progress reconciliation
         const inProgress = reconResponse.data?.data?.find(
-          (r) => r.status === "in_progress"
+          (r) => r.status === "in_progress",
         );
         if (inProgress) {
           setCurrentReconciliation(inProgress);
           setReconciliationStartTime(new Date(inProgress.started_at));
           // Fetch scanned items for this reconciliation
           const detailResponse = await reconciliationService.getReconciliation(
-            inProgress.id
+            inProgress.id,
           );
           if (detailResponse.success && detailResponse.data?.items) {
             setScannedItems(detailResponse.data.items);
@@ -123,8 +121,16 @@ export default function StockReconciliation() {
       await fetchExpectedItems();
     } catch (error) {
       console.error("Error fetching initial data:", error);
-      // Fallback to localStorage if API fails
-      loadFromLocalStorage();
+      setLoadError(
+        "Failed to load reconciliation data. Please check your connection and try again.",
+      );
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Connection Error",
+          message: "Failed to load data from server",
+        }),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -134,12 +140,16 @@ export default function StockReconciliation() {
     try {
       // Use pledges API to get active/overdue pledges with items
       const response = await apiGet(
-        "/pledges?status=active,overdue&per_page=500"
+        "/pledges?status=active,overdue&per_page=500",
       );
-      if (response.success && response.data?.data) {
+
+      // Handle both nested (response.data.data) and direct (response.data) formats
+      const pledgesData = response.data?.data || response.data || [];
+
+      if (response.success && Array.isArray(pledgesData)) {
         const items = [];
 
-        response.data.data.forEach((pledge) => {
+        pledgesData.forEach((pledge) => {
           const dueDate = pledge.due_date ? new Date(pledge.due_date) : null;
           const isOverdue = dueDate && dueDate < new Date();
 
@@ -169,48 +179,26 @@ export default function StockReconciliation() {
         });
 
         setExpectedItems(items);
-        return;
+        setLoadError(null);
+
+        // Log for debugging
+        if (items.length === 0) {
+          console.log("No active/overdue pledges found for reconciliation");
+        }
+      } else {
+        throw new Error("Invalid response format from server");
       }
     } catch (error) {
       console.error("Error fetching expected items:", error);
+      setLoadError("Failed to load inventory items. Please try again.");
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to load inventory items",
+        }),
+      );
     }
-
-    // Fallback to localStorage
-    loadFromLocalStorage();
-  };
-
-  const loadFromLocalStorage = () => {
-    const pledges = getStorageItem(STORAGE_KEYS.PLEDGES, []);
-    const items = [];
-
-    pledges.forEach((pledge) => {
-      if (pledge.status === "active" || pledge.status === "overdue") {
-        const dueDate = pledge.dueDate ? new Date(pledge.dueDate) : null;
-        const isOverdue = dueDate && dueDate < new Date();
-
-        (pledge.items || []).forEach((item, idx) => {
-          items.push({
-            id: item.id || `${pledge.id}-${idx + 1}`,
-            barcode: item.barcode || `${pledge.id}-${idx + 1}`,
-            pledge_id: pledge.id,
-            pledge_no: pledge.pledgeNo || pledge.id,
-            category: item.category,
-            description:
-              item.description || `${item.category} - ${item.purity}`,
-            weight: item.weight,
-            purity: item.purity,
-            storage_location: pledge.rackLocation || "Not assigned",
-            customer_name: pledge.customerName,
-            customer_ic: pledge.customerIC,
-            due_date: pledge.dueDate,
-            status: isOverdue ? "overdue" : "active",
-            loan_amount: pledge.loanAmount,
-          });
-        });
-      }
-    });
-
-    setExpectedItems(items);
   };
 
   // Calculate stats
@@ -234,7 +222,7 @@ export default function StockReconciliation() {
             ? Math.round(
                 (scannedItems.filter((s) => s.status === "matched").length /
                   expectedItems.length) *
-                  100
+                  100,
               )
             : 0,
       };
@@ -245,10 +233,10 @@ export default function StockReconciliation() {
 
     const matched = scannedItems.filter((s) => expectedBarcodes.has(s.barcode));
     const unexpected = scannedItems.filter(
-      (s) => !expectedBarcodes.has(s.barcode)
+      (s) => !expectedBarcodes.has(s.barcode),
     );
     const missing = expectedItems.filter(
-      (e) => !scannedBarcodes.has(e.barcode)
+      (e) => !scannedBarcodes.has(e.barcode),
     );
 
     return {
@@ -280,7 +268,7 @@ export default function StockReconciliation() {
           item.pledge_no?.toLowerCase().includes(query) ||
           item.customer_name?.toLowerCase().includes(query) ||
           item.category?.toLowerCase().includes(query) ||
-          item.storage_location?.toLowerCase().includes(query)
+          item.storage_location?.toLowerCase().includes(query),
       );
     }
 
@@ -305,11 +293,22 @@ export default function StockReconciliation() {
 
   // Start reconciliation
   const handleStart = async () => {
+    if (loadError || expectedItems.length === 0) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Cannot Start",
+          message: "No inventory items loaded. Please refresh and try again.",
+        }),
+      );
+      return;
+    }
+
     setIsStarting(true);
     try {
       const response = await reconciliationService.start(
         reconciliationType,
-        ""
+        "",
       );
 
       if (response.success && response.data) {
@@ -324,27 +323,19 @@ export default function StockReconciliation() {
             message: `Scanning ${
               response.data.expected_items || expectedItems.length
             } items`,
-          })
+          }),
         );
       } else {
         throw new Error(response.message || "Failed to start reconciliation");
       }
     } catch (error) {
       console.error("Error starting reconciliation:", error);
-      // Fallback to local mode
-      setCurrentReconciliation({
-        id: `LOCAL-${Date.now()}`,
-        status: "in_progress",
-      });
-      setReconciliationStartTime(new Date());
-      setScannedItems([]);
-      setTimeout(() => inputRef.current?.focus(), 100);
       dispatch(
         addToast({
-          type: "warning",
-          title: "Offline Mode",
-          message: "Reconciliation started in offline mode",
-        })
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to start reconciliation",
+        }),
       );
     } finally {
       setIsStarting(false);
@@ -365,7 +356,7 @@ export default function StockReconciliation() {
           type: "warning",
           title: "Duplicate",
           message: "Item already scanned",
-        })
+        }),
       );
       setScanInput("");
       return;
@@ -374,13 +365,10 @@ export default function StockReconciliation() {
     setIsScanning(true);
     try {
       // Try API scan
-      if (
-        currentReconciliation?.id &&
-        !String(currentReconciliation.id).startsWith("LOCAL")
-      ) {
+      if (currentReconciliation?.id) {
         const response = await reconciliationService.scan(
           currentReconciliation.id,
-          barcode
+          barcode,
         );
 
         if (response.success) {
@@ -406,7 +394,7 @@ export default function StockReconciliation() {
               matched_items: (prev.matched_items || 0) + 1,
             }));
             dispatch(
-              addToast({ type: "success", title: "Matched", message: barcode })
+              addToast({ type: "success", title: "Matched", message: barcode }),
             );
           } else {
             setCurrentReconciliation((prev) => ({
@@ -419,14 +407,14 @@ export default function StockReconciliation() {
                 type: "error",
                 title: "Unexpected Item",
                 message: `${barcode} not in expected list`,
-              })
+              }),
             );
           }
           return;
         }
       }
 
-      // Fallback to local matching
+      // Local matching as backup for scan verification
       const expectedItem = expectedItems.find((e) => e.barcode === barcode);
       const newItem = {
         id: Date.now(),
@@ -442,7 +430,7 @@ export default function StockReconciliation() {
 
       if (expectedItem) {
         dispatch(
-          addToast({ type: "success", title: "Matched", message: barcode })
+          addToast({ type: "success", title: "Matched", message: barcode }),
         );
       } else {
         dispatch(
@@ -450,13 +438,17 @@ export default function StockReconciliation() {
             type: "error",
             title: "Unexpected Item",
             message: `${barcode} not in expected list`,
-          })
+          }),
         );
       }
     } catch (error) {
       console.error("Error scanning:", error);
       dispatch(
-        addToast({ type: "error", title: "Scan Error", message: error.message })
+        addToast({
+          type: "error",
+          title: "Scan Error",
+          message: error.message,
+        }),
       );
     } finally {
       setIsScanning(false);
@@ -467,7 +459,7 @@ export default function StockReconciliation() {
   // Simulate scan (for demo)
   const handleSimulateScan = () => {
     const unscanned = expectedItems.filter(
-      (e) => !scannedItems.find((s) => s.barcode === e.barcode)
+      (e) => !scannedItems.find((s) => s.barcode === e.barcode),
     );
     if (unscanned.length > 0) {
       const randomItem =
@@ -480,21 +472,18 @@ export default function StockReconciliation() {
           type: "info",
           title: "Complete",
           message: "All items have been scanned",
-        })
+        }),
       );
     }
   };
 
   // Reset / Cancel reconciliation
   const handleReset = async () => {
-    if (
-      currentReconciliation?.id &&
-      !String(currentReconciliation.id).startsWith("LOCAL")
-    ) {
+    if (currentReconciliation?.id) {
       try {
         await reconciliationService.cancel(
           currentReconciliation.id,
-          "Cancelled by user"
+          "Cancelled by user",
         );
       } catch (error) {
         console.error("Error cancelling:", error);
@@ -512,13 +501,10 @@ export default function StockReconciliation() {
   const handleComplete = async () => {
     setIsCompleting(true);
     try {
-      if (
-        currentReconciliation?.id &&
-        !String(currentReconciliation.id).startsWith("LOCAL")
-      ) {
+      if (currentReconciliation?.id) {
         const response = await reconciliationService.complete(
           currentReconciliation.id,
-          reconciliationNote
+          reconciliationNote,
         );
 
         if (response.success) {
@@ -532,7 +518,7 @@ export default function StockReconciliation() {
                   : `Completed with ${
                       stats.missing + stats.unexpected
                     } discrepancies`,
-            })
+            }),
           );
 
           // Refresh data
@@ -541,34 +527,7 @@ export default function StockReconciliation() {
           throw new Error(response.message || "Failed to complete");
         }
       } else {
-        // Save to localStorage for offline mode
-        const reconciliations = getStorageItem("reconciliations", []);
-        const newRecon = {
-          id: `RECON-${Date.now()}`,
-          date: new Date().toISOString(),
-          startTime: reconciliationStartTime?.toISOString(),
-          endTime: new Date().toISOString(),
-          expected: stats.expected,
-          scanned: stats.scanned,
-          matched: stats.matched,
-          missing: stats.missing,
-          unexpected: stats.unexpected,
-          status:
-            stats.missing > 0 || stats.unexpected > 0
-              ? "discrepancy"
-              : "complete",
-          note: reconciliationNote,
-          performedBy: "User",
-        };
-        setStorageItem("reconciliations", [...reconciliations, newRecon]);
-
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Reconciliation Complete",
-            message: "Saved locally",
-          })
-        );
+        throw new Error("No active reconciliation found");
       }
 
       setShowCompleteModal(false);
@@ -576,7 +535,7 @@ export default function StockReconciliation() {
     } catch (error) {
       console.error("Error completing:", error);
       dispatch(
-        addToast({ type: "error", title: "Error", message: error.message })
+        addToast({ type: "error", title: "Error", message: error.message }),
       );
     } finally {
       setIsCompleting(false);
@@ -615,12 +574,33 @@ export default function StockReconciliation() {
 
   const isReconciling = !!currentReconciliation;
 
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
           <p className="text-zinc-500">Loading reconciliation data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (loadError && expectedItems.length === 0) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-zinc-800 font-medium mb-2">Failed to Load Data</p>
+          <p className="text-zinc-500 mb-4">{loadError}</p>
+          <Button
+            variant="accent"
+            leftIcon={RefreshCw}
+            onClick={fetchInitialData}
+          >
+            Try Again
+          </Button>
         </div>
       </div>
     );
@@ -819,7 +799,7 @@ export default function StockReconciliation() {
                 "p-4 border-2",
                 lastScannedItem.status === "matched"
                   ? "bg-emerald-50 border-emerald-300"
-                  : "bg-orange-50 border-orange-300"
+                  : "bg-orange-50 border-orange-300",
               )}
             >
               <h3 className="font-semibold text-zinc-800 mb-3 flex items-center gap-2">
@@ -891,7 +871,7 @@ export default function StockReconciliation() {
                         leftIcon={Eye}
                         onClick={() =>
                           handleViewPledge(
-                            lastScannedItem.pledge_item.pledge_id
+                            lastScannedItem.pledge_item.pledge_id,
                           )
                         }
                       >
@@ -1046,7 +1026,7 @@ export default function StockReconciliation() {
                             key={item.id || item.barcode}
                             className={cn(
                               "hover:bg-zinc-50 transition-colors",
-                              scanned && "bg-emerald-50"
+                              scanned && "bg-emerald-50",
                             )}
                           >
                             <td className="p-3">
@@ -1145,7 +1125,7 @@ export default function StockReconciliation() {
                           "flex items-center justify-between p-3 rounded-lg border",
                           item.status === "matched"
                             ? "bg-emerald-50 border-emerald-200"
-                            : "bg-orange-50 border-orange-200"
+                            : "bg-orange-50 border-orange-200",
                         )}
                       >
                         <div className="flex items-center gap-3">
@@ -1227,7 +1207,7 @@ export default function StockReconciliation() {
               "p-4 rounded-xl mb-6",
               stats.missing === 0 && stats.unexpected === 0
                 ? "bg-emerald-50 border border-emerald-200"
-                : "bg-red-50 border border-red-200"
+                : "bg-red-50 border border-red-200",
             )}
           >
             <div className="flex items-center gap-3">
