@@ -162,6 +162,10 @@ const settingsService = {
     return apiDelete(`/settings/terms-conditions/${id}`)
   },
 
+  async updateTermsOrder(terms) {
+    return apiPut('/settings/terms-conditions/order', { terms })
+  },
+
   // ============ MARGIN PRESETS ============
 
   async getMarginPresets() {

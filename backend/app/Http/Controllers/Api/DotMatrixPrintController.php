@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Pledge;
 use App\Models\Renewal;
 use App\Models\Redemption;
+use App\Models\TermsCondition;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
@@ -290,25 +291,62 @@ HTML;
     /**
      * Generate Terms and Conditions page - Page 2 of 2
      * FIXED: Proper A5 Landscape sizing - fits exactly in 1 page
+     * NOW DYNAMIC: Fetches terms from TermsCondition table
      */
     private function generateTermsPageHtml(Pledge $pledge, array $settings): string
     {
+        // Fetch active pledge terms from database, ordered by sort_order
+        $terms = [];
+        try {
+            $terms = TermsCondition::where('is_active', true)
+                ->where('activity_type', 'pledge')
+                ->orderBy('sort_order', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+        } catch (\Exception $e) {
+            // If table doesn't exist or error, use empty array
+            \Log::warning('Failed to fetch terms: ' . $e->getMessage());
+        }
+
+        // Build terms HTML - Use Malay content (content_ms) for dot matrix print
+        $termsHtml = '';
+        $termNumber = 1;
+
+        if (count($terms) > 0) {
+            foreach ($terms as $term) {
+                // Use content_ms (Malay) for the print, fallback to content_en
+                $content = $term->content_ms ?? $term->content_en ?? '';
+
+                // Clean and format the content - preserve any HTML like <u> for underline
+                $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
+
+                // Build the term item with number
+                $termsHtml .= "<div class=\"term-item\"><b>{$termNumber}.</b> {$content}</div>\n";
+                $termNumber++;
+            }
+        } else {
+            // Fallback to default terms if no terms in database
+            $termsHtml = <<<FALLBACK
+<div class="term-item"><b>1.</b> Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.</div>
+<div class="term-item"><b>2.</b> Kadar untung adalah tidak melebihi <u>dua peratus (2%)</u> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <u>lima puluh sen (50¢)</u> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.</div>
+<div class="term-item"><b>3.</b> Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amoun pampasan adalah satu per empat <u>(25%)</u> lebih daripada jumlah pinjaman.</div>
+<div class="term-item"><b>4.</b> Mana-mana sandaran hendaklah ditebus dalam masa <u>enam bulan</u> dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.</div>
+<div class="term-item"><b>5.</b> Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.</div>
+<div class="term-item"><b>6.</b> Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.</div>
+<div class="term-item"><b>7.</b> Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <u>dua ratus ringgit</u> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <u>dua ratus ringgit</u> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.</div>
+<div class="term-item"><b>8.</b> Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai pejabat adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.</div>
+<div class="term-item"><b>9.</b> Sila maklumkan kami jika sekiranya anda menukarkan alamat.</div>
+<div class="term-item"><b>10.</b> Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.</div>
+<div class="term-item"><b>11.</b> Barang-barang curian tidak diterima.</div>
+<div class="term-item"><b>12.</b> Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.</div>
+FALLBACK;
+        }
+
         return <<<HTML
 <div class="terms-page">
     <div class="terms-section">
         <div class="terms-title">TERMA DAN SYARAT</div>
-        <div class="term-item"><b>1.</b> Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.</div>
-        <div class="term-item"><b>2.</b> Kadar untung adalah tidak melebihi <u>dua peratus (2%)</u> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <u>lima puluh sen (50¢)</u> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.</div>
-        <div class="term-item"><b>3.</b> Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amoun pampasan adalah satu per empat <u>(25%)</u> lebih daripada jumlah pinjaman.</div>
-        <div class="term-item"><b>4.</b> Mana-mana sandaran hendaklah ditebus dalam masa <u>enam bulan</u> dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.</div>
-        <div class="term-item"><b>5.</b> Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.</div>
-        <div class="term-item"><b>6.</b> Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.</div>
-        <div class="term-item"><b>7.</b> Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <u>dua ratus ringgit</u> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <u>dua ratus ringgit</u> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.</div>
-        <div class="term-item"><b>8.</b> Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai pejabat adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.</div>
-        <div class="term-item"><b>9.</b> Sila maklumkan kami jika sekiranya anda menukarkan alamat.</div>
-        <div class="term-item"><b>10.</b> Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.</div>
-        <div class="term-item"><b>11.</b> Barang-barang curian tidak diterima.</div>
-        <div class="term-item"><b>12.</b> Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.</div>
+        {$termsHtml}
         <div class="notice-box">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>
     </div>
     <div class="redeemer-section">

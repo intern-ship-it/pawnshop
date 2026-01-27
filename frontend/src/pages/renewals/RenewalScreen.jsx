@@ -18,7 +18,15 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import {
+  Card,
+  Button,
+  Input,
+  Select,
+  Badge,
+  Modal,
+  TermsConsentPanel,
+} from "@/components/common";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
   RefreshCw,
@@ -96,6 +104,7 @@ export default function RenewalScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [renewalResult, setRenewalResult] = useState(null);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
 
   // Barcode scanner detection - auto-search when barcode is scanned
   const handleBarcodeScanned = useCallback(
@@ -1312,6 +1321,15 @@ export default function RenewalScreen() {
                   </div>
                 </div>
 
+                {/* Terms & Conditions */}
+                <div className="mb-6">
+                  <TermsConsentPanel
+                    activityType="renewal"
+                    onConsentChange={(agreed) => setTermsAgreed(agreed)}
+                    compact
+                  />
+                </div>
+
                 {/* Process Button */}
                 <Button
                   variant="success"
@@ -1321,6 +1339,7 @@ export default function RenewalScreen() {
                   onClick={handleProcessRenewal}
                   loading={isProcessing}
                   disabled={
+                    !termsAgreed ||
                     isCalculating ||
                     (paymentMethod === "partial"
                       ? (parseFloat(cashAmount) || 0) +

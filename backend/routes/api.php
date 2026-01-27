@@ -387,6 +387,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/terms-conditions', [SettingsController::class, 'storeTermsCondition']);
         Route::put('/terms-conditions/{termsCondition}', [SettingsController::class, 'updateTermsCondition']);
         Route::delete('/terms-conditions/{termsCondition}', [SettingsController::class, 'deleteTermsCondition']);
+        Route::put('/terms-conditions/order', [SettingsController::class, 'updateTermsOrder']);
 
         // Margin Presets
         Route::get('/margin-presets', [SettingsController::class, 'marginPresets']);
@@ -520,6 +521,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Barcode print
         Route::middleware('check.permission:inventory,print_barcode')->group(function () {
             Route::get('/barcode/{pledgeItem}', [PrintController::class, 'barcode']);
+            Route::get('/barcodes/{pledge}', [PrintController::class, 'pledgeBarcodes']);
             Route::post('/barcodes/batch', [PrintController::class, 'batchBarcodes']);
         });
 

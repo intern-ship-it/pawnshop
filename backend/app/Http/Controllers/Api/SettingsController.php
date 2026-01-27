@@ -535,6 +535,8 @@ class SettingsController extends Controller
         $terms = TermsCondition::where(function ($q) use ($branchId) {
             $q->where('branch_id', $branchId)->orWhereNull('branch_id');
         })
+            ->orderBy('sort_order')
+            ->orderBy('id')
             ->get();
 
         return $this->success($terms);
@@ -543,7 +545,7 @@ class SettingsController extends Controller
     public function storeTermsCondition(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'activity_type' => 'required|in:pledge,renewal,redemption,general',
+            'activity_type' => 'required|in:pledge,renewal,redemption,auction,forfeit',
             'title' => 'required|string|max:255',
             'content_ms' => 'required|string',
             'content_en' => 'nullable|string',
@@ -551,10 +553,19 @@ class SettingsController extends Controller
             'require_consent' => 'nullable|boolean',
             'show_on_screen' => 'nullable|boolean',
             'attach_to_whatsapp' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer|min:0',
         ]);
 
         $validated['branch_id'] = $request->user()->branch_id;
         $validated['version'] = 1;
+
+        // Auto-assign sort_order if not provided
+        if (!isset($validated['sort_order'])) {
+            $maxOrder = TermsCondition::where('branch_id', $validated['branch_id'])
+                ->where('activity_type', $validated['activity_type'])
+                ->max('sort_order') ?? 0;
+            $validated['sort_order'] = $maxOrder + 1;
+        }
 
         $terms = TermsCondition::create($validated);
 
@@ -578,6 +589,7 @@ class SettingsController extends Controller
             'show_on_screen' => 'sometimes|boolean',
             'attach_to_whatsapp' => 'sometimes|boolean',
             'is_active' => 'sometimes|boolean',
+            'sort_order' => 'nullable|integer|min:0',
         ]);
 
         // If updating global T&C, create branch-specific copy
@@ -606,6 +618,35 @@ class SettingsController extends Controller
         $termsCondition->delete();
 
         return $this->success(null, 'Terms and conditions deleted successfully');
+    }
+
+    /**
+     * Update terms and conditions order
+     */
+    public function updateTermsOrder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'terms' => 'required|array',
+            'terms.*.id' => 'required|integer|exists:terms_conditions,id',
+            'terms.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        $branchId = $request->user()->branch_id;
+
+        try {
+            foreach ($validated['terms'] as $item) {
+                TermsCondition::where('id', $item['id'])
+                    ->where(function ($q) use ($branchId) {
+                        $q->where('branch_id', $branchId)
+                            ->orWhereNull('branch_id');
+                    })
+                    ->update(['sort_order' => $item['sort_order']]);
+            }
+
+            return $this->success(null, 'Terms order updated successfully');
+        } catch (\Exception $e) {
+            return $this->error('Failed to update order: ' . $e->getMessage(), 500);
+        }
     }
 
 

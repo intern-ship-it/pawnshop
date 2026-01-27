@@ -46,12 +46,14 @@ import {
   ChevronRight,
   MessageCircle,
   Loader2,
+  FileText,
 } from "lucide-react";
 import WhatsAppSettings from "./WhatsAppSettings";
 import storageService from "@/services/storageService";
 import InterestRatesTab from "./InterestRatesTab";
 import StoneDeductionTab from "./StoneDeductionTab";
 import HandlingChargesTab from "./HandlingChargesTab";
+import TermsConditionsTab from "./TermsConditionsTab";
 
 // Default settings structure
 const defaultSettings = {
@@ -123,6 +125,7 @@ const tabs = [
   { id: "purities", label: "Purities", icon: Gem },
   { id: "stoneDeduction", label: "Stone Deduction", icon: Scale },
   { id: "handling", label: "Handling Charges", icon: Banknote },
+  { id: "terms", label: "Terms & Conditions", icon: FileText },
   { id: "racks", label: "Racks", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
 ];
@@ -393,6 +396,8 @@ export default function SettingsScreen() {
         return <StoneDeductionTab />;
       case "handling":
         return <HandlingChargesTab />;
+      case "terms":
+        return <TermsConditionsTab />;
       case "racks":
         return <RacksTab settings={settings} updateSettings={updateSettings} />;
       case "whatsapp":

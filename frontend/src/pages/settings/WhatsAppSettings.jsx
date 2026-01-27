@@ -227,6 +227,7 @@ export default function WhatsAppSettings() {
   const [messageHistory, setMessageHistory] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [hasExistingToken, setHasExistingToken] = useState(false);
 
   useEffect(() => {
     loadFromApi();
@@ -253,13 +254,13 @@ export default function WhatsAppSettings() {
         const getCompanySetting = (keyName) => {
           // First try to find branch-specific (branch_id not null)
           const branchSetting = companySettings.find(
-            (item) => item.key_name === keyName && item.branch_id !== null
+            (item) => item.key_name === keyName && item.branch_id !== null,
           );
           if (branchSetting) return branchSetting.value;
 
           // Fallback to global (branch_id is null)
           const globalSetting = companySettings.find(
-            (item) => item.key_name === keyName && item.branch_id === null
+            (item) => item.key_name === keyName && item.branch_id === null,
           );
           return globalSetting?.value;
         };
@@ -271,11 +272,15 @@ export default function WhatsAppSettings() {
       // Set WhatsApp config
       if (configRes.success && configRes.data?.config) {
         const c = configRes.data.config;
+        // Check if token exists (backend returns ******** for existing tokens)
+        const tokenExists = c.api_token === "********";
+        setHasExistingToken(tokenExists);
+
         setConfig({
           enabled: c.is_enabled || false,
           provider: c.provider || "ultramsg",
           instanceId: c.instance_id || "",
-          token: c.api_token || "",
+          token: tokenExists ? "" : "", // Keep empty, we'll show indicator separately
           defaultCountryCode: c.phone_number || "+60",
           companyName: companyName,
           companyPhone: companyPhone,
@@ -304,7 +309,7 @@ export default function WhatsAppSettings() {
             event: t.template_key,
             enabled: t.is_enabled,
             template: t.content,
-          }))
+          })),
         );
       }
 
@@ -323,15 +328,23 @@ export default function WhatsAppSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Normalize country code - ensure it starts with +
+      let countryCode = config.defaultCountryCode || "+60";
+      countryCode = countryCode.trim();
+      if (!countryCode.startsWith("+")) {
+        countryCode = "+" + countryCode;
+      }
+
       const payload = {
         provider: config.provider,
         instance_id: config.instanceId,
-        phone_number: config.defaultCountryCode,
+        phone_number: countryCode, // Always has + prefix now
         is_enabled: config.enabled,
       };
 
-      // Only send token if it's not the masked value
-      if (config.token && config.token !== "********") {
+      // Only send token if user entered a new one
+      // If hasExistingToken and config.token is empty, user wants to keep existing
+      if (config.token && config.token.trim() !== "") {
         payload.api_token = config.token;
       }
 
@@ -343,14 +356,14 @@ export default function WhatsAppSettings() {
             type: "success",
             title: "Saved",
             message: "WhatsApp settings saved",
-          })
+          }),
         );
       } else {
         throw new Error(response.message);
       }
     } catch (error) {
       dispatch(
-        addToast({ type: "error", title: "Error", message: error.message })
+        addToast({ type: "error", title: "Error", message: error.message }),
       );
     } finally {
       setIsSaving(false);
@@ -367,7 +380,7 @@ export default function WhatsAppSettings() {
             type: "success",
             title: "Connected",
             message: "WhatsApp API connection successful",
-          })
+          }),
         );
       } else {
         throw new Error(response.message);
@@ -379,7 +392,7 @@ export default function WhatsAppSettings() {
           type: "error",
           title: "Failed",
           message: error.message || "Connection failed",
-        })
+        }),
       );
     }
   };
@@ -399,8 +412,8 @@ export default function WhatsAppSettings() {
       if (response.success) {
         setTemplates((prev) =>
           prev.map((t) =>
-            t.id === templateId ? { ...t, enabled: newEnabled } : t
-          )
+            t.id === templateId ? { ...t, enabled: newEnabled } : t,
+          ),
         );
       } else {
         throw new Error(response.message);
@@ -411,7 +424,7 @@ export default function WhatsAppSettings() {
           type: "error",
           title: "Error",
           message: error.message || "Failed to update template",
-        })
+        }),
       );
     }
   };
@@ -430,13 +443,13 @@ export default function WhatsAppSettings() {
           name: editingTemplate.name,
           content: editingTemplate.template,
           is_enabled: editingTemplate.enabled,
-        }
+        },
       );
 
       if (response.success) {
         // Update local state
         setTemplates((prev) =>
-          prev.map((t) => (t.id === editingTemplate.id ? editingTemplate : t))
+          prev.map((t) => (t.id === editingTemplate.id ? editingTemplate : t)),
         );
         setShowEditModal(false);
         dispatch(
@@ -444,7 +457,7 @@ export default function WhatsAppSettings() {
             type: "success",
             title: "Template Updated",
             message: editingTemplate.name,
-          })
+          }),
         );
       } else {
         throw new Error(response.message);
@@ -455,7 +468,7 @@ export default function WhatsAppSettings() {
           type: "error",
           title: "Error",
           message: error.message || "Failed to save template",
-        })
+        }),
       );
     }
   };
@@ -467,16 +480,39 @@ export default function WhatsAppSettings() {
           type: "error",
           title: "Error",
           message: "Please enter phone number",
-        })
+        }),
       );
       return;
     }
 
     setIsSending(true);
     try {
+      // Normalize phone number - add country code if not present
+      let normalizedPhone = testPhone
+        .trim()
+        .replace(/\s+/g, "")
+        .replace(/-/g, "");
+
+      // Get country code from settings (without the +)
+      const countryCode = (config.defaultCountryCode || "+60").replace("+", "");
+
+      // If phone doesn't start with country code, add it
+      if (
+        !normalizedPhone.startsWith(countryCode) &&
+        !normalizedPhone.startsWith("+")
+      ) {
+        // Remove leading 0 if present (e.g., 0123456789 -> 123456789)
+        if (normalizedPhone.startsWith("0")) {
+          normalizedPhone = normalizedPhone.substring(1);
+        }
+        normalizedPhone = countryCode + normalizedPhone;
+      }
+      // If starts with +, remove it (WhatsApp API usually wants just digits)
+      normalizedPhone = normalizedPhone.replace("+", "");
+
       const response = await whatsappService.send({
         template_key: testTemplate,
-        recipient_phone: testPhone,
+        recipient_phone: normalizedPhone,
         recipient_name: "Test Customer",
         data: {
           customer_name: "Test Customer",
@@ -487,17 +523,17 @@ export default function WhatsAppSettings() {
           date: new Date().toLocaleDateString("en-MY"),
           loan_amount: "2,500.00",
           due_date: new Date(
-            Date.now() + 180 * 24 * 60 * 60 * 1000
+            Date.now() + 180 * 24 * 60 * 60 * 1000,
           ).toLocaleDateString("en-MY"),
           interest_paid: "50.00",
           new_due_date: new Date(
-            Date.now() + 180 * 24 * 60 * 60 * 1000
+            Date.now() + 180 * 24 * 60 * 60 * 1000,
           ).toLocaleDateString("en-MY"),
           total_paid: "2,550.00",
           redemption_amount: "2,550.00",
           days_overdue: "0",
           auction_date: new Date(
-            Date.now() + 210 * 24 * 60 * 60 * 1000
+            Date.now() + 210 * 24 * 60 * 60 * 1000,
           ).toLocaleDateString("en-MY"),
           company_name: config.companyName || "Dsara Asset Ventures Sdn Bhd",
           company_phone: config.companyPhone || "03-21234567",
@@ -510,7 +546,7 @@ export default function WhatsAppSettings() {
             type: "success",
             title: "Sent",
             message: "Test message sent!",
-          })
+          }),
         );
         loadFromApi(); // Refresh history
       } else {
@@ -518,7 +554,7 @@ export default function WhatsAppSettings() {
       }
     } catch (error) {
       dispatch(
-        addToast({ type: "error", title: "Failed", message: error.message })
+        addToast({ type: "error", title: "Failed", message: error.message }),
       );
     } finally {
       setIsSending(false);
@@ -590,7 +626,7 @@ export default function WhatsAppSettings() {
               "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === tab.id
                 ? "border-amber-500 text-amber-600"
-                : "border-transparent text-zinc-500 hover:text-zinc-700"
+                : "border-transparent text-zinc-500 hover:text-zinc-700",
             )}
           >
             <tab.icon className="w-4 h-4" />
@@ -625,13 +661,13 @@ export default function WhatsAppSettings() {
                     }
                     className={cn(
                       "w-12 h-6 rounded-full transition-colors relative",
-                      config.enabled ? "bg-green-500" : "bg-zinc-300"
+                      config.enabled ? "bg-green-500" : "bg-zinc-300",
                     )}
                   >
                     <div
                       className={cn(
                         "w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform",
-                        config.enabled ? "translate-x-6" : "translate-x-0.5"
+                        config.enabled ? "translate-x-6" : "translate-x-0.5",
                       )}
                     />
                   </button>
@@ -664,16 +700,28 @@ export default function WhatsAppSettings() {
                   leftIcon={Globe}
                 />
 
-                <Input
-                  label="API Token"
-                  type="password"
-                  placeholder="Enter API token"
-                  value={config.token}
-                  onChange={(e) =>
-                    setConfig({ ...config, token: e.target.value })
-                  }
-                  leftIcon={Key}
-                />
+                <div>
+                  <Input
+                    label="API Token"
+                    type="password"
+                    placeholder={
+                      hasExistingToken && !config.token
+                        ? "••••••••••••••••"
+                        : "Enter API token"
+                    }
+                    value={config.token}
+                    onChange={(e) =>
+                      setConfig({ ...config, token: e.target.value })
+                    }
+                    leftIcon={Key}
+                  />
+                  {hasExistingToken && !config.token && (
+                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Token configured - enter new value to change
+                    </p>
+                  )}
+                </div>
 
                 <Input
                   label="Default Country Code"
@@ -694,16 +742,16 @@ export default function WhatsAppSettings() {
                         connectionStatus === "connected"
                           ? "bg-green-500"
                           : connectionStatus === "checking"
-                          ? "bg-amber-500 animate-pulse"
-                          : "bg-red-500"
+                            ? "bg-amber-500 animate-pulse"
+                            : "bg-red-500",
                       )}
                     />
                     <span className="text-sm text-zinc-600">
                       {connectionStatus === "connected"
                         ? "Connected"
                         : connectionStatus === "checking"
-                        ? "Checking..."
-                        : "Disconnected"}
+                          ? "Checking..."
+                          : "Disconnected"}
                     </span>
                   </div>
                   <Button
@@ -799,7 +847,7 @@ export default function WhatsAppSettings() {
                           onClick={() => toggleTemplate(template.id)}
                           className={cn(
                             "w-10 h-6 rounded-full transition-colors relative",
-                            template.enabled ? "bg-green-500" : "bg-zinc-300"
+                            template.enabled ? "bg-green-500" : "bg-zinc-300",
                           )}
                         >
                           <div
@@ -807,7 +855,7 @@ export default function WhatsAppSettings() {
                               "w-4 h-4 rounded-full bg-white absolute top-1 transition-transform",
                               template.enabled
                                 ? "translate-x-5"
-                                : "translate-x-1"
+                                : "translate-x-1",
                             )}
                           />
                         </button>
@@ -884,7 +932,7 @@ export default function WhatsAppSettings() {
                           <span className="text-xs text-zinc-400">
                             {msg.created_at || msg.sent_at
                               ? new Date(
-                                  msg.created_at || msg.sent_at
+                                  msg.created_at || msg.sent_at,
                                 ).toLocaleString("en-MY")
                               : "N/A"}
                           </span>
@@ -893,7 +941,7 @@ export default function WhatsAppSettings() {
                       <pre className="text-xs text-zinc-500 bg-zinc-100 p-2 rounded overflow-x-auto whitespace-pre-wrap max-h-20">
                         {(msg.message_content || msg.message || "").slice(
                           0,
-                          200
+                          200,
                         )}
                         ...
                       </pre>
@@ -922,11 +970,11 @@ export default function WhatsAppSettings() {
               <div className="space-y-4">
                 <Input
                   label="Phone Number"
-                  placeholder="60123456789"
+                  placeholder="0123456789 or 60123456789"
                   value={testPhone}
                   onChange={(e) => setTestPhone(e.target.value)}
                   leftIcon={Phone}
-                  hint="Enter full number with country code (no + or spaces)"
+                  hint={`Country code ${config.defaultCountryCode || "+60"} will be added automatically if not included`}
                 />
 
                 <div>

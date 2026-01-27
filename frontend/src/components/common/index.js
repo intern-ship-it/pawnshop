@@ -13,4 +13,4 @@ export { default as EmptyState } from './EmptyState'
 export { default as GlobalCameraModal } from './GlobalCameraModal'
 export { default as PhoneInput } from './PhoneInput'
 export { default as Breadcrumb } from './Breadcrumb'
-
+export { default as TermsConsentPanel } from './TermsConsentPanel'

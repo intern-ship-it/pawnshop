@@ -143,6 +143,41 @@ class PrintController extends Controller
     }
 
     /**
+     * Get barcodes for all items in a pledge
+     */
+    public function pledgeBarcodes(Request $request, Pledge $pledge): JsonResponse
+    {
+        if ($pledge->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $pledge->load(['items.category', 'items.purity']);
+
+        $generator = new BarcodeGeneratorPNG();
+        $items = [];
+
+        foreach ($pledge->items as $item) {
+            $items[] = [
+                'barcode' => $item->barcode,
+                'item_code' => $item->barcode,
+                'image' => 'data:image/png;base64,' . base64_encode(
+                    $generator->getBarcode($item->barcode, $generator::TYPE_CODE_128)
+                ),
+                'pledge_no' => $pledge->pledge_no,
+                'category' => $item->category->name_en ?? 'Item',
+                'purity' => $item->purity->code ?? '',
+                'net_weight' => $item->net_weight,
+            ];
+        }
+
+        return $this->success([
+            'items' => $items,
+            'pledge_no' => $pledge->pledge_no,
+            'receipt_no' => $pledge->receipt_no,
+        ]);
+    }
+
+    /**
      * Print renewal receipt
      */
     public function renewalReceipt(Request $request, Renewal $renewal)

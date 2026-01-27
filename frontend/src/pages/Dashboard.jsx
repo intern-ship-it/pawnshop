@@ -37,6 +37,10 @@ import {
   Banknote,
   Building2,
 } from "lucide-react";
+import GoldPriceCard from "@/components/dashboard/GoldPriceCard";
+import EnhancedStatsCard from "@/components/dashboard/EnhancedStatsCard";
+import EnhancedPaymentSplitCard from "@/components/dashboard/EnhancedPaymentSplitCard";
+import EnhancedSummaryCard from "@/components/dashboard/EnhancedSummaryCard";
 
 // Payment Split Mini Bar Component
 const PaymentSplitBar = ({
@@ -322,375 +326,183 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats Cards Row - DATA FROM API with Payment Split in each card */}
+      {/* Stats Cards Row - ENHANCED with animations and donut charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Today's Pledges - WITH PAYMENT SPLIT */}
-        <div
+        {/* Today's Pledges */}
+        <EnhancedStatsCard
+          title="Today's New Pledges"
+          value={stats.todayPledges.count}
+          subtitle="items"
+          amount={stats.todayPledges.amount}
+          icon={Plus}
+          trend={summary?.monthlyGrowth || 0}
+          trendValue={stats.todayPledges.trend}
+          accentColor="zinc"
+          cash={stats.todayPledges.cash}
+          transfer={stats.todayPledges.transfer}
+          showPaymentSplit={true}
           onClick={() => navigate("/pledges")}
-          className="bg-white rounded-xl border border-zinc-200 border-l-4 border-l-zinc-900 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-200 transition-colors">
-              <Plus className="w-5 h-5 text-zinc-600" />
-            </div>
-            <span
-              className={cn(
-                "text-xs font-bold px-2 py-0.5 rounded-full",
-                summary?.monthlyGrowth >= 0
-                  ? "text-emerald-600 bg-emerald-50"
-                  : "text-red-600 bg-red-50",
-              )}
-            >
-              {stats.todayPledges.trend}
-            </span>
-          </div>
-          <p className="text-sm text-zinc-500 mb-1">Today's New Pledges</p>
-          <p className="text-2xl font-bold text-zinc-900">
-            {stats.todayPledges.count}{" "}
-            <span className="text-sm font-normal text-zinc-400">items</span>
-          </p>
-          <p className="text-sm font-semibold text-zinc-700 mt-1">
-            {formatCurrency(stats.todayPledges.amount)}
-          </p>
+        />
 
-          {/* Payment Split Bar for Pledges */}
-          <PaymentSplitBar
-            cash={stats.todayPledges.cash}
-            transfer={stats.todayPledges.transfer}
-            cashAmount={stats.todayPledges.cash}
-            transferAmount={stats.todayPledges.transfer}
-          />
-        </div>
-
-        {/* Renewals - WITH PAYMENT SPLIT */}
-        <div
+        {/* Renewals */}
+        <EnhancedStatsCard
+          title="Renewal Collected"
+          value={formatCurrency(stats.renewals.amount)}
+          subtitle={`${stats.renewals.transactions} transactions today`}
+          icon={RefreshCw}
+          accentColor="amber"
+          cash={stats.renewals.cash}
+          transfer={stats.renewals.transfer}
+          showPaymentSplit={true}
           onClick={() => navigate("/renewals")}
-          className="bg-white rounded-xl border border-zinc-200 border-l-4 border-l-amber-500 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center group-hover:bg-amber-100 transition-colors">
-              <RefreshCw className="w-5 h-5 text-amber-600" />
-            </div>
-          </div>
-          <p className="text-sm text-zinc-500 mb-1">Renewal Collected</p>
-          <p className="text-2xl font-bold text-zinc-900">
-            {formatCurrency(stats.renewals.amount)}
-          </p>
-          <p className="text-sm text-zinc-500 mt-1">
-            {stats.renewals.transactions} transactions today
-          </p>
+        />
 
-          {/* Payment Split Bar for Renewals */}
-          <PaymentSplitBar
-            cash={stats.renewals.cash}
-            transfer={stats.renewals.transfer}
-            cashAmount={stats.renewals.cash}
-            transferAmount={stats.renewals.transfer}
-          />
-        </div>
-
-        {/* Redemptions - WITH PAYMENT SPLIT */}
-        <div
+        {/* Redemptions */}
+        <EnhancedStatsCard
+          title="Redemption Count"
+          value={stats.redemptions.count}
+          subtitle="items"
+          amount={stats.redemptions.amount}
+          icon={Wallet}
+          accentColor="emerald"
+          cash={stats.redemptions.cash}
+          transfer={stats.redemptions.transfer}
+          showPaymentSplit={true}
           onClick={() => navigate("/redemptions")}
-          className="bg-white rounded-xl border border-zinc-200 border-l-4 border-l-emerald-500 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
-              <Wallet className="w-5 h-5 text-emerald-600" />
-            </div>
-          </div>
-          <p className="text-sm text-zinc-500 mb-1">Redemption Count</p>
-          <p className="text-2xl font-bold text-zinc-900">
-            {stats.redemptions.count}{" "}
-            <span className="text-sm font-normal text-zinc-400">items</span>
-          </p>
-          <p className="text-sm font-semibold text-emerald-600 mt-1">
-            {formatCurrency(stats.redemptions.amount)}
-          </p>
-
-          {/* Payment Split Bar for Redemptions */}
-          <PaymentSplitBar
-            cash={stats.redemptions.cash}
-            transfer={stats.redemptions.transfer}
-            cashAmount={stats.redemptions.cash}
-            transferAmount={stats.redemptions.transfer}
-          />
-        </div>
+        />
 
         {/* Overdue Alerts */}
-        <div
+        <EnhancedStatsCard
+          title="Overdue Alerts"
+          value={stats.overdue.count}
+          subtitle="items"
+          amount={summary?.overdueAmount || 0}
+          icon={AlertTriangle}
+          accentColor="red"
+          linkText="View overdue items →"
           onClick={() => navigate("/pledges?status=overdue")}
-          className="bg-white rounded-xl border border-zinc-200 border-l-4 border-l-red-500 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center group-hover:bg-red-100 transition-colors">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-            </div>
-          </div>
-          <p className="text-sm text-zinc-500 mb-1">Overdue Alerts</p>
-          <p className="text-2xl font-bold text-red-600">
-            {stats.overdue.count}{" "}
-            <span className="text-sm font-normal text-zinc-400">items</span>
-          </p>
-          <p className="text-sm text-red-500 mt-1 flex items-center gap-1 group-hover:underline">
-            View overdue items <ArrowRight className="w-3 h-3" />
-          </p>
-
-          {/* Total Overdue Amount (if available) */}
-          <div className="mt-3 pt-3 border-t border-zinc-100">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-500">Total Outstanding</span>
-              <span className="font-semibold text-red-600">
-                {formatCurrency(summary?.overdueAmount || 0)}
-              </span>
-            </div>
-          </div>
-        </div>
+        />
       </div>
 
-      {/* Overall Payment Split Card - Kept for total overview */}
-      <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-zinc-800">
-                Today's Total Payment Split
-              </h3>
-              <p className="text-xs text-zinc-500">All transactions combined</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold text-zinc-800">
-              {formatCurrency(
-                stats.paymentSplit.cashAmount +
-                  stats.paymentSplit.transferAmount,
-              )}
-            </p>
-            <p className="text-xs text-zinc-500">Total collected</p>
-          </div>
-        </div>
+      {/* Enhanced Payment Split Card - with circular progress rings */}
+      <EnhancedPaymentSplitCard
+        cashAmount={stats.paymentSplit.cashAmount}
+        transferAmount={stats.paymentSplit.transferAmount}
+      />
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-emerald-50 rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Banknote className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-medium text-emerald-700">Cash</span>
-            </div>
-            <p className="text-xl font-bold text-emerald-700">
-              {formatCurrency(stats.paymentSplit.cashAmount)}
-            </p>
-            <p className="text-xs text-emerald-600">
-              {stats.paymentSplit.cash}% of total
-            </p>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Building2 className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-700">
-                Online Transfer
-              </span>
-            </div>
-            <p className="text-xl font-bold text-blue-700">
-              {formatCurrency(stats.paymentSplit.transferAmount)}
-            </p>
-            <p className="text-xs text-blue-600">
-              {stats.paymentSplit.online}% of total
-            </p>
-          </div>
-        </div>
-
-        <div className="h-3 bg-zinc-100 rounded-full overflow-hidden flex">
-          <div
-            className="h-full bg-emerald-500 transition-all duration-500"
-            style={{ width: `${stats.paymentSplit.cash}%` }}
-          />
-          <div
-            className="h-full bg-blue-500 transition-all duration-500"
-            style={{ width: `${stats.paymentSplit.online}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Summary Cards - DATA FROM API */}
+      {/* Summary Cards - ENHANCED with animated counting */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-xl p-5 text-white">
-          <div className="flex items-center gap-3 mb-3">
-            <Package className="w-5 h-5 text-amber-400" />
-            <span className="text-zinc-400 text-sm">Total Active Pledges</span>
-          </div>
-          <p className="text-3xl font-bold">{summary?.totalPledges || 0}</p>
-        </div>
+        <EnhancedSummaryCard
+          title="Total Active Pledges"
+          value={summary?.totalPledges || 0}
+          icon={Package}
+          preset="light"
+          delay={0}
+        />
 
-        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-5 text-white">
-          <div className="flex items-center gap-3 mb-3">
-            <Banknote className="w-5 h-5 text-amber-100" />
-            <span className="text-amber-100 text-sm">Total Outstanding</span>
-          </div>
-          <p className="text-3xl font-bold">
-            {formatCurrency(summary?.totalOutstanding || 0)}
-          </p>
-        </div>
+        <EnhancedSummaryCard
+          title="Total Outstanding"
+          value={summary?.totalOutstanding || 0}
+          icon={Banknote}
+          preset="amber"
+          isCurrency={true}
+          delay={100}
+        />
 
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-5 text-white">
-          <div className="flex items-center gap-3 mb-3">
-            <TrendingUp className="w-5 h-5 text-emerald-100" />
-            <span className="text-emerald-100 text-sm">Monthly Revenue</span>
-          </div>
-          <p className="text-3xl font-bold">
-            {formatCurrency(summary?.monthlyRevenue || 0)}
-          </p>
-        </div>
+        <EnhancedSummaryCard
+          title="Monthly Revenue"
+          value={summary?.monthlyRevenue || 0}
+          icon={TrendingUp}
+          preset="emerald"
+          isCurrency={true}
+          delay={200}
+        />
 
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 text-white">
-          <div className="flex items-center gap-3 mb-3">
-            <Users className="w-5 h-5 text-blue-100" />
-            <span className="text-blue-100 text-sm">Total Customers</span>
-          </div>
-          <p className="text-3xl font-bold">{summary?.totalCustomers || 0}</p>
-        </div>
+        <EnhancedSummaryCard
+          title="Total Customers"
+          value={summary?.totalCustomers || 0}
+          icon={Users}
+          preset="blue"
+          delay={300}
+        />
       </div>
 
       {/* Gold Prices + Due Reminders Row - DATA FROM API */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gold Prices */}
-        <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-zinc-800">
-                Gold Prices (RM/g)
-              </h3>
-              {/* Source Badge */}
-              {goldPrices?.source && (
-                <span
-                  className={cn(
-                    "text-xs px-2 py-0.5 rounded-full font-medium",
-                    goldPrices.source === "metals_dev" ||
-                      goldPrices.source === "api"
-                      ? "bg-green-100 text-green-700"
-                      : goldPrices.source === "bnm" ||
-                          goldPrices.source === "bnm_kijang"
-                        ? "bg-blue-100 text-blue-700"
-                        : goldPrices.source === "manual"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-zinc-100 text-zinc-600",
-                  )}
-                >
-                  {goldPrices.source === "metals_dev"
-                    ? "🟢 Metals.Dev"
-                    : goldPrices.source === "bnm" ||
-                        goldPrices.source === "bnm_kijang"
-                      ? "🔵 BNM"
-                      : goldPrices.source === "manual"
-                        ? "📝 Manual"
-                        : goldPrices.source === "api"
-                          ? "🟢 API"
-                          : goldPrices.source}
-                </span>
-              )}
-            </div>
-            {goldPrices?.price_date && (
-              <span className="text-xs text-zinc-400">
-                {new Date(goldPrices.price_date).toLocaleDateString()}
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-amber-50 rounded-lg p-3">
-              <p className="text-xs text-amber-600 font-medium">999 (24K)</p>
-              <p className="text-lg font-bold text-amber-700">
-                {formatCurrency(goldPrices?.price_999 || 0)}
-              </p>
-            </div>
-            <div className="bg-amber-50 rounded-lg p-3">
-              <p className="text-xs text-amber-600 font-medium">916 (22K)</p>
-              <p className="text-lg font-bold text-amber-700">
-                {formatCurrency(goldPrices?.price_916 || 0)}
-              </p>
-            </div>
-            <div className="bg-zinc-50 rounded-lg p-3">
-              <p className="text-xs text-zinc-500 font-medium">875 (21K)</p>
-              <p className="text-lg font-bold text-zinc-700">
-                {formatCurrency(goldPrices?.price_875 || 0)}
-              </p>
-            </div>
-            <div className="bg-zinc-50 rounded-lg p-3">
-              <p className="text-xs text-zinc-500 font-medium">750 (18K)</p>
-              <p className="text-lg font-bold text-zinc-700">
-                {formatCurrency(goldPrices?.price_750 || 0)}
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Gold Prices - Clickable Card with Interactive Chart */}
+        <GoldPriceCard goldPrices={goldPrices} goldPrice={goldPrice} />
 
         {/* Due Reminders - DATA FROM API */}
-        <div className="bg-white rounded-xl border border-zinc-200 p-5 shadow-sm lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-zinc-800">Due Reminders</h3>
-            <button
-              onClick={() => navigate("/pledges?status=active")}
-              className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1"
-            >
-              View all <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
+        <div className="bg-gradient-to-br from-white via-white to-amber-50/40 rounded-xl border border-zinc-200 p-5 shadow-sm lg:col-span-2 relative overflow-hidden">
+          {/* Subtle warm accent */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-100/30 rounded-full blur-3xl" />
 
-          {upcomingDue.length > 0 ? (
-            <div className="space-y-3">
-              {upcomingDue.map((pledge, idx) => (
-                <div
-                  key={pledge.id || idx}
-                  className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/pledges/${pledge.id}`)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "w-2 h-2 rounded-full",
-                        pledge.urgency === "1 day"
-                          ? "bg-red-500"
-                          : pledge.urgency === "3 days"
-                            ? "bg-amber-500"
-                            : "bg-blue-500",
-                      )}
-                    ></div>
-                    <div>
-                      <p className="font-medium text-zinc-800">
-                        {pledge.pledge_no || pledge.pledgeNo}
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-lg text-zinc-800">Due Reminders</h3>
+              <button
+                onClick={() => navigate("/pledges?status=active")}
+                className="text-sm text-amber-600 hover:text-amber-700 font-semibold flex items-center gap-1 hover:gap-2 transition-all"
+              >
+                View all <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {upcomingDue.length > 0 ? (
+              <div className="space-y-3">
+                {upcomingDue.map((pledge, idx) => (
+                  <div
+                    key={pledge.id || idx}
+                    className="flex items-center justify-between p-3 bg-amber-50/50 hover:bg-amber-100/50 rounded-lg transition-colors cursor-pointer border border-amber-100/50"
+                    onClick={() => navigate(`/pledges/${pledge.id}`)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "w-3 h-3 rounded-full",
+                          pledge.urgency === "1 day"
+                            ? "bg-red-500"
+                            : pledge.urgency === "3 days"
+                              ? "bg-amber-500"
+                              : "bg-blue-500",
+                        )}
+                      ></div>
+                      <div>
+                        <p className="font-bold text-zinc-800">
+                          {pledge.pledge_no || pledge.pledgeNo}
+                        </p>
+                        <p className="text-sm text-zinc-500 font-medium">
+                          {pledge.customer?.name || pledge.customerName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-lg text-zinc-800">
+                        {formatCurrency(pledge.loan_amount || pledge.amount)}
                       </p>
-                      <p className="text-sm text-zinc-500">
-                        {pledge.customer?.name || pledge.customerName}
+                      <p
+                        className={cn(
+                          "text-xs font-medium",
+                          pledge.urgency === "1 day"
+                            ? "text-red-500"
+                            : pledge.urgency === "3 days"
+                              ? "text-amber-500"
+                              : "text-blue-500",
+                        )}
+                      >
+                        Due in {pledge.urgency}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-zinc-800">
-                      {formatCurrency(pledge.loan_amount || pledge.amount)}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-xs font-medium",
-                        pledge.urgency === "1 day"
-                          ? "text-red-500"
-                          : pledge.urgency === "3 days"
-                            ? "text-amber-500"
-                            : "text-blue-500",
-                      )}
-                    >
-                      Due in {pledge.urgency}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-zinc-400">
-              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No upcoming due dates</p>
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-zinc-400">
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No upcoming due dates</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

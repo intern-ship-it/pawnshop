@@ -18,7 +18,15 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import {
+  Card,
+  Button,
+  Input,
+  Select,
+  Badge,
+  Modal,
+  TermsConsentPanel,
+} from "@/components/common";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
   DollarSign,
@@ -79,10 +87,10 @@ export default function RedemptionScreen() {
   const [verifiedIC, setVerifiedIC] = useState(false);
   const [verifiedItems, setVerifiedItems] = useState(false);
 
-  // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
+  const [termsAgreed, setTermsAgreed] = useState(false);
 
   // Barcode scanner detection - auto-search when barcode is scanned
   const handleBarcodeScanned = useCallback(
@@ -1023,6 +1031,15 @@ export default function RedemptionScreen() {
                     </div>
                   )}
 
+                {/* Terms & Conditions */}
+                <div className="mb-6">
+                  <TermsConsentPanel
+                    activityType="redemption"
+                    onConsentChange={(agreed) => setTermsAgreed(agreed)}
+                    compact
+                  />
+                </div>
+
                 {/* Process Button */}
                 <Button
                   variant="success"
@@ -1032,6 +1049,7 @@ export default function RedemptionScreen() {
                   onClick={handleProcessRedemption}
                   loading={isProcessing}
                   disabled={
+                    !termsAgreed ||
                     isCalculating ||
                     !verifiedIC ||
                     !verifiedItems ||

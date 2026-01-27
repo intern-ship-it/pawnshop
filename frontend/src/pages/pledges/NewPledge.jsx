@@ -21,7 +21,15 @@ import { validateIC } from "@/utils/validators";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import {
+  Card,
+  Button,
+  Input,
+  Select,
+  Badge,
+  Modal,
+  TermsConsentPanel,
+} from "@/components/common";
 import {
   ArrowLeft,
   ArrowRight,
@@ -252,6 +260,14 @@ export default function NewPledge() {
   const [createdReceiptNo, setCreatedReceiptNo] = useState(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+
+  // Auto-print status tracking
+  const [printJobStatus, setPrintJobStatus] = useState({
+    dotMatrixOffice: { status: "pending", message: "" },
+    dotMatrixCustomer: { status: "pending", message: "" },
+    barcode: { status: "pending", message: "" },
+    whatsapp: { status: "pending", message: "" },
+  });
 
   // Gold prices from API/Settings
   const [goldPrices, setGoldPrices] = useState({});
@@ -1041,10 +1057,8 @@ export default function NewPledge() {
         throw new Error("Invalid response from server");
       }
 
-      const receiptText = data.data.receipt_text;
-
-      // Open print window with dot matrix optimized formatting
-      const printWindow = window.open("", "_blank", "width=500,height=700");
+      // Open print window with both pages (receipt + terms)
+      const printWindow = window.open("", "_blank", "width=600,height=800");
 
       if (!printWindow) {
         dispatch(
@@ -1057,128 +1071,14 @@ export default function NewPledge() {
         return;
       }
 
-      // Dot matrix optimized CSS
-      // A5 = 148mm x 210mm, 10 CPI = ~42 characters per line
-      printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Resit Pajak Gadai - ${createdReceiptNo}</title>
-        <style>
-          /* Page setup for A5 continuous paper */
-          @page {
-            size: A5 landscape;
-            margin: 5mm 8mm;
-          }
-          
-          /* Print media styles */
-          @media print {
-            html, body {
-              width: 210mm;
-              height: 148mm;
-              margin: 0;
-              padding: 0;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            
-            /* Hide browser headers/footers */
-            @page { margin: 8mm 10mm; }
-          }
-          
-          /* Screen preview */
-          @media screen {
-            body {
-              max-width: 210mm;
-              margin: 20px auto;
-              padding: 20px;
-              background: #f0f0f0;
-            }
-            .receipt-container {
-              background: white;
-              padding: 15px;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-          }
-          
-          /* Base styles - Optimized for dot matrix */
-          body {
-            font-family: 'Courier New', Courier, 'Lucida Console', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-            color: #000;
-            background: #fff;
-          }
-          
-          .receipt-container {
-            white-space: pre;
-            font-size: 12px;
-            letter-spacing: 0;
-            word-spacing: normal;
-          }
-          
-          /* Print button - only shows on screen */
-          .print-controls {
-            text-align: center;
-            padding: 15px;
-            margin-bottom: 15px;
-            background: #f8f8f8;
-            border-bottom: 1px solid #ddd;
-          }
-          
-          .print-btn {
-            background: #d97706;
-            color: white;
-            border: none;
-            padding: 10px 30px;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 5px;
-            font-weight: bold;
-          }
-          
-          .print-btn:hover {
-            background: #b45309;
-          }
-          
-          .close-btn {
-            background: #6b7280;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 5px;
-            margin-left: 10px;
-          }
-          
-          .printer-note {
-            font-size: 11px;
-            color: #666;
-            margin-top: 10px;
-          }
-          
-          @media print {
-            .print-controls { display: none !important; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-controls">
-          <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
-          <button class="close-btn" onclick="window.close()">✕ Tutup</button>
-          <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
-        </div>
-        <div class="receipt-container">${receiptText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
-        <script>
-          // Auto-focus for printing
-          window.onload = function() {
-            document.querySelector('.print-btn').focus();
-          }
-        </script>
-      </body>
-      </html>
-    `);
+      // Use shared function for 2-page document
+      printWindow.document.write(
+        generateDotMatrixHTML(
+          data.data.receipt_text,
+          data.data.terms_text || "",
+          copyType,
+        ),
+      );
       printWindow.document.close();
       printWindow.focus();
 
@@ -1186,7 +1086,7 @@ export default function NewPledge() {
         addToast({
           type: "success",
           title: "Receipt Ready",
-          message: `${copyType === "office" ? "Office" : "Customer"} copy sent to printer`,
+          message: `${copyType === "office" ? "Office" : "Customer"} copy sent to printer (2 pages)`,
         }),
       );
     } catch (error) {
@@ -1200,6 +1100,517 @@ export default function NewPledge() {
       );
     } finally {
       setIsPrinting(false);
+    }
+  };
+
+  // Update print job status helper
+  const updateJobStatus = (jobKey, status, message = "") => {
+    setPrintJobStatus((prev) => ({
+      ...prev,
+      [jobKey]: { status, message },
+    }));
+  };
+
+  // Auto-print sequence - triggers all print jobs one by one
+  const triggerAutoPrint = async (pledgeId) => {
+    const token = getToken();
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+    if (!token || !pledgeId) return;
+
+    // 1. Dot Matrix - Office Copy
+    updateJobStatus("dotMatrixOffice", "running", "Printing office copy...");
+    try {
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pledge-receipt/${pledgeId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ copy_type: "office" }),
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to generate office copy");
+      const data = await response.json();
+
+      if (data.success && data.data?.receipt_text) {
+        // Open print window with both pages (receipt + terms)
+        const printWindow = window.open("", "_blank", "width=600,height=800");
+        if (printWindow) {
+          printWindow.document.write(
+            generateDotMatrixHTML(
+              data.data.receipt_text,
+              data.data.terms_text || "",
+              "office",
+            ),
+          );
+          printWindow.document.close();
+          updateJobStatus(
+            "dotMatrixOffice",
+            "success",
+            "Office copy ready (2 pages)",
+          );
+        } else {
+          updateJobStatus(
+            "dotMatrixOffice",
+            "failed",
+            "Popup blocked - click retry",
+          );
+        }
+      } else {
+        throw new Error("Invalid response");
+      }
+    } catch (error) {
+      console.error("Office copy error:", error);
+      updateJobStatus(
+        "dotMatrixOffice",
+        "failed",
+        error.message || "Failed to print",
+      );
+    }
+
+    // Small delay between jobs
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // 2. Dot Matrix - Customer Copy
+    updateJobStatus(
+      "dotMatrixCustomer",
+      "running",
+      "Printing customer copy...",
+    );
+    try {
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pledge-receipt/${pledgeId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ copy_type: "customer" }),
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to generate customer copy");
+      const data = await response.json();
+
+      if (data.success && data.data?.receipt_text) {
+        const printWindow = window.open("", "_blank", "width=600,height=800");
+        if (printWindow) {
+          printWindow.document.write(
+            generateDotMatrixHTML(
+              data.data.receipt_text,
+              data.data.terms_text || "",
+              "customer",
+            ),
+          );
+          printWindow.document.close();
+          updateJobStatus(
+            "dotMatrixCustomer",
+            "success",
+            "Customer copy ready (2 pages)",
+          );
+        } else {
+          updateJobStatus(
+            "dotMatrixCustomer",
+            "failed",
+            "Popup blocked - click retry",
+          );
+        }
+      } else {
+        throw new Error("Invalid response");
+      }
+    } catch (error) {
+      console.error("Customer copy error:", error);
+      updateJobStatus(
+        "dotMatrixCustomer",
+        "failed",
+        error.message || "Failed to print",
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // 3. Barcode Labels (Thermal Printer)
+    updateJobStatus("barcode", "running", "Generating barcode labels...");
+    try {
+      const response = await fetch(`${apiUrl}/print/barcodes/${pledgeId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) throw new Error("Failed to generate barcodes");
+      const data = await response.json();
+
+      if (data.success && data.data?.items) {
+        // For thermal printer, we'd typically send to a thermal print service
+        // For now, open print preview
+        const printWindow = window.open("", "_blank", "width=400,height=600");
+        if (printWindow) {
+          printWindow.document.write(
+            generateBarcodeHTML(
+              data.data.items,
+              data.data.pledge_no,
+              data.data.receipt_no,
+            ),
+          );
+          printWindow.document.close();
+          updateJobStatus(
+            "barcode",
+            "success",
+            `${data.data.items.length} barcode(s) ready`,
+          );
+        } else {
+          updateJobStatus("barcode", "failed", "Popup blocked - click retry");
+        }
+      } else {
+        throw new Error("No barcode data");
+      }
+    } catch (error) {
+      console.error("Barcode error:", error);
+      updateJobStatus(
+        "barcode",
+        "failed",
+        error.message || "Failed to generate",
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // 4. WhatsApp Message
+    if (!customer?.phone) {
+      updateJobStatus("whatsapp", "skipped", "No phone number");
+    } else {
+      // Check if WhatsApp is configured first
+      updateJobStatus(
+        "whatsapp",
+        "running",
+        "Checking WhatsApp configuration...",
+      );
+      try {
+        // Try to get WhatsApp config to check if it's set up
+        const configResponse = await fetch(`${apiUrl}/whatsapp/config`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+
+        const configData = await configResponse.json();
+
+        // Check if WhatsApp is enabled and configured
+        // API returns: { data: { is_configured: true, config: { is_enabled: true, api_token, instance_id } } }
+        const whatsappConfig = configData.data?.config;
+
+        if (!configData.success || !whatsappConfig?.is_enabled) {
+          updateJobStatus(
+            "whatsapp",
+            "skipped",
+            "Not configured - Set up in Settings → WhatsApp",
+          );
+        } else if (!whatsappConfig?.api_token || !whatsappConfig?.instance_id) {
+          updateJobStatus(
+            "whatsapp",
+            "skipped",
+            "API credentials missing - Check Settings → WhatsApp",
+          );
+        } else {
+          // WhatsApp is configured, try to send
+          updateJobStatus("whatsapp", "running", "Sending WhatsApp...");
+          const whatsappResponse = await pledgeService.sendWhatsApp(pledgeId);
+          if (whatsappResponse.success || whatsappResponse.data?.success) {
+            updateJobStatus("whatsapp", "success", "Message sent");
+          } else {
+            throw new Error(whatsappResponse.data?.message || "Failed to send");
+          }
+        }
+      } catch (error) {
+        console.error("WhatsApp error:", error);
+        const errorMsg =
+          error.response?.data?.message || error.message || "Failed to send";
+
+        // Check for common configuration issues
+        if (
+          errorMsg.includes("not configured") ||
+          errorMsg.includes("401") ||
+          errorMsg.includes("not found")
+        ) {
+          updateJobStatus(
+            "whatsapp",
+            "skipped",
+            "Not configured - Set up in Settings → WhatsApp",
+          );
+        } else {
+          updateJobStatus("whatsapp", "failed", errorMsg);
+        }
+      }
+    }
+  };
+
+  // Generate dot matrix print HTML - NOW INCLUDES BOTH PAGES (Receipt + Terms)
+  const generateDotMatrixHTML = (receiptHtml, termsHtml, copyType) => {
+    // Create combined 2-page document
+    const page1Header = `<div class="page-header">📋 HALAMAN 1: RESIT PAJAK GADAI / PAGE 1: PLEDGE RECEIPT</div>`;
+    const page2Header = `<div class="page-header">📋 HALAMAN 2: TERMA & SYARAT / PAGE 2: TERMS</div>`;
+
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Resit Pajak Gadai - ${copyType === "office" ? "Office" : "Customer"} Copy</title>
+      <style>
+        @page { size: A5 landscape; margin: 3mm; }
+        @media print {
+          html, body { margin: 0; padding: 0; }
+          .page { page-break-after: always; }
+          .page:last-child { page-break-after: auto; }
+          .print-controls { display: none !important; }
+        }
+        @media screen {
+          body { max-width: 220mm; margin: 20px auto; padding: 20px; background: #f0f0f0; }
+          .page { background: white; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        }
+        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #000; background: #fff; }
+        .print-controls { text-align: center; padding: 15px; margin-bottom: 15px; background: #fff; border-radius: 8px; }
+        .print-btn { background: #d97706; color: white; border: none; padding: 12px 40px; font-size: 16px; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        .print-btn:hover { background: #b45309; }
+        .close-btn { background: #6b7280; color: white; border: none; padding: 12px 25px; font-size: 14px; cursor: pointer; border-radius: 5px; margin-left: 10px; }
+        .printer-note { font-size: 12px; color: #666; margin-top: 10px; }
+        .page-count { font-size: 14px; font-weight: bold; color: #d97706; margin-top: 8px; }
+        .page-header { background: linear-gradient(135deg, #1a4a7a, #2563eb); color: white; padding: 8px 15px; font-size: 11px; font-weight: bold; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="print-controls">
+        <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print (2 Pages)</button>
+        <button class="close-btn" onclick="window.close()">✕ Tutup</button>
+        <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
+        <p class="page-count">📄 2 Halaman / 2 Pages</p>
+      </div>
+      
+      <!-- Page 1: Receipt -->
+      <div class="page">
+        ${page1Header}
+        ${receiptHtml}
+      </div>
+      
+      <!-- Page 2: Terms & Conditions -->
+      <div class="page">
+        ${page2Header}
+        ${termsHtml}
+      </div>
+      
+      <script>window.onload = function() { document.querySelector('.print-btn').focus(); }</script>
+    </body>
+    </html>`;
+  };
+
+  // Generate barcode print HTML (for thermal printer)
+  const generateBarcodeHTML = (items, pledgeNo, receiptNo) => {
+    const barcodeLabels = items
+      .map(
+        (item, idx) => `
+      <div class="label">
+        <div class="header-row">
+          <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
+          <span class="category">${item.category || "Item"}</span>
+        </div>
+        ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" />` : `<div class="barcode-text">${item.barcode || "N/A"}</div>`}
+        <div class="barcode-text">${item.barcode || item.item_code || "N/A"}</div>
+        <div class="footer-row">
+          <span class="purity">${item.purity || ""}</span>
+          <span class="weight">${item.net_weight ? parseFloat(item.net_weight).toFixed(3) + "g" : ""}</span>
+        </div>
+      </div>
+    `,
+      )
+      .join("");
+
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Barcode Labels - ${receiptNo || pledgeNo || "Pledge"}</title>
+      <style>
+        @page { size: 50mm 25mm; margin: 0; }
+        body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; background: #f0f0f0; }
+        .print-controls { text-align: center; padding: 15px; margin-bottom: 15px; background: #fff; border-radius: 8px; }
+        .print-btn { background: #10b981; color: white; border: none; padding: 10px 30px; font-size: 14px; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        .close-btn { background: #6b7280; color: white; border: none; padding: 10px 20px; font-size: 14px; cursor: pointer; border-radius: 5px; margin-left: 10px; }
+        .labels-container { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        .label { width: 50mm; height: 25mm; border: 1px solid #333; background: white; padding: 2mm; box-sizing: border-box; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; }
+        .header-row { display: flex; justify-content: space-between; font-size: 8px; font-weight: bold; }
+        .pledge-no { color: #333; }
+        .category { color: #666; text-transform: uppercase; }
+        .barcode-img { width: 90%; height: 10mm; object-fit: contain; margin: 1mm auto; }
+        .barcode-text { font-size: 8px; font-weight: bold; letter-spacing: 1px; margin: 1mm 0; }
+        .footer-row { display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; }
+        .purity { color: #d97706; }
+        .weight { color: #059669; }
+        @media print { 
+          .print-controls { display: none !important; }
+          body { background: white; padding: 0; }
+          .labels-container { gap: 0; }
+          .label { border: none; margin: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="print-controls">
+        <button class="print-btn" onclick="window.print()">🏷️ Print Barcodes</button>
+        <button class="close-btn" onclick="window.close()">✕ Close</button>
+        <p style="font-size: 11px; color: #666; margin-top: 10px;">Select: <strong>Thermal Printer</strong> | Label size: <strong>50mm x 25mm</strong></p>
+      </div>
+      <div class="labels-container">${barcodeLabels}</div>
+      <script>window.onload = function() { document.querySelector('.print-btn').focus(); }</script>
+    </body>
+    </html>`;
+  };
+
+  // Manual retry function for failed jobs
+  const retryPrintJob = async (jobKey) => {
+    if (!createdPledgeId) return;
+
+    const token = getToken();
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+    updateJobStatus(jobKey, "running", "Retrying...");
+
+    try {
+      switch (jobKey) {
+        case "dotMatrixOffice":
+        case "dotMatrixCustomer": {
+          const copyType = jobKey === "dotMatrixOffice" ? "office" : "customer";
+          const response = await fetch(
+            `${apiUrl}/print/dot-matrix/pledge-receipt/${createdPledgeId}`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({ copy_type: copyType }),
+            },
+          );
+          if (!response.ok) throw new Error("Failed");
+          const data = await response.json();
+          if (data.success && data.data?.receipt_text) {
+            const printWindow = window.open(
+              "",
+              "_blank",
+              "width=600,height=800",
+            );
+            if (printWindow) {
+              printWindow.document.write(
+                generateDotMatrixHTML(
+                  data.data.receipt_text,
+                  data.data.terms_text || "",
+                  copyType,
+                ),
+              );
+              printWindow.document.close();
+              updateJobStatus(
+                jobKey,
+                "success",
+                `${copyType === "office" ? "Office" : "Customer"} copy ready (2 pages)`,
+              );
+            } else {
+              throw new Error("Popup blocked");
+            }
+          }
+          break;
+        }
+        case "barcode": {
+          const response = await fetch(
+            `${apiUrl}/print/barcodes/${createdPledgeId}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/json",
+              },
+            },
+          );
+          if (!response.ok) throw new Error("Failed");
+          const data = await response.json();
+          if (data.success && data.data?.items) {
+            const printWindow = window.open(
+              "",
+              "_blank",
+              "width=400,height=600",
+            );
+            if (printWindow) {
+              printWindow.document.write(
+                generateBarcodeHTML(
+                  data.data.items,
+                  data.data.pledge_no,
+                  data.data.receipt_no,
+                ),
+              );
+              printWindow.document.close();
+              updateJobStatus(
+                "barcode",
+                "success",
+                `${data.data.items.length} barcode(s) ready`,
+              );
+            } else {
+              throw new Error("Popup blocked");
+            }
+          }
+          break;
+        }
+        case "whatsapp": {
+          // Check config first
+          const configResponse = await fetch(`${apiUrl}/whatsapp/config`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          });
+          const configData = await configResponse.json();
+          const whatsappConfig = configData.data?.config;
+
+          if (!configData.success || !whatsappConfig?.is_enabled) {
+            updateJobStatus(
+              "whatsapp",
+              "skipped",
+              "Not configured - Set up in Settings → WhatsApp",
+            );
+            return;
+          }
+          if (!whatsappConfig?.api_token || !whatsappConfig?.instance_id) {
+            updateJobStatus(
+              "whatsapp",
+              "skipped",
+              "API credentials missing - Check Settings → WhatsApp",
+            );
+            return;
+          }
+
+          const whatsappResponse =
+            await pledgeService.sendWhatsApp(createdPledgeId);
+          if (whatsappResponse.success || whatsappResponse.data?.success) {
+            updateJobStatus("whatsapp", "success", "Message sent");
+          } else {
+            throw new Error(whatsappResponse.data?.message || "Failed to send");
+          }
+          break;
+        }
+      }
+    } catch (error) {
+      console.error(`Retry ${jobKey} error:`, error);
+      updateJobStatus(jobKey, "failed", error.message || "Failed");
     }
   };
 
@@ -1570,40 +1981,16 @@ export default function NewPledge() {
         }),
       );
 
-      // Auto-send WhatsApp if customer has phone number
-      if (customer?.phone) {
-        try {
-          const whatsappResponse = await pledgeService.sendWhatsApp(
-            createdPledge.id,
-          );
-          if (whatsappResponse.success || whatsappResponse.data?.success) {
-            dispatch(
-              addToast({
-                type: "success",
-                title: "WhatsApp Sent",
-                message:
-                  whatsappResponse.data?.message ||
-                  "Receipt sent to customer via WhatsApp",
-              }),
-            );
-          }
-        } catch (whatsappError) {
-          // Show error but don't block - pledge was already created successfully
-          const errorMessage =
-            whatsappError.response?.data?.message ||
-            whatsappError.message ||
-            "Failed to send WhatsApp";
+      // Reset print job status before auto-print
+      setPrintJobStatus({
+        dotMatrixOffice: { status: "pending", message: "" },
+        dotMatrixCustomer: { status: "pending", message: "" },
+        barcode: { status: "pending", message: "" },
+        whatsapp: { status: "pending", message: "" },
+      });
 
-          dispatch(
-            addToast({
-              type: "warning",
-              title: "WhatsApp Not Sent",
-              message: errorMessage,
-            }),
-          );
-          console.error("WhatsApp auto-send error:", whatsappError);
-        }
-      }
+      // Trigger auto-print sequence after modal opens
+      triggerAutoPrint(createdPledge.id);
     } catch (error) {
       console.error("Error creating pledge:", error);
       const errors = error.response?.data?.errors;
@@ -4096,20 +4483,12 @@ export default function NewPledge() {
                 </div>
               </div>
 
-              {/* Terms Agreement */}
+              {/* Terms & Conditions Panel */}
               <div className="mb-6">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={agreedToTerms}
-                    onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className="w-5 h-5 mt-0.5 rounded border-zinc-300 text-amber-500 focus:ring-amber-500"
-                  />
-                  <span className="text-sm text-zinc-600">
-                    I confirm that all information is correct and agree to the
-                    terms and conditions of this pledge transaction.
-                  </span>
-                </label>
+                <TermsConsentPanel
+                  activityType="pledge"
+                  onConsentChange={(agreed) => setAgreedToTerms(agreed)}
+                />
               </div>
 
               {/* Due Date Info */}
@@ -4162,6 +4541,7 @@ export default function NewPledge() {
               leftIcon={Check}
               onClick={handleSubmit}
               loading={isSubmitting}
+              disabled={!agreedToTerms}
             >
               Create Pledge
             </Button>
@@ -4169,7 +4549,7 @@ export default function NewPledge() {
         </div>
       </Card>
 
-      {/* Success Modal */}
+      {/* Success Modal with Auto-Print Status */}
       <Modal
         isOpen={showSuccessModal}
         onClose={() => {
@@ -4177,30 +4557,32 @@ export default function NewPledge() {
           navigate("/pledges");
         }}
         title="Pledge Created Successfully!"
-        size="md"
+        size="lg"
       >
-        <div className="p-6 text-center">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 200 }}
-            className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4"
-          >
-            <CheckCircle className="w-10 h-10 text-emerald-600" />
-          </motion.div>
+        <div className="p-6">
+          {/* Success Header */}
+          <div className="text-center mb-6">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 200 }}
+              className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3"
+            >
+              <CheckCircle className="w-8 h-8 text-emerald-600" />
+            </motion.div>
 
-          <h3 className="text-xl font-bold text-zinc-800 mb-2">
-            Pledge Created!
-          </h3>
-          <p className="text-zinc-500 mb-4">
-            Pledge ID:{" "}
-            <span className="font-mono font-bold text-zinc-800">
-              {createdReceiptNo}
-            </span>
-          </p>
+            <h3 className="text-lg font-bold text-zinc-800">Pledge Created!</h3>
+            <p className="text-zinc-500">
+              Pledge ID:{" "}
+              <span className="font-mono font-bold text-zinc-800">
+                {createdReceiptNo}
+              </span>
+            </p>
+          </div>
 
+          {/* Pledge Summary */}
           <div className="p-4 bg-zinc-50 rounded-xl mb-6">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-4 gap-4 text-sm">
               <div>
                 <p className="text-zinc-500">Customer</p>
                 <p className="font-medium text-zinc-800">
@@ -4230,76 +4612,337 @@ export default function NewPledge() {
             </div>
           </div>
 
-          {/* Print Options */}
-          <div className="space-y-3 mb-4">
-            <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">
-              Print Options
-            </p>
+          {/* Print Jobs Status */}
+          <div className="mb-6">
+            <h4 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
+              <Printer className="w-4 h-4" />
+              Print & Send Status
+            </h4>
+            <div className="space-y-2">
+              {/* Office Copy */}
+              <div
+                className={cn(
+                  "flex items-center justify-between p-3 rounded-lg border transition-all",
+                  printJobStatus.dotMatrixOffice.status === "success" &&
+                    "bg-emerald-50 border-emerald-200",
+                  printJobStatus.dotMatrixOffice.status === "failed" &&
+                    "bg-red-50 border-red-200",
+                  printJobStatus.dotMatrixOffice.status === "running" &&
+                    "bg-blue-50 border-blue-200",
+                  printJobStatus.dotMatrixOffice.status === "pending" &&
+                    "bg-zinc-50 border-zinc-200",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center",
+                      printJobStatus.dotMatrixOffice.status === "success" &&
+                        "bg-emerald-100",
+                      printJobStatus.dotMatrixOffice.status === "failed" &&
+                        "bg-red-100",
+                      printJobStatus.dotMatrixOffice.status === "running" &&
+                        "bg-blue-100",
+                      printJobStatus.dotMatrixOffice.status === "pending" &&
+                        "bg-zinc-200",
+                    )}
+                  >
+                    {printJobStatus.dotMatrixOffice.status === "success" && (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    )}
+                    {printJobStatus.dotMatrixOffice.status === "failed" && (
+                      <X className="w-4 h-4 text-red-600" />
+                    )}
+                    {printJobStatus.dotMatrixOffice.status === "running" && (
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    )}
+                    {printJobStatus.dotMatrixOffice.status === "pending" && (
+                      <Clock className="w-4 h-4 text-zinc-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-zinc-800">
+                      🖨️ Dot Matrix - Office Copy
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {printJobStatus.dotMatrixOffice.message || "Waiting..."}
+                    </p>
+                  </div>
+                </div>
+                {printJobStatus.dotMatrixOffice.status === "failed" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    leftIcon={RefreshCw}
+                    onClick={() => retryPrintJob("dotMatrixOffice")}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
 
-            {/* Dot Matrix Print Buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="primary"
-                leftIcon={Printer}
-                onClick={() => handleDotMatrixPrint("office")}
-                loading={isPrinting}
-                disabled={isPrinting || isSendingWhatsApp}
-                className="bg-zinc-600 hover:bg-zinc-700"
+              {/* Customer Copy */}
+              <div
+                className={cn(
+                  "flex items-center justify-between p-3 rounded-lg border transition-all",
+                  printJobStatus.dotMatrixCustomer.status === "success" &&
+                    "bg-emerald-50 border-emerald-200",
+                  printJobStatus.dotMatrixCustomer.status === "failed" &&
+                    "bg-red-50 border-red-200",
+                  printJobStatus.dotMatrixCustomer.status === "running" &&
+                    "bg-blue-50 border-blue-200",
+                  printJobStatus.dotMatrixCustomer.status === "pending" &&
+                    "bg-zinc-50 border-zinc-200",
+                )}
               >
-                Office Copy
-              </Button>
-              <Button
-                variant="primary"
-                leftIcon={Printer}
-                onClick={() => handleDotMatrixPrint("customer")}
-                loading={isPrinting}
-                disabled={isPrinting || isSendingWhatsApp}
-                className="bg-amber-600 hover:bg-amber-700"
-              >
-                Customer Copy
-              </Button>
-            </div>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center",
+                      printJobStatus.dotMatrixCustomer.status === "success" &&
+                        "bg-emerald-100",
+                      printJobStatus.dotMatrixCustomer.status === "failed" &&
+                        "bg-red-100",
+                      printJobStatus.dotMatrixCustomer.status === "running" &&
+                        "bg-blue-100",
+                      printJobStatus.dotMatrixCustomer.status === "pending" &&
+                        "bg-zinc-200",
+                    )}
+                  >
+                    {printJobStatus.dotMatrixCustomer.status === "success" && (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    )}
+                    {printJobStatus.dotMatrixCustomer.status === "failed" && (
+                      <X className="w-4 h-4 text-red-600" />
+                    )}
+                    {printJobStatus.dotMatrixCustomer.status === "running" && (
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    )}
+                    {printJobStatus.dotMatrixCustomer.status === "pending" && (
+                      <Clock className="w-4 h-4 text-zinc-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-zinc-800">
+                      🖨️ Dot Matrix - Customer Copy
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {printJobStatus.dotMatrixCustomer.message || "Waiting..."}
+                    </p>
+                  </div>
+                </div>
+                {printJobStatus.dotMatrixCustomer.status === "failed" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    leftIcon={RefreshCw}
+                    onClick={() => retryPrintJob("dotMatrixCustomer")}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
 
-            {/* Other options */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={Copy}
-                onClick={handlePrintBothCopies}
-                loading={isPrinting}
-                disabled={isPrinting}
+              {/* Barcode Labels */}
+              <div
+                className={cn(
+                  "flex items-center justify-between p-3 rounded-lg border transition-all",
+                  printJobStatus.barcode.status === "success" &&
+                    "bg-emerald-50 border-emerald-200",
+                  printJobStatus.barcode.status === "failed" &&
+                    "bg-red-50 border-red-200",
+                  printJobStatus.barcode.status === "running" &&
+                    "bg-blue-50 border-blue-200",
+                  printJobStatus.barcode.status === "pending" &&
+                    "bg-zinc-50 border-zinc-200",
+                )}
               >
-                PDF Copies
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={Barcode}
-                onClick={handlePrintBarcodes}
-                loading={isPrinting}
-                disabled={isPrinting}
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center",
+                      printJobStatus.barcode.status === "success" &&
+                        "bg-emerald-100",
+                      printJobStatus.barcode.status === "failed" &&
+                        "bg-red-100",
+                      printJobStatus.barcode.status === "running" &&
+                        "bg-blue-100",
+                      printJobStatus.barcode.status === "pending" &&
+                        "bg-zinc-200",
+                    )}
+                  >
+                    {printJobStatus.barcode.status === "success" && (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    )}
+                    {printJobStatus.barcode.status === "failed" && (
+                      <X className="w-4 h-4 text-red-600" />
+                    )}
+                    {printJobStatus.barcode.status === "running" && (
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    )}
+                    {printJobStatus.barcode.status === "pending" && (
+                      <Clock className="w-4 h-4 text-zinc-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-zinc-800">
+                      🏷️ Barcode Labels (Thermal)
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {printJobStatus.barcode.message || "Waiting..."}
+                    </p>
+                  </div>
+                </div>
+                {printJobStatus.barcode.status === "failed" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    leftIcon={RefreshCw}
+                    onClick={() => retryPrintJob("barcode")}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
+
+              {/* WhatsApp */}
+              <div
+                className={cn(
+                  "flex items-center justify-between p-3 rounded-lg border transition-all",
+                  printJobStatus.whatsapp.status === "success" &&
+                    "bg-emerald-50 border-emerald-200",
+                  printJobStatus.whatsapp.status === "failed" &&
+                    "bg-red-50 border-red-200",
+                  printJobStatus.whatsapp.status === "running" &&
+                    "bg-blue-50 border-blue-200",
+                  printJobStatus.whatsapp.status === "skipped" &&
+                    "bg-gray-50 border-gray-200",
+                  printJobStatus.whatsapp.status === "pending" &&
+                    "bg-zinc-50 border-zinc-200",
+                )}
               >
-                Barcodes
-              </Button>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center",
+                      printJobStatus.whatsapp.status === "success" &&
+                        "bg-emerald-100",
+                      printJobStatus.whatsapp.status === "failed" &&
+                        "bg-red-100",
+                      printJobStatus.whatsapp.status === "running" &&
+                        "bg-blue-100",
+                      printJobStatus.whatsapp.status === "skipped" &&
+                        "bg-gray-100",
+                      printJobStatus.whatsapp.status === "pending" &&
+                        "bg-zinc-200",
+                    )}
+                  >
+                    {printJobStatus.whatsapp.status === "success" && (
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    )}
+                    {printJobStatus.whatsapp.status === "failed" && (
+                      <X className="w-4 h-4 text-red-600" />
+                    )}
+                    {printJobStatus.whatsapp.status === "running" && (
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    )}
+                    {printJobStatus.whatsapp.status === "skipped" && (
+                      <AlertCircle className="w-4 h-4 text-gray-400" />
+                    )}
+                    {printJobStatus.whatsapp.status === "pending" && (
+                      <Clock className="w-4 h-4 text-zinc-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-zinc-800">
+                      📱 WhatsApp Message
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {printJobStatus.whatsapp.message || "Waiting..."}
+                    </p>
+                  </div>
+                </div>
+                {printJobStatus.whatsapp.status === "failed" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    leftIcon={RefreshCw}
+                    onClick={() => retryPrintJob("whatsapp")}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Manual Print Options (Collapse by default) */}
+          <details className="mb-4">
+            <summary className="cursor-pointer text-sm font-medium text-zinc-600 hover:text-zinc-800 flex items-center gap-2 py-2">
+              <Printer className="w-4 h-4" />
+              Manual Print Options
+            </summary>
+            <div className="mt-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Printer}
+                  onClick={() => handleDotMatrixPrint("office")}
+                  loading={isPrinting}
+                  disabled={isPrinting}
+                >
+                  Office Copy
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Printer}
+                  onClick={() => handleDotMatrixPrint("customer")}
+                  loading={isPrinting}
+                  disabled={isPrinting}
+                >
+                  Customer Copy
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Copy}
+                  onClick={handlePrintBothCopies}
+                  loading={isPrinting}
+                  disabled={isPrinting}
+                >
+                  PDF Copies
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Barcode}
+                  onClick={handlePrintBarcodes}
+                  loading={isPrinting}
+                  disabled={isPrinting}
+                >
+                  Barcodes
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                fullWidth
+                leftIcon={MessageSquare}
+                onClick={handleSendWhatsApp}
+                loading={isSendingWhatsApp}
+                disabled={isSendingWhatsApp}
+              >
+                Send WhatsApp
+              </Button>
+            </div>
+          </details>
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              fullWidth
-              leftIcon={MessageSquare}
-              onClick={handleSendWhatsApp}
-              loading={isSendingWhatsApp}
-              disabled={isPrinting || isSendingWhatsApp}
-            >
-              {isSendingWhatsApp ? "Sending..." : "Send WhatsApp"}
-            </Button>
-          </div>
-
-          <div className="flex gap-3 mt-4">
             <Button
               variant="primary"
               fullWidth
@@ -4329,6 +4972,13 @@ export default function NewPledge() {
                 setCreatedReceiptNo(null);
                 setIsPrinting(false);
                 setIsSendingWhatsApp(false);
+                // Reset print job status
+                setPrintJobStatus({
+                  dotMatrixOffice: { status: "pending", message: "" },
+                  dotMatrixCustomer: { status: "pending", message: "" },
+                  barcode: { status: "pending", message: "" },
+                  whatsapp: { status: "pending", message: "" },
+                });
                 // Clear any captured images from global camera state
                 dispatch(clearCapturedImage());
               }}

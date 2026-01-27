@@ -28,12 +28,14 @@ class WhatsAppController extends Controller
             ]);
         }
 
-        // Hide sensitive data
-        $config->api_token = $config->api_token ? '********' : null;
+        // Convert to array and manually add masked api_token
+        // (api_token is in $hidden array so won't be serialized automatically)
+        $configData = $config->toArray();
+        $configData['api_token'] = $config->api_token ? '********' : null;
 
         return $this->success([
             'is_configured' => true,
-            'config' => $config,
+            'config' => $configData,
         ]);
     }
 
@@ -48,6 +50,14 @@ class WhatsAppController extends Controller
             'phone_number' => 'required|string|max:20',
             'is_enabled' => 'nullable|boolean',
         ]);
+
+        // Normalize country code - ensure it starts with +
+        if (!empty($validated['phone_number'])) {
+            $validated['phone_number'] = trim($validated['phone_number']);
+            if (!str_starts_with($validated['phone_number'], '+')) {
+                $validated['phone_number'] = '+' . $validated['phone_number'];
+            }
+        }
 
         // Don't update token if it's masked or empty
         if (empty($validated['api_token']) || $validated['api_token'] === '********') {

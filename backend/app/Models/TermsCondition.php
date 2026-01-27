@@ -24,6 +24,7 @@ class TermsCondition extends Model
         'attach_to_whatsapp',
         'is_active',
         'version',
+        'sort_order',
     ];
 
     protected $casts = [
@@ -39,14 +40,19 @@ class TermsCondition extends Model
         return $this->belongsTo(Branch::class);
     }
 
-    public static function getForActivity(string $activityType, ?int $branchId = null): ?self
+    /**
+     * Get all active terms for an activity type (for printing on receipts)
+     */
+    public static function getForActivity(string $activityType, ?int $branchId = null): \Illuminate\Database\Eloquent\Collection
     {
         return static::where('activity_type', $activityType)
             ->where('is_active', true)
+            ->where('print_with_receipt', true)
             ->where(function ($q) use ($branchId) {
                 $q->where('branch_id', $branchId)->orWhereNull('branch_id');
             })
-            ->orderBy('branch_id', 'desc') // Branch-specific takes priority
-            ->first();
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
     }
 }
