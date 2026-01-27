@@ -146,6 +146,8 @@ export default function AuditLogScreen() {
   const [actionFilter, setActionFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
   const [dateRange, setDateRange] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState({
     current_page: 1,
@@ -179,6 +181,8 @@ export default function AuditLogScreen() {
         if (actionFilter !== "all") params.action = actionFilter;
         if (userFilter !== "all") params.user_id = userFilter;
         if (dateRange !== "all") params.date_range = dateRange;
+        if (startDate) params.start_date = startDate;
+        if (endDate) params.end_date = endDate;
 
         const response = await auditService.getLogs(params);
 
@@ -199,7 +203,7 @@ export default function AuditLogScreen() {
               today: 0,
               transactions: 0,
               overrides: 0,
-            }
+            },
           );
         }
       } catch (error) {
@@ -209,14 +213,31 @@ export default function AuditLogScreen() {
             type: "error",
             title: "Error",
             message: "Failed to load audit logs",
-          })
+          }),
         );
       } finally {
         setLoading(false);
       }
     },
-    [searchQuery, moduleFilter, actionFilter, userFilter, dateRange, dispatch]
+    [
+      searchQuery,
+      moduleFilter,
+      actionFilter,
+      userFilter,
+      dateRange,
+      startDate,
+      endDate,
+      dispatch,
+    ],
   );
+
+  // Pagination Handler
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.last_page) {
+      fetchLogs(newPage);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   // Fetch filter options
   const fetchOptions = useCallback(async () => {
@@ -252,8 +273,17 @@ export default function AuditLogScreen() {
       fetchLogs();
     }, 500);
     return () => clearTimeout(debounce);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, moduleFilter, actionFilter, userFilter, dateRange]);
+  }, [
+    searchQuery,
+    moduleFilter,
+    actionFilter,
+    userFilter,
+    dateRange,
+    startDate,
+    endDate,
+  ]);
 
   // Get unique users for filter - from API options
   const uniqueUsers = useMemo(() => {
@@ -303,7 +333,7 @@ export default function AuditLogScreen() {
           type: "warning",
           title: "No Data",
           message: "No logs to export",
-        })
+        }),
       );
       return;
     }
@@ -329,7 +359,7 @@ export default function AuditLogScreen() {
           `"${(log.description || "").replace(/"/g, '""')}"`,
           log.ip_address || "",
           log.severity || "info",
-        ].join(",")
+        ].join(","),
       ),
     ].join("\n");
 
@@ -348,7 +378,7 @@ export default function AuditLogScreen() {
         type: "success",
         title: "Exported",
         message: `Exported ${logs.length} log entries`,
-      })
+      }),
     );
   };
 
@@ -360,7 +390,7 @@ export default function AuditLogScreen() {
           type: "warning",
           title: "No Data",
           message: "No logs to print",
-        })
+        }),
       );
       return;
     }
@@ -412,7 +442,7 @@ export default function AuditLogScreen() {
                 <td>${log.description || "-"}</td>
                 <td>${log.ip_address || "-"}</td>
               </tr>
-            `
+            `,
               )
               .join("")}
           </tbody>
@@ -438,6 +468,8 @@ export default function AuditLogScreen() {
     setActionFilter("all");
     setUserFilter("all");
     setDateRange("all");
+    setStartDate("");
+    setEndDate("");
   };
 
   const hasActiveFilters =
@@ -445,7 +477,10 @@ export default function AuditLogScreen() {
     moduleFilter !== "all" ||
     actionFilter !== "all" ||
     userFilter !== "all" ||
-    dateRange !== "all";
+    userFilter !== "all" ||
+    dateRange !== "all" ||
+    startDate ||
+    endDate;
 
   return (
     <PageWrapper
@@ -612,6 +647,42 @@ export default function AuditLogScreen() {
                 ]}
               />
             </div>
+
+            {/* Date Range Custom Inputs */}
+            {dateRange === "custom" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <Input
+                  type="date"
+                  label="Start Date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  label="End Date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Always visible Custom Date inputs if user prefers explicit selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-zinc-100">
+              <Input
+                type="date"
+                label="Start Date (Optional)"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                disabled={dateRange !== "all" && dateRange !== "custom"}
+              />
+              <Input
+                type="date"
+                label="End Date (Optional)"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                disabled={dateRange !== "all" && dateRange !== "custom"}
+              />
+            </div>
           </motion.div>
         )}
       </Card>
@@ -671,7 +742,7 @@ export default function AuditLogScreen() {
                         action.color === "emerald" && "bg-emerald-100",
                         action.color === "amber" && "bg-amber-100",
                         action.color === "red" && "bg-red-100",
-                        action.color === "zinc" && "bg-zinc-100"
+                        action.color === "zinc" && "bg-zinc-100",
                       )}
                     >
                       <ActionIcon
@@ -681,7 +752,7 @@ export default function AuditLogScreen() {
                           action.color === "emerald" && "text-emerald-600",
                           action.color === "amber" && "text-amber-600",
                           action.color === "red" && "text-red-600",
-                          action.color === "zinc" && "text-zinc-600"
+                          action.color === "zinc" && "text-zinc-600",
                         )}
                       />
                     </div>
@@ -733,6 +804,36 @@ export default function AuditLogScreen() {
         )}
       </Card>
 
+      {/* Pagination Controls */}
+      {!loading && logs.length > 0 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-zinc-500">Showing {logs.length} entries</p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.current_page - 1)}
+              disabled={pagination.current_page <= 1 || loading}
+            >
+              Previous
+            </Button>
+            <span className="text-sm font-medium text-zinc-700 min-w-[80px] text-center">
+              Page {pagination.current_page} of {pagination.last_page}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.current_page + 1)}
+              disabled={
+                pagination.current_page >= pagination.last_page || loading
+              }
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Detail Modal */}
       <Modal
         isOpen={showDetailModal}
@@ -758,7 +859,7 @@ export default function AuditLogScreen() {
                       action.color === "emerald" && "bg-emerald-100",
                       action.color === "amber" && "bg-amber-100",
                       action.color === "red" && "bg-red-100",
-                      action.color === "zinc" && "bg-zinc-100"
+                      action.color === "zinc" && "bg-zinc-100",
                     )}
                   >
                     <ActionIcon
@@ -768,7 +869,7 @@ export default function AuditLogScreen() {
                         action.color === "emerald" && "text-emerald-600",
                         action.color === "amber" && "text-amber-600",
                         action.color === "red" && "text-red-600",
-                        action.color === "zinc" && "text-zinc-600"
+                        action.color === "zinc" && "text-zinc-600",
                       )}
                     />
                   </div>

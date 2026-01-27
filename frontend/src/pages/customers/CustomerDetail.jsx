@@ -44,6 +44,7 @@ const statusConfig = {
   redeemed: { label: "Redeemed", variant: "secondary" },
   overdue: { label: "Overdue", variant: "error" },
   forfeited: { label: "Forfeited", variant: "error" },
+  auction: { label: "Auction", variant: "warning" },
 };
 
 export default function CustomerDetail() {
@@ -82,7 +83,8 @@ export default function CustomerDetail() {
   const fetchPledges = async () => {
     try {
       setIsPledgesLoading(true);
-      const response = await customerService.getPledges(id);
+      // Fetch up to 100 pledges to ensure we see history
+      const response = await customerService.getPledges(id, { per_page: 100 });
       setPledges(response.data || response || []);
     } catch (err) {
       console.error("Error fetching pledges:", err);
@@ -339,7 +341,7 @@ export default function CustomerDetail() {
                       onClick={() =>
                         window.open(
                           getStorageUrl(customer.ic_front_photo),
-                          "_blank"
+                          "_blank",
                         )
                       }
                     >
@@ -365,7 +367,7 @@ export default function CustomerDetail() {
                       onClick={() =>
                         window.open(
                           getStorageUrl(customer.ic_back_photo),
-                          "_blank"
+                          "_blank",
                         )
                       }
                     >
@@ -395,7 +397,7 @@ export default function CustomerDetail() {
                     onClick={() =>
                       window.open(
                         getStorageUrl(customer.selfie_photo),
-                        "_blank"
+                        "_blank",
                       )
                     }
                   />
@@ -444,7 +446,7 @@ export default function CustomerDetail() {
                     <p className="text-sm text-zinc-500">Active</p>
                     <p className="text-xl font-semibold text-zinc-800 truncate">
                       {statistics?.active_pledges ??
-                        customer.active_pledges_count ??
+                        customer.active_pledges ??
                         0}
                     </p>
                   </div>
@@ -502,24 +504,46 @@ export default function CustomerDetail() {
                 <button
                   onClick={() => setActiveTab("active")}
                   className={cn(
-                    "px-6 py-3 text-sm font-medium transition-colors",
+                    "px-6 py-3 text-sm font-medium transition-colors flex items-center gap-2",
                     activeTab === "active"
                       ? "text-amber-600 border-b-2 border-amber-500"
-                      : "text-zinc-500 hover:text-zinc-700"
+                      : "text-zinc-500 hover:text-zinc-700",
                   )}
                 >
                   Active Pledges
+                  <span
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-xs",
+                      activeTab === "active"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-zinc-100 text-zinc-600",
+                    )}
+                  >
+                    {statistics?.active_pledges ?? customer.active_pledges ?? 0}
+                  </span>
                 </button>
                 <button
                   onClick={() => setActiveTab("history")}
                   className={cn(
-                    "px-6 py-3 text-sm font-medium transition-colors",
+                    "px-6 py-3 text-sm font-medium transition-colors flex items-center gap-2",
                     activeTab === "history"
                       ? "text-amber-600 border-b-2 border-amber-500"
-                      : "text-zinc-500 hover:text-zinc-700"
+                      : "text-zinc-500 hover:text-zinc-700",
                   )}
                 >
                   All History
+                  <span
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-xs",
+                      activeTab === "history"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-zinc-100 text-zinc-600",
+                    )}
+                  >
+                    {statistics?.total_pledges ??
+                      customer.total_pledges ??
+                      pledges.length}
+                  </span>
                 </button>
               </div>
             </div>
@@ -532,28 +556,41 @@ export default function CustomerDetail() {
                   <p className="text-zinc-500">Loading pledges...</p>
                 </div>
               ) : filteredPledges.length === 0 ? (
-                <div className="p-8 text-center">
-                  <FileText className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                  <p className="text-zinc-500 mb-4">No pledges found</p>
+                <div className="p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4">
+                    <FileText className="w-8 h-8 text-zinc-300" />
+                  </div>
+                  <h3 className="text-lg font-medium text-zinc-900 mb-1">
+                    {activeTab === "active"
+                      ? "No Active Pledges"
+                      : "No History Found"}
+                  </h3>
+                  <p className="text-zinc-500 mb-6 max-w-sm mx-auto">
+                    {activeTab === "active"
+                      ? "This customer has no currently active pledges."
+                      : "This customer has not made any pledges yet."}
+                  </p>
                   <Button onClick={handleNewPledge}>
                     <Plus className="w-4 h-4 mr-2" />
-                    Create First Pledge
+                    Create New Pledge
                   </Button>
                 </div>
               ) : (
                 <div className="divide-y divide-zinc-100">
                   {filteredPledges.map((pledge) => {
-                    const config =
-                      statusConfig[pledge.status] || statusConfig.active;
+                    const config = statusConfig[pledge.status] || {
+                      label: pledge.status,
+                      variant: "secondary",
+                    };
                     const isExpanded = expandedPledge === pledge.id;
                     const items = pledge.items || [];
 
                     // Calculate interest (if available from API)
                     const principal = parseFloat(
-                      pledge.loan_amount || pledge.principal_amount || 0
+                      pledge.loan_amount || pledge.principal_amount || 0,
                     );
                     const interestRate = parseFloat(
-                      pledge.interest_rate || 0.5
+                      pledge.interest_rate || 0.5,
                     );
                     const monthsElapsed = pledge.months_elapsed || 1;
                     const accruedInterest =
@@ -590,7 +627,7 @@ export default function CustomerDetail() {
                               </p>
                               <p className="text-xs text-zinc-500">
                                 {formatDate(
-                                  pledge.pledge_date || pledge.created_at
+                                  pledge.pledge_date || pledge.created_at,
                                 )}
                               </p>
                             </div>
@@ -642,11 +679,11 @@ export default function CustomerDetail() {
                                   "text-sm font-medium",
                                   pledge.status === "overdue"
                                     ? "text-red-600"
-                                    : "text-zinc-700"
+                                    : "text-zinc-700",
                                 )}
                               >
                                 {formatDate(
-                                  pledge.due_date || pledge.maturity_date
+                                  pledge.due_date || pledge.maturity_date,
                                 )}
                               </p>
                             </div>
@@ -728,7 +765,7 @@ export default function CustomerDetail() {
                                               {parseFloat(
                                                 item.net_weight ||
                                                   item.weight ||
-                                                  0
+                                                  0,
                                               ).toFixed(2)}
                                               g
                                             </p>
@@ -740,13 +777,13 @@ export default function CustomerDetail() {
                                               {formatCurrency(
                                                 item.net_value ||
                                                   item.value ||
-                                                  0
+                                                  0,
                                               )}
                                             </p>
                                             <p className="text-xs text-zinc-500">
                                               Loan:{" "}
                                               {formatCurrency(
-                                                item.loan_amount || 0
+                                                item.loan_amount || 0,
                                               )}
                                             </p>
                                           </div>
@@ -814,7 +851,7 @@ export default function CustomerDetail() {
                                                 {formatCurrency(month.interest)}
                                               </span>
                                             </div>
-                                          )
+                                          ),
                                         )}
                                       </div>
                                     )}
@@ -848,7 +885,7 @@ export default function CustomerDetail() {
                                         className="flex-1"
                                         onClick={() =>
                                           navigate(
-                                            `/renewals?pledge=${pledge.id}`
+                                            `/renewals?pledge=${pledge.id}`,
                                           )
                                         }
                                       >
@@ -861,7 +898,7 @@ export default function CustomerDetail() {
                                         className="flex-1"
                                         onClick={() =>
                                           navigate(
-                                            `/redemptions?pledge=${pledge.id}`
+                                            `/redemptions?pledge=${pledge.id}`,
                                           )
                                         }
                                       >

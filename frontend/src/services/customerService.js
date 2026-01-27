@@ -60,9 +60,9 @@ const customerService = {
    */
   async create(customerData) {
     // Check if we have file uploads
-    const hasFiles = customerData.ic_front_image instanceof File || 
-                     customerData.ic_back_image instanceof File ||
-                     customerData.profile_photo instanceof File
+    const hasFiles = customerData.ic_front_image instanceof File ||
+      customerData.ic_back_image instanceof File ||
+      customerData.profile_photo instanceof File
 
     if (hasFiles) {
       const formData = new FormData()
@@ -77,7 +77,7 @@ const customerService = {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
     }
-    
+
     // Map field names for non-file data
     return apiPost('/customers', mapFieldNames(customerData))
   },
@@ -90,9 +90,9 @@ const customerService = {
    */
   async update(id, customerData) {
     // Check if we have file uploads
-    const hasFiles = customerData.ic_front_image instanceof File || 
-                     customerData.ic_back_image instanceof File ||
-                     customerData.profile_photo instanceof File
+    const hasFiles = customerData.ic_front_image instanceof File ||
+      customerData.ic_back_image instanceof File ||
+      customerData.profile_photo instanceof File
 
     if (hasFiles) {
       const formData = new FormData()
@@ -108,7 +108,7 @@ const customerService = {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
     }
-    
+
     // Map field names for non-file data
     return apiPut(`/customers/${id}`, mapFieldNames(customerData))
   },
@@ -127,8 +127,8 @@ const customerService = {
    * @param {number} customerId 
    * @returns {Promise}
    */
-  async getPledges(customerId) {
-    return apiGet(`/customers/${customerId}/pledges`)
+  async getPledges(customerId, params = {}) {
+    return apiGet(`/customers/${customerId}/pledges`, params)
   },
 
   /**

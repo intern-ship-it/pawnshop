@@ -8,6 +8,7 @@ import { formatCurrency } from "@/utils/formatters";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import goldPriceService from "@/services/goldPriceService";
 import notificationService from "@/services/notificationService";
+import GlobalSearch from "./GlobalSearch";
 import {
   Menu,
   Search,
@@ -60,8 +61,6 @@ export default function Header() {
       window.removeEventListener("settingsUpdated", handleSettingsUpdate);
   }, []);
 
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [goldPriceDropdownOpen, setGoldPriceDropdownOpen] = useState(false);
@@ -337,15 +336,6 @@ export default function Header() {
   const handleLogout = () => {
     dispatch(logout());
     navigate("/login");
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      console.log("Searching for:", searchQuery);
-      setSearchOpen(false);
-      setSearchQuery("");
-    }
   };
 
   // Format price helper
@@ -754,21 +744,17 @@ export default function Header() {
 
         {/* Right Section */}
         <div className="flex items-center gap-3 md:gap-4">
-          {/* Search Bar (Persistent) */}
-          <div className="hidden md:flex items-center relative w-64 h-10">
-            <Search className="absolute left-3 w-4 h-4 text-zinc-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full h-full pl-10 pr-4 bg-zinc-100 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all placeholder:text-zinc-400"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          {/* Global Search */}
+          <div className="hidden md:block w-64">
+            <GlobalSearch />
           </div>
 
           {/* Mobile Search Icon */}
           <button
-            onClick={() => setSearchOpen(true)}
+            onClick={() => {
+              // Focus the global search on mobile - could expand to modal later
+              document.querySelector('input[placeholder*="Search"]')?.focus();
+            }}
             className="md:hidden p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
           >
             <Search className="w-5 h-5" />
@@ -1051,37 +1037,6 @@ export default function Header() {
           </div>
         </div>
       </div>
-
-      {/* Mobile Search Overlay */}
-      {searchOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 md:hidden">
-          <div className="bg-white p-4">
-            <form onSubmit={handleSearch} className="flex items-center gap-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
-                <input
-                  type="text"
-                  placeholder="Search pledges, customers..."
-                  className="w-full h-12 pl-12 pr-4 bg-zinc-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchOpen(false);
-                  setSearchQuery("");
-                }}
-                className="p-3 rounded-xl bg-zinc-100 text-zinc-500"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </header>
   );
 }
