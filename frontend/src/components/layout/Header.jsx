@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import goldPriceService from "@/services/goldPriceService";
+import notificationService from "@/services/notificationService";
 import {
   Menu,
   Search,
@@ -76,22 +77,41 @@ export default function Header() {
 
   const goldDropdownRef = useRef(null);
 
-  // Mock notifications
-  const notifications = [
-    {
-      id: 1,
-      type: "warning",
-      message: "3 pledges expiring today",
-      time: "5 min ago",
-    },
-    { id: 2, type: "info", message: "Gold price updated", time: "1 hour ago" },
-    {
-      id: 3,
-      type: "success",
-      message: "Daily reconciliation complete",
-      time: "2 hours ago",
-    },
-  ];
+  // Dynamic notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      setNotificationLoading(true);
+      const response = await notificationService.getAll(10);
+      if (response.success) {
+        setNotifications(response.data.notifications || []);
+        setUnreadCount(response.data.unread_count || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
+
+  // Fetch notifications on mount and periodically
+  useEffect(() => {
+    fetchNotifications();
+    // Refresh every 2 minutes
+    const interval = setInterval(fetchNotifications, 120000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Refresh when notification panel opens
+  useEffect(() => {
+    if (notificationOpen) {
+      fetchNotifications();
+    }
+  }, [notificationOpen]);
 
   // Purity definitions
   const purities = [
@@ -761,8 +781,14 @@ export default function Header() {
               className="relative p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
             >
               <Bell className="w-5 h-5" />
-              {/* Notification Badge */}
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+              {/* Notification Badge - Dynamic */}
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+                  <span className="text-[10px] font-bold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                </span>
+              )}
             </button>
 
             {/* Notification Dropdown */}
@@ -772,28 +798,168 @@ export default function Header() {
                   className="fixed inset-0 z-40"
                   onClick={() => setNotificationOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-zinc-200 z-50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-zinc-100">
-                    <h3 className="font-semibold text-zinc-800">
-                      Notifications
-                    </h3>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className="px-4 py-3 border-b border-zinc-50 hover:bg-zinc-50 cursor-pointer transition-colors"
+                <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-zinc-200 z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-white">
+                    <div>
+                      <h3 className="font-bold text-zinc-800">Notifications</h3>
+                      {unreadCount > 0 && (
+                        <p className="text-xs text-amber-600">
+                          {unreadCount} unread
+                        </p>
+                      )}
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={async () => {
+                          await notificationService.markAllAsRead();
+                          fetchNotifications();
+                        }}
+                        className="text-xs text-amber-600 hover:text-amber-700 font-medium"
                       >
-                        <p className="text-sm text-zinc-700">{notif.message}</p>
-                        <p className="text-xs text-zinc-400 mt-1">
-                          {notif.time}
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto">
+                    {notificationLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw className="w-5 h-5 text-amber-500 animate-spin" />
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="py-8 text-center">
+                        <Bell className="w-10 h-10 text-zinc-200 mx-auto mb-2" />
+                        <p className="text-sm text-zinc-400">
+                          No notifications
                         </p>
                       </div>
-                    ))}
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => {
+                            if (notif.action_url) {
+                              navigate(notif.action_url);
+                              setNotificationOpen(false);
+                            }
+                            if (!notif.is_live && !notif.is_read) {
+                              notificationService.markAsRead(notif.id);
+                            }
+                          }}
+                          className={cn(
+                            "px-4 py-3 border-b border-zinc-50 hover:bg-amber-50/50 cursor-pointer transition-colors",
+                            !notif.is_read &&
+                              !notif.is_live &&
+                              "bg-amber-50/30",
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Type Icon */}
+                            <div
+                              className={cn(
+                                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                                notif.type === "warning" &&
+                                  "bg-amber-100 text-amber-600",
+                                notif.type === "danger" &&
+                                  "bg-red-100 text-red-600",
+                                notif.type === "success" &&
+                                  "bg-emerald-100 text-emerald-600",
+                                notif.type === "info" &&
+                                  "bg-blue-100 text-blue-600",
+                              )}
+                            >
+                              {notif.type === "warning" && (
+                                <AlertCircle className="w-4 h-4" />
+                              )}
+                              {notif.type === "danger" && (
+                                <AlertCircle className="w-4 h-4" />
+                              )}
+                              {notif.type === "success" && (
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M5 13l4 4L19 7"
+                                  />
+                                </svg>
+                              )}
+                              {notif.type === "info" && (
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-zinc-800">
+                                {notif.title || notif.message}
+                              </p>
+                              {notif.title &&
+                                notif.message &&
+                                notif.title !== notif.message && (
+                                  <p className="text-xs text-zinc-500 mt-0.5">
+                                    {notif.message}
+                                  </p>
+                                )}
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-zinc-400">
+                                  {notif.time_ago}
+                                </p>
+                                {notif.is_live && (
+                                  <span className="text-[10px] font-medium text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                                    Live
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Unread indicator */}
+                            {!notif.is_read && !notif.is_live && (
+                              <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0 mt-2" />
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <div className="px-4 py-3 bg-zinc-50 border-t border-zinc-100">
-                    <button className="text-sm text-amber-600 hover:text-amber-700 font-medium">
+
+                  <div className="px-4 py-3 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        navigate("/notifications");
+                        setNotificationOpen(false);
+                      }}
+                      className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+                    >
                       View All Notifications
+                    </button>
+                    <button
+                      onClick={fetchNotifications}
+                      disabled={notificationLoading}
+                      className="text-xs text-zinc-500 hover:text-zinc-700"
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "w-3.5 h-3.5",
+                          notificationLoading && "animate-spin",
+                        )}
+                      />
                     </button>
                   </div>
                 </div>

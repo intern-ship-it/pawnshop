@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\GoldPriceController;
 use App\Http\Controllers\Api\DotMatrixPrintController;
 use App\Http\Controllers\Api\HardwareController;
+use App\Http\Controllers\Api\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,6 +61,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/due-reminders', [DashboardController::class, 'dueReminders']);
         Route::get('/overdue-pledges', [DashboardController::class, 'overduePledges']);
         Route::get('/gold-prices', [DashboardController::class, 'goldPrices']);
+    });
+
+    // Notifications
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'all']); // Combined stored + live
+        Route::get('/stored', [NotificationController::class, 'index']); // Stored only
+        Route::get('/live', [NotificationController::class, 'live']); // Live only
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::post('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::post('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+        Route::delete('/{id}', [NotificationController::class, 'destroy']);
     });
 
     /**
