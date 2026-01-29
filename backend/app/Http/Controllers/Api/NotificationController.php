@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\Pledge;
+use App\Models\Redemption;
 use App\Models\GoldPrice;
 use App\Models\Reconciliation;
 use App\Models\DayEndReport;
@@ -337,7 +338,7 @@ class NotificationController extends Controller
 
         // 12. Today's activity summary
         $todayPledges = Pledge::whereDate('created_at', Carbon::today())->count();
-        $todayRedemptions = Pledge::whereDate('redeemed_at', Carbon::today())->count();
+        $todayRedemptions = Redemption::whereDate('created_at', Carbon::today())->count();
         $todayRenewals = Renewal::whereDate('created_at', Carbon::today())->count();
 
         if ($todayPledges > 0 || $todayRedemptions > 0 || $todayRenewals > 0) {

@@ -1118,6 +1118,10 @@ export default function NewPledge() {
 
     if (!token || !pledgeId) return;
 
+    let officeWindow = null;
+    let customerWindow = null;
+    let barcodeWindow = null;
+
     // 1. Dot Matrix - Office Copy
     updateJobStatus("dotMatrixOffice", "running", "Printing office copy...");
     try {
@@ -1138,34 +1142,33 @@ export default function NewPledge() {
       const data = await response.json();
 
       if (data.success && data.data?.receipt_text) {
-        // Open print window with both pages (receipt + terms)
-        const printWindow = window.open("", "_blank", "width=600,height=800");
-        if (printWindow) {
-          printWindow.document.write(
+        officeWindow = window.open("", "_blank", "width=600,height=800");
+        if (officeWindow) {
+          officeWindow.document.open();
+          officeWindow.document.write(
             generateDotMatrixHTML(
               data.data.receipt_text,
               data.data.terms_text || "",
               "office",
             ),
           );
-          printWindow.document.close();
+          officeWindow.document.close();
           updateJobStatus(
             "dotMatrixOffice",
             "success",
             "Office copy ready (2 pages)",
           );
         } else {
-          updateJobStatus(
-            "dotMatrixOffice",
-            "failed",
-            "Popup blocked - click retry",
-          );
+          updateJobStatus("dotMatrixOffice", "failed", "Popup blocked");
         }
       } else {
         throw new Error("Invalid response");
       }
     } catch (error) {
       console.error("Office copy error:", error);
+      if (officeWindow && !officeWindow.closed) {
+        officeWindow.close();
+      }
       updateJobStatus(
         "dotMatrixOffice",
         "failed",
@@ -1174,7 +1177,7 @@ export default function NewPledge() {
     }
 
     // Small delay between jobs
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // 2. Dot Matrix - Customer Copy
     updateJobStatus(
@@ -1200,33 +1203,33 @@ export default function NewPledge() {
       const data = await response.json();
 
       if (data.success && data.data?.receipt_text) {
-        const printWindow = window.open("", "_blank", "width=600,height=800");
-        if (printWindow) {
-          printWindow.document.write(
+        customerWindow = window.open("", "_blank", "width=600,height=800");
+        if (customerWindow) {
+          customerWindow.document.open();
+          customerWindow.document.write(
             generateDotMatrixHTML(
               data.data.receipt_text,
               data.data.terms_text || "",
               "customer",
             ),
           );
-          printWindow.document.close();
+          customerWindow.document.close();
           updateJobStatus(
             "dotMatrixCustomer",
             "success",
             "Customer copy ready (2 pages)",
           );
         } else {
-          updateJobStatus(
-            "dotMatrixCustomer",
-            "failed",
-            "Popup blocked - click retry",
-          );
+          updateJobStatus("dotMatrixCustomer", "failed", "Popup blocked");
         }
       } else {
         throw new Error("Invalid response");
       }
     } catch (error) {
       console.error("Customer copy error:", error);
+      if (customerWindow && !customerWindow.closed) {
+        customerWindow.close();
+      }
       updateJobStatus(
         "dotMatrixCustomer",
         "failed",
@@ -1234,7 +1237,7 @@ export default function NewPledge() {
       );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // 3. Barcode Labels (Thermal Printer)
     updateJobStatus("barcode", "running", "Generating barcode labels...");
@@ -1251,31 +1254,33 @@ export default function NewPledge() {
       const data = await response.json();
 
       if (data.success && data.data?.items) {
-        // For thermal printer, we'd typically send to a thermal print service
-        // For now, open print preview
-        const printWindow = window.open("", "_blank", "width=400,height=600");
-        if (printWindow) {
-          printWindow.document.write(
+        barcodeWindow = window.open("", "_blank", "width=400,height=600");
+        if (barcodeWindow) {
+          barcodeWindow.document.open();
+          barcodeWindow.document.write(
             generateBarcodeHTML(
               data.data.items,
               data.data.pledge_no,
               data.data.receipt_no,
             ),
           );
-          printWindow.document.close();
+          barcodeWindow.document.close();
           updateJobStatus(
             "barcode",
             "success",
             `${data.data.items.length} barcode(s) ready`,
           );
         } else {
-          updateJobStatus("barcode", "failed", "Popup blocked - click retry");
+          updateJobStatus("barcode", "failed", "Popup blocked");
         }
       } else {
         throw new Error("No barcode data");
       }
     } catch (error) {
       console.error("Barcode error:", error);
+      if (barcodeWindow && !barcodeWindow.closed) {
+        barcodeWindow.close();
+      }
       updateJobStatus(
         "barcode",
         "failed",
@@ -1283,7 +1288,7 @@ export default function NewPledge() {
       );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     // 4. WhatsApp Message
     if (!customer?.phone) {
@@ -1808,20 +1813,22 @@ export default function NewPledge() {
         }
         return true;
       case 5:
-        // Storage assignment validation - optional but recommended
+        // Storage assignment validation - MANDATORY
         const itemsNeedingStorage = items.filter((i) => i.category && i.weight);
         const assignedCount = Object.keys(itemStorageAssignments).length;
-        if (assignedCount < itemsNeedingStorage.length && assignedCount > 0) {
-          // Partial assignment - just warn
+
+        if (
+          itemsNeedingStorage.length > 0 &&
+          assignedCount < itemsNeedingStorage.length
+        ) {
           dispatch(
             addToast({
-              type: "warning",
-              title: "Partial Assignment",
-              message: `${
-                itemsNeedingStorage.length - assignedCount
-              } item(s) have no storage location.`,
+              type: "error",
+              title: "Storage Required",
+              message: `Please assign storage locations for all ${itemsNeedingStorage.length} item(s).`,
             }),
           );
+          return false;
         }
         return true;
       case 6:
@@ -1845,17 +1852,6 @@ export default function NewPledge() {
 
   // Submit pledge - INCLUDES STORAGE WITH INTEGER IDs
   const handleSubmit = async () => {
-    if (!signature) {
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Required",
-          message: "Customer signature is required",
-        }),
-      );
-      return;
-    }
-
     if (!agreedToTerms) {
       dispatch(
         addToast({
@@ -4095,6 +4091,26 @@ export default function NewPledge() {
                               type="button"
                               disabled={slot.is_occupied}
                               onClick={() => {
+                                // If already assigned in this pledge, unassign it
+                                if (isAssignedInPledge) {
+                                  const itemId = Object.keys(
+                                    itemStorageAssignments,
+                                  ).find(
+                                    (key) =>
+                                      itemStorageAssignments[key].slotId ===
+                                      slot.id,
+                                  );
+
+                                  if (itemId) {
+                                    const newAssignments = {
+                                      ...itemStorageAssignments,
+                                    };
+                                    delete newAssignments[itemId];
+                                    setItemStorageAssignments(newAssignments);
+                                  }
+                                  return;
+                                }
+
                                 const validItems = items.filter(
                                   (i) => i.category && i.weight,
                                 );
@@ -4234,8 +4250,7 @@ export default function NewPledge() {
                   <div className="flex items-center gap-2">
                     <Info className="w-4 h-4 text-amber-600" />
                     <span className="text-sm text-amber-800">
-                      Storage assignment is recommended but optional. You can
-                      assign later from Inventory.
+                      Storage assignment is required for all items.
                     </span>
                   </div>
                   <div className="text-right">
@@ -4413,7 +4428,8 @@ export default function NewPledge() {
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium text-zinc-700">
-                    Customer Signature <span className="text-red-500">*</span>
+                    Customer Signature{" "}
+                    <span className="text-zinc-400 text-xs">(Optional)</span>
                   </label>
                   <div className="flex items-center gap-2">
                     {signature && (
@@ -4429,7 +4445,7 @@ export default function NewPledge() {
                 </div>
 
                 {/* Show uploaded signature or draw canvas */}
-                {signature && !signatureCanvasRef.current?.getContext ? (
+                {signature ? (
                   <div className="border-2 border-emerald-300 rounded-xl p-2 bg-emerald-50">
                     <img
                       src={signature}
@@ -4465,20 +4481,19 @@ export default function NewPledge() {
                     <span className="text-xs text-zinc-400">OR</span>
                     <input
                       type="file"
+                      id="signature-upload-input"
                       ref={signatureUploadRef}
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
                       onChange={handleSignatureUpload}
                       className="hidden"
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      leftIcon={Upload}
-                      onClick={() => signatureUploadRef.current?.click()}
+                    <label
+                      htmlFor="signature-upload-input"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 cursor-pointer transition-colors"
                     >
+                      <Upload className="w-4 h-4" />
                       Upload
-                    </Button>
+                    </label>
                   </div>
                 </div>
               </div>

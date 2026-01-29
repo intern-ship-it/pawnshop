@@ -30,6 +30,7 @@ import {
   TrendingUp,
   Scale,
   Loader2,
+  Printer,
 } from "lucide-react";
 
 // Status badge config
@@ -61,6 +62,7 @@ export default function PledgeList() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [printingId, setPrintingId] = useState(null);
+  const [dotPrintingId, setDotPrintingId] = useState(null);
 
   // Cancel Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -126,7 +128,7 @@ export default function PledgeList() {
           type: "error",
           title: "Error",
           message: "Failed to load pledges",
-        })
+        }),
       );
     } finally {
       setLoading(false);
@@ -151,7 +153,7 @@ export default function PledgeList() {
           type: "error",
           title: "Error",
           message: "Please login again",
-        })
+        }),
       );
       return;
     }
@@ -171,7 +173,7 @@ export default function PledgeList() {
             Accept: "application/pdf",
           },
           body: JSON.stringify({ copy_type: "customer" }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -189,7 +191,7 @@ export default function PledgeList() {
           type: "success",
           title: "Success",
           message: "Receipt generated successfully",
-        })
+        }),
       );
     } catch (error) {
       console.error("Print error:", error);
@@ -198,10 +200,83 @@ export default function PledgeList() {
           type: "error",
           title: "Error",
           message: error.message || "Failed to print receipt",
-        })
+        }),
       );
     } finally {
       setPrintingId(null);
+    }
+  };
+
+  // Handle dot matrix print receipt
+  const handleDotPrint = async (pledgeId, e) => {
+    if (e) e.stopPropagation();
+
+    const token = getToken();
+    if (!token) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please login again",
+        }),
+      );
+      return;
+    }
+
+    setDotPrintingId(pledgeId);
+
+    try {
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pledge-receipt/${pledgeId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "text/html",
+          },
+          body: JSON.stringify({ copy_type: "customer" }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || "Failed to generate dot matrix receipt",
+        );
+      }
+
+      const html = await response.text();
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        // Auto-trigger print dialog
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: "Dot matrix receipt generated",
+        }),
+      );
+    } catch (error) {
+      console.error("Dot print error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to print dot matrix receipt",
+        }),
+      );
+    } finally {
+      setDotPrintingId(null);
     }
   };
 
@@ -213,7 +288,7 @@ export default function PledgeList() {
           type: "warning",
           title: "No Data",
           message: "No pledges to export",
-        })
+        }),
       );
       return;
     }
@@ -277,7 +352,7 @@ export default function PledgeList() {
             }
             return cellStr;
           })
-          .join(",")
+          .join(","),
       ),
     ].join("\n");
 
@@ -301,7 +376,7 @@ export default function PledgeList() {
         type: "success",
         title: "Exported",
         message: `${filteredPledges.length} pledges exported to CSV`,
-      })
+      }),
     );
   };
 
@@ -322,7 +397,7 @@ export default function PledgeList() {
           type: "error",
           title: "Required",
           message: "Please select a cancellation reason",
-        })
+        }),
       );
       return;
     }
@@ -348,7 +423,7 @@ export default function PledgeList() {
             message: `Pledge ${
               cancellingPledge.pledgeNo || cancellingPledge.receiptNo
             } has been cancelled`,
-          })
+          }),
         );
         setShowCancelModal(false);
         setCancellingPledge(null);
@@ -363,7 +438,7 @@ export default function PledgeList() {
           type: "error",
           title: "Error",
           message: error.message || "Failed to cancel pledge",
-        })
+        }),
       );
     } finally {
       setCancelling(false);
@@ -707,7 +782,7 @@ export default function PledgeList() {
                             </p>
                             <p className="text-xs text-zinc-500">
                               {formatDate(
-                                pledge.pledgeDate || pledge.createdAt
+                                pledge.pledgeDate || pledge.createdAt,
                               )}
                             </p>
                           </div>
@@ -765,7 +840,7 @@ export default function PledgeList() {
                                 ? "text-red-500"
                                 : daysUntilDue <= 30
                                   ? "text-amber-500"
-                                  : "text-zinc-400"
+                                  : "text-zinc-400",
                             )}
                           >
                             {daysUntilDue > 0
@@ -799,19 +874,37 @@ export default function PledgeList() {
                             <Eye className="w-4 h-4" />
                           </Button>
 
-                          {/* Print Button */}
+                          {/* Print Button (PDF) */}
                           {canPrint && (
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               disabled={printingId === pledge.id}
                               onClick={(e) => handlePrint(pledge.id, e)}
-                              title="Print Receipt"
+                              title="Print PDF Receipt"
                             >
                               {printingId === pledge.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
                                 <FileText className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
+
+                          {/* Dot Matrix Print Button */}
+                          {canPrint && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={dotPrintingId === pledge.id}
+                              onClick={(e) => handleDotPrint(pledge.id, e)}
+                              title="Print Dot Matrix Receipt"
+                              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            >
+                              {dotPrintingId === pledge.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Printer className="w-4 h-4" />
                               )}
                             </Button>
                           )}

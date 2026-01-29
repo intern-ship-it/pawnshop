@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\GoldPrice;
 use App\Models\Slot;
 use App\Models\AuditLog;
+use App\Models\Notification;
 use App\Services\InterestCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -472,6 +473,31 @@ class PledgeController extends Controller
             } catch (\Exception $e) {
                 // Don't fail pledge creation if audit logging fails
                 Log::warning('Audit log failed: ' . $e->getMessage());
+            }
+
+            // Create notification for new pledge
+            try {
+                Notification::create([
+                    'branch_id' => $branchId,
+                    'user_id' => null, // Visible to all users in branch
+                    'type' => 'success',
+                    'title' => 'New Pledge Created',
+                    'message' => "Pledge {$pledge->pledge_no} created for {$customer->name} - RM" . number_format($pledge->loan_amount, 2),
+                    'category' => 'pledge',
+                    'action_url' => "/pledges/{$pledge->id}",
+                    'is_read' => false,
+                    'metadata' => [
+                        'pledge_id' => $pledge->id,
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer_name' => $customer->name,
+                        'loan_amount' => $pledge->loan_amount,
+                        'items_count' => count($validated['items']),
+                        'created_by' => $request->user()->name,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                // Don't fail pledge creation if notification fails
+                Log::warning('Notification creation failed: ' . $e->getMessage());
             }
 
             return $this->success($pledge, 'Pledge created successfully', 201);

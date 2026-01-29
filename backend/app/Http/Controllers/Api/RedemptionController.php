@@ -8,6 +8,7 @@ use App\Models\Pledge;
 use App\Models\PledgeItem;
 use App\Models\Slot;
 use App\Models\AuditLog;
+use App\Models\Notification;
 use App\Services\InterestCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -226,6 +227,34 @@ class RedemptionController extends Controller
                 ]);
             } catch (\Exception $e) {
                 Log::warning('Audit log failed: ' . $e->getMessage());
+            }
+
+            // Create notification for redemption
+            try {
+                $customerName = $pledge->customer->name ?? 'Customer';
+                Notification::create([
+                    'branch_id' => $branchId,
+                    'user_id' => null,
+                    'type' => 'success',
+                    'title' => 'Pledge Redeemed',
+                    'message' => "Pledge {$pledge->pledge_no} redeemed by {$customerName} - RM" . number_format($calculation['total_payable'], 2),
+                    'category' => 'redemption',
+                    'action_url' => "/pledges/{$pledge->id}",
+                    'is_read' => false,
+                    'metadata' => [
+                        'redemption_id' => $redemption->id,
+                        'redemption_no' => $redemption->redemption_no,
+                        'pledge_id' => $pledge->id,
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer_name' => $customerName,
+                        'principal' => $pledge->loan_amount,
+                        'interest' => $calculation['total_interest'],
+                        'total_payable' => $calculation['total_payable'],
+                        'created_by' => $request->user()->name,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Notification creation failed: ' . $e->getMessage());
             }
 
             return $this->success($redemption, 'Redemption processed successfully', 201);

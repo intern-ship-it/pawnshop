@@ -7,6 +7,7 @@ use App\Models\Renewal;
 use App\Models\Pledge;
 use App\Models\RenewalInterestBreakdown;
 use App\Models\AuditLog;
+use App\Models\Notification;
 use App\Services\InterestCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -352,6 +353,34 @@ class RenewalController extends Controller
                 ]);
             } catch (\Exception $e) {
                 Log::warning('Audit log failed: ' . $e->getMessage());
+            }
+
+            // Create notification for renewal
+            try {
+                $customerName = $pledge->customer->name ?? 'Customer';
+                Notification::create([
+                    'branch_id' => $branchId,
+                    'user_id' => null,
+                    'type' => 'info',
+                    'title' => 'Pledge Renewed',
+                    'message' => "Pledge {$pledge->pledge_no} renewed for {$renewalMonths} month(s) - RM" . number_format($totalPayable, 2),
+                    'category' => 'renewal',
+                    'action_url' => "/pledges/{$pledge->id}",
+                    'is_read' => false,
+                    'metadata' => [
+                        'renewal_id' => $renewal->id,
+                        'renewal_no' => $renewal->renewal_no,
+                        'pledge_id' => $pledge->id,
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer_name' => $customerName,
+                        'renewal_months' => $renewalMonths,
+                        'total_payable' => $totalPayable,
+                        'new_due_date' => $newDueDate->toDateString(),
+                        'created_by' => $request->user()->name,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Notification creation failed: ' . $e->getMessage());
             }
 
             return $this->success($renewal, 'Renewal processed successfully', 201);

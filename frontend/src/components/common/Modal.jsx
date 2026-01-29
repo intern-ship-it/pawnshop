@@ -68,11 +68,11 @@ export default function Modal({
       <div
         ref={modalRef}
         className={cn(
-          "relative w-full bg-white rounded-2xl shadow-2xl",
+          "relative w-full bg-white rounded-2xl shadow-2xl overflow-hidden",
           "animate-in zoom-in-95 fade-in duration-200",
           "flex flex-col max-h-[calc(100vh-2rem)]",
           sizes[size],
-          className
+          className,
         )}
         role="dialog"
         aria-modal="true"
@@ -80,7 +80,7 @@ export default function Modal({
       >
         {/* Header */}
         {(title || showCloseButton) && (
-          <div className="flex items-start justify-between gap-4 p-5 border-b border-zinc-100">
+          <div className="flex items-start justify-between gap-4 p-5 border-b border-zinc-200 bg-zinc-50">
             <div>
               {title && (
                 <h2
@@ -116,7 +116,7 @@ export default function Modal({
         )}
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

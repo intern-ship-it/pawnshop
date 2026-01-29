@@ -303,19 +303,8 @@ export default function AuditLogScreen() {
     });
   };
 
-  // Format relative time
+  // Format relative time - now always shows full timestamp for consistency
   const formatRelativeTime = (timestamp) => {
-    const now = new Date();
-    const date = new Date(timestamp);
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
     return formatTimestamp(timestamp);
   };
 
@@ -759,23 +748,150 @@ export default function AuditLogScreen() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-1 mb-1 flex-wrap">
                         <span className="font-medium text-zinc-800">
-                          {log.description}
+                          {(() => {
+                            const desc = log.description || "";
+
+                            // Match patterns
+                            const pledgeMatch = desc.match(/(PLG-[A-Z0-9-]+)/);
+                            const amountMatch = desc.match(/(RM[\d,]+\.?\d*)/);
+                            const customerMatch =
+                              desc.match(/for\s+(.+?)\s+-\s+RM/);
+
+                            if (pledgeMatch || amountMatch || customerMatch) {
+                              let parts = [];
+                              let lastIndex = 0;
+
+                              // Find all matches and their positions
+                              const matches = [];
+
+                              if (pledgeMatch) {
+                                matches.push({
+                                  start: desc.indexOf(pledgeMatch[1]),
+                                  end:
+                                    desc.indexOf(pledgeMatch[1]) +
+                                    pledgeMatch[1].length,
+                                  text: pledgeMatch[1],
+                                  type: "pledge",
+                                });
+                              }
+
+                              if (customerMatch) {
+                                const forIndex = desc.indexOf(
+                                  "for " + customerMatch[1],
+                                );
+                                if (forIndex !== -1) {
+                                  matches.push({
+                                    start: forIndex + 4, // Skip "for "
+                                    end: forIndex + 4 + customerMatch[1].length,
+                                    text: customerMatch[1],
+                                    type: "customer",
+                                  });
+                                }
+                              }
+
+                              if (amountMatch) {
+                                matches.push({
+                                  start: desc.indexOf(amountMatch[1]),
+                                  end:
+                                    desc.indexOf(amountMatch[1]) +
+                                    amountMatch[1].length,
+                                  text: amountMatch[1],
+                                  type: "amount",
+                                });
+                              }
+
+                              // Sort by position
+                              matches.sort((a, b) => a.start - b.start);
+
+                              // Build parts array
+                              matches.forEach((match, idx) => {
+                                // Add text before this match
+                                if (match.start > lastIndex) {
+                                  parts.push(
+                                    <span
+                                      key={`text-${idx}`}
+                                      className="text-zinc-700"
+                                    >
+                                      {desc.substring(lastIndex, match.start)}
+                                    </span>,
+                                  );
+                                }
+
+                                // Add the highlighted match
+                                if (match.type === "pledge") {
+                                  parts.push(
+                                    <span
+                                      key={`match-${idx}`}
+                                      className="font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200"
+                                    >
+                                      {match.text}
+                                    </span>,
+                                  );
+                                } else if (match.type === "customer") {
+                                  parts.push(
+                                    <span
+                                      key={`match-${idx}`}
+                                      className="font-semibold text-amber-700"
+                                    >
+                                      {match.text}
+                                    </span>,
+                                  );
+                                } else if (match.type === "amount") {
+                                  parts.push(
+                                    <span
+                                      key={`match-${idx}`}
+                                      className="font-bold text-emerald-600"
+                                    >
+                                      {match.text}
+                                    </span>,
+                                  );
+                                }
+
+                                lastIndex = match.end;
+                              });
+
+                              // Add remaining text
+                              if (lastIndex < desc.length) {
+                                parts.push(
+                                  <span
+                                    key="text-end"
+                                    className="text-zinc-700"
+                                  >
+                                    {desc.substring(lastIndex)}
+                                  </span>,
+                                );
+                              }
+
+                              return parts.length > 0 ? parts : desc;
+                            }
+                            return desc;
+                          })()}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-sm text-zinc-500">
-                        <span className="flex items-center gap-1">
-                          <User className="w-3.5 h-3.5" />
-                          {log.user?.name || log.user || "System"}
+                        <span className="flex items-center gap-1.5 bg-zinc-100 px-2 py-0.5 rounded-full">
+                          <User className="w-3.5 h-3.5 text-zinc-500" />
+                          <span className="font-medium text-zinc-600">
+                            {typeof log.user === "object"
+                              ? log.user?.name || "Unknown"
+                              : log.user || "System"}
+                          </span>
                         </span>
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge
+                          variant="secondary"
+                          className="text-xs rounded-full"
+                        >
                           {module.label}
                         </Badge>
-                        <span className="text-zinc-400">•</span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {formatRelativeTime(log.created_at || log.timestamp)}
+                        <span className="flex items-center gap-1.5 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                          <Clock className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
+                          <span className="font-medium text-blue-700">
+                            {formatRelativeTime(
+                              log.created_at || log.timestamp,
+                            )}
+                          </span>
                         </span>
                       </div>
                     </div>
@@ -844,7 +960,7 @@ export default function AuditLogScreen() {
         {selectedLog && (
           <div className="p-5">
             {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-start gap-4 mb-6">
               {(() => {
                 const action = actionConfig[selectedLog.action] || {
                   icon: Activity,
@@ -854,17 +970,22 @@ export default function AuditLogScreen() {
                 return (
                   <div
                     className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center",
-                      action.color === "blue" && "bg-blue-100",
-                      action.color === "emerald" && "bg-emerald-100",
-                      action.color === "amber" && "bg-amber-100",
-                      action.color === "red" && "bg-red-100",
-                      action.color === "zinc" && "bg-zinc-100",
+                      "w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm",
+                      action.color === "blue" &&
+                        "bg-gradient-to-br from-blue-100 to-blue-200",
+                      action.color === "emerald" &&
+                        "bg-gradient-to-br from-emerald-100 to-emerald-200",
+                      action.color === "amber" &&
+                        "bg-gradient-to-br from-amber-100 to-amber-200",
+                      action.color === "red" &&
+                        "bg-gradient-to-br from-red-100 to-red-200",
+                      action.color === "zinc" &&
+                        "bg-gradient-to-br from-zinc-100 to-zinc-200",
                     )}
                   >
                     <ActionIcon
                       className={cn(
-                        "w-6 h-6",
+                        "w-7 h-7",
                         action.color === "blue" && "text-blue-600",
                         action.color === "emerald" && "text-emerald-600",
                         action.color === "amber" && "text-amber-600",
@@ -875,35 +996,299 @@ export default function AuditLogScreen() {
                   </div>
                 );
               })()}
-              <div>
-                <p className="font-semibold text-zinc-800">
-                  {selectedLog.description}
+              <div className="flex-1">
+                {/* Parse and highlight description */}
+                <p className="font-semibold text-zinc-800 text-lg leading-relaxed">
+                  {(() => {
+                    const desc = selectedLog.description || "";
+
+                    // Parse common patterns in description
+                    // Pattern: "Created pledge PLG-XXX for Customer Name - RMAmount"
+                    const pledgeMatch = desc.match(/(PLG-[A-Z0-9-]+)/);
+                    const amountMatch = desc.match(/(RM[\d,]+\.?\d*)/);
+                    const customerMatch = desc.match(/for\s+(.+?)\s+-\s+RM/);
+
+                    if (pledgeMatch || amountMatch || customerMatch) {
+                      let result = desc;
+                      let parts = [];
+                      let lastIndex = 0;
+
+                      // Find all matches and their positions
+                      const matches = [];
+
+                      if (pledgeMatch) {
+                        matches.push({
+                          start: desc.indexOf(pledgeMatch[1]),
+                          end:
+                            desc.indexOf(pledgeMatch[1]) +
+                            pledgeMatch[1].length,
+                          text: pledgeMatch[1],
+                          type: "pledge",
+                        });
+                      }
+
+                      if (customerMatch) {
+                        const forIndex = desc.indexOf(
+                          "for " + customerMatch[1],
+                        );
+                        if (forIndex !== -1) {
+                          matches.push({
+                            start: forIndex + 4, // Skip "for "
+                            end: forIndex + 4 + customerMatch[1].length,
+                            text: customerMatch[1],
+                            type: "customer",
+                          });
+                        }
+                      }
+
+                      if (amountMatch) {
+                        matches.push({
+                          start: desc.indexOf(amountMatch[1]),
+                          end:
+                            desc.indexOf(amountMatch[1]) +
+                            amountMatch[1].length,
+                          text: amountMatch[1],
+                          type: "amount",
+                        });
+                      }
+
+                      // Sort by position
+                      matches.sort((a, b) => a.start - b.start);
+
+                      // Build parts array
+                      matches.forEach((match, idx) => {
+                        // Add text before this match
+                        if (match.start > lastIndex) {
+                          parts.push(
+                            <span key={`text-${idx}`} className="text-zinc-700">
+                              {desc.substring(lastIndex, match.start)}
+                            </span>,
+                          );
+                        }
+
+                        // Add the highlighted match
+                        if (match.type === "pledge") {
+                          parts.push(
+                            <span
+                              key={`match-${idx}`}
+                              className="font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded"
+                            >
+                              {match.text}
+                            </span>,
+                          );
+                        } else if (match.type === "customer") {
+                          parts.push(
+                            <span
+                              key={`match-${idx}`}
+                              className="font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200"
+                            >
+                              {match.text}
+                            </span>,
+                          );
+                        } else if (match.type === "amount") {
+                          parts.push(
+                            <span
+                              key={`match-${idx}`}
+                              className="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded"
+                            >
+                              {match.text}
+                            </span>,
+                          );
+                        }
+
+                        lastIndex = match.end;
+                      });
+
+                      // Add remaining text
+                      if (lastIndex < desc.length) {
+                        parts.push(
+                          <span key="text-end" className="text-zinc-700">
+                            {desc.substring(lastIndex)}
+                          </span>,
+                        );
+                      }
+
+                      return parts.length > 0 ? parts : desc;
+                    }
+
+                    return desc;
+                  })()}
                 </p>
-                <p className="text-sm text-zinc-500">{selectedLog.id}</p>
+                <p className="text-sm text-zinc-400 mt-1 font-mono">
+                  ID: {selectedLog.id}
+                </p>
               </div>
             </div>
 
-            {/* Info Grid */}
+            {/* Info Grid - Enhanced with colors and hover animations */}
             <div className="space-y-3 mb-6">
-              <div className="flex justify-between p-3 bg-zinc-50 rounded-lg">
-                <span className="text-zinc-500">Timestamp</span>
-                <span className="font-medium">
-                  {formatTimestamp(selectedLog.timestamp)}
+              {/* Timestamp - Blue theme */}
+              <motion.div
+                className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-xl border border-blue-100 cursor-pointer"
+                whileHover={{
+                  scale: 1.02,
+                  y: -2,
+                  boxShadow: "0 8px 25px -5px rgba(59, 130, 246, 0.15)",
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span className="text-blue-700 font-medium">Timestamp</span>
+                </div>
+                <span className="font-semibold text-blue-900">
+                  {formatTimestamp(
+                    selectedLog.created_at || selectedLog.timestamp,
+                  )}
                 </span>
-              </div>
-              <div className="flex justify-between p-3 bg-zinc-50 rounded-lg">
-                <span className="text-zinc-500">User</span>
-                <span className="font-medium">{selectedLog.user}</span>
-              </div>
-              <div className="flex justify-between p-3 bg-zinc-50 rounded-lg">
-                <span className="text-zinc-500">Module</span>
-                <Badge variant="secondary">
+              </motion.div>
+
+              {/* User - Purple theme */}
+              <motion.div
+                className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100/50 rounded-xl border border-purple-100 cursor-pointer"
+                whileHover={{
+                  scale: 1.02,
+                  y: -2,
+                  boxShadow: "0 8px 25px -5px rgba(147, 51, 234, 0.15)",
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <User className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <span className="text-purple-700 font-medium">User</span>
+                </div>
+                <span className="font-semibold text-purple-900">
+                  {typeof selectedLog.user === "object"
+                    ? selectedLog.user?.name || "Unknown"
+                    : selectedLog.user || "System"}
+                </span>
+              </motion.div>
+
+              {/* Email - Indigo theme (if user has email) */}
+              {selectedLog.user?.email && (
+                <motion.div
+                  className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-indigo-100/50 rounded-xl border border-indigo-100 cursor-pointer"
+                  whileHover={{
+                    scale: 1.02,
+                    y: -2,
+                    boxShadow: "0 8px 25px -5px rgba(99, 102, 241, 0.15)",
+                  }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <span className="text-indigo-700 font-medium">Email</span>
+                  </div>
+                  <span className="font-semibold text-indigo-900">
+                    {selectedLog.user.email}
+                  </span>
+                </motion.div>
+              )}
+
+              {/* Module - Amber theme */}
+              <motion.div
+                className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-amber-100/50 rounded-xl border border-amber-100 cursor-pointer"
+                whileHover={{
+                  scale: 1.02,
+                  y: -2,
+                  boxShadow: "0 8px 25px -5px rgba(245, 158, 11, 0.15)",
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <Package className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <span className="text-amber-700 font-medium">Module</span>
+                </div>
+                <Badge variant="warning" className="text-sm px-3 py-1">
                   {moduleConfig[selectedLog.module]?.label ||
                     selectedLog.module}
                 </Badge>
-              </div>
-              <div className="flex justify-between p-3 bg-zinc-50 rounded-lg">
-                <span className="text-zinc-500">Action</span>
+              </motion.div>
+
+              {/* Action - Dynamic color based on action type */}
+              <motion.div
+                className={cn(
+                  "flex items-center justify-between p-4 rounded-xl border cursor-pointer",
+                  actionConfig[selectedLog.action]?.color === "emerald" &&
+                    "bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-emerald-100",
+                  actionConfig[selectedLog.action]?.color === "amber" &&
+                    "bg-gradient-to-r from-amber-50 to-amber-100/50 border-amber-100",
+                  actionConfig[selectedLog.action]?.color === "red" &&
+                    "bg-gradient-to-r from-red-50 to-red-100/50 border-red-100",
+                  actionConfig[selectedLog.action]?.color === "blue" &&
+                    "bg-gradient-to-r from-blue-50 to-blue-100/50 border-blue-100",
+                  (!actionConfig[selectedLog.action]?.color ||
+                    actionConfig[selectedLog.action]?.color === "zinc") &&
+                    "bg-gradient-to-r from-zinc-50 to-zinc-100/50 border-zinc-200",
+                )}
+                whileHover={{
+                  scale: 1.02,
+                  y: -2,
+                  boxShadow: "0 8px 25px -5px rgba(16, 185, 129, 0.15)",
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center",
+                      actionConfig[selectedLog.action]?.color === "emerald" &&
+                        "bg-emerald-100",
+                      actionConfig[selectedLog.action]?.color === "amber" &&
+                        "bg-amber-100",
+                      actionConfig[selectedLog.action]?.color === "red" &&
+                        "bg-red-100",
+                      actionConfig[selectedLog.action]?.color === "blue" &&
+                        "bg-blue-100",
+                      (!actionConfig[selectedLog.action]?.color ||
+                        actionConfig[selectedLog.action]?.color === "zinc") &&
+                        "bg-zinc-200",
+                    )}
+                  >
+                    <Activity
+                      className={cn(
+                        "w-4 h-4",
+                        actionConfig[selectedLog.action]?.color === "emerald" &&
+                          "text-emerald-600",
+                        actionConfig[selectedLog.action]?.color === "amber" &&
+                          "text-amber-600",
+                        actionConfig[selectedLog.action]?.color === "red" &&
+                          "text-red-600",
+                        actionConfig[selectedLog.action]?.color === "blue" &&
+                          "text-blue-600",
+                        (!actionConfig[selectedLog.action]?.color ||
+                          actionConfig[selectedLog.action]?.color === "zinc") &&
+                          "text-zinc-600",
+                      )}
+                    />
+                  </div>
+                  <span
+                    className={cn(
+                      "font-medium",
+                      actionConfig[selectedLog.action]?.color === "emerald" &&
+                        "text-emerald-700",
+                      actionConfig[selectedLog.action]?.color === "amber" &&
+                        "text-amber-700",
+                      actionConfig[selectedLog.action]?.color === "red" &&
+                        "text-red-700",
+                      actionConfig[selectedLog.action]?.color === "blue" &&
+                        "text-blue-700",
+                      (!actionConfig[selectedLog.action]?.color ||
+                        actionConfig[selectedLog.action]?.color === "zinc") &&
+                        "text-zinc-700",
+                    )}
+                  >
+                    Action
+                  </span>
+                </div>
                 <Badge
                   variant={
                     actionConfig[selectedLog.action]?.color === "emerald"
@@ -914,16 +1299,36 @@ export default function AuditLogScreen() {
                           ? "error"
                           : "info"
                   }
+                  className="text-sm px-3 py-1"
                 >
                   {actionConfig[selectedLog.action]?.label ||
                     selectedLog.action}
                 </Badge>
-              </div>
-              {selectedLog.ip && (
-                <div className="flex justify-between p-3 bg-zinc-50 rounded-lg">
-                  <span className="text-zinc-500">IP Address</span>
-                  <span className="font-mono text-sm">{selectedLog.ip}</span>
-                </div>
+              </motion.div>
+
+              {/* IP Address - Cyan theme */}
+              {(selectedLog.ip || selectedLog.ip_address) && (
+                <motion.div
+                  className="flex items-center justify-between p-4 bg-gradient-to-r from-cyan-50 to-cyan-100/50 rounded-xl border border-cyan-100 cursor-pointer"
+                  whileHover={{
+                    scale: 1.02,
+                    y: -2,
+                    boxShadow: "0 8px 25px -5px rgba(6, 182, 212, 0.15)",
+                  }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-cyan-100 flex items-center justify-center">
+                      <Shield className="w-4 h-4 text-cyan-600" />
+                    </div>
+                    <span className="text-cyan-700 font-medium">
+                      IP Address
+                    </span>
+                  </div>
+                  <span className="font-mono text-sm font-semibold text-cyan-900 bg-cyan-100 px-3 py-1 rounded-lg">
+                    {selectedLog.ip || selectedLog.ip_address}
+                  </span>
+                </motion.div>
               )}
             </div>
 
