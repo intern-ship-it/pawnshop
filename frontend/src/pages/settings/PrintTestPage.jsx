@@ -488,7 +488,8 @@ export default function PrintTestPage() {
         <title>Barcode - ${pledgeNo}</title>
         <style>
           @page { size: 50mm 50mm; margin: 0; }
-          body { font-family: Arial; padding: 10px; background: #f5f5f5; }
+          html, body { width: 50mm; height: 50mm; margin: 0; padding: 0; overflow: hidden; }
+          body { font-family: Arial; background: white; }
           .label { width: 50mm; height: 50mm; padding: 3mm; background: white; border: 1px dashed #ccc; margin: 5px auto 10px; page-break-after: always; display: flex; flex-direction: column; }
           .label:last-child { page-break-after: auto; }
           .header-row { display: flex; justify-content: space-between; border-bottom: 0.5mm solid #333; padding-bottom: 2mm; margin-bottom: 2mm; font-size: 10pt; font-weight: bold; }
