@@ -1447,14 +1447,12 @@ export default function NewPledge() {
       <title>Barcode Labels - ${receiptNo || pledgeNo || "Pledge"}</title>
       <style>
         @page { size: 50mm 50mm; margin: 0; }
-        html, body { width: 50mm; height: 50mm; margin: 0; padding: 0; overflow: hidden; }
-        body { font-family: 'Courier New', monospace; background: white; }
+        body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; background: #f0f0f0; }
         .print-controls { text-align: center; padding: 15px; margin-bottom: 15px; background: #fff; border-radius: 8px; }
         .print-btn { background: #10b981; color: white; border: none; padding: 10px 30px; font-size: 14px; cursor: pointer; border-radius: 5px; font-weight: bold; }
         .close-btn { background: #6b7280; color: white; border: none; padding: 10px 20px; font-size: 14px; cursor: pointer; border-radius: 5px; margin-left: 10px; }
         .labels-container { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-        /* Use 48mm for safety margin during print */
-        .label { width: 48mm; height: 48mm; border: 1px solid #333; background: white; padding: 2mm; box-sizing: border-box; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; margin: 0 auto; }
+        .label { width: 50mm; height: 50mm; border: 1px solid #333; background: white; padding: 3mm; box-sizing: border-box; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; }
         .header-row { display: flex; justify-content: space-between; font-size: 10pt; font-weight: bold; border-bottom: 0.5mm solid #333; padding-bottom: 2mm; margin-bottom: 2mm; }
         .pledge-no { color: #333; }
         .category { color: #666; text-transform: uppercase; }
@@ -1475,8 +1473,7 @@ export default function NewPledge() {
       <div class="print-controls">
         <button class="print-btn" onclick="window.print()">🏷️ Print Barcodes</button>
         <button class="close-btn" onclick="window.close()">✕ Close</button>
-        <p style="font-size: 11px; color: #d97706; margin-top: 10px; font-weight: bold;">⚠️ IMPORTANT: In Print Settings:<br>1. Select Paper Size "50mm x 50mm"<br>2. Set Margins to "None"<br>3. Uncheck "Headers and footers"</p>
-        <p style="font-size: 11px; color: #666; margin-top: 5px;">Select: <strong>Thermal Printer</strong> | Label size: <strong>50mm x 50mm</strong></p>
+        <p style="font-size: 11px; color: #666; margin-top: 10px;">Select: <strong>Thermal Printer</strong> | Label size: <strong>50mm x 50mm</strong></p>
       </div>
       <div class="labels-container">${barcodeLabels}</div>
       <script>window.onload = function() { document.querySelector('.print-btn').focus(); }</script>
@@ -2256,30 +2253,26 @@ export default function NewPledge() {
             margin: 0;
           }
           
-          
-          html, body {
-            width: 50mm;
-            height: 50mm;
+          * {
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            box-sizing: border-box;
           }
           
           body {
             font-family: Arial, sans-serif;
-            background: white;
+            margin: 0;
+            padding: 0;
           }
           
           .label {
-            /* 48mm width/height to ensure it fits within 50mm paper with tolerance */
-            width: 48mm;
-            height: 48mm;
-            padding: 1mm;
+            width: 50mm;
+            height: 50mm;
+            padding: 2mm 3mm;
             page-break-after: always;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            margin: 0 auto;
           }
           
           .label:last-child {
