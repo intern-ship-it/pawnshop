@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             DefaultSettingsSeeder::class,
             WhatsAppTemplateSeeder::class,
             MarginPresetSeeder::class,
+            TermsConditionSeeder::class,
         ]);
     }
 }
