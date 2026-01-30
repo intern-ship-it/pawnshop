@@ -1419,17 +1419,9 @@ export default function NewPledge() {
     </html>`;
   };
 
-  // Generate barcode print HTML (for thermal printer)
-  // Generate barcode print HTML (for thermal printer) - DYNAMIC SIZING
+  // Generate barcode print HTML (for thermal printer) - FIXED SCALING
   const generateBarcodeHTML = (items, pledgeNo, receiptNo) => {
-    // Calculate dynamic paper size
     const labelCount = items.length;
-    const labelWidth = 50; // mm
-    const labelHeight = 30; // mm per label (compact)
-    const labelGap = 2; // mm between labels
-    const totalHeight =
-      labelCount * labelHeight + (labelCount - 1) * labelGap + 4;
-    const paperHeight = labelCount === 1 ? labelHeight + 2 : totalHeight;
 
     const barcodeLabels = items
       .map(
@@ -1455,41 +1447,124 @@ export default function NewPledge() {
     <head>
       <title>Barcode Labels - ${receiptNo || pledgeNo || "Pledge"}</title>
       <style>
-        @page { size: ${labelWidth}mm ${paperHeight}mm; margin: 0; }
+        @page { 
+          size: 50mm auto; 
+          margin: 0; 
+        }
+        @media print {
+          html, body {
+            width: 50mm;
+            margin: 0;
+            padding: 0;
+          }
+          .controls { display: none !important; }
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
-        .controls { text-align: center; padding: 15px; background: linear-gradient(135deg, #1f2937 0%, #374151 100%); margin-bottom: 15px; }
-        .controls button { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; padding: 12px 25px; cursor: pointer; border-radius: 8px; margin: 0 5px; font-weight: bold; }
+        body { 
+          font-family: Arial, sans-serif; 
+          margin: 0; 
+          padding: 0; 
+          background: #f5f5f5;
+          width: 50mm;
+        }
+        .controls { 
+          text-align: center; 
+          padding: 15px; 
+          background: linear-gradient(135deg, #1f2937 0%, #374151 100%); 
+          margin-bottom: 15px;
+          width: 100%;
+          max-width: 300px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        .controls button { 
+          background: linear-gradient(135deg, #d97706 0%, #b45309 100%); 
+          color: white; 
+          border: none; 
+          padding: 12px 25px; 
+          cursor: pointer; 
+          border-radius: 8px; 
+          margin: 0 5px; 
+          font-weight: bold; 
+        }
         .controls button.close { background: #6b7280; }
         .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
         .controls .info strong { color: #fbbf24; }
-        .labels-wrapper { width: ${labelWidth}mm; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .label { width: ${labelWidth}mm; height: ${labelHeight}mm; padding: 2mm; background: white; display: flex; flex-direction: column; overflow: hidden; border-bottom: 0.5px dashed #ccc; }
+        .labels-wrapper { 
+          width: 50mm; 
+          margin: 0 auto; 
+          background: white; 
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .label { 
+          width: 50mm; 
+          min-height: 30mm;
+          padding: 2mm 3mm; 
+          background: white; 
+          display: flex; 
+          flex-direction: column; 
+          overflow: hidden; 
+          border-bottom: 1px dashed #ccc;
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
         .label:last-child { border-bottom: none; }
-        .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
-        .pledge-no { font-size: 8pt; font-weight: bold; }
-        .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-        .barcode-section { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .barcode-img { max-width: 44mm; height: 12mm; object-fit: contain; }
-        .barcode-text { font-family: 'Courier New', monospace; font-size: 7pt; margin-top: 1mm; font-weight: bold; letter-spacing: 0.5px; }
-        .footer-row { border-top: 0.5mm solid #333; padding-top: 1mm; font-size: 8pt; font-weight: bold; text-align: center; }
-        @media print { body { background: white; padding: 0; margin: 0; } .controls { display: none !important; } .labels-wrapper { box-shadow: none; margin: 0; } .label { border-bottom: none; } }
-        @media screen { body { padding: 20px; } }
+        .header-row { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          border-bottom: 0.3mm solid #333; 
+          padding-bottom: 1mm; 
+          margin-bottom: 1mm; 
+        }
+        .pledge-no { font-size: 9pt; font-weight: bold; }
+        .category { font-size: 8pt; font-weight: 600; text-transform: uppercase; color: #333; }
+        .barcode-section { 
+          flex: 1; 
+          text-align: center; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          justify-content: center;
+          padding: 2mm 0;
+        }
+        .barcode-img { 
+          width: 42mm; 
+          height: 12mm; 
+          object-fit: contain; 
+        }
+        .barcode-text { 
+          font-family: 'Courier New', monospace; 
+          font-size: 8pt; 
+          margin-top: 1mm; 
+          font-weight: bold; 
+          letter-spacing: 0.5px; 
+        }
+        .footer-row { 
+          border-top: 0.3mm solid #333; 
+          padding-top: 1mm; 
+          font-size: 9pt; 
+          font-weight: bold; 
+          text-align: center; 
+        }
+        @media screen { 
+          body { padding: 20px; width: auto; } 
+          .labels-wrapper { box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        }
       </style>
     </head>
     <body>
       <div class="controls">
         <button onclick="window.print()">🏷️ Print ${labelCount} Label${labelCount > 1 ? "s" : ""}</button>
         <button class="close" onclick="window.close()">✕ Close</button>
-        <p class="info">Paper: <strong>${labelWidth}mm × ${paperHeight}mm</strong> | Labels: <strong>${labelCount}</strong></p>
-        <p class="info" style="margin-top:5px;">💡 Set paper to <strong>"Custom"</strong> or <strong>"Receipt"</strong> in printer</p>
+        <p class="info">Printer: <strong>Thermal 58mm</strong> | Labels: <strong>${labelCount}</strong></p>
+        <p class="info" style="margin-top:5px;">⚠️ Set printer to <strong>58mm Roll</strong> or <strong>Custom 50mm</strong></p>
       </div>
       <div class="labels-wrapper">${barcodeLabels}</div>
       <script>window.onload = function() { document.querySelector('button').focus(); }</script>
     </body>
     </html>`;
   };
-
   // Manual retry function for failed jobs
   const retryPrintJob = async (jobKey) => {
     if (!createdPledgeId) return;
@@ -2265,19 +2340,37 @@ export default function NewPledge() {
       <head>
         <title>Barcode Labels - ${createdReceiptNo}</title>
         <style>
-          @page { size: ${labelWidth}mm ${paperHeight}mm; margin: 0; }
+          @page { 
+            size: 50mm auto; 
+            margin: 0; 
+          }
+          @media print {
+            html, body {
+              width: 50mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-          .label { width: ${labelWidth}mm; height: ${labelHeight}mm; padding: 2mm; display: flex; flex-direction: column; overflow: hidden; border-bottom: 0.5px dashed #ccc; }
+          .label { 
+            width: 50mm; 
+            min-height: 30mm; 
+            padding: 2mm 3mm; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            border-bottom: 1px dashed #ccc;
+            page-break-inside: avoid;
+          }
           .label:last-child { border-bottom: none; }
-          .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
-          .pledge-no { font-size: 8pt; font-weight: bold; }
-          .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-          .barcode-section { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-          .barcode-image { max-width: 44mm; height: 12mm; object-fit: contain; }
-          .barcode-text { font-family: 'Courier New', monospace; font-size: 7pt; margin-top: 1mm; font-weight: bold; letter-spacing: 0.5px; }
-          .footer-row { border-top: 0.5mm solid #333; padding-top: 1mm; font-size: 8pt; font-weight: bold; text-align: center; }
-          @media print { body { -webkit-print-color-adjust: exact; } .label { border-bottom: none; } }
+          .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
+          .pledge-no { font-size: 9pt; font-weight: bold; }
+          .category { font-size: 8pt; font-weight: 600; text-transform: uppercase; color: #333; }
+          .barcode-section { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm 0; }
+          .barcode-image { width: 42mm; height: 12mm; object-fit: contain; }
+          .barcode-text { font-family: 'Courier New', monospace; font-size: 8pt; margin-top: 1mm; font-weight: bold; letter-spacing: 0.5px; }
+          .footer-row { border-top: 0.3mm solid #333; padding-top: 1mm; font-size: 9pt; font-weight: bold; text-align: center; }
           @media screen { .label { border: 1px dashed #ccc; margin: 5px auto; background: #fff; } }
         </style>
       </head>
@@ -2299,7 +2392,7 @@ export default function NewPledge() {
         `,
           )
           .join("")}
-        <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
+        <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<\/script>
       </body>
       </html>
       `);
