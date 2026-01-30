@@ -477,9 +477,23 @@ export default function PrintTestPage() {
     }
   };
 
+  // FIXED: Open barcode window with DYNAMIC paper sizing
   const openBarcodeWindow = (barcodes, pledgeNo) => {
     const printWindow = window.open("", "_blank", "width=400,height=600");
     if (!printWindow) return;
+
+    // Calculate dynamic paper size based on number of labels
+    const labelCount = barcodes.length;
+    const labelWidth = 50; // mm - width of each label
+    const labelHeight = 30; // mm - height of each label (compact)
+    const labelGap = 2; // mm - small gap between labels
+
+    // Calculate total height: labels + gaps + small margin
+    const totalHeight =
+      labelCount * labelHeight + (labelCount - 1) * labelGap + 4;
+
+    // For single label, use minimal height
+    const paperHeight = labelCount === 1 ? labelHeight + 2 : totalHeight;
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -487,39 +501,198 @@ export default function PrintTestPage() {
       <head>
         <title>Barcode - ${pledgeNo}</title>
         <style>
-          @page { size: 50mm 50mm; margin: 0; }
-          body { font-family: Arial; padding: 10px; background: #f5f5f5; }
-          .label { width: 50mm; height: 50mm; padding: 3mm; background: white; border: 1px dashed #ccc; margin: 5px auto 10px; page-break-after: always; display: flex; flex-direction: column; }
-          .label:last-child { page-break-after: auto; }
-          .header-row { display: flex; justify-content: space-between; border-bottom: 0.5mm solid #333; padding-bottom: 2mm; margin-bottom: 2mm; font-size: 10pt; font-weight: bold; }
-          .barcode-section { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3mm 0; }
-          .barcode-image { max-width: 44mm; height: 18mm; }
-          .barcode-text { font-family: monospace; font-size: 9pt; margin-top: 2mm; font-weight: bold; letter-spacing: 1px; }
-          .footer-row { border-top: 0.5mm solid #333; padding-top: 2mm; font-size: 10pt; font-weight: bold; }
-          .controls { text-align: center; padding: 10px; background: #1f2937; border-radius: 8px; margin-bottom: 15px; }
-          .controls button { background: #d97706; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; margin: 0 5px; font-weight: bold; }
-          @media print { .controls { display: none; } .label { border: none; margin: 0; } body { padding: 0; background: white; } }
+          /* DYNAMIC page size based on label count */
+          @page {
+            size: ${labelWidth}mm ${paperHeight}mm;
+            margin: 0;
+          }
+          
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+          }
+          
+          .controls {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            margin-bottom: 15px;
+          }
+          .controls button {
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            cursor: pointer;
+            border-radius: 8px;
+            margin: 0 5px;
+            font-weight: bold;
+            font-size: 14px;
+          }
+          .controls button:hover {
+            transform: translateY(-1px);
+          }
+          .controls button.close {
+            background: #6b7280;
+          }
+          .controls .info {
+            color: #9ca3af;
+            font-size: 11px;
+            margin-top: 10px;
+          }
+          .controls .info strong {
+            color: #fbbf24;
+          }
+          
+          .labels-wrapper {
+            width: ${labelWidth}mm;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          }
+          
+          .label {
+            width: ${labelWidth}mm;
+            height: ${labelHeight}mm;
+            padding: 2mm;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-bottom: 0.5px dashed #ccc;
+          }
+          
+          .label:last-child {
+            border-bottom: none;
+          }
+          
+          .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 0.5mm solid #333;
+            padding-bottom: 1mm;
+            margin-bottom: 1mm;
+          }
+          
+          .pledge-no {
+            font-size: 8pt;
+            font-weight: bold;
+            color: #000;
+          }
+          
+          .category {
+            font-size: 7pt;
+            font-weight: 600;
+            color: #333;
+            text-transform: uppercase;
+          }
+          
+          .barcode-section {
+            flex: 1;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+          }
+          
+          .barcode-image {
+            max-width: 44mm;
+            height: 12mm;
+            object-fit: contain;
+          }
+          
+          .barcode-text {
+            font-family: 'Courier New', monospace;
+            font-size: 7pt;
+            margin-top: 1mm;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+          }
+          
+          .footer-row {
+            border-top: 0.5mm solid #333;
+            padding-top: 1mm;
+            font-size: 8pt;
+            font-weight: bold;
+            text-align: center;
+          }
+          
+          @media print {
+            body {
+              background: white;
+              padding: 0;
+              margin: 0;
+            }
+            .controls {
+              display: none !important;
+            }
+            .labels-wrapper {
+              box-shadow: none;
+              margin: 0;
+            }
+            .label {
+              border-bottom: none;
+            }
+            /* Only add page break if multiple labels */
+            ${labelCount > 1 ? `.label { page-break-inside: avoid; }` : ""}
+          }
+          
+          @media screen {
+            body {
+              padding: 20px;
+            }
+          }
         </style>
       </head>
       <body>
         <div class="controls">
-          <button onclick="window.print()">🖨️ Print</button>
-          <button onclick="window.close()" style="background:#6b7280;">✕ Close</button>
+          <button onclick="window.print()">🏷️ Print ${labelCount} Label${labelCount > 1 ? "s" : ""}</button>
+          <button class="close" onclick="window.close()">✕ Close</button>
+          <p class="info">
+            Printer: <strong>Thermal Printer</strong> | 
+            Paper: <strong>${labelWidth}mm × ${paperHeight}mm</strong> | 
+            Labels: <strong>${labelCount}</strong>
+          </p>
+          <p class="info" style="margin-top:5px;">
+            💡 Tip: Set paper size to <strong>"Custom"</strong> or <strong>"Receipt"</strong> in printer settings
+          </p>
         </div>
-        ${barcodes
-          .map(
-            (b) => `
-          <div class="label">
-            <div class="header-row"><span>${b.pledge_no || pledgeNo}</span><span>${b.category || "Item"}</span></div>
-            <div class="barcode-section">
-              <img class="barcode-image" src="${b.image}" onerror="this.style.display='none'" />
-              <div class="barcode-text">${b.barcode || ""}</div>
+        
+        <div class="labels-wrapper">
+          ${barcodes
+            .map(
+              (b) => `
+            <div class="label">
+              <div class="header-row">
+                <span class="pledge-no">${b.pledge_no || pledgeNo}</span>
+                <span class="category">${b.category || "Item"}</span>
+              </div>
+              <div class="barcode-section">
+                <img class="barcode-image" src="${b.image}" onerror="this.style.display='none'" />
+                <div class="barcode-text">${b.barcode || ""}</div>
+              </div>
+              <div class="footer-row">${b.purity || "916"} • ${b.weight || "0g"}</div>
             </div>
-            <div class="footer-row">${b.purity || "916"} • ${b.weight || "0g"}</div>
-          </div>
-        `,
-          )
-          .join("")}
+          `,
+            )
+            .join("")}
+        </div>
+        
+        <script>
+          window.onload = function() { 
+            document.querySelector('button').focus(); 
+          }
+        </script>
       </body>
       </html>
     `);
@@ -781,7 +954,9 @@ export default function PrintTestPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium text-zinc-800">Barcode Labels</p>
-                    <p className="text-xs text-zinc-500">50mm x 50mm</p>
+                    <p className="text-xs text-zinc-500">
+                      50mm × Dynamic height
+                    </p>
                   </div>
                   <Badge variant="warning">Labels</Badge>
                 </div>
