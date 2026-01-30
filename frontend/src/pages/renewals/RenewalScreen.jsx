@@ -9,6 +9,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
 import { pledgeService, renewalService, settingsService } from "@/services";
+import { getToken } from "@/services/api";
 import {
   formatCurrency,
   formatDate,
@@ -104,6 +105,7 @@ export default function RenewalScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [renewalResult, setRenewalResult] = useState(null);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
 
   // Barcode scanner detection - auto-search when barcode is scanned
@@ -487,7 +489,64 @@ export default function RenewalScreen() {
 
   const daysUntilDue = getDaysUntilDue();
 
-  // Print receipt
+  // Generate dot matrix print HTML - for 2 pages (Receipt + Terms)
+  const generateDotMatrixHTML = (receiptHtml, termsHtml, copyType) => {
+    const page1Header = `<div class="page-header">📋 HALAMAN 1: RESIT PEMBAHARUAN / PAGE 1: RENEWAL RECEIPT</div>`;
+    const page2Header = `<div class="page-header">📋 HALAMAN 2: TERMA & SYARAT / PAGE 2: TERMS</div>`;
+
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Resit Pembaharuan - ${copyType === "office" ? "Office" : "Customer"} Copy</title>
+      <style>
+        @page { size: A5 landscape; margin: 3mm; }
+        @media print {
+          html, body { margin: 0; padding: 0; }
+          .page { page-break-after: always; }
+          .page:last-child { page-break-after: auto; }
+          .print-controls { display: none !important; }
+        }
+        @media screen {
+          body { max-width: 220mm; margin: 20px auto; padding: 20px; background: #f0f0f0; }
+          .page { background: white; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        }
+        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #000; background: #fff; }
+        .print-controls { text-align: center; padding: 15px; margin-bottom: 15px; background: #fff; border-radius: 8px; }
+        .print-btn { background: #d97706; color: white; border: none; padding: 12px 40px; font-size: 16px; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        .print-btn:hover { background: #b45309; }
+        .close-btn { background: #6b7280; color: white; border: none; padding: 12px 25px; font-size: 14px; cursor: pointer; border-radius: 5px; margin-left: 10px; }
+        .printer-note { font-size: 12px; color: #666; margin-top: 10px; }
+        .page-count { font-size: 14px; font-weight: bold; color: #d97706; margin-top: 8px; }
+        .page-header { background: linear-gradient(135deg, #1a4a7a, #2563eb); color: white; padding: 8px 15px; font-size: 11px; font-weight: bold; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="print-controls">
+        <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print (2 Pages)</button>
+        <button class="close-btn" onclick="window.close()">✕ Tutup</button>
+        <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
+        <p class="page-count">📄 2 Halaman / 2 Pages</p>
+      </div>
+      
+      <!-- Page 1: Receipt -->
+      <div class="page">
+        ${page1Header}
+        ${receiptHtml}
+      </div>
+      
+      <!-- Page 2: Terms & Conditions -->
+      <div class="page">
+        ${page2Header}
+        ${termsHtml}
+      </div>
+      
+      <script>window.onload = function() { document.querySelector('.print-btn').focus(); }</script>
+    </body>
+    </html>`;
+  };
+
+  // Print receipt using dot matrix printer (like pledge)
   const handlePrintReceipt = async () => {
     if (!renewalResult?.id) {
       dispatch(
@@ -502,9 +561,7 @@ export default function RenewalScreen() {
 
     setIsPrintingReceipt(true);
     try {
-      // Get token from storage
-      const token =
-        localStorage.getItem("token") || sessionStorage.getItem("token");
+      const token = getToken();
 
       if (!token) {
         dispatch(
@@ -520,16 +577,17 @@ export default function RenewalScreen() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-      // Fetch PDF from backend (using PrintController route)
+      // Use dot-matrix print endpoint (same approach as pledge)
       const response = await fetch(
-        `${apiUrl}/print/renewal-receipt/${renewalResult.id}`,
+        `${apiUrl}/print/dot-matrix/renewal-receipt/${renewalResult.id}`,
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-            Accept: "application/pdf",
+            Accept: "application/json",
           },
+          body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
@@ -538,19 +596,42 @@ export default function RenewalScreen() {
         throw new Error(errorData.message || "Failed to generate receipt");
       }
 
-      // Get the PDF blob and open in new tab
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank");
+      const data = await response.json();
 
-      // Clean up after a minute
-      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+      if (!data.success || !data.data?.receipt_text) {
+        throw new Error("Invalid response from server");
+      }
+
+      // Open print window with both pages (receipt + terms)
+      const printWindow = window.open("", "_blank", "width=600,height=800");
+
+      if (!printWindow) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Popup Blocked",
+            message: "Please allow popups for this site to print.",
+          }),
+        );
+        return;
+      }
+
+      // Use helper function for 2-page document
+      printWindow.document.write(
+        generateDotMatrixHTML(
+          data.data.receipt_text,
+          data.data.terms_text || "",
+          "customer",
+        ),
+      );
+      printWindow.document.close();
+      printWindow.focus();
 
       dispatch(
         addToast({
           type: "success",
-          title: "Success",
-          message: "Receipt opened in new tab",
+          title: "Receipt Ready",
+          message: "Customer copy sent to printer (2 pages)",
         }),
       );
     } catch (error) {
@@ -567,6 +648,64 @@ export default function RenewalScreen() {
       );
     } finally {
       setIsPrintingReceipt(false);
+    }
+  };
+
+  // Send WhatsApp notification
+  const handleSendWhatsApp = async () => {
+    if (!pledge?.id) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Pledge information not found",
+        }),
+      );
+      return;
+    }
+
+    setIsSendingWhatsApp(true);
+    try {
+      // Use the pledge's sendWhatsApp endpoint
+      const response = await pledgeService.sendWhatsApp(pledge.id);
+
+      if (response.success || response.data?.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "WhatsApp Sent",
+            message: "Renewal notification sent to customer",
+          }),
+        );
+      } else {
+        throw new Error(response.message || "Failed to send WhatsApp");
+      }
+    } catch (error) {
+      console.error("WhatsApp error:", error);
+
+      // Check for configuration issues
+      const errorMsg =
+        error.response?.data?.message || error.message || "Failed to send";
+
+      if (errorMsg.includes("not configured") || errorMsg.includes("401")) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "WhatsApp Not Configured",
+            message: "Set up WhatsApp in Settings → WhatsApp",
+          }),
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: errorMsg,
+          }),
+        );
+      }
+    } finally {
+      setIsSendingWhatsApp(false);
     }
   };
 
@@ -1140,12 +1279,7 @@ export default function RenewalScreen() {
                       {formatCurrency(interestAmount)}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Handling Fee</span>
-                    <span className="font-medium">
-                      {formatCurrency(handlingFee)}
-                    </span>
-                  </div>
+                  {/* Handling Fee hidden from UI but still calculated in total */}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-zinc-200">
                     <span className="text-zinc-800">Total Payable</span>
                     <span className="text-amber-600">
@@ -1459,7 +1593,13 @@ export default function RenewalScreen() {
             >
               Print Receipt
             </Button>
-            <Button variant="outline" fullWidth leftIcon={MessageSquare}>
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={MessageSquare}
+              onClick={handleSendWhatsApp}
+              loading={isSendingWhatsApp}
+            >
               Send WhatsApp
             </Button>
           </div>

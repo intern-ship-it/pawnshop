@@ -487,15 +487,15 @@ export default function PrintTestPage() {
       <head>
         <title>Barcode - ${pledgeNo}</title>
         <style>
-          @page { size: 50mm 25mm; margin: 0; }
+          @page { size: 50mm 50mm; margin: 0; }
           body { font-family: Arial; padding: 10px; background: #f5f5f5; }
-          .label { width: 50mm; height: 25mm; padding: 2mm; background: white; border: 1px dashed #ccc; margin: 5px auto 10px; page-break-after: always; }
+          .label { width: 50mm; height: 50mm; padding: 3mm; background: white; border: 1px dashed #ccc; margin: 5px auto 10px; page-break-after: always; display: flex; flex-direction: column; }
           .label:last-child { page-break-after: auto; }
-          .header-row { display: flex; justify-content: space-between; border-bottom: 0.3mm solid #333; padding-bottom: 0.5mm; margin-bottom: 0.5mm; font-size: 7pt; font-weight: bold; }
-          .barcode-section { text-align: center; padding: 1mm 0; }
-          .barcode-image { max-width: 44mm; height: 9mm; }
-          .barcode-text { font-family: monospace; font-size: 6.5pt; margin-top: 0.3mm; }
-          .footer-row { border-top: 0.3mm solid #333; padding-top: 0.5mm; font-size: 6.5pt; font-weight: bold; }
+          .header-row { display: flex; justify-content: space-between; border-bottom: 0.5mm solid #333; padding-bottom: 2mm; margin-bottom: 2mm; font-size: 10pt; font-weight: bold; }
+          .barcode-section { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3mm 0; }
+          .barcode-image { max-width: 44mm; height: 18mm; }
+          .barcode-text { font-family: monospace; font-size: 9pt; margin-top: 2mm; font-weight: bold; letter-spacing: 1px; }
+          .footer-row { border-top: 0.5mm solid #333; padding-top: 2mm; font-size: 10pt; font-weight: bold; }
           .controls { text-align: center; padding: 10px; background: #1f2937; border-radius: 8px; margin-bottom: 15px; }
           .controls button { background: #d97706; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; margin: 0 5px; font-weight: bold; }
           @media print { .controls { display: none; } .label { border: none; margin: 0; } body { padding: 0; background: white; } }
@@ -781,7 +781,7 @@ export default function PrintTestPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium text-zinc-800">Barcode Labels</p>
-                    <p className="text-xs text-zinc-500">50mm x 25mm</p>
+                    <p className="text-xs text-zinc-500">50mm x 50mm</p>
                   </div>
                   <Badge variant="warning">Labels</Badge>
                 </div>

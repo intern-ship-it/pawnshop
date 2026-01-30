@@ -83,6 +83,454 @@ class DotMatrixPrintController extends Controller
     }
 
     /**
+     * Generate renewal receipt - Malaysian Pawnshop Format
+     * Returns HTML that matches the original blue form design
+     * A5 Landscape: 210mm x 148mm - Exactly 2 pages (Receipt + Terms)
+     */
+    public function renewalReceipt(Request $request, Renewal $renewal): JsonResponse
+    {
+        try {
+            // Load the renewal with its relationships
+            $renewal->load([
+                'pledge.customer',
+                'pledge.items.category',
+                'pledge.items.purity',
+                'pledge.branch',
+                'createdBy',
+            ]);
+
+            $pledge = $renewal->pledge;
+
+            if (!$pledge) {
+                return $this->error('Pledge not found for this renewal', 404);
+            }
+
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            $validated = $request->validate([
+                'copy_type' => 'sometimes|in:office,customer,both',
+            ]);
+
+            $copyType = $validated['copy_type'] ?? 'customer';
+
+            // Get company settings including logo
+            $settings = $this->getCompanySettings($pledge->branch);
+
+            $receiptHtml = $this->generateRenewalReceiptHtml($renewal, $pledge, $settings, $copyType);
+            $termsHtml = $this->generateTermsPageHtml($pledge, $settings);
+
+            return $this->success([
+                'receipt_text' => $receiptHtml,
+                'terms_text' => $termsHtml,
+                'renewal_no' => $renewal->renewal_no,
+                'copy_type' => $copyType,
+                'orientation' => 'landscape',
+                'format' => 'html',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('DotMatrix Renewal Print Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Generate styled HTML renewal receipt - Page 1 of 2
+     */
+    private function generateRenewalReceiptHtml(Renewal $renewal, Pledge $pledge, array $settings, string $copyType): string
+    {
+        $customer = $pledge->customer;
+
+        // Renewal amounts
+        $interestAmount = $renewal->interest_amount ?? 0;
+        $handlingFee = $renewal->handling_fee ?? 0;
+        $totalPaid = $renewal->total_amount ?? ($interestAmount + $handlingFee);
+        $loanAmount = $pledge->loan_amount ?? 0;
+        $renewalMonths = $renewal->renewal_months ?? 1;
+
+        // Dates
+        $renewalDate = $renewal->created_at ?? now();
+        if (is_string($renewalDate))
+            $renewalDate = Carbon::parse($renewalDate);
+
+        $previousDueDate = $renewal->previous_due_date ?? $pledge->due_date;
+        if (is_string($previousDueDate))
+            $previousDueDate = Carbon::parse($previousDueDate);
+
+        $newDueDate = $renewal->new_due_date ?? $pledge->due_date;
+        if (is_string($newDueDate))
+            $newDueDate = Carbon::parse($newDueDate);
+
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $address = $this->formatCustomerAddress($customer);
+        $copyLabel = $copyType === 'office' ? 'SALINAN PEJABAT' : 'SALINAN PELANGGAN';
+
+        // Logo HTML
+        $logoHtml = '';
+        if (!empty($settings['logo_url'])) {
+            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url']) . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
+        }
+
+        // Interest breakdown
+        $interestBreakdownHtml = '';
+        $interestBreakdown = $renewal->interest_breakdown ?? [];
+        if (is_string($interestBreakdown)) {
+            $interestBreakdown = json_decode($interestBreakdown, true) ?? [];
+        }
+
+        if (!empty($interestBreakdown)) {
+            foreach ($interestBreakdown as $idx => $month) {
+                $monthNum = $idx + 1;
+                $rate = $month['rate'] ?? 0.5;
+                $amount = $month['amount'] ?? 0;
+                $interestBreakdownHtml .= "<div class='breakdown-row'><span>Bulan {$monthNum} ({$rate}%)</span><span>RM " . $this->formatNumber($amount) . "</span></div>";
+            }
+        }
+
+        // Payment method
+        $paymentMethod = ucfirst($renewal->payment_method ?? 'Cash');
+
+        return <<<HTML
+<div class="receipt">
+    <div class="header">
+        <div class="header-left">
+            {$logoHtml}
+            <div class="company-info">
+                <div class="company-name">{$settings['company_name']}</div>
+                <div class="company-address">{$settings['address']}</div>
+                <div class="company-phone">📞 {$settings['phone']}</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="receipt-type">RESIT PEMBAHARUAN<br>RENEWAL RECEIPT</div>
+            <div class="receipt-no">{$renewal->renewal_no}</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="left-section">
+            <div class="section-title">Butiran Gadaian / Pledge Details</div>
+            <div class="info-grid">
+                <div class="info-row"><span class="label">No. Tiket:</span><span class="value">{$pledge->pledge_no}</span></div>
+                <div class="info-row"><span class="label">Nama:</span><span class="value">{$customer->name}</span></div>
+                <div class="info-row"><span class="label">No. K/P:</span><span class="value">{$icNumber}</span></div>
+                <div class="info-row"><span class="label">Alamat:</span><span class="value">{$address}</span></div>
+            </div>
+            
+            <div class="section-title">Butiran Pinjaman / Loan Details</div>
+            <div class="info-grid">
+                <div class="info-row"><span class="label">Jumlah Pinjaman:</span><span class="value amount">RM {$this->formatNumber($loanAmount)}</span></div>
+                <div class="info-row"><span class="label">Tempoh Pembaharuan:</span><span class="value">{$renewalMonths} Bulan</span></div>
+            </div>
+        </div>
+        
+        <div class="right-section">
+            <div class="section-title">Bayaran / Payment</div>
+            <div class="breakdown-box">
+                {$interestBreakdownHtml}
+                <div class="breakdown-row total"><span>Jumlah Keuntungan / Interest:</span><span>RM {$this->formatNumber($interestAmount)}</span></div>
+            </div>
+            
+            <div class="dates-box">
+                <div class="date-item">
+                    <div class="date-label">Tarikh Pembaharuan</div>
+                    <div class="date-value">{$renewalDate->format('d/m/Y')}</div>
+                </div>
+                <div class="date-item highlight">
+                    <div class="date-label">Tarikh Tamat Baru</div>
+                    <div class="date-value">{$newDueDate->format('d/m/Y')}</div>
+                </div>
+            </div>
+            
+            <div class="total-box">
+                <div class="total-label">JUMLAH DIBAYAR / TOTAL PAID</div>
+                <div class="total-amount">RM {$this->formatNumber($totalPaid)}</div>
+                <div class="payment-method">Kaedah: {$paymentMethod}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-notice">
+            <p>Sila simpan resit ini sebagai bukti pembayaran.</p>
+            <p>Please keep this receipt as proof of payment.</p>
+        </div>
+        <div class="copy-label">{$copyLabel}</div>
+    </div>
+</div>
+<style>
+@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.receipt{width:202mm;height:140mm;padding:4mm;font-family:Arial,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;border:2px solid #1a4a7a}
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a4a7a;padding-bottom:3mm;margin-bottom:3mm}
+.header-left{display:flex;gap:3mm;align-items:flex-start}
+.logo{height:14mm;width:auto;max-width:18mm;object-fit:contain}
+.company-info{flex:1}
+.company-name{font-size:14px;font-weight:bold;color:#c41e3a}
+.company-address{font-size:9px;margin:1mm 0}
+.company-phone{font-size:10px;font-weight:bold}
+.header-right{text-align:right}
+.receipt-type{font-size:13px;font-weight:bold;color:#c41e3a;margin-bottom:2mm}
+.receipt-no{font-size:16px;font-weight:bold;font-family:'Courier New',monospace;padding:2mm 4mm;border:2px solid #c41e3a;background:#fff8f8}
+.main-content{display:flex;gap:4mm}
+.left-section{flex:1}
+.right-section{width:75mm;min-width:75mm}
+.section-title{background:#1a4a7a;color:white;padding:2mm;font-weight:bold;font-size:10px;margin-bottom:2mm}
+.info-grid{padding:2mm;border:1px solid #ddd;margin-bottom:3mm}
+.info-row{display:flex;margin-bottom:1.5mm}
+.label{font-weight:bold;width:35mm;flex-shrink:0}
+.value{flex:1}
+.value.amount{font-weight:bold;font-size:12px;color:#c41e3a}
+.breakdown-box{border:1px solid #1a4a7a;padding:2mm;margin-bottom:3mm}
+.breakdown-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:9px}
+.breakdown-row.total{border-top:1px solid #1a4a7a;margin-top:1mm;padding-top:2mm;font-weight:bold}
+.dates-box{display:flex;gap:3mm;margin-bottom:3mm}
+.date-item{flex:1;border:1px solid #1a4a7a;padding:2mm;text-align:center}
+.date-item.highlight{background:#e8f5e9;border-color:#4caf50}
+.date-label{font-size:8px;color:#666}
+.date-value{font-size:12px;font-weight:bold}
+.date-item.highlight .date-value{color:#2e7d32}
+.total-box{background:#fffde8;border:2px solid #d4a800;padding:3mm;text-align:center}
+.total-label{font-size:10px;font-weight:bold;margin-bottom:1mm}
+.total-amount{font-size:18px;font-weight:bold;color:#c41e3a}
+.payment-method{font-size:9px;color:#666;margin-top:1mm}
+.footer{margin-top:3mm;padding-top:2mm;border-top:1px solid #1a4a7a;display:flex;justify-content:space-between;align-items:flex-end}
+.footer-notice{font-size:8px;color:#666}
+.copy-label{font-size:11px;font-weight:bold;color:#c41e3a}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+HTML;
+    }
+
+    /**
+     * Generate redemption receipt - Malaysian Pawnshop Format
+     * Returns HTML that matches the original blue form design
+     * A5 Landscape: 210mm x 148mm - Exactly 2 pages (Receipt + Terms)
+     */
+    public function redemptionReceipt(Request $request, $redemption): JsonResponse
+    {
+        try {
+            // Find redemption by ID or redemption_no
+            if (is_numeric($redemption)) {
+                $redemption = Redemption::find($redemption);
+            } else {
+                $redemption = Redemption::where('redemption_no', $redemption)->first();
+            }
+
+            if (!$redemption) {
+                return $this->error('Redemption not found', 404);
+            }
+
+            // Load the redemption with its relationships
+            $redemption->load([
+                'pledge.customer',
+                'pledge.items.category',
+                'pledge.items.purity',
+                'pledge.branch',
+                'createdBy',
+            ]);
+
+            $pledge = $redemption->pledge;
+
+            if (!$pledge) {
+                return $this->error('Pledge not found for this redemption', 404);
+            }
+
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            $validated = $request->validate([
+                'copy_type' => 'sometimes|in:office,customer,both',
+            ]);
+
+            $copyType = $validated['copy_type'] ?? 'customer';
+
+            // Get company settings including logo
+            $settings = $this->getCompanySettings($pledge->branch);
+
+            $receiptHtml = $this->generateRedemptionReceiptHtml($redemption, $pledge, $settings, $copyType);
+            $termsHtml = $this->generateTermsPageHtml($pledge, $settings);
+
+            return $this->success([
+                'receipt_text' => $receiptHtml,
+                'terms_text' => $termsHtml,
+                'redemption_no' => $redemption->redemption_no,
+                'copy_type' => $copyType,
+                'orientation' => 'landscape',
+                'format' => 'html',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('DotMatrix Redemption Print Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Generate styled HTML redemption receipt - Page 1 of 2
+     */
+    private function generateRedemptionReceiptHtml(Redemption $redemption, Pledge $pledge, array $settings, string $copyType): string
+    {
+        $customer = $pledge->customer;
+
+        // Redemption amounts
+        $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
+        $interestAmount = $redemption->interest_amount ?? 0;
+        $handlingFee = $redemption->handling_fee ?? 0;
+        $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
+        $interestMonths = $redemption->interest_months ?? 1;
+
+        // Dates
+        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+        if (is_string($pledgeDate))
+            $pledgeDate = Carbon::parse($pledgeDate);
+
+        $redemptionDate = $redemption->created_at ?? now();
+        if (is_string($redemptionDate))
+            $redemptionDate = Carbon::parse($redemptionDate);
+
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $address = $this->formatCustomerAddress($customer);
+        $copyLabel = $copyType === 'office' ? 'SALINAN PEJABAT' : 'SALINAN PELANGGAN';
+
+        // Logo HTML
+        $logoHtml = '';
+        if (!empty($settings['logo_url'])) {
+            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url']) . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
+        }
+
+        // Build items list
+        $itemsHtml = $this->buildItemsHtml($pledge->items);
+        $itemCount = count($pledge->items);
+
+        // Total weight
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
+
+        // Payment method
+        $paymentMethod = ucfirst($redemption->payment_method ?? 'Cash');
+
+        return <<<HTML
+<div class="receipt">
+    <div class="header">
+        <div class="header-left">
+            {$logoHtml}
+            <div class="company-info">
+                <div class="company-name">{$settings['company_name']}</div>
+                <div class="company-address">{$settings['address']}</div>
+                <div class="company-phone">📞 {$settings['phone']}</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="receipt-type">RESIT PENEBUSAN<br>REDEMPTION RECEIPT</div>
+            <div class="receipt-no">{$redemption->redemption_no}</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="left-section">
+            <div class="section-title">Butiran Gadaian / Pledge Details</div>
+            <div class="info-grid">
+                <div class="info-row"><span class="label">No. Tiket:</span><span class="value">{$pledge->pledge_no}</span></div>
+                <div class="info-row"><span class="label">Nama:</span><span class="value">{$customer->name}</span></div>
+                <div class="info-row"><span class="label">No. K/P:</span><span class="value">{$icNumber}</span></div>
+                <div class="info-row"><span class="label">Alamat:</span><span class="value">{$address}</span></div>
+            </div>
+            
+            <div class="section-title">Barang Ditebus / Items Redeemed ({$itemCount})</div>
+            <div class="items-box">{$itemsHtml}</div>
+        </div>
+        
+        <div class="right-section">
+            <div class="section-title">Butiran Bayaran / Payment Details</div>
+            <div class="breakdown-box">
+                <div class="breakdown-row"><span>Pinjaman Pokok / Principal:</span><span>RM {$this->formatNumber($principal)}</span></div>
+                <div class="breakdown-row"><span>Keuntungan ({$interestMonths} bulan) / Interest:</span><span>RM {$this->formatNumber($interestAmount)}</span></div>
+                <div class="breakdown-row total"><span>Jumlah Dibayar / Total Paid:</span><span>RM {$this->formatNumber($totalPaid)}</span></div>
+            </div>
+            
+            <div class="dates-box">
+                <div class="date-item">
+                    <div class="date-label">Tarikh Pajak</div>
+                    <div class="date-value">{$pledgeDate->format('d/m/Y')}</div>
+                </div>
+                <div class="date-item highlight">
+                    <div class="date-label">Tarikh Tebus</div>
+                    <div class="date-value">{$redemptionDate->format('d/m/Y')}</div>
+                </div>
+            </div>
+            
+            <div class="released-box">
+                <div class="released-icon">✓</div>
+                <div class="released-text">{$itemCount} BARANG DITEBUS<br><span>{$itemCount} ITEM(S) RELEASED</span></div>
+            </div>
+            
+            <div class="weight-box">
+                <span>Jumlah Berat / Total Weight:</span>
+                <span class="weight-value">{$this->formatNumber($totalWeight, 2)}g</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-notice">
+            <p>Sila periksa barang anda sebelum meninggalkan kedai.</p>
+            <p>Please check your items before leaving the shop.</p>
+        </div>
+        <div class="copy-label">{$copyLabel}</div>
+    </div>
+</div>
+<style>
+@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.receipt{width:202mm;height:140mm;padding:4mm;font-family:Arial,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;border:2px solid #1a4a7a}
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a4a7a;padding-bottom:3mm;margin-bottom:3mm}
+.header-left{display:flex;gap:3mm;align-items:flex-start}
+.logo{height:14mm;width:auto;max-width:18mm;object-fit:contain}
+.company-info{flex:1}
+.company-name{font-size:14px;font-weight:bold;color:#c41e3a}
+.company-address{font-size:9px;margin:1mm 0}
+.company-phone{font-size:10px;font-weight:bold}
+.header-right{text-align:right}
+.receipt-type{font-size:13px;font-weight:bold;color:#2e7d32;margin-bottom:2mm}
+.receipt-no{font-size:16px;font-weight:bold;font-family:'Courier New',monospace;padding:2mm 4mm;border:2px solid #2e7d32;background:#e8f5e9}
+.main-content{display:flex;gap:4mm}
+.left-section{flex:1}
+.right-section{width:75mm;min-width:75mm}
+.section-title{background:#1a4a7a;color:white;padding:2mm;font-weight:bold;font-size:10px;margin-bottom:2mm}
+.info-grid{padding:2mm;border:1px solid #ddd;margin-bottom:3mm}
+.info-row{display:flex;margin-bottom:1.5mm}
+.label{font-weight:bold;width:25mm;flex-shrink:0}
+.value{flex:1}
+.items-box{border:1px solid #1a4a7a;padding:2mm;min-height:20mm}
+.item-line{font-size:9px;margin-bottom:1mm}
+.breakdown-box{border:1px solid #1a4a7a;padding:2mm;margin-bottom:3mm}
+.breakdown-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:9px}
+.breakdown-row.total{border-top:1px solid #1a4a7a;margin-top:1mm;padding-top:2mm;font-weight:bold;font-size:11px}
+.dates-box{display:flex;gap:3mm;margin-bottom:3mm}
+.date-item{flex:1;border:1px solid #1a4a7a;padding:2mm;text-align:center}
+.date-item.highlight{background:#e8f5e9;border-color:#4caf50}
+.date-label{font-size:8px;color:#666}
+.date-value{font-size:11px;font-weight:bold}
+.date-item.highlight .date-value{color:#2e7d32}
+.released-box{background:#e8f5e9;border:2px solid #4caf50;padding:3mm;text-align:center;margin-bottom:3mm;display:flex;align-items:center;justify-content:center;gap:2mm}
+.released-icon{font-size:24px;color:#2e7d32}
+.released-text{font-size:11px;font-weight:bold;color:#2e7d32}
+.released-text span{font-size:9px;font-weight:normal;color:#666}
+.weight-box{display:flex;justify-content:space-between;padding:2mm;border:1px solid #1a4a7a;font-size:10px}
+.weight-value{font-weight:bold}
+.footer{margin-top:3mm;padding-top:2mm;border-top:1px solid #1a4a7a;display:flex;justify-content:space-between;align-items:flex-end}
+.footer-notice{font-size:8px;color:#666}
+.copy-label{font-size:11px;font-weight:bold;color:#2e7d32}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+HTML;
+    }
+
+    /**
      * Get company settings with defaults - INCLUDING LOGO
      */
     private function getCompanySettings($branch): array

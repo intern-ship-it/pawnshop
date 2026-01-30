@@ -160,6 +160,17 @@ export default function PledgeDetail() {
             paymentMethod: payment.payment_method,
             paymentDate: payment.payment_date,
           })),
+          renewals: (data.renewals || []).map((renewal) => ({
+            id: renewal.id,
+            renewalNo: renewal.renewal_no,
+            renewalDate: renewal.created_at,
+            previousDueDate: renewal.previous_due_date,
+            newDueDate: renewal.new_due_date,
+            interestAmount: parseFloat(renewal.interest_amount) || 0,
+            totalAmount: parseFloat(renewal.total_amount) || 0,
+            renewalMonths: renewal.renewal_months || 1,
+            paymentMethod: renewal.payment_method,
+          })),
           createdAt: data.created_at,
           updatedAt: data.updated_at,
           createdBy: data.created_by_user?.name || "",
@@ -174,11 +185,10 @@ export default function PledgeDetail() {
         } else {
           // Fetch interest breakdown separately as fallback
           try {
-            const interestResponse = await pledgeService.getInterestBreakdown(
-              id
-            );
+            const interestResponse =
+              await pledgeService.getInterestBreakdown(id);
             setInterestBreakdown(
-              interestResponse.data?.data || interestResponse.data
+              interestResponse.data?.data || interestResponse.data,
             );
           } catch (err) {
             console.log("Interest breakdown not available");
@@ -191,7 +201,7 @@ export default function PledgeDetail() {
             type: "error",
             title: "Error",
             message: error.response?.data?.message || "Failed to load pledge",
-          })
+          }),
         );
         setPledge(null);
       } finally {
@@ -212,7 +222,7 @@ export default function PledgeDetail() {
     const now = new Date();
     const months = Math.max(
       1,
-      Math.ceil((now - createdDate) / (1000 * 60 * 60 * 24 * 30))
+      Math.ceil((now - createdDate) / (1000 * 60 * 60 * 24 * 30)),
     );
 
     let totalInterest = 0;
@@ -243,7 +253,7 @@ export default function PledgeDetail() {
             type: "error",
             title: "Error",
             message: "Please login again",
-          })
+          }),
         );
         return;
       }
@@ -261,7 +271,7 @@ export default function PledgeDetail() {
             Accept: "application/pdf",
           },
           body: JSON.stringify({ copy_type: copyType }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -281,7 +291,7 @@ export default function PledgeDetail() {
           type: "success",
           title: "Receipt Generated",
           message: "PDF opened in new tab",
-        })
+        }),
       );
     } catch (error) {
       console.error("Print error:", error);
@@ -290,7 +300,155 @@ export default function PledgeDetail() {
           type: "error",
           title: "Print Failed",
           message: error.message || "Failed to generate receipt",
-        })
+        }),
+      );
+    }
+  };
+
+  // Handle Styled Print (Dot Receipt) - opens HTML print window
+  const handleStyledPrint = async (copyType = "customer") => {
+    try {
+      const token = getToken();
+
+      if (!token) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Please login again",
+          }),
+        );
+        return;
+      }
+
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pledge-receipt/${pledge.id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ copy_type: copyType }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate receipt");
+      }
+
+      const receiptHtml = data.data?.receipt_text || "";
+      const termsHtml = data.data?.terms_text || "";
+
+      // Open print window with styled receipt
+      const printWindow = window.open("", "_blank", "width=950,height=750");
+      if (!printWindow) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Popup Blocked",
+            message: "Please allow popups to print",
+          }),
+        );
+        return;
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Resit Pajak Gadai - ${pledge.receiptNo}</title>
+          <style>
+            @page { size: A5 landscape; margin: 5mm; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .print-controls { display: none !important; }
+              .page-break { page-break-before: always; }
+              .preview-container { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+              .page-label { display: none !important; }
+            }
+            
+            body { margin: 0; padding: 0; background: #e5e7eb; font-family: Arial, sans-serif; }
+            
+            .print-controls {
+              background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+              padding: 15px 20px; text-align: center; position: sticky; top: 0; z-index: 100;
+            }
+            .print-btn {
+              background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+              color: white; border: none; padding: 12px 25px; font-size: 14px;
+              cursor: pointer; border-radius: 8px; font-weight: bold; margin: 0 5px;
+            }
+            .print-btn:hover { transform: translateY(-1px); }
+            .print-btn.green { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+            .close-btn {
+              background: #6b7280; color: white; border: none; padding: 12px 20px;
+              font-size: 14px; cursor: pointer; border-radius: 8px; margin-left: 10px;
+            }
+            .printer-note { font-size: 12px; color: #9ca3af; margin-top: 10px; }
+            
+            .preview-container {
+              max-width: 210mm; margin: 20px auto; background: white;
+              box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden;
+            }
+            .page-label {
+              background: linear-gradient(135deg, #1a4a7a 0%, #2563eb 100%);
+              color: white; padding: 8px 15px; font-size: 12px; font-weight: bold;
+            }
+            .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%); }
+          </style>
+        </head>
+        <body>
+          <div class="print-controls">
+            <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
+            <button class="print-btn green" onclick="window.print()">📄 Print Both Pages</button>
+            <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
+            <p class="printer-note">Pilih printer: <strong>Any Printer</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
+          </div>
+          
+          <div class="preview-container">
+            <div class="page-label">📄 HALAMAN 1: RESIT / PAGE 1: RECEIPT</div>
+            ${receiptHtml}
+          </div>
+          
+          ${
+            termsHtml
+              ? `
+          <div class="preview-container page-break" style="margin-top: 20px;">
+            <div class="page-label terms">📋 HALAMAN 2: TERMA & SYARAT / PAGE 2: TERMS</div>
+            ${termsHtml}
+          </div>
+          `
+              : ""
+          }
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipt Generated",
+          message: `Styled ${copyType} receipt opened`,
+        }),
+      );
+    } catch (error) {
+      console.error("Styled print error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Failed",
+          message: error.message || "Failed to generate styled receipt",
+        }),
       );
     }
   };
@@ -298,22 +456,54 @@ export default function PledgeDetail() {
   // Handle WhatsApp
   const handleWhatsApp = async () => {
     try {
-      await pledgeService.sendWhatsApp(pledge.id);
+      const response = await pledgeService.sendWhatsApp(pledge.id);
+
+      // Check for success from the response
+      if (response.success === false || response.data?.success === false) {
+        throw new Error(
+          response.message ||
+            response.data?.message ||
+            "Failed to send WhatsApp",
+        );
+      }
+
       dispatch(
         addToast({
           type: "success",
           title: "WhatsApp",
           message: "Sent to customer",
-        })
+        }),
       );
     } catch (error) {
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Error",
-          message: "Failed to send WhatsApp",
-        })
-      );
+      console.error("WhatsApp error:", error);
+
+      // Extract the actual error message from response
+      const errorMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to send WhatsApp";
+
+      // Check if it's a configuration issue
+      if (
+        errorMsg.includes("not configured") ||
+        errorMsg.includes("not setup")
+      ) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "WhatsApp Not Configured",
+            message: "Set up WhatsApp in Settings → WhatsApp",
+          }),
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: errorMsg,
+          }),
+        );
+      }
     }
   };
 
@@ -388,18 +578,18 @@ export default function PledgeDetail() {
               Print
             </Button>
             {/* Dropdown for print options */}
-            <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-zinc-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+            <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-zinc-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
               <button
-                className="w-full px-4 py-2 text-left text-sm hover:bg-zinc-50 rounded-t-lg"
-                onClick={() => handlePrint("customer")}
+                className="w-full px-4 py-2.5 text-left text-sm hover:bg-amber-50 rounded-t-lg flex items-center gap-2"
+                onClick={() => handleStyledPrint("customer")}
               >
-                Customer Copy
+                <span>🧾</span> Customer Copy
               </button>
               <button
-                className="w-full px-4 py-2 text-left text-sm hover:bg-zinc-50 rounded-b-lg"
-                onClick={() => handlePrint("office")}
+                className="w-full px-4 py-2.5 text-left text-sm hover:bg-amber-50 rounded-b-lg flex items-center gap-2"
+                onClick={() => handleStyledPrint("office")}
               >
-                Office Copy
+                <span>🧾</span> Office Copy
               </button>
             </div>
           </div>
@@ -438,7 +628,7 @@ export default function PledgeDetail() {
             <div
               className={cn(
                 "w-16 h-16 rounded-xl flex items-center justify-center",
-                `bg-${status.color}-100`
+                `bg-${status.color}-100`,
               )}
             >
               <StatusIcon
@@ -455,8 +645,8 @@ export default function PledgeDetail() {
                     status.color === "emerald"
                       ? "success"
                       : status.color === "red"
-                      ? "error"
-                      : "default"
+                        ? "error"
+                        : "default"
                   }
                 >
                   {status.label}
@@ -487,15 +677,15 @@ export default function PledgeDetail() {
                     daysUntilDue <= 7
                       ? "text-red-500"
                       : daysUntilDue <= 30
-                      ? "text-amber-500"
-                      : "text-zinc-400"
+                        ? "text-amber-500"
+                        : "text-zinc-400",
                   )}
                 >
                   {daysUntilDue > 0
                     ? `${daysUntilDue} days left`
                     : daysUntilDue === 0
-                    ? "Due today"
-                    : `${Math.abs(daysUntilDue)} days overdue`}
+                      ? "Due today"
+                      : `${Math.abs(daysUntilDue)} days overdue`}
                 </p>
               )}
             </div>
@@ -515,7 +705,7 @@ export default function PledgeDetail() {
                 "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
                 activeTab === tab.id
                   ? "bg-amber-100 text-amber-700"
-                  : "text-zinc-500 hover:bg-zinc-100"
+                  : "text-zinc-500 hover:bg-zinc-100",
               )}
             >
               <TabIcon className="w-4 h-4" />
@@ -680,7 +870,7 @@ export default function PledgeDetail() {
                   <p className="text-xl font-bold text-emerald-700">
                     {formatCurrency(
                       pledge.payoutAmount ||
-                        pledge.loanAmount - pledge.handlingFee
+                        pledge.loanAmount - pledge.handlingFee,
                     )}
                   </p>
                   <p className="text-xs text-emerald-500 mt-1">
@@ -785,7 +975,7 @@ export default function PledgeDetail() {
                             <div
                               className={cn(
                                 "flex items-center gap-3",
-                                item.photo && "cursor-pointer group"
+                                item.photo && "cursor-pointer group",
                               )}
                               onClick={() => {
                                 if (item.photo) {
@@ -794,7 +984,7 @@ export default function PledgeDetail() {
                                     ? item.photo
                                     : `${import.meta.env.VITE_API_URL?.replace(
                                         "/api",
-                                        ""
+                                        "",
                                       )}/storage/${item.photo}`;
                                   setSelectedImage(photoUrl);
                                   setShowImageModal(true);
@@ -809,7 +999,7 @@ export default function PledgeDetail() {
                                         ? item.photo
                                         : `${import.meta.env.VITE_API_URL?.replace(
                                             "/api",
-                                            ""
+                                            "",
                                           )}/storage/${item.photo}`
                                     }
                                     alt={item.category}
@@ -837,7 +1027,7 @@ export default function PledgeDetail() {
                                   className={cn(
                                     "font-medium text-zinc-800",
                                     item.photo &&
-                                      "group-hover:text-amber-600 transition-colors"
+                                      "group-hover:text-amber-600 transition-colors",
                                   )}
                                 >
                                   {item.category}
@@ -966,21 +1156,55 @@ export default function PledgeDetail() {
                     </div>
                   ))}
 
-                {/* Renewal count indicator */}
-                {pledge.renewalCount > 0 && (
-                  <div className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                        <RefreshCw className="w-5 h-5 text-amber-600" />
+                {/* Renewals - show each renewal with date */}
+                {pledge.renewals?.length > 0
+                  ? pledge.renewals.map((renewal, idx) => (
+                      <div key={renewal.id || idx} className="flex gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                            <RefreshCw className="w-5 h-5 text-amber-600" />
+                          </div>
+                          <div className="w-px h-full bg-zinc-200" />
+                        </div>
+                        <div className="pb-6">
+                          <p className="font-semibold text-zinc-800">
+                            Renewal #{idx + 1}
+                            {renewal.renewalNo && (
+                              <span className="ml-2 text-xs font-mono text-zinc-400">
+                                ({renewal.renewalNo})
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-sm text-zinc-500">
+                            {formatDate(renewal.renewalDate)}
+                          </p>
+                          <div className="text-sm text-zinc-600 mt-1">
+                            <p>Extended for {renewal.renewalMonths} month(s)</p>
+                            <p>
+                              Interest paid:{" "}
+                              {formatCurrency(renewal.interestAmount)}
+                            </p>
+                            <p className="text-amber-600">
+                              New due date: {formatDate(renewal.newDueDate)}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-zinc-800">
-                        Renewed {pledge.renewalCount} time(s)
-                      </p>
-                    </div>
-                  </div>
-                )}
+                    ))
+                  : pledge.renewalCount > 0 && (
+                      <div className="flex gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                            <RefreshCw className="w-5 h-5 text-amber-600" />
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-zinc-800">
+                            Renewed {pledge.renewalCount} time(s)
+                          </p>
+                        </div>
+                      </div>
+                    )}
               </div>
             </Card>
           </motion.div>

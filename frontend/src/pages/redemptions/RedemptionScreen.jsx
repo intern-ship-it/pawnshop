@@ -9,6 +9,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
 import { pledgeService, redemptionService, settingsService } from "@/services";
+import { getToken } from "@/services/api";
 import {
   formatCurrency,
   formatDate,
@@ -91,6 +92,8 @@ export default function RedemptionScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
   const [termsAgreed, setTermsAgreed] = useState(false);
+  const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   // Barcode scanner detection - auto-search when barcode is scanned
   const handleBarcodeScanned = useCallback(
@@ -382,10 +385,22 @@ export default function RedemptionScreen() {
             : paymentMethod === "partial"
               ? parseFloat(transferAmount) || 0
               : 0,
-        bank_id: paymentMethod !== "cash" && bankId ? parseInt(bankId) : null,
-        reference_no: referenceNo || null,
+        bank_id:
+          (paymentMethod === "transfer" ||
+            (paymentMethod === "partial" && parseFloat(transferAmount) > 0)) &&
+          bankId
+            ? parseInt(bankId)
+            : undefined,
+        reference_no: referenceNo || undefined,
         terms_accepted: true,
       };
+
+      // Remove undefined fields
+      Object.keys(redemptionData).forEach((key) => {
+        if (redemptionData[key] === undefined) {
+          delete redemptionData[key];
+        }
+      });
 
       const response = await redemptionService.create(redemptionData);
       const data = response.data?.data || response.data;
@@ -393,6 +408,7 @@ export default function RedemptionScreen() {
       if (response.data?.success !== false) {
         // Success
         setRedemptionResult({
+          id: data.id, // Store actual ID for API calls
           redemptionId: data.redemption_no || data.id,
           pledgeId: pledge.pledgeNo,
           customerName: pledge.customerName,
@@ -435,6 +451,197 @@ export default function RedemptionScreen() {
       );
     } finally {
       setIsProcessing(false);
+    }
+  };
+  // Generate dot matrix print HTML - for 2 pages (Receipt + Terms)
+  const generateDotMatrixHTML = (receiptHtml, termsHtml, copyType) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Redemption Receipt - ${copyType === "office" ? "Office Copy" : "Customer Copy"}</title>
+        <style>
+          @page { size: A5 landscape; margin: 0; }
+          @media print {
+            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .page-break { page-break-after: always; break-after: page; }
+          }
+          body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        </style>
+      </head>
+      <body>
+        <div class="page-break">${receiptHtml}</div>
+        <div>${termsHtml}</div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+  };
+
+  // Print redemption receipt using dot-matrix approach
+  const handlePrintReceipt = async () => {
+    // Try id first, fallback to redemptionId (could be numeric or string)
+    const redemptionId = redemptionResult?.id || redemptionResult?.redemptionId;
+
+    if (!redemptionId) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Cannot print receipt - redemption ID not found",
+        }),
+      );
+      return;
+    }
+
+    setIsPrintingReceipt(true);
+    try {
+      const token = getToken();
+
+      if (!token) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Please login again",
+          }),
+        );
+        return;
+      }
+
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      // Use dot-matrix redemption print endpoint
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/redemption-receipt/${redemptionId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ copy_type: "customer" }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to generate receipt");
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.data?.receipt_text) {
+        throw new Error("Invalid response from server");
+      }
+
+      // Open print window with both pages (receipt + terms)
+      const printWindow = window.open("", "_blank", "width=600,height=800");
+
+      if (!printWindow) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Popup Blocked",
+            message: "Please allow popups for this site to print.",
+          }),
+        );
+        return;
+      }
+
+      printWindow.document.write(
+        generateDotMatrixHTML(
+          data.data.receipt_text,
+          data.data.terms_text || "",
+          "customer",
+        ),
+      );
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipt Ready",
+          message: "Customer copy sent to printer (2 pages)",
+        }),
+      );
+    } catch (error) {
+      console.error("Print receipt error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message:
+            error.response?.data?.message ||
+            error.message ||
+            "Failed to print receipt",
+        }),
+      );
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
+
+  // Send WhatsApp notification
+  const handleSendWhatsApp = async () => {
+    if (!pledge?.id) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Pledge information not found",
+        }),
+      );
+      return;
+    }
+
+    setIsSendingWhatsApp(true);
+    try {
+      const response = await pledgeService.sendWhatsApp(pledge.id);
+
+      if (response.success || response.data?.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "WhatsApp Sent",
+            message: "Redemption notification sent to customer",
+          }),
+        );
+      } else {
+        throw new Error(response.message || "Failed to send WhatsApp");
+      }
+    } catch (error) {
+      console.error("WhatsApp error:", error);
+
+      const errorMsg =
+        error.response?.data?.message || error.message || "Failed to send";
+
+      if (errorMsg.includes("not configured") || errorMsg.includes("401")) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "WhatsApp Not Configured",
+            message: "Set up WhatsApp in Settings → WhatsApp",
+          }),
+        );
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: errorMsg,
+          }),
+        );
+      }
+    } finally {
+      setIsSendingWhatsApp(false);
     }
   };
 
@@ -819,12 +1026,13 @@ export default function RedemptionScreen() {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between">
+                  {/* Handling Fee hidden from UI but still calculated */}
+                  {/* <div className="flex justify-between">
                     <span className="text-zinc-500">Handling Fee</span>
                     <span className="font-medium">
                       {formatCurrency(handlingFee)}
                     </span>
-                  </div>
+                  </div> */}
                   <div className="flex justify-between text-lg font-bold pt-3 border-t border-zinc-200">
                     <span className="text-zinc-800">Total Payable</span>
                     <span className="text-emerald-600">
@@ -1090,7 +1298,23 @@ export default function RedemptionScreen() {
       {/* Success Modal */}
       <Modal
         isOpen={showSuccessModal}
-        onClose={() => {}}
+        onClose={() => {
+          setShowSuccessModal(false);
+          setRedemptionResult(null);
+          setSearchQuery("");
+          setPledge(null);
+          setAmountReceived("");
+          setCashAmount("");
+          setTransferAmount("");
+          setBankId("");
+          setReferenceNo("");
+          setVerifiedIC(false);
+          setVerifiedItems(false);
+          setCalculation(null);
+          setItems([]);
+          setSearchResult(null);
+          setTermsAgreed(false);
+        }}
         title="Redemption Successful!"
         size="md"
       >
@@ -1168,10 +1392,22 @@ export default function RedemptionScreen() {
           </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" fullWidth leftIcon={Printer}>
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={Printer}
+              onClick={handlePrintReceipt}
+              loading={isPrintingReceipt}
+            >
               Print Receipt
             </Button>
-            <Button variant="outline" fullWidth leftIcon={MessageSquare}>
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={MessageSquare}
+              onClick={handleSendWhatsApp}
+              loading={isSendingWhatsApp}
+            >
               Send WhatsApp
             </Button>
           </div>

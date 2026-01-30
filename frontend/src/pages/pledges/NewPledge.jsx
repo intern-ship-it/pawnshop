@@ -1446,19 +1446,19 @@ export default function NewPledge() {
     <head>
       <title>Barcode Labels - ${receiptNo || pledgeNo || "Pledge"}</title>
       <style>
-        @page { size: 50mm 25mm; margin: 0; }
+        @page { size: 50mm 50mm; margin: 0; }
         body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; background: #f0f0f0; }
         .print-controls { text-align: center; padding: 15px; margin-bottom: 15px; background: #fff; border-radius: 8px; }
         .print-btn { background: #10b981; color: white; border: none; padding: 10px 30px; font-size: 14px; cursor: pointer; border-radius: 5px; font-weight: bold; }
         .close-btn { background: #6b7280; color: white; border: none; padding: 10px 20px; font-size: 14px; cursor: pointer; border-radius: 5px; margin-left: 10px; }
         .labels-container { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-        .label { width: 50mm; height: 25mm; border: 1px solid #333; background: white; padding: 2mm; box-sizing: border-box; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; }
-        .header-row { display: flex; justify-content: space-between; font-size: 8px; font-weight: bold; }
+        .label { width: 50mm; height: 50mm; border: 1px solid #333; background: white; padding: 3mm; box-sizing: border-box; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; }
+        .header-row { display: flex; justify-content: space-between; font-size: 10pt; font-weight: bold; border-bottom: 0.5mm solid #333; padding-bottom: 2mm; margin-bottom: 2mm; }
         .pledge-no { color: #333; }
         .category { color: #666; text-transform: uppercase; }
-        .barcode-img { width: 90%; height: 10mm; object-fit: contain; margin: 1mm auto; }
-        .barcode-text { font-size: 8px; font-weight: bold; letter-spacing: 1px; margin: 1mm 0; }
-        .footer-row { display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; }
+        .barcode-img { width: 90%; height: 18mm; object-fit: contain; margin: 3mm auto; }
+        .barcode-text { font-size: 9pt; font-weight: bold; letter-spacing: 1px; margin: 2mm 0; }
+        .footer-row { display: flex; justify-content: space-between; font-size: 10pt; font-weight: bold; border-top: 0.5mm solid #333; padding-top: 2mm; }
         .purity { color: #d97706; }
         .weight { color: #059669; }
         @media print { 
@@ -1473,7 +1473,7 @@ export default function NewPledge() {
       <div class="print-controls">
         <button class="print-btn" onclick="window.print()">🏷️ Print Barcodes</button>
         <button class="close-btn" onclick="window.close()">✕ Close</button>
-        <p style="font-size: 11px; color: #666; margin-top: 10px;">Select: <strong>Thermal Printer</strong> | Label size: <strong>50mm x 25mm</strong></p>
+        <p style="font-size: 11px; color: #666; margin-top: 10px;">Select: <strong>Thermal Printer</strong> | Label size: <strong>50mm x 50mm</strong></p>
       </div>
       <div class="labels-container">${barcodeLabels}</div>
       <script>window.onload = function() { document.querySelector('.print-btn').focus(); }</script>
@@ -2247,9 +2247,9 @@ export default function NewPledge() {
       <head>
         <title>Barcode Labels - ${createdReceiptNo}</title>
         <style>
-          /* Thermal label: 50mm x 25mm */
+          /* Thermal label: 50mm x 50mm */
           @page {
-            size: 50mm 25mm;
+            size: 50mm 50mm;
             margin: 0;
           }
           
@@ -2267,8 +2267,8 @@ export default function NewPledge() {
           
           .label {
             width: 50mm;
-            height: 25mm;
-            padding: 1.5mm 2mm;
+            height: 50mm;
+            padding: 2mm 3mm;
             page-break-after: always;
             display: flex;
             flex-direction: column;
@@ -2285,19 +2285,19 @@ export default function NewPledge() {
             justify-content: space-between;
             align-items: center;
             width: 100%;
-            margin-bottom: 0.5mm;
-            border-bottom: 0.3mm solid #333;
-            padding-bottom: 0.5mm;
+            margin-bottom: 2mm;
+            border-bottom: 0.5mm solid #333;
+            padding-bottom: 2mm;
           }
           
           .pledge-no {
-            font-size: 7pt;
+            font-size: 10pt;
             font-weight: bold;
             color: #000;
           }
           
           .category {
-            font-size: 6pt;
+            font-size: 9pt;
             font-weight: 600;
             color: #333;
             text-transform: uppercase;
@@ -2310,21 +2310,22 @@ export default function NewPledge() {
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            padding: 3mm 0;
           }
           
           .barcode-image {
             max-width: 44mm;
-            height: 9mm;
+            height: 18mm;
             object-fit: contain;
           }
           
           .barcode-text {
             font-family: 'Courier New', monospace;
-            font-size: 6.5pt;
+            font-size: 9pt;
             text-align: center;
-            margin-top: 0.3mm;
-            letter-spacing: 0.5px;
-            font-weight: 500;
+            margin-top: 2mm;
+            letter-spacing: 1px;
+            font-weight: bold;
           }
           
           /* Footer Row - Details */
@@ -2333,21 +2334,21 @@ export default function NewPledge() {
             justify-content: space-between;
             align-items: center;
             width: 100%;
-            border-top: 0.3mm solid #333;
-            padding-top: 0.5mm;
-            margin-top: 0.5mm;
+            border-top: 0.5mm solid #333;
+            padding-top: 2mm;
+            margin-top: 2mm;
           }
           
           .purity-weight {
-            font-size: 6.5pt;
+            font-size: 10pt;
             font-weight: bold;
             color: #000;
           }
           
           .customer-name {
-            font-size: 5.5pt;
+            font-size: 8pt;
             color: #333;
-            max-width: 22mm;
+            max-width: 25mm;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
