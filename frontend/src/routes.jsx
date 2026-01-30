@@ -73,22 +73,28 @@ const withSuspense = (Component) => (
   </Suspense>
 );
 
+import ErrorBoundary from "@/components/common/ErrorBoundary";
+
 export const router = createBrowserRouter([
   {
     path: "/login",
     element: withSuspense(Login),
+    errorElement: <ErrorBoundary />,
   },
   {
     path: "/forgot-password",
     element: withSuspense(ForgotPassword),
+    errorElement: <ErrorBoundary />,
   },
   {
     path: "/reset-password",
     element: withSuspense(ResetPassword),
+    errorElement: <ErrorBoundary />,
   },
   {
     path: "/",
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       // Dashboard
       { index: true, element: withSuspense(Dashboard) },
