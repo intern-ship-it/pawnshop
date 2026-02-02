@@ -93,7 +93,11 @@ export default function PrintTestPage() {
   };
 
   // Test Dot Matrix Print - HANDLES BOTH HTML AND TEXT
-  const testDotMatrixPrint = async (copy = copyType, openWindow = true) => {
+  const testDotMatrixPrint = async (
+    copy = copyType,
+    openWindow = true,
+    mode = "wizard",
+  ) => {
     if (!selectedPledge) {
       dispatch(
         addToast({
@@ -157,11 +161,19 @@ export default function PrintTestPage() {
 
       if (openWindow && receiptContent) {
         if (isHtml) {
-          openStyledPrintWindow(
-            receiptContent,
-            termsContent,
-            selectedPledge.pledge_no,
-          );
+          if (mode === "standard") {
+            openStandardPrintWindow(
+              receiptContent,
+              termsContent,
+              selectedPledge.pledge_no,
+            );
+          } else {
+            openStyledPrintWindow(
+              receiptContent,
+              termsContent,
+              selectedPledge.pledge_no,
+            );
+          }
         } else {
           openPlainTextPrintWindow(
             receiptContent,
@@ -192,6 +204,49 @@ export default function PrintTestPage() {
     } finally {
       setPrinting(false);
     }
+  };
+
+  // Open STANDARD HTML print window (Old/Direct Print behavior)
+  const openStandardPrintWindow = (receiptHtml, termsHtml, pledgeNo) => {
+    const printWindow = window.open("", "_blank", "width=950,height=800");
+    if (!printWindow) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Popup Blocked",
+          message: "Please allow popups",
+        }),
+      );
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${pledgeNo}</title>
+        <style>
+          @page { size: A5 landscape; margin: 3mm; }
+          @media print {
+            .no-print { display: none !important; }
+            .page-break { page-break-after: always; break-after: page; }
+          }
+          body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+          .no-print { padding: 20px; text-align: center; background: #f0f0f0; border-bottom: 1px solid #ccc; }
+          .print-btn { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="no-print">
+          <button class="print-btn" onclick="window.print()">🖨️ Print All Pages</button>
+        </div>
+        <div class="page-break">${receiptHtml}</div>
+        <div>${termsHtml}</div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
   };
 
   // Open STYLED HTML print window - MANUAL DUPLEX for Epson LQ-310
@@ -969,25 +1024,42 @@ export default function PrintTestPage() {
                   </div>
                   <Badge variant="info">HTML</Badge>
                 </div>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {/* New Manual Duplex Print */}
                   <Button
                     variant="primary"
                     size="sm"
                     leftIcon={Printer}
-                    onClick={() => testDotMatrixPrint(copyType)}
+                    onClick={() => testDotMatrixPrint(copyType, true, "wizard")}
                     loading={printing && previewType.includes("Receipt")}
                     disabled={!selectedPledge || printing}
-                    fullWidth
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-blue-600 hover:bg-blue-700 col-span-2"
                   >
-                    Print
+                    Print (Manual Duplex)
                   </Button>
+
+                  {/* Old Standard Print */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={Printer}
+                    onClick={() =>
+                      testDotMatrixPrint(copyType, true, "standard")
+                    }
+                    disabled={!selectedPledge || printing}
+                    className="col-span-1"
+                  >
+                    Old Print
+                  </Button>
+
+                  {/* Preview */}
                   <Button
                     variant="outline"
                     size="sm"
                     leftIcon={Eye}
                     onClick={() => testDotMatrixPrint(copyType, false)}
                     disabled={!selectedPledge || printing}
+                    className="col-span-1"
                   >
                     Preview
                   </Button>
