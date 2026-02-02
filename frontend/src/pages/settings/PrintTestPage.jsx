@@ -194,9 +194,9 @@ export default function PrintTestPage() {
     }
   };
 
-  // Open STYLED HTML print window
+  // Open STYLED HTML print window - MANUAL DUPLEX for Epson LQ-310
   const openStyledPrintWindow = (receiptHtml, termsHtml, pledgeNo) => {
-    const printWindow = window.open("", "_blank", "width=950,height=750");
+    const printWindow = window.open("", "_blank", "width=950,height=800");
     if (!printWindow) {
       dispatch(
         addToast({
@@ -208,6 +208,9 @@ export default function PrintTestPage() {
       return;
     }
 
+    const copyLabel =
+      copyType === "office" ? "SALINAN PEJABAT" : "SALINAN PELANGGAN";
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -215,68 +218,189 @@ export default function PrintTestPage() {
         <meta charset="UTF-8">
         <title>Resit Pajak Gadai - ${pledgeNo}</title>
         <style>
-          @page { size: A5 landscape; margin: 5mm; }
+          @page { size: A5 landscape; margin: 3mm; }
           @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .print-controls { display: none !important; }
-            .page-break { page-break-before: always; }
+            .print-controls, .step-indicator, .flip-instructions { display: none !important; }
             .preview-container { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
             .page-label { display: none !important; }
+            .preview-container.hidden-for-print { display: none !important; }
           }
           
-          body { margin: 0; padding: 0; background: #e5e7eb; font-family: Arial, sans-serif; }
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 0; background: #1f2937; font-family: Arial, sans-serif; min-height: 100vh; }
           
           .print-controls {
-            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
-            padding: 15px 20px; text-align: center; position: sticky; top: 0; z-index: 100;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            padding: 20px; 
+            margin: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
           }
+          .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+          }
+          .step {
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 13px;
+            transition: all 0.3s;
+          }
+          .step.active { background: #f59e0b; color: #000; }
+          .step.completed { background: #10b981; color: #fff; }
+          .step.pending { background: #4b5563; color: #9ca3af; }
+          
+          .btn-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
           .print-btn {
-            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-            color: white; border: none; padding: 12px 25px; font-size: 14px;
-            cursor: pointer; border-radius: 8px; font-weight: bold; margin: 0 5px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #000; border: none; padding: 14px 30px; font-size: 15px;
+            cursor: pointer; border-radius: 8px; font-weight: bold;
+            display: flex; align-items: center; gap: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
           }
-          .print-btn:hover { transform: translateY(-1px); }
-          .print-btn.green { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+          .print-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245,158,11,0.4); }
+          .print-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+          .print-btn.green { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; }
           .close-btn {
-            background: #6b7280; color: white; border: none; padding: 12px 20px;
-            font-size: 14px; cursor: pointer; border-radius: 8px; margin-left: 10px;
+            background: #6b7280; color: white; border: none; padding: 14px 20px;
+            font-size: 14px; cursor: pointer; border-radius: 8px;
           }
-          .printer-note { font-size: 12px; color: #9ca3af; margin-top: 10px; }
+          
+          .flip-instructions {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin: 15px 0;
+            text-align: center;
+          }
+          .flip-instructions h3 { color: #92400e; margin: 0 0 8px 0; font-size: 16px; }
+          .flip-instructions p { color: #78350f; margin: 5px 0; font-size: 13px; }
+          .flip-instructions .icon { font-size: 28px; }
+          
+          .printer-note { font-size: 11px; color: #9ca3af; margin-top: 12px; text-align: center; }
+          .printer-note strong { color: #fbbf24; }
           
           .preview-container {
-            max-width: 210mm; margin: 20px auto; background: white;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden;
+            max-width: 210mm; margin: 15px auto; background: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden;
           }
+          .preview-container.hidden-for-print { opacity: 0.3; pointer-events: none; }
           .page-label {
-            background: linear-gradient(135deg, #1a4a7a 0%, #2563eb 100%);
-            color: white; padding: 8px 15px; font-size: 12px; font-weight: bold;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white; padding: 10px 15px; font-size: 12px; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
           }
-          .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%); }
+          .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); }
+          .page-label .badge { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 10px; font-size: 10px; }
         </style>
       </head>
       <body>
         <div class="print-controls">
-          <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
-          <button class="print-btn green" onclick="window.print()">📄 Print Both Pages</button>
-          <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
-          <p class="printer-note">Pilih printer: <strong>Any Printer</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
+          <div class="step-indicator">
+            <div class="step active" id="step1-indicator">① DEPAN / FRONT</div>
+            <div class="step pending" id="step2-indicator">② BELAKANG / BACK</div>
+          </div>
+          
+          <div class="btn-row">
+            <button class="print-btn" id="printFrontBtn" onclick="printFront()">
+              🖨️ Cetak DEPAN / Print FRONT
+            </button>
+            <button class="print-btn green" id="printBackBtn" onclick="printBack()" disabled>
+              🔄 Cetak BELAKANG / Print BACK
+            </button>
+            <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
+          </div>
+          
+          <div class="flip-instructions" id="flipInstructions" style="display: none;">
+            <div class="icon">🔄📄</div>
+            <h3>PUSING KERTAS / FLIP PAPER</h3>
+            <p>1. Keluarkan kertas dari printer / Remove paper from printer</p>
+            <p>2. <strong>Pusing kertas</strong> dan masukkan semula / <strong>Flip paper</strong> and reinsert</p>
+            <p>3. Klik butang hijau untuk cetak belakang / Click green button to print back</p>
+          </div>
+          
+          <p class="printer-note">
+            Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>A5 Landscape</strong> | Salinan: <strong>${copyLabel}</strong>
+          </p>
         </div>
         
-        <div class="preview-container">
-          <div class="page-label">📄 HALAMAN 1: RESIT / PAGE 1: RECEIPT</div>
+        <div class="preview-container" id="frontPage">
+          <div class="page-label">
+            <span>📄 HALAMAN DEPAN / FRONT - RESIT PAJAK GADAI</span>
+            <span class="badge">${copyLabel}</span>
+          </div>
           ${receiptHtml}
         </div>
         
         ${
           termsHtml
             ? `
-        <div class="preview-container page-break" style="margin-top: 20px;">
-          <div class="page-label terms">📋 HALAMAN 2: TERMA & SYARAT / PAGE 2: TERMS</div>
+        <div class="preview-container hidden-for-print" id="backPage">
+          <div class="page-label terms">
+            <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT</span>
+            <span class="badge">${copyLabel}</span>
+          </div>
           ${termsHtml}
         </div>
         `
             : ""
         }
+        
+        <script>
+          let currentStep = 1;
+          
+          function printFront() {
+            document.getElementById('frontPage').classList.remove('hidden-for-print');
+            if (document.getElementById('backPage')) {
+              document.getElementById('backPage').classList.add('hidden-for-print');
+            }
+            
+            window.print();
+            
+            setTimeout(function() {
+              currentStep = 2;
+              document.getElementById('step1-indicator').classList.remove('active');
+              document.getElementById('step1-indicator').classList.add('completed');
+              document.getElementById('step1-indicator').textContent = '✓ DEPAN / FRONT';
+              document.getElementById('step2-indicator').classList.remove('pending');
+              document.getElementById('step2-indicator').classList.add('active');
+              document.getElementById('printFrontBtn').disabled = true;
+              document.getElementById('printBackBtn').disabled = false;
+              document.getElementById('flipInstructions').style.display = 'block';
+              
+              document.getElementById('frontPage').classList.add('hidden-for-print');
+              if (document.getElementById('backPage')) {
+                document.getElementById('backPage').classList.remove('hidden-for-print');
+              }
+            }, 1000);
+          }
+          
+          function printBack() {
+            document.getElementById('frontPage').classList.add('hidden-for-print');
+            if (document.getElementById('backPage')) {
+              document.getElementById('backPage').classList.remove('hidden-for-print');
+            }
+            
+            window.print();
+            
+            setTimeout(function() {
+              document.getElementById('step2-indicator').classList.remove('active');
+              document.getElementById('step2-indicator').classList.add('completed');
+              document.getElementById('step2-indicator').textContent = '✓ BELAKANG / BACK';
+              document.getElementById('printBackBtn').disabled = true;
+              document.getElementById('flipInstructions').innerHTML = '<div class="icon">✅</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
+            }, 1000);
+          }
+          
+          window.onload = function() { 
+            document.getElementById('printFrontBtn').focus(); 
+          };
+        </script>
       </body>
       </html>
     `);

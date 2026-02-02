@@ -453,33 +453,163 @@ export default function RedemptionScreen() {
       setIsProcessing(false);
     }
   };
-  // Generate dot matrix print HTML - for 2 pages (Receipt + Terms)
+  // Generate dot matrix print HTML - MANUAL DUPLEX for Epson LQ-310
+  // Step 1: Print FRONT (Receipt), Step 2: Flip paper & print BACK (Terms)
   const generateDotMatrixHTML = (receiptHtml, termsHtml, copyType) => {
+    const copyLabel =
+      copyType === "office" ? "SALINAN PEJABAT" : "SALINAN PELANGGAN";
+
     return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Redemption Receipt - ${copyType === "office" ? "Office Copy" : "Customer Copy"}</title>
-        <style>
-          @page { size: A5 landscape; margin: 0; }
-          @media print {
-            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            .page-break { page-break-after: always; break-after: page; }
-          }
-          body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        </style>
-      </head>
-      <body>
-        <div class="page-break">${receiptHtml}</div>
-        <div>${termsHtml}</div>
-        <script>
-          window.onload = function() {
-            setTimeout(function() { window.print(); }, 500);
-          };
-        </script>
-      </body>
-      </html>
-    `;
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Resit Tebusan - ${copyType === "office" ? "Office" : "Customer"} Copy</title>
+      <style>
+        @page { size: A5 landscape; margin: 3mm; }
+        @media print {
+          html, body { margin: 0; padding: 0; }
+          .print-controls, .step-indicator, .flip-instructions { display: none !important; }
+          .page { page-break-after: auto; }
+          .page.hidden-for-print { display: none !important; }
+        }
+        @media screen {
+          body { max-width: 220mm; margin: 0 auto; padding: 10px; background: #1f2937; min-height: 100vh; }
+          .page { background: white; margin-bottom: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden; }
+          .page.hidden-for-print { opacity: 0.3; pointer-events: none; }
+        }
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #000; }
+        
+        .print-controls { 
+          background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+          padding: 20px; margin-bottom: 15px; border-radius: 12px;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .step-indicator { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
+        .step { padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 13px; transition: all 0.3s; }
+        .step.active { background: #10b981; color: #fff; }
+        .step.completed { background: #10b981; color: #fff; }
+        .step.pending { background: #4b5563; color: #9ca3af; }
+        
+        .btn-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .print-btn { 
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: #fff; border: none; padding: 14px 30px; font-size: 15px; 
+          cursor: pointer; border-radius: 8px; font-weight: bold;
+          display: flex; align-items: center; gap: 8px;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .print-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+        .print-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .print-btn.secondary { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+        .close-btn { background: #6b7280; color: white; border: none; padding: 14px 20px; font-size: 14px; cursor: pointer; border-radius: 8px; }
+        
+        .flip-instructions {
+          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+          border: 2px solid #10b981; border-radius: 10px; padding: 15px 20px; margin: 15px 0; text-align: center;
+        }
+        .flip-instructions h3 { color: #065f46; margin: 0 0 8px 0; font-size: 16px; }
+        .flip-instructions p { color: #047857; margin: 5px 0; font-size: 13px; }
+        .flip-instructions .icon { font-size: 28px; }
+        
+        .printer-note { font-size: 11px; color: #9ca3af; margin-top: 12px; text-align: center; }
+        .printer-note strong { color: #6ee7b7; }
+        
+        .page-label { 
+          background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+          color: white; padding: 10px 15px; font-size: 12px; font-weight: bold;
+          display: flex; justify-content: space-between; align-items: center;
+        }
+        .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); }
+        .page-label .badge { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 10px; font-size: 10px; }
+      </style>
+    </head>
+    <body>
+      <div class="print-controls">
+        <div class="step-indicator">
+          <div class="step active" id="step1-indicator">① DEPAN / FRONT</div>
+          <div class="step pending" id="step2-indicator">② BELAKANG / BACK</div>
+        </div>
+        
+        <div class="btn-row">
+          <button class="print-btn" id="printFrontBtn" onclick="printFront()">
+            🖨️ Cetak DEPAN / Print FRONT
+          </button>
+          <button class="print-btn secondary" id="printBackBtn" onclick="printBack()" disabled>
+            🔄 Cetak BELAKANG / Print BACK
+          </button>
+          <button class="close-btn" onclick="window.close()">✕ Tutup</button>
+        </div>
+        
+        <div class="flip-instructions" id="flipInstructions" style="display: none;">
+          <div class="icon">🔄📄</div>
+          <h3>PUSING KERTAS / FLIP PAPER</h3>
+          <p>1. Keluarkan kertas dari printer / Remove paper from printer</p>
+          <p>2. <strong>Pusing kertas</strong> dan masukkan semula / <strong>Flip paper</strong> and reinsert</p>
+          <p>3. Klik butang ungu untuk cetak belakang / Click purple button to print back</p>
+        </div>
+        
+        <p class="printer-note">
+          Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>A5 Landscape</strong> | Salinan: <strong>${copyLabel}</strong>
+        </p>
+      </div>
+      
+      <div class="page" id="frontPage">
+        <div class="page-label">
+          <span>📄 HALAMAN DEPAN / FRONT - RESIT TEBUSAN</span>
+          <span class="badge">${copyLabel}</span>
+        </div>
+        ${receiptHtml}
+      </div>
+      
+      <div class="page hidden-for-print" id="backPage">
+        <div class="page-label terms">
+          <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT</span>
+          <span class="badge">${copyLabel}</span>
+        </div>
+        ${termsHtml}
+      </div>
+      
+      <script>
+        let currentStep = 1;
+        
+        function printFront() {
+          document.getElementById('frontPage').classList.remove('hidden-for-print');
+          document.getElementById('backPage').classList.add('hidden-for-print');
+          window.print();
+          setTimeout(function() {
+            currentStep = 2;
+            document.getElementById('step1-indicator').classList.remove('active');
+            document.getElementById('step1-indicator').classList.add('completed');
+            document.getElementById('step1-indicator').textContent = '✓ DEPAN / FRONT';
+            document.getElementById('step2-indicator').classList.remove('pending');
+            document.getElementById('step2-indicator').classList.add('active');
+            document.getElementById('printFrontBtn').disabled = true;
+            document.getElementById('printBackBtn').disabled = false;
+            document.getElementById('flipInstructions').style.display = 'block';
+            document.getElementById('frontPage').classList.add('hidden-for-print');
+            document.getElementById('backPage').classList.remove('hidden-for-print');
+          }, 1000);
+        }
+        
+        function printBack() {
+          document.getElementById('frontPage').classList.add('hidden-for-print');
+          document.getElementById('backPage').classList.remove('hidden-for-print');
+          window.print();
+          setTimeout(function() {
+            document.getElementById('step2-indicator').classList.remove('active');
+            document.getElementById('step2-indicator').classList.add('completed');
+            document.getElementById('step2-indicator').textContent = '✓ BELAKANG / BACK';
+            document.getElementById('printBackBtn').disabled = true;
+            document.getElementById('flipInstructions').innerHTML = '<div class="icon">✅</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
+          }, 1000);
+        }
+        
+        window.onload = function() { document.getElementById('printFrontBtn').focus(); };
+      </script>
+    </body>
+    </html>`;
   };
 
   // Print redemption receipt using dot-matrix approach
