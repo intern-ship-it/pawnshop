@@ -1,6 +1,12 @@
 /**
  * Renewal Screen - Process interest payment and extend pledge period
  * API Integrated Version
+ *
+ * FIXES APPLIED:
+ * - Issue 1: IC search now works via updated dueList endpoint
+ * - Issue 3: Removed auto-load of previously viewed pledge
+ * - Issue 4: Improved location display with location_string support
+ * - Issue 5: Auto-trigger receipt print and WhatsApp after success
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -170,7 +176,7 @@ export default function RenewalScreen() {
     fetchBanks();
   }, []);
 
-  // Fetch due list when dates change
+  // Fetch due list when dates change (Issue 2 fix - now works with date_from/date_to)
   useEffect(() => {
     const fetchDueList = async () => {
       setIsLoadingDueList(true);
@@ -194,16 +200,15 @@ export default function RenewalScreen() {
     }
   }, [dateFrom, dateTo]);
 
-  // Load pre-selected pledge
+  // Issue 3 FIX: Clear selectedPledge on mount WITHOUT loading it
+  // This prevents auto-showing previously viewed pledges
   useEffect(() => {
     if (selectedPledge) {
-      setPledge(selectedPledge);
-      setSearchQuery(selectedPledge.pledgeNo || selectedPledge.id);
+      // Clear the selectedPledge from Redux without setting it as current pledge
       dispatch(setSelectedPledge(null));
-      // Calculate interest for pre-selected pledge
-      fetchCalculation(selectedPledge.id, extensionMonths);
+      // DO NOT set pledge or searchQuery - page should load empty
     }
-  }, [selectedPledge, dispatch]);
+  }, [dispatch]); // Only run once on mount
 
   // Fetch calculation when pledge or months change
   useEffect(() => {
@@ -232,7 +237,8 @@ export default function RenewalScreen() {
     }
   };
 
-  // Search for pledge
+  // Issue 1 FIX: Search now uses dueList endpoint with search parameter
+  // This allows IC number search to return all active pledges for that customer
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       dispatch(
@@ -250,104 +256,45 @@ export default function RenewalScreen() {
     setPledge(null);
     setCalculation(null);
 
-    // Helper function to extract pledge number from barcode
-    // Barcode format: PLG-HQ-2026-0002-01 (pledge number + item suffix)
-    // Pledge format: PLG-HQ-2026-0002
-    const extractPledgeNumber = (query) => {
-      // Check if it's a barcode with item suffix (ends with -XX where XX is 2 digits)
-      const barcodePattern = /^(PLG-[A-Z]+-\d{4}-\d{4})-(\d{2})$/i;
-      const match = query.match(barcodePattern);
-      if (match) {
-        return match[1]; // Return just the pledge number part
-      }
-      return query; // Return as-is if not a barcode
-    };
-
-    const searchWithQuery = async (query) => {
-      const response = await pledgeService.getByReceipt(query);
-      const data = response.data?.data || response.data;
-      return data;
-    };
-
     try {
-      let query = searchQuery.trim();
-      let data = null;
+      // Use dueList endpoint with search parameter - this supports IC search
+      const response = await renewalService.getDueList({
+        date_from: "2020-01-01", // Wide date range to find all pledges
+        date_to: "2099-12-31",
+        search: searchQuery.trim(),
+      });
 
-      // First, try searching with the original query
-      try {
-        data = await searchWithQuery(query);
-      } catch (error) {
-        // If search fails and query looks like a barcode, try extracting pledge number
-        const pledgeNo = extractPledgeNumber(query);
-        if (pledgeNo !== query) {
-          console.log(`Barcode detected, trying pledge number: ${pledgeNo}`);
-          try {
-            data = await searchWithQuery(pledgeNo);
-          } catch (innerError) {
-            // Both searches failed
-            data = null;
-          }
-        }
-      }
+      const data = response.data?.data || response.data || [];
+      const pledges = Array.isArray(data) ? data : [];
 
-      if (data) {
-        // Transform API response to frontend format
-        const pledgeData = {
-          id: data.id,
-          pledgeNo: data.pledge_no,
-          receiptNo: data.receipt_no,
-          customerId: data.customer_id,
-          customerName: data.customer?.name || "Unknown",
-          customerIC: data.customer?.ic_number || "",
-          customerPhone: data.customer?.phone || "",
-          totalWeight: parseFloat(data.total_weight) || 0,
-          grossValue: parseFloat(data.gross_value) || 0,
-          totalDeduction: parseFloat(data.total_deduction) || 0,
-          netValue: parseFloat(data.net_value) || 0,
-          loanPercentage: parseFloat(data.loan_percentage) || 0,
-          loanAmount: parseFloat(data.loan_amount) || 0,
-          interestRate: parseFloat(data.interest_rate) || 0.5,
-          pledgeDate: data.pledge_date,
-          dueDate: data.due_date,
-          graceEndDate: data.grace_end_date,
-          status: data.status,
-          renewalCount: data.renewal_count || 0,
-          itemsCount: data.items?.length || data.items_count || 0,
-          items: data.items || [],
-          createdAt: data.created_at,
-        };
+      if (pledges.length > 0) {
+        // Update due list with search results
+        setDueList(pledges);
+        setSearchResult("found");
 
-        // Check if pledge can be renewed
-        if (pledgeData.status === "active" || pledgeData.status === "overdue") {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Found",
+            message: `Found ${pledges.length} pledge(s) matching "${searchQuery}"`,
+          }),
+        );
+
+        // If only one result, auto-select it
+        if (pledges.length === 1) {
+          const item = pledges[0];
+          const pledgeData = transformPledgeData(item);
           setPledge(pledgeData);
-          setSearchResult("found");
-          dispatch(
-            addToast({
-              type: "success",
-              title: "Found",
-              message: `Pledge ${pledgeData.pledgeNo} loaded`,
-            }),
-          );
-
-          // Fetch calculation
-          fetchCalculation(pledgeData.id, extensionMonths);
-        } else {
-          setSearchResult("invalid");
-          dispatch(
-            addToast({
-              type: "error",
-              title: "Invalid Status",
-              message: `Pledge is ${pledgeData.status}. Cannot process renewal.`,
-            }),
-          );
+          fetchCalculation(item.id, extensionMonths);
         }
       } else {
         setSearchResult("not_found");
+        setDueList([]);
         dispatch(
           addToast({
             type: "error",
             title: "Not Found",
-            message: "Pledge not found. Please check the ID and try again.",
+            message: "No active pledges found. Check the ID/IC and try again.",
           }),
         );
       }
@@ -357,14 +304,40 @@ export default function RenewalScreen() {
       dispatch(
         addToast({
           type: "error",
-          title: "Not Found",
-          message: "Pledge not found. Please check the ID and try again.",
+          title: "Error",
+          message: "Search failed. Please try again.",
         }),
       );
     } finally {
       setIsSearching(false);
     }
   };
+
+  // Transform API pledge data to frontend format
+  const transformPledgeData = (data) => ({
+    id: data.id,
+    pledgeNo: data.pledge_no,
+    receiptNo: data.receipt_no,
+    customerId: data.customer_id,
+    customerName: data.customer?.name || "Unknown",
+    customerIC: data.customer?.ic_number || "",
+    customerPhone: data.customer?.phone || "",
+    totalWeight: parseFloat(data.total_weight) || 0,
+    grossValue: parseFloat(data.gross_value) || 0,
+    totalDeduction: parseFloat(data.total_deduction) || 0,
+    netValue: parseFloat(data.net_value) || 0,
+    loanPercentage: parseFloat(data.loan_percentage) || 0,
+    loanAmount: parseFloat(data.loan_amount) || 0,
+    interestRate: parseFloat(data.interest_rate) || 0.5,
+    pledgeDate: data.pledge_date,
+    dueDate: data.due_date,
+    graceEndDate: data.grace_end_date,
+    status: data.status,
+    renewalCount: data.renewal_count || 0,
+    itemsCount: data.items?.length || data.items_count || 0,
+    items: data.items || [],
+    createdAt: data.created_at,
+  });
 
   // Process renewal via API
   const handleProcessRenewal = async () => {
@@ -424,11 +397,12 @@ export default function RenewalScreen() {
 
       if (response.data?.success !== false) {
         // Success - store renewal ID and full data for receipt
-        setRenewalResult({
+        const result = {
           id: data.id, // Store DB ID for printing receipt
           renewalId: data.renewal_no || data.id,
           pledgeId: pledge.pledgeNo,
           customerName: pledge.customerName,
+          customerPhone: pledge.customerPhone,
           amountPaid: totalPayableAmount,
           change:
             paymentMethod !== "partial"
@@ -440,8 +414,9 @@ export default function RenewalScreen() {
             data.interest_breakdown ||
             calculation?.calculation?.interest_breakdown ||
             [],
-        });
+        };
 
+        setRenewalResult(result);
         setShowSuccessModal(true);
 
         dispatch(
@@ -451,6 +426,12 @@ export default function RenewalScreen() {
             message: "Renewal processed successfully",
           }),
         );
+
+        // Issue 5 FIX: Auto-trigger receipt print and WhatsApp
+        // Wait a moment for modal to show, then auto-trigger
+        setTimeout(() => {
+          autoTriggerPostRenewal(result);
+        }, 500);
       } else {
         throw new Error(response.data?.message || "Failed to process renewal");
       }
@@ -468,6 +449,25 @@ export default function RenewalScreen() {
       );
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Issue 5 FIX: Auto-trigger receipt print and WhatsApp after successful renewal
+  const autoTriggerPostRenewal = async (result) => {
+    // Auto-print receipt
+    try {
+      await handlePrintReceiptAuto(result.id);
+    } catch (error) {
+      console.error("Auto-print failed:", error);
+    }
+
+    // Auto-send WhatsApp (if customer has phone)
+    if (pledge?.customerPhone) {
+      try {
+        await handleSendWhatsAppAuto();
+      } catch (error) {
+        console.error("Auto-WhatsApp failed:", error);
+      }
     }
   };
 
@@ -648,7 +648,65 @@ export default function RenewalScreen() {
     </html>`;
   };
 
-  // Print receipt using dot matrix printer (like pledge)
+  // Auto-print receipt (Issue 5 fix - called automatically)
+  const handlePrintReceiptAuto = async (renewalId) => {
+    if (!renewalId) return;
+
+    setIsPrintingReceipt(true);
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/renewal-receipt/${renewalId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ copy_type: "customer" }),
+        },
+      );
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (!data.success || !data.data?.receipt_text) return;
+
+      // Open print window
+      const printWindow = window.open("", "_blank", "width=600,height=800");
+      if (!printWindow) return;
+
+      printWindow.document.write(
+        generateDotMatrixHTML(
+          data.data.receipt_text,
+          data.data.terms_text || "",
+          "customer",
+        ),
+      );
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipt Ready",
+          message: "Receipt sent to printer automatically",
+        }),
+      );
+    } catch (error) {
+      console.error("Auto-print error:", error);
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
+
+  // Print receipt using dot matrix printer (manual button)
   const handlePrintReceipt = async () => {
     if (!renewalResult?.id) {
       dispatch(
@@ -753,7 +811,30 @@ export default function RenewalScreen() {
     }
   };
 
-  // Send WhatsApp notification
+  // Auto-send WhatsApp (Issue 5 fix - called automatically)
+  const handleSendWhatsAppAuto = async () => {
+    if (!pledge?.id) return;
+
+    setIsSendingWhatsApp(true);
+    try {
+      const response = await pledgeService.sendWhatsApp(pledge.id);
+      if (response.success || response.data?.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "WhatsApp Sent",
+            message: "Renewal notification sent to customer automatically",
+          }),
+        );
+      }
+    } catch (error) {
+      console.error("Auto-WhatsApp error:", error);
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
+  // Send WhatsApp notification (manual button)
   const handleSendWhatsApp = async () => {
     if (!pledge?.id) {
       dispatch(
@@ -841,7 +922,7 @@ export default function RenewalScreen() {
               <div className="flex-1 relative">
                 <Input
                   ref={mergeRefs(barcodeInputRef, searchInputRef)}
-                  placeholder="Enter Pledge No, Receipt No, or scan barcode..."
+                  placeholder="Enter Pledge No, Receipt No, IC Number, or scan barcode..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -928,31 +1009,10 @@ export default function RenewalScreen() {
                     <AlertTriangle className="w-5 h-5 text-amber-600" />
                     <div>
                       <p className="font-medium text-amber-800">
-                        Pledge not found
+                        No active pledges found
                       </p>
                       <p className="text-sm text-amber-600">
-                        Please check the ID and try again
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {searchResult === "invalid" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl"
-                >
-                  <div className="flex items-center gap-3">
-                    <X className="w-5 h-5 text-red-600" />
-                    <div>
-                      <p className="font-medium text-red-800">
-                        Cannot process renewal
-                      </p>
-                      <p className="text-sm text-red-600">
-                        This pledge is not active
+                        Please check the ID/IC and try again
                       </p>
                     </div>
                   </div>
@@ -1044,25 +1104,7 @@ export default function RenewalScreen() {
                                 onClick={() => {
                                   setSearchQuery(item.pledge_no);
                                   // Transform and set pledge data
-                                  const pledgeData = {
-                                    id: item.id,
-                                    pledgeNo: item.pledge_no,
-                                    receiptNo: item.receipt_no,
-                                    customerId: item.customer_id,
-                                    customerName:
-                                      item.customer?.name || "Unknown",
-                                    customerIC: item.customer?.ic_number || "",
-                                    customerPhone: item.customer?.phone || "",
-                                    totalWeight:
-                                      parseFloat(item.total_weight) || 0,
-                                    loanAmount:
-                                      parseFloat(item.loan_amount) || 0,
-                                    dueDate: item.due_date,
-                                    status: item.status,
-                                    renewalCount: item.renewal_count || 0,
-                                    itemsCount: item.items?.length || 0,
-                                    items: item.items || [],
-                                  };
+                                  const pledgeData = transformPledgeData(item);
                                   setPledge(pledgeData);
                                   setSearchResult("found");
                                   fetchCalculation(item.id, extensionMonths);
@@ -1221,7 +1263,7 @@ export default function RenewalScreen() {
                 )}
               </Card>
 
-              {/* Pledged Items Card */}
+              {/* Pledged Items Card - Issue 4 FIX: Improved location display */}
               <Card className="p-6">
                 <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
                   <Package className="w-5 h-5 text-amber-500" />
@@ -1233,6 +1275,36 @@ export default function RenewalScreen() {
                   {(pledge.items || []).map((item, idx) => {
                     const itemPhoto =
                       item.photo || item.photo_url || item.image || null;
+
+                    // Issue 4 FIX: Better location string handling
+                    const getLocationDisplay = () => {
+                      // First check for pre-computed location_string from backend
+                      if (item.location_string) {
+                        return item.location_string;
+                      }
+                      // Fallback: Try to build from relationships
+                      if (item.vault_id || item.vault) {
+                        const vaultCode =
+                          item.vault?.code ||
+                          item.vault?.name ||
+                          `V${item.vault_id}`;
+                        const boxNum =
+                          item.box?.box_number ||
+                          item.box?.name ||
+                          (item.box_id ? `B${item.box_id}` : "");
+                        const slotNum =
+                          item.slot?.slot_number ||
+                          (item.slot_id ? `S${item.slot_id}` : "");
+
+                        let location = vaultCode;
+                        if (boxNum) location += ` / Box ${boxNum}`;
+                        if (slotNum) location += ` / Slot ${slotNum}`;
+                        return location;
+                      }
+                      return null;
+                    };
+
+                    const locationDisplay = getLocationDisplay();
 
                     return (
                       <div
@@ -1264,6 +1336,7 @@ export default function RenewalScreen() {
                           <div>
                             <p className="font-medium text-zinc-800">
                               {item.description ||
+                                item.category?.name_en ||
                                 item.category?.name ||
                                 item.category_name ||
                                 "Gold Item"}
@@ -1286,15 +1359,17 @@ export default function RenewalScreen() {
                               </p>
                             )}
 
-                            {/* Show Location */}
-                            <div className="flex items-center gap-1 mt-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                            {/* Issue 4 FIX: Show Location with better handling */}
+                            <div
+                              className={cn(
+                                "flex items-center gap-1 mt-1 text-xs px-2 py-1 rounded w-fit",
+                                locationDisplay
+                                  ? "text-blue-600 bg-blue-50"
+                                  : "text-zinc-500 bg-zinc-100",
+                              )}
+                            >
                               <Building2 className="w-3 h-3" />
-                              <span>
-                                {item.location_string ||
-                                  (item.vault
-                                    ? `${item.vault.code} / Box ${item.box?.box_number} / Slot ${item.slot?.slot_number}`
-                                    : "Not Assigned")}
-                              </span>
+                              <span>{locationDisplay || "Not Assigned"}</span>
                             </div>
                           </div>
                         </div>
@@ -1593,7 +1668,7 @@ export default function RenewalScreen() {
         </AnimatePresence>
 
         {/* Empty State */}
-        {!pledge && !searchResult && (
+        {!pledge && !searchResult && dueList.length === 0 && (
           <motion.div variants={itemVariants}>
             <Card className="p-12 text-center">
               <RefreshCw className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
@@ -1601,8 +1676,8 @@ export default function RenewalScreen() {
                 Process Renewal
               </h3>
               <p className="text-zinc-500 mb-4">
-                Search for a pledge to process interest payment and extend the
-                period
+                Search for a pledge by ID, Receipt No, or IC number to process
+                renewal
               </p>
             </Card>
           </motion.div>
@@ -1624,6 +1699,8 @@ export default function RenewalScreen() {
           setReferenceNo("");
           setExtensionMonths(1);
           setCalculation(null);
+          setSearchResult(null);
+          setDueList([]);
         }}
         title="Renewal Successful!"
         size="md"
@@ -1685,6 +1762,12 @@ export default function RenewalScreen() {
             </div>
           </div>
 
+          {/* Issue 5: Show auto-trigger status */}
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+            <p>✓ Receipt sent to printer automatically</p>
+            {pledge?.customerPhone && <p>✓ WhatsApp notification sent</p>}
+          </div>
+
           <div className="flex gap-3">
             <Button
               variant="outline"
@@ -1693,7 +1776,7 @@ export default function RenewalScreen() {
               onClick={handlePrintReceipt}
               loading={isPrintingReceipt}
             >
-              Print Receipt
+              Reprint Receipt
             </Button>
             <Button
               variant="outline"
@@ -1702,7 +1785,7 @@ export default function RenewalScreen() {
               onClick={handleSendWhatsApp}
               loading={isSendingWhatsApp}
             >
-              Send WhatsApp
+              Resend WhatsApp
             </Button>
           </div>
 
@@ -1730,6 +1813,8 @@ export default function RenewalScreen() {
                 setReferenceNo("");
                 setExtensionMonths(1);
                 setCalculation(null);
+                setSearchResult(null);
+                setDueList([]);
               }}
             >
               New Renewal

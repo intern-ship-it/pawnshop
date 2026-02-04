@@ -46,7 +46,7 @@ class DayEndController extends Controller
         if (!$report) {
             // Generate current stats
             $stats = $this->calculateDayStats($branchId, $today);
-            
+
             return $this->success([
                 'report' => null,
                 'stats' => $stats,
@@ -296,7 +296,7 @@ class DayEndController extends Controller
 
         // Check if all verifications done
         $unverified = $dayEndReport->verifications()->where('is_verified', false)->count();
-        
+
         $forceClose = $request->boolean('force_close', false);
 
         if ($unverified > 0 && !$forceClose) {
@@ -346,8 +346,101 @@ class DayEndController extends Controller
 
         // TODO: Generate PDF
         return $this->success([
-            'report' => $dayEndReport->load('verifications'),
             'print_url' => null, // Would be PDF URL
+        ]);
+    }
+
+    /**
+     * Export day-end report (CSV)
+     */
+    public function export(Request $request): mixed
+    {
+        $branchId = $request->user()->branch_id;
+        $date = $request->get('date', Carbon::today()->toDateString());
+
+        // Get report or calculate stats
+        $report = DayEndReport::where('branch_id', $branchId)
+            ->whereDate('report_date', $date)
+            ->with(['verifications.verifiedBy', 'closedBy'])
+            ->first();
+
+        $stats = null;
+        if (!$report) {
+            $stats = $this->calculateDayStats($branchId, $date);
+        }
+
+        // Generate CSV
+        $output = fopen('php://temp', 'r+');
+
+        // Header
+        fputcsv($output, ['Day End Report', $date]);
+        fputcsv($output, ['Status', $report ? ucfirst($report->status) : 'Not Started']);
+        fputcsv($output, []); // Empty line
+
+        // Transaction Summary
+        fputcsv($output, ['--- TRANSACTION SUMMARY ---']);
+        fputcsv($output, ['Type', 'Count', 'Amount']);
+
+        if ($report) {
+            fputcsv($output, ['New Pledges', $report->new_pledges_count, number_format($report->new_pledges_amount, 2)]);
+            fputcsv($output, ['Renewals', $report->renewals_count, number_format($report->renewals_amount, 2)]);
+            fputcsv($output, ['Redemptions', $report->redemptions_count, number_format($report->redemptions_amount, 2)]);
+        } else {
+            fputcsv($output, ['New Pledges', $stats['pledges']['count'], number_format($stats['pledges']['total'], 2)]);
+            fputcsv($output, ['Renewals', $stats['renewals']['count'], number_format($stats['renewals']['total'], 2)]);
+            fputcsv($output, ['Redemptions', $stats['redemptions']['count'], number_format($stats['redemptions']['total'], 2)]);
+        }
+        fputcsv($output, []);
+
+        // Cash Flow
+        fputcsv($output, ['--- CASH FLOW ---']);
+
+        $cashIn = $report ? ($report->renewals_amount + $report->redemptions_amount) : ($stats['renewals']['total'] + $stats['redemptions']['total']);
+        $cashOut = $report ? $report->new_pledges_amount : $stats['pledges']['total'];
+        $netFlow = $cashIn - $cashOut;
+
+        fputcsv($output, ['Cash In (Received)', number_format($cashIn, 2)]);
+        fputcsv($output, ['Cash Out (Disbursed)', number_format($cashOut, 2)]);
+        fputcsv($output, ['Net Cash Flow', number_format($netFlow, 2)]);
+
+        if ($report) {
+            fputcsv($output, ['Opening Balance', number_format($report->opening_balance, 2)]);
+            fputcsv($output, ['Closing Balance', $report->closing_balance ? number_format($report->closing_balance, 2) : '-']);
+
+            if ($report->closing_balance) {
+                $expected = $report->opening_balance + $netFlow;
+                $variance = $report->closing_balance - $expected;
+                fputcsv($output, ['Variance', number_format($variance, 2)]);
+            }
+        }
+        fputcsv($output, []);
+
+        // Verifications
+        if ($report && $report->verifications->count() > 0) {
+            fputcsv($output, ['--- VERIFICATIONS ---']);
+            fputcsv($output, ['Type', 'Description', 'Expected', 'Status', 'Verified By', 'Notes']);
+
+            foreach ($report->verifications as $v) {
+                fputcsv($output, [
+                    ucfirst(str_replace('_', ' ', $v->verification_type)),
+                    $v->item_description,
+                    number_format($v->expected_amount, 2),
+                    $v->is_verified ? 'Verified' : 'Pending',
+                    $v->verifiedBy->name ?? '',
+                    $v->notes
+                ]);
+            }
+        }
+
+        rewind($output);
+        $csv = stream_get_contents($output);
+        fclose($output);
+
+        $filename = 'day_end_' . $date . '.csv';
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
     }
 

@@ -316,6 +316,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // View permissions
         Route::middleware('check.permission:dayend,view')->group(function () {
             Route::get('/current', [DayEndController::class, 'current']);
+            Route::get('/export', [DayEndController::class, 'export']);
             Route::get('/{date}', [DayEndController::class, 'byDate']);
             Route::get('/{dayEnd}/verifications', [DayEndController::class, 'verifications']);
         });

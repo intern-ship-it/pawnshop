@@ -100,6 +100,35 @@ const dayEndService = {
   async print(dayEndId) {
     return apiPost(`/day-end/${dayEndId}/print`)
   },
+
+  /**
+   * Export report
+   * @param {string} date - YYYY-MM-DD
+   * @returns {Promise}
+   */
+  async export(date) {
+    try {
+      const response = await import('./api').then(m => m.default.get('/day-end/export', {
+        params: { date },
+        responseType: 'blob'
+      }))
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `day_end_${date}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      link.parentNode.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      return { success: true }
+    } catch (error) {
+      console.error('Export error:', error)
+      throw error
+    }
+  },
 }
 
 export default dayEndService

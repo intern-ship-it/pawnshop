@@ -140,7 +140,7 @@ export default function StockReconciliation() {
     try {
       // Use pledges API to get active/overdue pledges with items
       const response = await apiGet(
-        "/pledges?status=active,overdue&per_page=500",
+        "/pledges?status=active,overdue&per_page=500&with_items=true",
       );
 
       // Handle both nested (response.data.data) and direct (response.data) formats
@@ -159,16 +159,27 @@ export default function StockReconciliation() {
               barcode: item.barcode || `PLG-${pledge.pledge_no}-${idx + 1}`,
               pledge_id: pledge.id,
               pledge_no: pledge.pledge_no,
-              category: item.category?.name || item.category || "Unknown",
+              category:
+                item.category?.name ||
+                item.category?.name_en ||
+                (typeof item.category === "string" ? item.category : "Unknown"),
               description:
                 item.description ||
-                `${item.category?.name || ""} - ${item.purity?.name || ""}`,
+                `${item.category?.name || item.category?.name_en || ""} - ${item.purity?.name || item.purity?.name_en || ""}`,
               weight: item.weight,
-              purity: item.purity?.name || item.purity || "",
+              purity:
+                item.purity?.name ||
+                item.purity?.name_en ||
+                (typeof item.purity === "string" ? item.purity : ""),
               storage_location:
-                item.storage_location ||
-                pledge.storage_location ||
-                "Not assigned",
+                // Build location from vault/box/slot relations
+                item.vault && item.box && item.slot
+                  ? `${item.vault.code || item.vault.name} / ${item.box.box_number || item.box.name} / Slot ${item.slot.slot_number}`
+                  : item.vault && item.box
+                    ? `${item.vault.code || item.vault.name} / ${item.box.box_number || item.box.name}`
+                    : item.vault
+                      ? item.vault.code || item.vault.name
+                      : "Not assigned",
               customer_name: pledge.customer?.name || "Unknown",
               customer_ic: pledge.customer?.ic_number || "",
               due_date: pledge.due_date,

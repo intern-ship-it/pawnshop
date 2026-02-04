@@ -1,6 +1,7 @@
 /**
  * Rack / Locker Map - Fully API Integrated
  * No localStorage - All data from backend
+ * ISSUE 3 FIX: Added item image display in slot modal
  */
 
 import { useState, useEffect, useMemo } from "react";
@@ -10,6 +11,7 @@ import { addToast } from "@/features/ui/uiSlice";
 import storageService from "@/services/storageService";
 import inventoryService from "@/services/inventoryService";
 import { formatCurrency } from "@/utils/formatters";
+import { getStorageUrl } from "@/utils/helpers"; // ISSUE 3 FIX: Import for image URLs
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -28,6 +30,8 @@ import {
   Loader2,
   ExternalLink,
   Printer,
+  Image as ImageIcon, // ISSUE 3 FIX: For image placeholder
+  ZoomIn, // ISSUE 3 FIX: For view image button
 } from "lucide-react";
 
 export default function RackMap({ embedded = false }) {
@@ -101,7 +105,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: "Failed to load vaults",
-        })
+        }),
       );
     } finally {
       setIsLoading(false);
@@ -198,7 +202,7 @@ export default function RackMap({ embedded = false }) {
         slot.pledge_item?.pledge?.customer?.name
           ?.toLowerCase()
           .includes(query) ||
-        slot.pledge_item?.barcode?.toLowerCase().includes(query)
+        slot.pledge_item?.barcode?.toLowerCase().includes(query),
     );
   }, [slots, searchQuery]);
 
@@ -211,7 +215,7 @@ export default function RackMap({ embedded = false }) {
       totalValue: inventorySummary.total_value || 0,
       overdueItems: inventorySummary.overdue_count || 0,
     }),
-    [vaults, inventorySummary]
+    [vaults, inventorySummary],
   );
   // CHANGE TO:
   const handleSlotClick = async (slot) => {
@@ -252,7 +256,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: "Please enter a vault name",
-        })
+        }),
       );
       return;
     }
@@ -262,7 +266,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: "Please enter a vault code",
-        })
+        }),
       );
       return;
     }
@@ -281,7 +285,7 @@ export default function RackMap({ embedded = false }) {
             type: "success",
             title: "Vault Created",
             message: `${newVaultName} has been created`,
-          })
+          }),
         );
         setShowAddVaultModal(false);
         setNewVaultName("");
@@ -294,7 +298,7 @@ export default function RackMap({ embedded = false }) {
             type: "error",
             title: "Error",
             message: response.message || "Failed to create vault",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -303,7 +307,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: error.message || "Failed to create vault",
-        })
+        }),
       );
     } finally {
       setIsSaving(false);
@@ -318,7 +322,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: "Please enter a box name",
-        })
+        }),
       );
       return;
     }
@@ -328,7 +332,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: "Please enter a box number",
-        })
+        }),
       );
       return;
     }
@@ -348,7 +352,7 @@ export default function RackMap({ embedded = false }) {
             type: "success",
             title: "Box Created",
             message: `${newBoxName} has been created`,
-          })
+          }),
         );
         setShowAddBoxModal(false);
         setNewBoxName("");
@@ -361,7 +365,7 @@ export default function RackMap({ embedded = false }) {
             type: "error",
             title: "Error",
             message: response.message || "Failed to create box",
-          })
+          }),
         );
       }
     } catch (error) {
@@ -370,7 +374,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: error.message || "Failed to create box",
-        })
+        }),
       );
     } finally {
       setIsSaving(false);
@@ -385,6 +389,78 @@ export default function RackMap({ embedded = false }) {
       month: "short",
       year: "numeric",
     });
+  };
+
+  /**
+   * ISSUE 3 FIX: Get item photo URL
+   * Checks multiple possible photo field names
+   */
+  const getItemPhotoUrl = (item) => {
+    // Check various possible field names for the photo
+    const photoPath =
+      item.photo || item.photo_url || item.image || item.image_url;
+    if (!photoPath) return null;
+
+    // If it's already a full URL or base64 data URL, return as is
+    if (
+      photoPath.startsWith("http://") ||
+      photoPath.startsWith("https://") ||
+      photoPath.startsWith("data:")
+    ) {
+      return photoPath;
+    }
+
+    // Use the helper to build storage URL
+    return getStorageUrl(photoPath);
+  };
+
+  /**
+   * Open image in new tab - handles large base64 images properly
+   * Browsers have URL length limits, so we create an HTML document for base64 images
+   */
+  const openImageInNewTab = (imageUrl) => {
+    if (!imageUrl) return;
+
+    // For base64 data URLs, create an HTML document to display the image
+    // This is necessary because browsers have URL length limits for window.open()
+    if (imageUrl.startsWith("data:")) {
+      const newWindow = window.open("", "_blank");
+      if (newWindow) {
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Item Photo</title>
+            <style>
+              body {
+                margin: 0;
+                padding: 20px;
+                background: #1a1a1a;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+              }
+              img {
+                max-width: 100%;
+                max-height: 100vh;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+              }
+            </style>
+          </head>
+          <body>
+            <img src="${imageUrl}" alt="Item Photo" />
+          </body>
+          </html>
+        `);
+        newWindow.document.close();
+      }
+    } else {
+      // For regular URLs, just open them directly
+      window.open(imageUrl, "_blank");
+    }
   };
 
   // Print map
@@ -460,8 +536,8 @@ export default function RackMap({ embedded = false }) {
             ? `
           <div class="vault-section">
             <div class="vault-title">${currentVault.name} ${
-                currentVault.description ? `- ${currentVault.description}` : ""
-              }</div>
+              currentVault.description ? `- ${currentVault.description}` : ""
+            }</div>
             ${boxes
               .map((box) => {
                 const summary = boxSummaries[box.id] || {};
@@ -472,8 +548,8 @@ export default function RackMap({ embedded = false }) {
                     <span class="box-stats">${
                       summary.item_count || 0
                     } items | ${(summary.total_weight || 0).toFixed(
-                  1
-                )}g | RM ${(summary.total_value || 0).toLocaleString()}</span>
+                      1,
+                    )}g | RM ${(summary.total_value || 0).toLocaleString()}</span>
                   </div>
                   <div class="slots-grid">
                     ${(selectedBox === box.id ? slots : [])
@@ -487,7 +563,7 @@ export default function RackMap({ embedded = false }) {
                           : "empty"
                       }">
                         <span class="slot-number">${String(
-                          slot.slot_number
+                          slot.slot_number,
                         ).padStart(2, "0")}</span>
                         ${
                           slot.is_occupied && slot.pledge_item
@@ -497,7 +573,7 @@ export default function RackMap({ embedded = false }) {
                             : ""
                         }
                       </div>
-                    `
+                    `,
                       )
                       .join("")}
                   </div>
@@ -537,7 +613,7 @@ export default function RackMap({ embedded = false }) {
           type: "error",
           title: "Error",
           message: "Please allow popups to print",
-        })
+        }),
       );
     }
   };
@@ -667,7 +743,7 @@ export default function RackMap({ embedded = false }) {
                       "w-full p-3 rounded-lg text-left transition-all",
                       selectedVault === vault.id
                         ? "bg-amber-100 border-2 border-amber-300"
-                        : "bg-zinc-50 hover:bg-zinc-100 border-2 border-transparent"
+                        : "bg-zinc-50 hover:bg-zinc-100 border-2 border-transparent",
                     )}
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -724,7 +800,7 @@ export default function RackMap({ embedded = false }) {
                           "w-full p-3 rounded-lg text-left transition-all",
                           selectedBox === box.id
                             ? "bg-amber-100 border-2 border-amber-300"
-                            : "bg-zinc-50 hover:bg-zinc-100 border-2 border-transparent"
+                            : "bg-zinc-50 hover:bg-zinc-100 border-2 border-transparent",
                         )}
                       >
                         <div className="flex items-center justify-between mb-1">
@@ -764,14 +840,14 @@ export default function RackMap({ embedded = false }) {
                               "h-full rounded-full",
                               summary.overdue_count > 0
                                 ? "bg-red-500"
-                                : "bg-amber-500"
+                                : "bg-amber-500",
                             )}
                             style={{
                               width: `${Math.min(
                                 ((box.occupied_slots || 0) /
                                   (box.total_slots || 1)) *
                                   100,
-                                100
+                                100,
                               )}%`,
                             }}
                           />
@@ -864,7 +940,7 @@ export default function RackMap({ embedded = false }) {
                           ? hasOverdue
                             ? "bg-red-100 border-red-300 text-red-700"
                             : "bg-amber-100 border-amber-300 text-amber-700"
-                          : "bg-zinc-50 border-zinc-200 text-zinc-400 hover:border-zinc-300"
+                          : "bg-zinc-50 border-zinc-200 text-zinc-400 hover:border-zinc-300",
                       )}
                     >
                       <span className="text-xs font-mono font-medium">
@@ -917,7 +993,7 @@ export default function RackMap({ embedded = false }) {
                   <strong className="text-red-600">
                     {
                       slots.filter(
-                        (s) => s.pledge_item?.pledge?.status === "overdue"
+                        (s) => s.pledge_item?.pledge?.status === "overdue",
                       ).length
                     }
                   </strong>{" "}
@@ -929,7 +1005,7 @@ export default function RackMap({ embedded = false }) {
         </div>
       </div>
 
-      {/* Slot Detail Modal */}
+      {/* Slot Detail Modal - ISSUE 3 FIX: Added item image display */}
       <Modal
         isOpen={showSlotModal}
         onClose={() => setShowSlotModal(false)}
@@ -966,7 +1042,7 @@ export default function RackMap({ embedded = false }) {
                           (parseFloat(item.net_weight) ||
                             parseFloat(item.weight) ||
                             0),
-                        0
+                        0,
                       )
                       .toFixed(2)}
                     g
@@ -983,8 +1059,8 @@ export default function RackMap({ embedded = false }) {
                           (parseFloat(item.net_value) ||
                             parseFloat(item.estimated_value) ||
                             0),
-                        0
-                      )
+                        0,
+                      ),
                     )}
                   </p>
                   <p className="text-xs text-purple-700">Value</p>
@@ -994,92 +1070,184 @@ export default function RackMap({ embedded = false }) {
               <h4 className="font-semibold text-zinc-800 mb-3">
                 Items in this Slot
               </h4>
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {slotItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "p-4 rounded-xl border",
-                      item.pledge?.status === "overdue"
-                        ? "bg-red-50 border-red-200"
-                        : "bg-zinc-50 border-zinc-200"
-                    )}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-zinc-800">
-                            {item.pledge?.pledge_no || "N/A"}
-                          </span>
-                          <Badge
-                            variant={
-                              item.pledge?.status === "overdue"
-                                ? "error"
-                                : "success"
-                            }
-                          >
-                            {item.pledge?.status || "active"}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-zinc-500">
-                          {item.pledge?.customer?.name || "Unknown"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={ExternalLink}
-                        onClick={() =>
-                          handleViewPledge(item.pledge?.id || item.pledge_id)
-                        }
-                      >
-                        View Pledge
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-4 gap-3 text-sm">
-                      <div>
-                        <p className="text-xs text-zinc-500">Category</p>
-                        <p className="font-medium">
-                          {item.category?.name_en ||
-                            item.category?.name ||
-                            "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-zinc-500">Purity</p>
-                        <p className="font-medium">
-                          {item.purity?.name || item.purity?.code || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-zinc-500">Weight</p>
-                        <p className="font-medium">
-                          {item.net_weight || item.weight || 0}g
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-zinc-500">Value</p>
-                        <p className="font-medium">
-                          {formatCurrency(
-                            item.net_value || item.estimated_value || 0
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {slotItems.map((item) => {
+                  // ISSUE 3 FIX: Get item photo URL
+                  const photoUrl = getItemPhotoUrl(item);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "p-4 rounded-xl border",
+                        item.pledge?.status === "overdue"
+                          ? "bg-red-50 border-red-200"
+                          : "bg-zinc-50 border-zinc-200",
+                      )}
+                    >
+                      {/* ISSUE 3 FIX: Item Image Section */}
+                      <div className="flex gap-4 mb-3">
+                        {/* Item Photo */}
+                        <div className="flex-shrink-0">
+                          {photoUrl ? (
+                            <div
+                              className="w-24 h-24 rounded-lg border border-zinc-200 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative group"
+                              onClick={() => openImageInNewTab(photoUrl)}
+                            >
+                              <img
+                                src={photoUrl}
+                                alt={`Item ${item.barcode || "photo"}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // If image fails to load, show placeholder
+                                  e.target.style.display = "none";
+                                  e.target.nextSibling.style.display = "flex";
+                                }}
+                              />
+                              {/* Fallback placeholder (hidden by default) */}
+                              <div className="w-full h-full bg-amber-100 items-center justify-center hidden">
+                                <ImageIcon className="w-8 h-8 text-amber-400" />
+                              </div>
+                              {/* Zoom overlay on hover */}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <ZoomIn className="w-6 h-6 text-white" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-24 h-24 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center">
+                              <div className="text-center">
+                                <ImageIcon className="w-8 h-8 text-zinc-300 mx-auto" />
+                                <p className="text-[10px] text-zinc-400 mt-1">
+                                  No Image
+                                </p>
+                              </div>
+                            </div>
                           )}
-                        </p>
+                        </div>
+
+                        {/* Item Header Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-zinc-800">
+                                  {item.pledge?.pledge_no || "N/A"}
+                                </span>
+                                <Badge
+                                  variant={
+                                    item.pledge?.status === "overdue"
+                                      ? "error"
+                                      : "success"
+                                  }
+                                >
+                                  {item.pledge?.status || "active"}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-zinc-500 mt-1">
+                                {item.pledge?.customer?.name ||
+                                  "Unknown Customer"}
+                              </p>
+                              {/* Category & Purity inline */}
+                              <p className="text-sm text-amber-600 font-medium mt-1">
+                                {item.category?.name_en ||
+                                  item.category?.name ||
+                                  "Gold"}{" "}
+                                •{" "}
+                                {item.purity?.name ||
+                                  item.purity?.code ||
+                                  "916"}
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              leftIcon={ExternalLink}
+                              onClick={() =>
+                                handleViewPledge(
+                                  item.pledge?.id || item.pledge_id,
+                                )
+                              }
+                            >
+                              View Pledge
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    {item.barcode && (
-                      <div className="mt-2 pt-2 border-t border-zinc-200">
-                        <p className="text-xs text-zinc-500">Barcode</p>
-                        <code className="text-sm font-mono">
-                          {item.barcode}
-                        </code>
+
+                      {/* Item Details Grid */}
+                      <div className="grid grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-zinc-500">Category</p>
+                          <p className="font-medium">
+                            {item.category?.name_en ||
+                              item.category?.name ||
+                              "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-zinc-500">Purity</p>
+                          <p className="font-medium">
+                            {item.purity?.name || item.purity?.code || "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-zinc-500">Weight</p>
+                          <p className="font-medium">
+                            {item.net_weight || item.weight || 0}g
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-zinc-500">Value</p>
+                          <p className="font-medium">
+                            {formatCurrency(
+                              item.net_value || item.estimated_value || 0,
+                            )}
+                          </p>
+                        </div>
                       </div>
-                    )}
-                    <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
-                      <Clock className="w-3 h-3" />
-                      Due: {formatDate(item.pledge?.due_date)}
+
+                      {/* Barcode */}
+                      {item.barcode && (
+                        <div className="mt-2 pt-2 border-t border-zinc-200">
+                          <p className="text-xs text-zinc-500">Barcode</p>
+                          <code className="text-sm font-mono bg-zinc-100 px-2 py-0.5 rounded">
+                            {item.barcode}
+                          </code>
+                        </div>
+                      )}
+
+                      {/* Description if available */}
+                      {item.description && (
+                        <div className="mt-2">
+                          <p className="text-xs text-zinc-500">Description</p>
+                          <p className="text-sm text-zinc-700">
+                            {item.description}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Due Date */}
+                      <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
+                        <Clock className="w-3 h-3" />
+                        Due: {formatDate(item.pledge?.due_date)}
+                      </div>
+
+                      {/* ISSUE 3 FIX: View Image Button (if image exists) */}
+                      {photoUrl && (
+                        <div className="mt-3 pt-3 border-t border-zinc-200">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            leftIcon={ImageIcon}
+                            onClick={() => openImageInNewTab(photoUrl)}
+                          >
+                            View Full Image
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           ) : (

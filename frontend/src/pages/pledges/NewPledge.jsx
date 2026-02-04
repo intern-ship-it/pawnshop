@@ -462,13 +462,16 @@ export default function NewPledge() {
     // Round to 2 decimals
     calculatedCharge = Math.round(calculatedCharge * 100) / 100;
 
+    // Store handling charge for record keeping (NOT deducted from payout)
     setHandlingCharge(calculatedCharge.toString());
 
-    // Set net payout
-    setNetPayoutAmount(Math.max(0, currentLoanAmount - calculatedCharge));
+    // BUSINESS RULE: Net Payout = Loan Amount (NO deductions)
+    // Handling charges are recorded separately but customer receives full loan amount
+    setNetPayoutAmount(currentLoanAmount);
   }, [items, loanPercentage, handlingSettings, goldPrices]);
 
   // Update net payout when handling charge is manually edited
+  // BUSINESS RULE: Handling charge is recorded separately, NOT deducted from payout
   useEffect(() => {
     const validItems = items.filter((i) => i.category && i.weight);
     let totalNetValue = 0;
@@ -477,10 +480,10 @@ export default function NewPledge() {
       totalNetValue += val.net;
     });
     const currentLoanAmount = totalNetValue * (loanPercentage / 100);
-    const charge = parseFloat(handlingCharge) || 0;
 
-    setNetPayoutAmount(Math.max(0, currentLoanAmount - charge));
-  }, [handlingCharge]); // Separated effect to avoid circular dependency loops if not careful
+    // Net Payout = Full Loan Amount (handling charge NOT deducted)
+    setNetPayoutAmount(currentLoanAmount);
+  }, [handlingCharge, items, loanPercentage]); // Added dependencies for recalculation
 
   // ============ STORAGE API FUNCTIONS - NO MOCK DATA ============
 
@@ -925,7 +928,7 @@ export default function NewPledge() {
   // Handle selection from results
   const handleCustomerSelect = async (selectedCustomer) => {
     setCustomer(selectedCustomer);
-    setSearchQuery(selectedCustomer.name);
+    // DO NOT change searchQuery - keep the original IC number the user typed
     setShowResults(false);
     setSearchResults([]); // Clear results to prevent dropdown from reopening
     setCustomerSearchResult(selectedCustomer);
@@ -962,7 +965,22 @@ export default function NewPledge() {
   }, [searchQuery, customer]);
 
   // Item handlers
+  // Maximum 4 items allowed per pledge (Business Rule)
+  const MAX_PLEDGE_ITEMS = 4;
+
   const addItem = () => {
+    // Check maximum items limit
+    if (items.length >= MAX_PLEDGE_ITEMS) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Maximum Items Reached",
+          message: `Maximum ${MAX_PLEDGE_ITEMS} items allowed per pledge`,
+        }),
+      );
+      return;
+    }
+
     const defaultPurity = "916";
     const defaultPrice =
       goldPrices[defaultPurity] || getMarketPrice(defaultPurity);
@@ -1240,7 +1258,8 @@ export default function NewPledge() {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // 3. Barcode Labels (Thermal Printer)
-    updateJobStatus("barcode", "running", "Generating barcode labels...");
+    // 3. Barcode Label (Thermal Printer) - ONE barcode per pledge
+    updateJobStatus("barcode", "running", "Generating barcode label...");
     try {
       const response = await fetch(`${apiUrl}/print/barcodes/${pledgeId}`, {
         method: "GET",
@@ -1250,26 +1269,41 @@ export default function NewPledge() {
         },
       });
 
-      if (!response.ok) throw new Error("Failed to generate barcodes");
+      if (!response.ok) throw new Error("Failed to generate barcode");
       const data = await response.json();
 
-      if (data.success && data.data?.items) {
+      // Use pledge-level barcode data (ONE barcode per pledge)
+      if (data.success && data.data) {
         barcodeWindow = window.open("", "_blank", "width=400,height=600");
         if (barcodeWindow) {
           barcodeWindow.document.open();
+          // Pass pledge data for single barcode generation
+          const pledgeBarcodeData = {
+            barcode_image:
+              data.data.barcode_image || data.data.items?.[0]?.image || "",
+            barcode:
+              data.data.barcode ||
+              data.data.pledge_barcode ||
+              data.data.receipt_no ||
+              data.data.pledge_no,
+            total_items: data.data.items?.length || data.data.total_items || 1,
+            total_weight:
+              data.data.total_weight ||
+              data.data.items?.reduce(
+                (sum, item) => sum + (parseFloat(item.net_weight) || 0),
+                0,
+              ) ||
+              0,
+          };
           barcodeWindow.document.write(
             generateBarcodeHTML(
-              data.data.items,
+              pledgeBarcodeData,
               data.data.pledge_no,
               data.data.receipt_no,
             ),
           );
           barcodeWindow.document.close();
-          updateJobStatus(
-            "barcode",
-            "success",
-            `${data.data.items.length} barcode(s) ready`,
-          );
+          updateJobStatus("barcode", "success", "1 barcode label ready");
         } else {
           updateJobStatus("barcode", "failed", "Popup blocked");
         }
@@ -1577,33 +1611,25 @@ export default function NewPledge() {
     </html>`;
   };
 
-  // Generate barcode print HTML (for thermal printer) - FIXED SCALING
-  const generateBarcodeHTML = (items, pledgeNo, receiptNo) => {
-    const labelCount = items.length;
-
-    const barcodeLabels = items
-      .map(
-        (item) => `
-      <div class="label">
-        <div class="header-row">
-          <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
-          <span class="category">${item.category || "Item"}</span>
-        </div>
-        <div class="barcode-section">
-          ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
-          <div class="barcode-text">${item.barcode || item.item_code || "N/A"}</div>
-        </div>
-        <div class="footer-row">${item.purity || "916"} • ${item.net_weight ? parseFloat(item.net_weight).toFixed(3) + "g" : ""}</div>
-      </div>
-    `,
-      )
-      .join("");
+  // Generate barcode print HTML (for thermal printer) - ONE BARCODE PER PLEDGE
+  // Business Rule: Only ONE barcode per pledge/receipt (transaction-based, not item-based)
+  const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo) => {
+    // Extract barcode data - use pledge-level barcode, not item-level
+    const barcodeImage = pledgeData.barcode_image || pledgeData.image || "";
+    const barcodeText =
+      pledgeData.barcode ||
+      pledgeData.pledge_barcode ||
+      receiptNo ||
+      pledgeNo ||
+      "N/A";
+    const totalItems = pledgeData.total_items || pledgeData.items_count || 1;
+    const totalWeight = pledgeData.total_weight || "0";
 
     return `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Barcode Labels - ${receiptNo || pledgeNo || "Pledge"}</title>
+      <title>Barcode Label - ${receiptNo || pledgeNo || "Pledge"}</title>
       <style>
         @page { 
           size: 50mm auto; 
@@ -1662,11 +1688,8 @@ export default function NewPledge() {
           display: flex; 
           flex-direction: column; 
           overflow: hidden; 
-          border-bottom: 1px dashed #ccc;
           page-break-inside: avoid;
-          page-break-after: auto;
         }
-        .label:last-child { border-bottom: none; }
         .header-row { 
           display: flex; 
           justify-content: space-between; 
@@ -1676,7 +1699,7 @@ export default function NewPledge() {
           margin-bottom: 1mm; 
         }
         .pledge-no { font-size: 9pt; font-weight: bold; }
-        .category { font-size: 8pt; font-weight: 600; text-transform: uppercase; color: #333; }
+        .items-count { font-size: 8pt; font-weight: 600; text-transform: uppercase; color: #333; }
         .barcode-section { 
           flex: 1; 
           text-align: center; 
@@ -1713,13 +1736,25 @@ export default function NewPledge() {
     </head>
     <body>
       <div class="controls">
-        <button onclick="window.print()">🏷️ Print ${labelCount} Label${labelCount > 1 ? "s" : ""}</button>
+        <button onclick="window.print()">🏷️ Print Barcode Label</button>
         <button class="close" onclick="window.close()">✕ Close</button>
-        <p class="info">Printer: <strong>Thermal 58mm</strong> | Labels: <strong>${labelCount}</strong></p>
+        <p class="info">Printer: <strong>Thermal 58mm</strong> | <strong>1 Label per Pledge</strong></p>
         <p class="info" style="margin-top:5px;">⚠️ Set printer to <strong>58mm Roll</strong> or <strong>Custom 50mm</strong></p>
       </div>
-      <div class="labels-wrapper">${barcodeLabels}</div>
-      <script>window.onload = function() { document.querySelector('button').focus(); }</script>
+      <div class="labels-wrapper">
+        <div class="label">
+          <div class="header-row">
+            <span class="pledge-no">${pledgeNo || receiptNo || ""}</span>
+            <span class="items-count">${totalItems} Item${totalItems > 1 ? "s" : ""}</span>
+          </div>
+          <div class="barcode-section">
+            ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
+            <div class="barcode-text">${barcodeText}</div>
+          </div>
+          <div class="footer-row">Total: ${parseFloat(totalWeight).toFixed(2)}g</div>
+        </div>
+      </div>
+      <script>window.onload = function() { document.querySelector('button').focus(); };</script>
     </body>
     </html>`;
   };
@@ -1790,26 +1825,41 @@ export default function NewPledge() {
           );
           if (!response.ok) throw new Error("Failed");
           const data = await response.json();
-          if (data.success && data.data?.items) {
+          if (data.success && data.data) {
             const printWindow = window.open(
               "",
               "_blank",
               "width=400,height=600",
             );
             if (printWindow) {
+              // Prepare single barcode data for pledge
+              const pledgeBarcodeData = {
+                barcode_image:
+                  data.data.barcode_image || data.data.items?.[0]?.image || "",
+                barcode:
+                  data.data.barcode ||
+                  data.data.pledge_barcode ||
+                  data.data.receipt_no ||
+                  data.data.pledge_no,
+                total_items:
+                  data.data.items?.length || data.data.total_items || 1,
+                total_weight:
+                  data.data.total_weight ||
+                  data.data.items?.reduce(
+                    (sum, item) => sum + (parseFloat(item.net_weight) || 0),
+                    0,
+                  ) ||
+                  0,
+              };
               printWindow.document.write(
                 generateBarcodeHTML(
-                  data.data.items,
+                  pledgeBarcodeData,
                   data.data.pledge_no,
                   data.data.receipt_no,
                 ),
               );
               printWindow.document.close();
-              updateJobStatus(
-                "barcode",
-                "success",
-                `${data.data.items.length} barcode(s) ready`,
-              );
+              updateJobStatus("barcode", "success", "1 barcode label ready");
             } else {
               throw new Error("Popup blocked");
             }
@@ -2130,6 +2180,7 @@ export default function NewPledge() {
             stone_deduction_type: item.stoneDeductionType || "amount",
             stone_deduction_value: parseFloat(item.stoneDeduction) || 0,
             description: item.description || null,
+            photo: item.photo || null, // Include captured item photo
           };
 
           // Only add storage if assigned - ENSURE INTEGER VALUES
@@ -2388,7 +2439,8 @@ export default function NewPledge() {
     }
   };
 
-  // Handle printing barcode stickers (Thermal Printer - AN803)
+  // Handle printing barcode sticker (Thermal Printer - AN803)
+  // Business Rule: ONE barcode per pledge (transaction-based, not item-based)
   const handlePrintBarcodes = async () => {
     if (!createdPledgeId) return;
 
@@ -2409,10 +2461,11 @@ export default function NewPledge() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-      // Get pledge items
-      const pledgeResponse = await fetch(
-        `${apiUrl}/pledges/${createdPledgeId}`,
+      // Fetch pledge barcode (ONE barcode per pledge)
+      const response = await fetch(
+        `${apiUrl}/print/barcodes/${createdPledgeId}`,
         {
+          method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
@@ -2420,56 +2473,43 @@ export default function NewPledge() {
         },
       );
 
-      if (!pledgeResponse.ok) {
-        throw new Error("Failed to fetch pledge details");
+      if (!response.ok) {
+        throw new Error("Failed to generate barcode");
       }
 
-      const pledgeData = await pledgeResponse.json();
-      const pledgeItems =
-        pledgeData.data?.pledge?.items || pledgeData.data?.items || [];
+      const data = await response.json();
 
-      if (pledgeItems.length === 0) {
+      if (!data.success || !data.data) {
         dispatch(
           addToast({
             type: "warning",
-            title: "No Items",
-            message: "No items found to generate barcodes",
+            title: "No Barcode",
+            message: "No barcode data available.",
           }),
         );
         return;
       }
 
-      // Fetch batch barcodes
-      const barcodeResponse = await fetch(`${apiUrl}/print/barcodes/batch`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          item_ids: pledgeItems.map((item) => item.id),
-        }),
-      });
+      // Prepare single barcode data for pledge
+      const pledgeBarcodeData = {
+        barcode_image:
+          data.data.barcode_image || data.data.items?.[0]?.image || "",
+        barcode:
+          data.data.barcode ||
+          data.data.pledge_barcode ||
+          data.data.receipt_no ||
+          data.data.pledge_no,
+        total_items: data.data.items?.length || data.data.total_items || 1,
+        total_weight:
+          data.data.total_weight ||
+          data.data.items?.reduce(
+            (sum, item) => sum + (parseFloat(item.net_weight) || 0),
+            0,
+          ) ||
+          0,
+      };
 
-      if (!barcodeResponse.ok) {
-        throw new Error("Failed to generate barcodes");
-      }
-
-      const barcodeData = await barcodeResponse.json();
-      const barcodes = barcodeData.data || barcodeData || [];
-
-      if (barcodes.length === 0) {
-        dispatch(
-          addToast({
-            type: "warning",
-            title: "No Barcodes",
-            message: "No barcodes were generated.",
-          }),
-        );
-        return;
-      }
-
-      // Open barcode print window - Optimized for 50mm x 25mm thermal labels
+      // Open barcode print window
       const printWindow = window.open("", "_blank", "width=400,height=600");
 
       if (!printWindow) {
@@ -2483,77 +2523,14 @@ export default function NewPledge() {
         return;
       }
 
-      // Calculate dynamic paper size
-      const labelCount = barcodes.length;
-      const labelWidth = 50;
-      const labelHeight = 30;
-      const labelGap = 2;
-      const totalHeight =
-        labelCount * labelHeight + (labelCount - 1) * labelGap + 4;
-      const paperHeight = labelCount === 1 ? labelHeight + 2 : totalHeight;
-
-      printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Barcode Labels - ${createdReceiptNo}</title>
-        <style>
-          @page { 
-            size: 50mm auto; 
-            margin: 0; 
-          }
-          @media print {
-            html, body {
-              width: 50mm !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-          }
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-          .label { 
-            width: 50mm; 
-            min-height: 30mm; 
-            padding: 2mm 3mm; 
-            display: flex; 
-            flex-direction: column; 
-            overflow: hidden; 
-            border-bottom: 1px dashed #ccc;
-            page-break-inside: avoid;
-          }
-          .label:last-child { border-bottom: none; }
-          .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
-          .pledge-no { font-size: 9pt; font-weight: bold; }
-          .category { font-size: 8pt; font-weight: 600; text-transform: uppercase; color: #333; }
-          .barcode-section { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm 0; }
-          .barcode-image { width: 42mm; height: 12mm; object-fit: contain; }
-          .barcode-text { font-family: 'Courier New', monospace; font-size: 8pt; margin-top: 1mm; font-weight: bold; letter-spacing: 0.5px; }
-          .footer-row { border-top: 0.3mm solid #333; padding-top: 1mm; font-size: 9pt; font-weight: bold; text-align: center; }
-          @media screen { .label { border: 1px dashed #ccc; margin: 5px auto; background: #fff; } }
-        </style>
-      </head>
-      <body>
-        ${barcodes
-          .map(
-            (barcode) => `
-          <div class="label">
-            <div class="header-row">
-              <span class="pledge-no">${barcode.pledge_no || createdReceiptNo}</span>
-              <span class="category">${barcode.category || "Gold Item"}</span>
-            </div>
-            <div class="barcode-section">
-              <img class="barcode-image" src="${barcode.image}" alt="Barcode" onerror="this.style.display='none'" />
-              <div class="barcode-text">${barcode.barcode || ""}</div>
-            </div>
-            <div class="footer-row">${barcode.purity || "916"} • ${barcode.weight || "0g"}</div>
-          </div>
-        `,
-          )
-          .join("")}
-        <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<\/script>
-      </body>
-      </html>
-      `);
+      // Generate single barcode label HTML
+      printWindow.document.write(
+        generateBarcodeHTML(
+          pledgeBarcodeData,
+          data.data.pledge_no || createdReceiptNo,
+          data.data.receipt_no || createdReceiptNo,
+        ),
+      );
 
       printWindow.document.close();
       printWindow.focus();
@@ -2561,8 +2538,8 @@ export default function NewPledge() {
       dispatch(
         addToast({
           type: "success",
-          title: "Labels Ready",
-          message: `${barcodes.length} barcode label(s) ready for printing.`,
+          title: "Label Ready",
+          message: "1 barcode label ready for printing.",
         }),
       );
     } catch (error) {
@@ -2571,14 +2548,13 @@ export default function NewPledge() {
         addToast({
           type: "error",
           title: "Barcode Error",
-          message: error.message || "Failed to generate barcodes",
+          message: error.message || "Failed to generate barcode",
         }),
       );
     } finally {
       setIsPrinting(false);
     }
   };
-
   // Animation variants
   const stepVariants = {
     hidden: { opacity: 0, x: 50 },
@@ -2976,12 +2952,26 @@ export default function NewPledge() {
                       Pledge Items
                     </h3>
                     <p className="text-sm text-zinc-500">
-                      Add gold items for this pledge
+                      Add gold items for this pledge (
+                      {items.filter((i) => i.category && i.weight).length}/
+                      {MAX_PLEDGE_ITEMS} max)
                     </p>
                   </div>
                 </div>
-                <Button variant="outline" leftIcon={Plus} onClick={addItem}>
-                  Add Item
+                <Button
+                  variant="outline"
+                  leftIcon={Plus}
+                  onClick={addItem}
+                  disabled={items.length >= MAX_PLEDGE_ITEMS}
+                  title={
+                    items.length >= MAX_PLEDGE_ITEMS
+                      ? "Maximum 4 items allowed"
+                      : "Add new item"
+                  }
+                >
+                  Add Item{" "}
+                  {items.length >= MAX_PLEDGE_ITEMS &&
+                    `(${MAX_PLEDGE_ITEMS}/${MAX_PLEDGE_ITEMS})`}
                 </Button>
               </div>
 
@@ -3907,8 +3897,18 @@ export default function NewPledge() {
                     </span>
                   </div>
 
-                  {/* Handling Charge - Hidden from UI but still applied */}
-                  <input type="hidden" value={handlingCharge} />
+                  {/* Handling Charge - Recorded separately, NOT deducted from payout */}
+                  {parseFloat(handlingCharge) > 0 && (
+                    <div className="flex items-center justify-between text-zinc-500 text-sm">
+                      <span className="flex items-center gap-1">
+                        <Info className="w-3 h-3" />
+                        Handling Charge (recorded separately)
+                      </span>
+                      <span className="text-zinc-500">
+                        {formatCurrency(parseFloat(handlingCharge))}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="border-t border-emerald-200 my-2 pt-2 flex items-center justify-between">
                     <span className="text-emerald-800 font-bold text-lg">
@@ -3918,6 +3918,12 @@ export default function NewPledge() {
                       {formatCurrency(netPayoutAmount)}
                     </span>
                   </div>
+
+                  {/* Business rule note */}
+                  <p className="text-xs text-emerald-600 mt-1">
+                    * Customer receives full loan amount. Handling charge
+                    recorded separately.
+                  </p>
                 </div>
               </div>
 

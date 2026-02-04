@@ -38,6 +38,10 @@ class PledgeController extends Controller
             ->with(['customer:id,name,ic_number,phone'])
             ->withCount('items');
 
+        if ($request->boolean('with_items')) {
+            $query->with(['items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot']);
+        }
+
         // Search
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
@@ -52,7 +56,8 @@ class PledgeController extends Controller
 
         // Filter by status
         if ($status = $request->get('status')) {
-            $query->where('status', $status);
+            $statuses = explode(',', $status);
+            $query->whereIn('status', $statuses);
         }
 
         // Filter by date range
@@ -246,6 +251,7 @@ class PledgeController extends Controller
             'items.*.stone_deduction_type' => 'required|in:percentage,amount,grams',
             'items.*.stone_deduction_value' => 'required|numeric|min:0',
             'items.*.description' => 'nullable|string|max:255',
+            'items.*.photo' => 'nullable|string', // Base64 encoded image or URL
             'items.*.vault_id' => 'nullable|exists:vaults,id',
             'items.*.box_id' => 'nullable|exists:boxes,id',
             'items.*.slot_id' => 'nullable|exists:slots,id',
@@ -405,6 +411,7 @@ class PledgeController extends Controller
                     'deduction_amount' => $da,
                     'net_value' => $nv,
                     'description' => $item['description'] ?? null,
+                    'photo' => $item['photo'] ?? null, // Save item photo
                     'vault_id' => $item['vault_id'] ?? null,
                     'box_id' => $item['box_id'] ?? null,
                     'slot_id' => $item['slot_id'] ?? null,

@@ -3,11 +3,6 @@ import { useAppDispatch } from "@/app/hooks";
 import dayEndService from "@/services/dayEndService";
 import { useNavigate } from "react-router";
 import { addToast } from "@/features/ui/uiSlice";
-import {
-  getStorageItem,
-  setStorageItem,
-  STORAGE_KEYS,
-} from "@/utils/localStorage";
 import { formatCurrency } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -46,23 +41,40 @@ import {
   Square,
   MessageCircle,
   Send,
+  Loader2,
 } from "lucide-react";
 
 export default function DayEndSummary() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+
   // State
   const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0]
+    new Date().toISOString().split("T")[0],
   );
   const [isClosing, setIsClosing] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
-  const [dayStatus, setDayStatus] = useState("open"); // 'open', 'closed'
-
+  const [dayStatus, setDayStatus] = useState("open");
   const [dayEndData, setDayEndData] = useState(null);
   const [verificationItems, setVerificationItems] = useState([]);
-  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+
+  // FIX: Daily stats from API (not localStorage)
+  const [dailyStats, setDailyStats] = useState({
+    newPledgesCount: 0,
+    renewalsCount: 0,
+    redemptionsCount: 0,
+    newPledgesAmount: 0,
+    renewalInterest: 0,
+    redemptionAmount: 0,
+    cashIn: 0,
+    cashOut: 0,
+    netCashFlow: 0,
+    totalItemsAdded: 0,
+    totalWeight: 0,
+  });
+
   // Cash drawer
   const [cashDrawer, setCashDrawer] = useState({
     openingBalance: 5000,
@@ -70,159 +82,157 @@ export default function DayEndSummary() {
     notes: "",
   });
 
-  // Load data
-  const [pledges, setPledges] = useState([]);
-  const [dayEndRecords, setDayEndRecords] = useState([]);
-
+  // Fetch data on mount and date change
   useEffect(() => {
-    const storedPledges = getStorageItem(STORAGE_KEYS.PLEDGES, []);
-    setPledges(storedPledges);
-
-    const storedRecords = getStorageItem("dayEndRecords", []);
-    setDayEndRecords(storedRecords);
-
-    // Check if today is already closed
-    const todayRecord = storedRecords.find((r) => r.date === selectedDate);
-    if (todayRecord) {
-      setDayStatus("closed");
-      setCashDrawer({
-        openingBalance: todayRecord.openingBalance,
-        closingBalance: todayRecord.closingBalance,
-        notes: todayRecord.notes,
-      });
-    } else {
-      setDayStatus("open");
-    }
+    fetchDayEndData();
   }, [selectedDate]);
 
-  // Calculate daily transactions
-  const dailyStats = useMemo(() => {
-    const startOfDay = new Date(selectedDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(selectedDate);
-    endOfDay.setHours(23, 59, 59, 999);
+  // FIX: Fetch day end data from API
+  const fetchDayEndData = async () => {
+    setIsLoading(true);
+    try {
+      // Check if today
+      const isToday = selectedDate === new Date().toISOString().split("T")[0];
 
-    // Filter pledges created today
-    const newPledges = pledges.filter((p) => {
-      const created = new Date(p.createdAt);
-      return created >= startOfDay && created <= endOfDay;
-    });
+      let response;
+      if (isToday) {
+        // getCurrent() returns { report, stats } with calculated values
+        response = await dayEndService.getCurrent();
+      } else {
+        response = await dayEndService.getByDate(selectedDate);
+      }
 
-    // Simulated transactions (in real app, these would come from transaction logs)
-    const renewals = pledges.filter((p) => {
-      if (!p.renewalHistory) return false;
-      return p.renewalHistory.some((r) => {
-        const renewalDate = new Date(r.date);
-        return renewalDate >= startOfDay && renewalDate <= endOfDay;
-      });
-    });
+      if (response.success && response.data) {
+        const data = response.data;
+        const report = data.report || data;
+        const stats = data.stats;
 
-    const redemptions = pledges.filter((p) => {
-      if (p.status !== "redeemed" || !p.redeemedAt) return false;
-      const redeemed = new Date(p.redeemedAt);
-      return redeemed >= startOfDay && redeemed <= endOfDay;
-    });
+        // If we have a report (day-end was started)
+        if (report && report.id) {
+          setDayEndData(report);
+          setDayStatus(report.status === "closed" ? "closed" : "open");
 
-    // Calculate totals
-    const newPledgesAmount = newPledges.reduce(
-      (sum, p) => sum + (p.loanAmount || 0),
-      0
-    );
-    const renewalInterest = renewals.reduce((sum, p) => {
-      const todayRenewals =
-        p.renewalHistory?.filter((r) => {
-          const d = new Date(r.date);
-          return d >= startOfDay && d <= endOfDay;
-        }) || [];
-      return sum + todayRenewals.reduce((s, r) => s + (r.interestPaid || 0), 0);
-    }, 0);
-    const redemptionAmount = redemptions.reduce(
-      (sum, p) => sum + (p.redemptionTotal || p.loanAmount || 0),
-      0
-    );
+          // FIX: Calculate cashIn/cashOut from the amounts
+          const newPledgesAmount = parseFloat(report.new_pledges_amount) || 0;
+          const renewalInterest = parseFloat(report.renewals_amount) || 0;
+          const redemptionAmount = parseFloat(report.redemptions_amount) || 0;
 
-    // Cash flow
-    const cashOut = newPledgesAmount; // Money paid to customers
-    const cashIn = renewalInterest + redemptionAmount; // Money received from customers
+          setDailyStats({
+            newPledgesCount: report.new_pledges_count || 0,
+            renewalsCount: report.renewals_count || 0,
+            redemptionsCount: report.redemptions_count || 0,
+            newPledgesAmount: newPledgesAmount,
+            renewalInterest: renewalInterest,
+            redemptionAmount: redemptionAmount,
+            cashIn: renewalInterest + redemptionAmount,
+            cashOut: newPledgesAmount,
+            netCashFlow: renewalInterest + redemptionAmount - newPledgesAmount,
+            totalItemsAdded: report.items_in_count || 0,
+            totalWeight: 0,
+          });
 
-    return {
-      // Counts
-      newPledgesCount: newPledges.length,
-      renewalsCount: renewals.length,
-      redemptionsCount: redemptions.length,
+          setCashDrawer({
+            openingBalance: parseFloat(report.opening_balance) || 5000,
+            closingBalance: report.closing_balance
+              ? String(report.closing_balance)
+              : "",
+            notes: report.notes || "",
+          });
 
-      // Amounts
-      newPledgesAmount,
-      renewalInterest,
-      redemptionAmount,
+          // Fetch verifications
+          if (report.id) {
+            const verifyResponse = await dayEndService.getVerifications(
+              report.id,
+            );
+            if (verifyResponse.success) {
+              const verifications = verifyResponse.data;
+              if (Array.isArray(verifications)) {
+                setVerificationItems(verifications);
+              } else {
+                // Flatten grouped verifications
+                const flat = [
+                  ...(verifications.item_in || []),
+                  ...(verifications.item_out || []),
+                  ...(verifications.amount || []),
+                ];
+                setVerificationItems(flat);
+              }
+            }
+          }
+        } else if (stats) {
+          // No report yet, use calculated stats from backend
+          setDayEndData(null);
+          setDayStatus("open");
 
-      // Cash flow
-      cashIn,
-      cashOut,
-      netCashFlow: cashIn - cashOut,
+          const newPledgesAmount = parseFloat(stats.pledges?.total) || 0;
+          const renewalInterest = parseFloat(stats.renewals?.total) || 0;
+          const redemptionAmount = parseFloat(stats.redemptions?.total) || 0;
 
-      // Items
-      newPledges,
-      renewals,
-      redemptions,
+          setDailyStats({
+            newPledgesCount: stats.pledges?.count || 0,
+            renewalsCount: stats.renewals?.count || 0,
+            redemptionsCount: stats.redemptions?.count || 0,
+            newPledgesAmount: newPledgesAmount,
+            renewalInterest: renewalInterest,
+            redemptionAmount: redemptionAmount,
+            cashIn: renewalInterest + redemptionAmount,
+            cashOut: newPledgesAmount,
+            netCashFlow: renewalInterest + redemptionAmount - newPledgesAmount,
+            totalItemsAdded: stats.items_in || 0,
+            totalWeight: 0,
+          });
 
-      // Additional stats
-      totalItemsAdded: newPledges.reduce(
-        (sum, p) => sum + (p.items?.length || 0),
-        0
-      ),
-      totalWeight: newPledges.reduce(
-        (sum, p) =>
-          sum +
-          (p.items?.reduce((s, i) => s + (parseFloat(i.weight) || 0), 0) || 0),
-        0
-      ),
-    };
-  }, [pledges, selectedDate]);
+          setCashDrawer({
+            openingBalance: 5000,
+            closingBalance: "",
+            notes: "",
+          });
+
+          setVerificationItems([]);
+        } else {
+          // No data at all
+          setDayEndData(null);
+          setDayStatus("open");
+          setDailyStats({
+            newPledgesCount: 0,
+            renewalsCount: 0,
+            redemptionsCount: 0,
+            newPledgesAmount: 0,
+            renewalInterest: 0,
+            redemptionAmount: 0,
+            cashIn: 0,
+            cashOut: 0,
+            netCashFlow: 0,
+            totalItemsAdded: 0,
+            totalWeight: 0,
+          });
+          setVerificationItems([]);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching day end data:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to load day end data",
+        }),
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Expected closing balance
   const expectedClosing = useMemo(() => {
     return cashDrawer.openingBalance + dailyStats.cashIn - dailyStats.cashOut;
-  }, [cashDrawer.openingBalance, dailyStats]);
+  }, [cashDrawer.openingBalance, dailyStats.cashIn, dailyStats.cashOut]);
 
   // Variance
   const variance = useMemo(() => {
     if (!cashDrawer.closingBalance) return 0;
     return parseFloat(cashDrawer.closingBalance) - expectedClosing;
   }, [cashDrawer.closingBalance, expectedClosing]);
-
-  // Fetch day end data from API
-  const fetchDayEndData = async () => {
-    setIsLoadingApi(true);
-    try {
-      // Try to get current day or by selected date
-      const response = await dayEndService.getByDate(selectedDate);
-      if (response.success && response.data) {
-        setDayEndData(response.data);
-        setDayStatus(response.data.status === "closed" ? "closed" : "open");
-
-        // Fetch verifications if day end exists
-        if (response.data.id) {
-          const verifyResponse = await dayEndService.getVerifications(
-            response.data.id
-          );
-          if (verifyResponse.success) {
-            setVerificationItems(verifyResponse.data || []);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching day end:", error);
-      // Fallback to localStorage if API fails
-    } finally {
-      setIsLoadingApi(false);
-    }
-  };
-
-  // Call on mount and date change
-  useEffect(() => {
-    fetchDayEndData();
-  }, [selectedDate]);
 
   // Handle item verification checkbox
   const handleVerifyItem = async (verificationId, isVerified) => {
@@ -232,28 +242,23 @@ export default function DayEndSummary() {
       const response = await dayEndService.verifyItem(
         dayEndData.id,
         verificationId,
-        {
-          is_verified: isVerified,
-        }
+        { is_verified: isVerified },
       );
 
       if (response.success) {
-        // Update local state
         setVerificationItems((prev) =>
           prev.map((item) =>
             item.id === verificationId
               ? { ...item, is_verified: isVerified }
-              : item
-          )
+              : item,
+          ),
         );
         dispatch(
           addToast({
             type: "success",
             title: isVerified ? "Verified" : "Unverified",
-            message: `Item ${
-              isVerified ? "verified" : "unverified"
-            } successfully`,
-          })
+            message: `Item ${isVerified ? "verified" : "unverified"} successfully`,
+          }),
         );
       }
     } catch (error) {
@@ -262,25 +267,55 @@ export default function DayEndSummary() {
           type: "error",
           title: "Error",
           message: "Failed to update verification",
-        })
+        }),
       );
     }
   };
+
+  // Open/Start day end process
+  const handleOpenDayEnd = async () => {
+    try {
+      const response = await dayEndService.open({
+        opening_balance: cashDrawer.openingBalance,
+      });
+
+      if (response.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Day End Started",
+            message: "Day end process has been initiated",
+          }),
+        );
+        await fetchDayEndData();
+      } else {
+        throw new Error(response.message);
+      }
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to start day end",
+        }),
+      );
+    }
+  };
+
   // Handle day close
   const handleCloseDay = async () => {
-    // Validation 1: Check closing balance entered
     if (!cashDrawer.closingBalance) {
       dispatch(
         addToast({
           type: "error",
           title: "Error",
           message: "Please enter closing balance",
-        })
+        }),
       );
       return;
     }
 
-    // Validation 2: Check all items are verified
+    // Check all items are verified
     const unverifiedItems = verificationItems.filter((v) => !v.is_verified);
     if (unverifiedItems.length > 0) {
       dispatch(
@@ -288,7 +323,7 @@ export default function DayEndSummary() {
           type: "warning",
           title: "Items Not Verified",
           message: `${unverifiedItems.length} item(s) still need physical verification before closing`,
-        })
+        }),
       );
       return;
     }
@@ -296,7 +331,6 @@ export default function DayEndSummary() {
     setIsClosing(true);
 
     try {
-      // If we have API day end data, use API to close
       if (dayEndData?.id) {
         const response = await dayEndService.close(dayEndData.id, {
           closing_balance: parseFloat(cashDrawer.closingBalance),
@@ -306,8 +340,6 @@ export default function DayEndSummary() {
         if (response.success) {
           setDayStatus("closed");
           setShowCloseModal(false);
-
-          // Refresh data
           await fetchDayEndData();
 
           dispatch(
@@ -315,42 +347,13 @@ export default function DayEndSummary() {
               type: "success",
               title: "Day Closed",
               message: `Day end summary for ${selectedDate} has been saved`,
-            })
+            }),
           );
         } else {
           throw new Error(response.message || "Failed to close day");
         }
       } else {
-        // Fallback to localStorage if no API data
-        const record = {
-          date: selectedDate,
-          closedAt: new Date().toISOString(),
-          closedBy: "Admin User",
-          openingBalance: cashDrawer.openingBalance,
-          closingBalance: parseFloat(cashDrawer.closingBalance),
-          expectedClosing,
-          variance,
-          ...dailyStats,
-          notes: cashDrawer.notes,
-        };
-
-        const updatedRecords = [
-          ...dayEndRecords.filter((r) => r.date !== selectedDate),
-          record,
-        ];
-        setStorageItem("dayEndRecords", updatedRecords);
-        setDayEndRecords(updatedRecords);
-
-        setShowCloseModal(false);
-        setDayStatus("closed");
-
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Day Closed",
-            message: `Day end summary for ${selectedDate} has been saved`,
-          })
-        );
+        throw new Error("Please start day end process first");
       }
     } catch (error) {
       console.error("Error closing day:", error);
@@ -359,27 +362,11 @@ export default function DayEndSummary() {
           type: "error",
           title: "Error",
           message: error.message || "Failed to close day",
-        })
+        }),
       );
     } finally {
       setIsClosing(false);
     }
-  };
-
-  // Reopen day
-  const handleReopenDay = () => {
-    const updatedRecords = dayEndRecords.filter((r) => r.date !== selectedDate);
-    setStorageItem("dayEndRecords", updatedRecords);
-    setDayEndRecords(updatedRecords);
-    setDayStatus("open");
-    setCashDrawer({ openingBalance: 5000, closingBalance: "", notes: "" });
-    dispatch(
-      addToast({
-        type: "info",
-        title: "Day Reopened",
-        message: "You can now edit transactions",
-      })
-    );
   };
 
   // Print summary
@@ -411,79 +398,39 @@ export default function DayEndSummary() {
         <h1>Day End Summary</h1>
         <div class="header">
           <div><strong>Date:</strong> ${new Date(
-            selectedDate
+            selectedDate,
           ).toLocaleDateString("en-MY", {
             weekday: "long",
             year: "numeric",
             month: "long",
             day: "numeric",
           })}</div>
-          <div><strong>Status:</strong> ${
-            dayStatus === "closed" ? "🔒 CLOSED" : "🔓 OPEN"
-          }</div>
+          <div><strong>Status:</strong> ${dayStatus === "closed" ? "🔒 CLOSED" : "🔓 OPEN"}</div>
         </div>
 
         <div class="section">
           <h3>📊 Transaction Summary</h3>
-          <div class="row"><span class="label">New Pledges</span><span class="value">${
-            dailyStats.newPledgesCount
-          } (${formatCurrency(dailyStats.newPledgesAmount)})</span></div>
-          <div class="row"><span class="label">Renewals</span><span class="value">${
-            dailyStats.renewalsCount
-          } (Interest: ${formatCurrency(
-      dailyStats.renewalInterest
-    )})</span></div>
-          <div class="row"><span class="label">Redemptions</span><span class="value">${
-            dailyStats.redemptionsCount
-          } (${formatCurrency(dailyStats.redemptionAmount)})</span></div>
+          <div class="row"><span class="label">New Pledges</span><span class="value">${dailyStats.newPledgesCount} (${formatCurrency(dailyStats.newPledgesAmount)})</span></div>
+          <div class="row"><span class="label">Renewals</span><span class="value">${dailyStats.renewalsCount} (Interest: ${formatCurrency(dailyStats.renewalInterest)})</span></div>
+          <div class="row"><span class="label">Redemptions</span><span class="value">${dailyStats.redemptionsCount} (${formatCurrency(dailyStats.redemptionAmount)})</span></div>
         </div>
 
         <div class="section">
           <h3>💰 Cash Flow</h3>
-          <div class="row"><span class="label">Cash In (Received)</span><span class="value positive">+ ${formatCurrency(
-            dailyStats.cashIn
-          )}</span></div>
-          <div class="row"><span class="label">Cash Out (Disbursed)</span><span class="value negative">- ${formatCurrency(
-            dailyStats.cashOut
-          )}</span></div>
-          <div class="row total"><span class="label">Net Cash Flow</span><span class="value ${
-            dailyStats.netCashFlow >= 0 ? "positive" : "negative"
-          }">${dailyStats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(
-      dailyStats.netCashFlow
-    )}</span></div>
+          <div class="row"><span class="label">Cash In (Received)</span><span class="value positive">+ ${formatCurrency(dailyStats.cashIn)}</span></div>
+          <div class="row"><span class="label">Cash Out (Disbursed)</span><span class="value negative">- ${formatCurrency(dailyStats.cashOut)}</span></div>
+          <div class="row total"><span class="label">Net Cash Flow</span><span class="value ${dailyStats.netCashFlow >= 0 ? "positive" : "negative"}">${dailyStats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(dailyStats.netCashFlow)}</span></div>
         </div>
 
         <div class="section">
           <h3>🏦 Cash Drawer</h3>
-          <div class="row"><span class="label">Opening Balance</span><span class="value">${formatCurrency(
-            cashDrawer.openingBalance
-          )}</span></div>
-          <div class="row"><span class="label">Expected Closing</span><span class="value">${formatCurrency(
-            expectedClosing
-          )}</span></div>
-          ${
-            cashDrawer.closingBalance
-              ? `<div class="row"><span class="label">Actual Closing</span><span class="value">${formatCurrency(
-                  parseFloat(cashDrawer.closingBalance)
-                )}</span></div>`
-              : ""
-          }
-          ${
-            cashDrawer.closingBalance
-              ? `<div class="row"><span class="label">Variance</span><span class="value ${
-                  variance >= 0 ? "positive" : "negative"
-                }">${variance >= 0 ? "+" : ""}${formatCurrency(
-                  variance
-                )}</span></div>`
-              : ""
-          }
+          <div class="row"><span class="label">Opening Balance</span><span class="value">${formatCurrency(cashDrawer.openingBalance)}</span></div>
+          <div class="row"><span class="label">Expected Closing</span><span class="value">${formatCurrency(expectedClosing)}</span></div>
+          ${cashDrawer.closingBalance ? `<div class="row"><span class="label">Actual Closing</span><span class="value">${formatCurrency(parseFloat(cashDrawer.closingBalance))}</span></div>` : ""}
+          ${cashDrawer.closingBalance ? `<div class="row"><span class="label">Variance</span><span class="value ${variance >= 0 ? "positive" : "negative"}">${variance >= 0 ? "+" : ""}${formatCurrency(variance)}</span></div>` : ""}
         </div>
 
-        ${
-          cashDrawer.notes
-            ? `<div class="section"><h3>📝 Notes</h3><p>${cashDrawer.notes}</p></div>`
-            : ""
-        }
+        ${cashDrawer.notes ? `<div class="section"><h3>📝 Notes</h3><p>${cashDrawer.notes}</p></div>` : ""}
 
         <div class="signature">
           <div class="signature-line">Prepared By</div>
@@ -501,6 +448,30 @@ export default function DayEndSummary() {
     const printWindow = window.open("", "_blank");
     printWindow.document.write(printContent);
     printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+  };
+
+  // Handle export
+  const handleExport = async () => {
+    try {
+      await dayEndService.export(selectedDate);
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Export Started",
+          message: "Report download has started",
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Export Failed",
+          message: "Failed to export report",
+        }),
+      );
+    }
   };
 
   // Send WhatsApp summary
@@ -516,7 +487,7 @@ export default function DayEndSummary() {
             type: "success",
             title: "WhatsApp Sent",
             message: "Day end summary sent via WhatsApp",
-          })
+          }),
         );
       } else {
         throw new Error(response.message);
@@ -527,12 +498,24 @@ export default function DayEndSummary() {
           type: "error",
           title: "WhatsApp Failed",
           message: error.message || "Failed to send WhatsApp",
-        })
+        }),
       );
     } finally {
       setIsSendingWhatsApp(false);
     }
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+          <p className="text-zinc-500">Loading day end data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <PageWrapper
@@ -546,10 +529,17 @@ export default function DayEndSummary() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="w-44"
           />
+          <Button
+            variant="outline"
+            leftIcon={RefreshCw}
+            onClick={fetchDayEndData}
+          >
+            Refresh
+          </Button>
           <Button variant="outline" leftIcon={Printer} onClick={handlePrint}>
             Print
           </Button>
-          <Button variant="outline" leftIcon={Download}>
+          <Button variant="outline" leftIcon={Download} onClick={handleExport}>
             Export
           </Button>
         </div>
@@ -561,7 +551,7 @@ export default function DayEndSummary() {
           "p-4 mb-6 border-2",
           dayStatus === "closed"
             ? "bg-emerald-50 border-emerald-200"
-            : "bg-amber-50 border-amber-200"
+            : "bg-amber-50 border-amber-200",
         )}
       >
         <div className="flex items-center justify-between">
@@ -583,7 +573,9 @@ export default function DayEndSummary() {
               <p
                 className={cn(
                   "text-sm",
-                  dayStatus === "closed" ? "text-emerald-600" : "text-amber-600"
+                  dayStatus === "closed"
+                    ? "text-emerald-600"
+                    : "text-amber-600",
                 )}
               >
                 {dayStatus === "closed"
@@ -596,13 +588,25 @@ export default function DayEndSummary() {
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
             {dayStatus === "open" ? (
-              <Button
-                variant="accent"
-                leftIcon={Lock}
-                onClick={() => setShowCloseModal(true)}
-              >
-                Close Day
-              </Button>
+              <>
+                {!dayEndData && (
+                  <Button
+                    variant="outline"
+                    leftIcon={FileText}
+                    onClick={handleOpenDayEnd}
+                  >
+                    Start Day End
+                  </Button>
+                )}
+                <Button
+                  variant="accent"
+                  leftIcon={Lock}
+                  onClick={() => setShowCloseModal(true)}
+                  disabled={!dayEndData}
+                >
+                  Close Day
+                </Button>
+              </>
             ) : (
               <>
                 <Button
@@ -619,13 +623,6 @@ export default function DayEndSummary() {
                   onClick={handlePrint}
                 >
                   Print Report
-                </Button>
-                <Button
-                  variant="outline"
-                  leftIcon={Unlock}
-                  onClick={handleReopenDay}
-                >
-                  Reopen Day
                 </Button>
               </>
             )}
@@ -759,7 +756,7 @@ export default function DayEndSummary() {
                   "p-4 rounded-xl border",
                   dailyStats.netCashFlow >= 0
                     ? "bg-blue-50 border-blue-200"
-                    : "bg-orange-50 border-orange-200"
+                    : "bg-orange-50 border-orange-200",
                 )}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -768,7 +765,7 @@ export default function DayEndSummary() {
                       "text-sm",
                       dailyStats.netCashFlow >= 0
                         ? "text-blue-700"
-                        : "text-orange-700"
+                        : "text-orange-700",
                     )}
                   >
                     Net Flow
@@ -784,7 +781,7 @@ export default function DayEndSummary() {
                     "text-2xl font-bold",
                     dailyStats.netCashFlow >= 0
                       ? "text-blue-600"
-                      : "text-orange-600"
+                      : "text-orange-600",
                   )}
                 >
                   {dailyStats.netCashFlow >= 0 ? "+" : ""}
@@ -899,6 +896,7 @@ export default function DayEndSummary() {
               </h3>
               <Badge
                 variant={
+                  verificationItems.length === 0 ||
                   verificationItems.every((v) => v.is_verified)
                     ? "success"
                     : "warning"
@@ -918,7 +916,7 @@ export default function DayEndSummary() {
                       "flex items-center justify-between p-3 rounded-lg border transition-all",
                       item.is_verified
                         ? "bg-emerald-50 border-emerald-200"
-                        : "bg-zinc-50 border-zinc-200"
+                        : "bg-zinc-50 border-zinc-200",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -931,7 +929,7 @@ export default function DayEndSummary() {
                           "w-6 h-6 rounded border-2 flex items-center justify-center transition-all",
                           item.is_verified
                             ? "bg-emerald-500 border-emerald-500 text-white"
-                            : "border-zinc-300 hover:border-amber-500"
+                            : "border-zinc-300 hover:border-amber-500",
                         )}
                       >
                         {item.is_verified && <Check className="w-4 h-4" />}
@@ -943,20 +941,25 @@ export default function DayEndSummary() {
                           <span
                             className={cn(
                               "text-xs font-medium px-2 py-0.5 rounded",
-                              item.type === "IN"
+                              item.verification_type === "item_in"
                                 ? "bg-blue-100 text-blue-700"
-                                : "bg-orange-100 text-orange-700"
+                                : item.verification_type === "item_out"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : "bg-purple-100 text-purple-700",
                             )}
                           >
-                            {item.type}
+                            {item.verification_type === "item_in"
+                              ? "IN"
+                              : item.verification_type === "item_out"
+                                ? "OUT"
+                                : "AMT"}
                           </span>
                           <span className="font-medium text-zinc-800">
-                            {item.pledge_no || item.pledge?.pledge_no}
+                            {item.item_description || item.reference_no}
                           </span>
                         </div>
                         <p className="text-sm text-zinc-500">
-                          {item.description || item.item_description} •{" "}
-                          {item.customer_name}
+                          {item.related_type} #{item.related_id}
                         </p>
                       </div>
                     </div>
@@ -965,22 +968,28 @@ export default function DayEndSummary() {
                       {/* Amount */}
                       <div className="text-right">
                         <p className="font-semibold text-zinc-800">
-                          {formatCurrency(item.amount || 0)}
+                          {formatCurrency(item.expected_amount || 0)}
                         </p>
                         <p className="text-xs text-zinc-500">
-                          {item.transaction_type}
+                          {item.verification_type}
                         </p>
                       </div>
 
-                      {/* View Pledge Button */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/pledges/${item.pledge_id}`)}
-                        title="View Pledge"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
+                      {/* View Button */}
+                      {item.related_id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (item.related_type === "Pledge") {
+                              navigate(`/pledges/${item.related_id}`);
+                            }
+                          }}
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -989,6 +998,11 @@ export default function DayEndSummary() {
               <div className="text-center py-8 text-zinc-400">
                 <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p>No items to verify today</p>
+                {!dayEndData && (
+                  <p className="text-sm mt-2">
+                    Click "Start Day End" to generate verification items
+                  </p>
+                )}
               </div>
             )}
           </Card>
@@ -1071,7 +1085,7 @@ export default function DayEndSummary() {
                     "p-4 rounded-xl",
                     variance === 0
                       ? "bg-emerald-50 border border-emerald-200"
-                      : "bg-red-50 border border-red-200"
+                      : "bg-red-50 border border-red-200",
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -1084,7 +1098,7 @@ export default function DayEndSummary() {
                       <span
                         className={cn(
                           "text-sm font-medium",
-                          variance === 0 ? "text-emerald-700" : "text-red-700"
+                          variance === 0 ? "text-emerald-700" : "text-red-700",
                         )}
                       >
                         {variance === 0 ? "Balanced" : "Variance"}
@@ -1093,7 +1107,7 @@ export default function DayEndSummary() {
                     <span
                       className={cn(
                         "text-lg font-bold",
-                        variance === 0 ? "text-emerald-600" : "text-red-600"
+                        variance === 0 ? "text-emerald-600" : "text-red-600",
                       )}
                     >
                       {variance >= 0 ? "+" : ""}
@@ -1130,10 +1144,11 @@ export default function DayEndSummary() {
               <div className="text-sm text-blue-700">
                 <p className="font-medium">Day End Process</p>
                 <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                  <li>Click "Start Day End"</li>
                   <li>Review all transactions</li>
+                  <li>Verify items physically</li>
                   <li>Count physical cash</li>
                   <li>Enter closing balance</li>
-                  <li>Investigate variance if any</li>
                   <li>Click "Close Day"</li>
                 </ol>
               </div>
@@ -1163,13 +1178,13 @@ export default function DayEndSummary() {
             <div
               className={cn(
                 "text-center p-4 rounded-xl",
-                variance === 0 ? "bg-emerald-50" : "bg-red-50"
+                variance === 0 ? "bg-emerald-50" : "bg-red-50",
               )}
             >
               <p
                 className={cn(
                   "text-2xl font-bold",
-                  variance === 0 ? "text-emerald-600" : "text-red-600"
+                  variance === 0 ? "text-emerald-600" : "text-red-600",
                 )}
               >
                 {variance === 0 ? "Balanced" : formatCurrency(variance)}

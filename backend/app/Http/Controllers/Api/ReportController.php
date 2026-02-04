@@ -43,8 +43,10 @@ class ReportController extends Controller
 
         // Summary
         $summary = [
-            'total_count' => $pledges->count(),
+            'total_pledges' => $pledges->count(),
             'total_loan_amount' => $pledges->sum('loan_amount'),
+            'average_loan' => $pledges->count() > 0 ? $pledges->avg('loan_amount') : 0,
+            'unique_customers' => $pledges->unique('customer_id')->count(),
             'total_items' => $pledges->sum(fn($p) => $p->items->count()),
             'total_weight' => $pledges->sum('total_weight'),
             'by_status' => $pledges->groupBy('status')->map->count(),
@@ -77,7 +79,7 @@ class ReportController extends Controller
         $renewals = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
-            'total_count' => $renewals->count(),
+            'total_renewals' => $renewals->count(),
             'total_interest' => $renewals->sum('interest_amount'),
             'total_collected' => $renewals->sum('total_payable'),
             'cash_collected' => $renewals->sum('cash_amount'),
@@ -111,7 +113,7 @@ class ReportController extends Controller
         $redemptions = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
-            'total_count' => $redemptions->count(),
+            'total_redemptions' => $redemptions->count(),
             'total_principal' => $redemptions->sum('principal_amount'),
             'total_interest' => $redemptions->sum('interest_amount'),
             'total_collected' => $redemptions->sum('total_payable'),
