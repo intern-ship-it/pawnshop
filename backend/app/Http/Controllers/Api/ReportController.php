@@ -498,7 +498,7 @@ class ReportController extends Controller
                         $pledge->receipt_no,
                         $pledge->pledge_no,
                         $pledge->customer->name ?? '',
-                        $pledge->customer->ic_number ?? '',
+                        "\t" . ($pledge->customer->ic_number ?? ''),
                         is_array($pledge->items) ? count($pledge->items) : $pledge->items->count(),
                         number_format($pledge->total_weight, 3),
                         number_format($pledge->loan_amount, 2),
@@ -547,7 +547,7 @@ class ReportController extends Controller
                     fputcsv($output, [
                         $pledge->pledge_no,
                         $pledge->customer->name ?? '',
-                        $pledge->customer->ic_number ?? '',
+                        "\t" . ($pledge->customer->ic_number ?? ''),
                         date('d/m/Y', strtotime($pledge->pledge_date)),
                         date('d/m/Y', strtotime($pledge->due_date)),
                         number_format($pledge->loan_amount, 2),
@@ -589,8 +589,8 @@ class ReportController extends Controller
                 foreach ($data->customers as $customer) {
                     fputcsv($output, [
                         $customer->name,
-                        $customer->ic_number,
-                        $customer->phone ?? '',
+                        "\t" . $customer->ic_number,
+                        "\t" . ($customer->phone ?? ''),
                         $customer->pledges_count,
                         $customer->active_pledges_count,
                         number_format($customer->total_loan_amount ?? 0, 2),

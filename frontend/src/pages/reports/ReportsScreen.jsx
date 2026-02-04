@@ -21,7 +21,6 @@ import {
   DollarSign,
   Calendar,
   Download,
-  Printer,
   RefreshCw,
   Clock,
   CheckCircle,
@@ -185,7 +184,7 @@ export default function ReportsScreen() {
         const lastMonthStart = new Date(
           now.getFullYear(),
           now.getMonth() - 1,
-          1
+          1,
         );
         setFromDate(lastMonthStart.toISOString().split("T")[0]);
         setToDate(lastMonthEnd.toISOString().split("T")[0]);
@@ -286,7 +285,7 @@ export default function ReportsScreen() {
           type: "error",
           title: "Error",
           message: "Failed to load report data",
-        })
+        }),
       );
     } finally {
       setIsLoading(false);
@@ -308,7 +307,7 @@ export default function ReportsScreen() {
             type: "success",
             title: "Export Started",
             message: `${activeReport} report export initiated`,
-          })
+          }),
         );
       }
     } catch (error) {
@@ -317,16 +316,11 @@ export default function ReportsScreen() {
           type: "error",
           title: "Export Failed",
           message: error.message,
-        })
+        }),
       );
     } finally {
       setIsExporting(false);
     }
-  };
-
-  // Handle print
-  const handlePrint = () => {
-    window.print();
   };
 
   // Format date range display
@@ -369,9 +363,6 @@ export default function ReportsScreen() {
             loading={isExporting}
           >
             Export CSV
-          </Button>
-          <Button variant="outline" leftIcon={Printer} onClick={handlePrint}>
-            Print
           </Button>
         </div>
       }
@@ -453,13 +444,13 @@ export default function ReportsScreen() {
                       "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all",
                       isActive
                         ? "bg-amber-100 text-amber-800 font-medium"
-                        : "text-zinc-600 hover:bg-zinc-100"
+                        : "text-zinc-600 hover:bg-zinc-100",
                     )}
                   >
                     <Icon
                       className={cn(
                         "w-4 h-4",
-                        isActive ? "text-amber-600" : "text-zinc-400"
+                        isActive ? "text-amber-600" : "text-zinc-400",
                       )}
                     />
                     <div className="flex-1 min-w-0">
@@ -728,7 +719,7 @@ function OverviewReport({ data }) {
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-3 bg-zinc-50 rounded-lg">
               <Package className="w-6 h-6 text-zinc-400 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-zinc-800">
+              <p className="text-xl font-bold text-zinc-800">
                 {typeof inventorySummary.total_items === "object"
                   ? inventorySummary.total_items?.count || 0
                   : inventorySummary.total_items || inventorySummary.count || 0}
@@ -737,7 +728,7 @@ function OverviewReport({ data }) {
             </div>
             <div className="text-center p-3 bg-zinc-50 rounded-lg">
               <Scale className="w-6 h-6 text-amber-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-zinc-800">
+              <p className="text-xl font-bold text-zinc-800">
                 {typeof inventorySummary.total_weight === "object"
                   ? inventorySummary.total_weight?.total_weight || 0
                   : inventorySummary.total_weight || 0}
@@ -747,11 +738,11 @@ function OverviewReport({ data }) {
             </div>
             <div className="text-center p-3 bg-zinc-50 rounded-lg">
               <DollarSign className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-zinc-800">
+              <p className="text-lg font-bold text-emerald-600 break-words">
                 {formatCurrency(
                   typeof inventorySummary.total_value === "object"
                     ? inventorySummary.total_value?.total_value || 0
-                    : inventorySummary.total_value || 0
+                    : inventorySummary.total_value || 0,
                 )}
               </p>
               <p className="text-xs text-zinc-500">Value</p>
@@ -775,8 +766,8 @@ function OverviewReport({ data }) {
                   const weight = Array.isArray(inventorySummary.by_purity)
                     ? data.weight || data.total_weight || 0
                     : typeof data === "object"
-                    ? data.weight || data.total_weight || 0
-                    : data;
+                      ? data.weight || data.total_weight || 0
+                      : data;
                   return (
                     <div
                       key={label || idx}
@@ -927,10 +918,10 @@ function PledgesReport({ data }) {
                           pledge.status === "active"
                             ? "success"
                             : pledge.status === "overdue"
-                            ? "error"
-                            : pledge.status === "redeemed"
-                            ? "info"
-                            : "default"
+                              ? "error"
+                              : pledge.status === "redeemed"
+                                ? "info"
+                                : "default"
                         }
                       >
                         {pledge.status}
@@ -1243,7 +1234,7 @@ function OutstandingReport({ data }) {
                           "font-medium",
                           pledge.days_overdue > 0
                             ? "text-red-600"
-                            : "text-zinc-600"
+                            : "text-zinc-600",
                         )}
                       >
                         {pledge.days_overdue > 0
