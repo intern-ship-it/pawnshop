@@ -80,6 +80,7 @@ export default function Header() {
   const [notifications, setNotifications] = useState([]);
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [liveCount, setLiveCount] = useState(0);
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -93,10 +94,12 @@ export default function Header() {
         // Wrapped format: { success: true, data: { notifications: [...] } }
         setNotifications(response.data.notifications || []);
         setUnreadCount(response.data.unread_count || 0);
+        setLiveCount(response.data.live_count || 0);
       } else if (response.notifications) {
         // Direct format: { notifications: [...], unread_count: N }
         setNotifications(response.notifications || []);
         setUnreadCount(response.unread_count || 0);
+        setLiveCount(response.live_count || 0);
       } else {
         console.warn("Unexpected notification response format:", response);
       }
@@ -777,11 +780,18 @@ export default function Header() {
               className="relative p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
             >
               <Bell className="w-5 h-5" />
-              {/* Notification Badge - Dynamic */}
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+              {/* Notification Badge - Shows unread stored + live alerts */}
+              {unreadCount + liveCount > 0 && (
+                <span
+                  className={cn(
+                    "absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full border-2 border-white flex items-center justify-center",
+                    liveCount > 0 ? "bg-amber-500" : "bg-red-500",
+                  )}
+                >
                   <span className="text-[10px] font-bold text-white">
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                    {unreadCount + liveCount > 9
+                      ? "9+"
+                      : unreadCount + liveCount}
                   </span>
                 </span>
               )}
@@ -798,11 +808,18 @@ export default function Header() {
                   <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-white">
                     <div>
                       <h3 className="font-bold text-zinc-800">Notifications</h3>
-                      {unreadCount > 0 && (
-                        <p className="text-xs text-amber-600">
-                          {unreadCount} unread
-                        </p>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {liveCount > 0 && (
+                          <span className="text-xs text-amber-600">
+                            {liveCount} alert{liveCount !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {unreadCount > 0 && (
+                          <span className="text-xs text-zinc-500">
+                            {unreadCount} unread
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {unreadCount > 0 && (
                       <button
@@ -936,19 +953,13 @@ export default function Header() {
                   </div>
 
                   <div className="px-4 py-3 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between">
-                    <button
-                      onClick={() => {
-                        navigate("/notifications");
-                        setNotificationOpen(false);
-                      }}
-                      className="text-sm text-amber-600 hover:text-amber-700 font-medium"
-                    >
-                      View All Notifications
-                    </button>
+                    <span className="text-xs text-zinc-400">
+                      {notifications.length} notification(s)
+                    </span>
                     <button
                       onClick={fetchNotifications}
                       disabled={notificationLoading}
-                      className="text-xs text-zinc-500 hover:text-zinc-700"
+                      className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1"
                     >
                       <RefreshCw
                         className={cn(
@@ -956,6 +967,7 @@ export default function Header() {
                           notificationLoading && "animate-spin",
                         )}
                       />
+                      <span>Refresh</span>
                     </button>
                   </div>
                 </div>
