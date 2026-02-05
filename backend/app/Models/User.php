@@ -150,17 +150,17 @@ class User extends Authenticatable
 
     public function isSuperAdmin(): bool
     {
-        return $this->role->slug === 'super-admin';
+        return $this->role?->slug === 'super-admin';
     }
 
     public function isAdmin(): bool
     {
-        return in_array($this->role->slug, ['super-admin', 'admin']);
+        return in_array($this->role?->slug, ['super-admin', 'admin']);
     }
 
     public function isManager(): bool
     {
-        return in_array($this->role->slug, ['super-admin', 'admin', 'manager']);
+        return in_array($this->role?->slug, ['super-admin', 'admin', 'manager']);
     }
 
     public function verifyPasskey(string $passkey): bool

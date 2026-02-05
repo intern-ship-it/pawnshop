@@ -17,6 +17,26 @@ use Carbon\Carbon;
 class DayEndController extends Controller
 {
     /**
+     * Check if user can access the given branch
+     * Admin and Super Admin can access any branch
+     */
+    private function canAccessBranch(Request $request, $branchId): bool
+    {
+        $user = $request->user();
+
+        // Load role if not loaded
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Admin and Super Admin can access any branch
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $user->branch_id == $branchId;
+    }
+    /**
      * List all day-end reports
      */
     public function index(Request $request): JsonResponse
@@ -200,7 +220,7 @@ class DayEndController extends Controller
      */
     public function verifications(Request $request, DayEndReport $dayEndReport): JsonResponse
     {
-        if ($dayEndReport->branch_id !== $request->user()->branch_id) {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -217,7 +237,7 @@ class DayEndController extends Controller
      */
     public function verifyItem(Request $request, DayEndReport $dayEndReport, DayEndVerification $verification): JsonResponse
     {
-        if ($dayEndReport->branch_id !== $request->user()->branch_id) {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -246,7 +266,7 @@ class DayEndController extends Controller
      */
     public function verifyAmount(Request $request, DayEndReport $dayEndReport): JsonResponse
     {
-        if ($dayEndReport->branch_id !== $request->user()->branch_id) {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
             return $this->error('Unauthorized', 403);
         }
 

@@ -210,12 +210,33 @@ export default function DayEndSummary() {
         }
       }
     } catch (error) {
+      // Handle 404 (Report not found) - Treat as open day
+      if (error.status === 404) {
+        setDayEndData(null);
+        setDayStatus("open");
+        setDailyStats({
+          newPledgesCount: 0,
+          renewalsCount: 0,
+          redemptionsCount: 0,
+          newPledgesAmount: 0,
+          renewalInterest: 0,
+          redemptionAmount: 0,
+          cashIn: 0,
+          cashOut: 0,
+          netCashFlow: 0,
+          totalItemsAdded: 0,
+          totalWeight: 0,
+        });
+        setVerificationItems([]);
+        return;
+      }
+
       console.error("Error fetching day end data:", error);
       dispatch(
         addToast({
           type: "error",
           title: "Error",
-          message: "Failed to load day end data",
+          message: error.message || "Failed to load day end data",
         }),
       );
     } finally {
