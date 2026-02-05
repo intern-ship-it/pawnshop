@@ -246,6 +246,11 @@ class ReportController extends Controller
             'transfer' => $redemptions->sum('transfer_amount'),
         ];
 
+        $totalCash = $pledgePayments['cash'] + $renewalPayments['cash'] + $redemptionPayments['cash'];
+        $totalTransfer = $pledgePayments['transfer'] + $renewalPayments['transfer'] + $redemptionPayments['transfer'];
+        $grandTotal = $pledgePayments['total'] + $renewalPayments['total'] + $redemptionPayments['total'];
+        $totalCount = $pledgePayments['count'] + $renewalPayments['count'] + $redemptionPayments['count'];
+
         return $this->success([
             'period' => [
                 'from' => $fromDate,
@@ -254,10 +259,13 @@ class ReportController extends Controller
             'pledges' => $pledgePayments,
             'renewals' => $renewalPayments,
             'redemptions' => $redemptionPayments,
-            'totals' => [
-                'cash' => $pledgePayments['cash'] + $renewalPayments['cash'] + $redemptionPayments['cash'],
-                'transfer' => $pledgePayments['transfer'] + $renewalPayments['transfer'] + $redemptionPayments['transfer'],
-                'grand_total' => $pledgePayments['total'] + $renewalPayments['total'] + $redemptionPayments['total'],
+            'summary' => [
+                'cash_total' => $totalCash,
+                'transfer_total' => $totalTransfer,
+                'total' => $grandTotal,
+                'transaction_count' => $totalCount,
+                'cash_percentage' => $grandTotal > 0 ? round(($totalCash / $grandTotal) * 100, 1) : 0,
+                'transfer_percentage' => $grandTotal > 0 ? round(($totalTransfer / $grandTotal) * 100, 1) : 0,
             ],
         ]);
     }
@@ -563,7 +571,7 @@ class ReportController extends Controller
                 fputcsv($output, ['Pledges', $data->pledges->count, number_format($data->pledges->total, 2), number_format($data->pledges->cash, 2), number_format($data->pledges->transfer, 2)]);
                 fputcsv($output, ['Renewals', $data->renewals->count, number_format($data->renewals->total, 2), number_format($data->renewals->cash, 2), number_format($data->renewals->transfer, 2)]);
                 fputcsv($output, ['Redemptions', $data->redemptions->count, number_format($data->redemptions->total, 2), number_format($data->redemptions->cash, 2), number_format($data->redemptions->transfer, 2)]);
-                fputcsv($output, ['TOTAL', '', number_format($data->totals->grand_total, 2), number_format($data->totals->cash, 2), number_format($data->totals->transfer, 2)]);
+                fputcsv($output, ['TOTAL', '', number_format($data->summary->total, 2), number_format($data->summary->cash_total, 2), number_format($data->summary->transfer_total, 2)]);
                 break;
 
             case 'inventory':

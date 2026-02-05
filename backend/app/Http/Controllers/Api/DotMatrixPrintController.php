@@ -505,8 +505,10 @@ HTML;
 .info-row{display:flex;margin-bottom:1.5mm}
 .label{font-weight:bold;width:25mm;flex-shrink:0}
 .value{flex:1}
-.items-box{border:1px solid #1a4a7a;padding:2mm;min-height:20mm}
-.item-line{font-size:9px;margin-bottom:1mm}
+.items-box{border:1px solid #1a4a7a;padding:2mm;min-height:20mm;max-height:28mm;overflow:hidden}
+.items-columns{display:flex;gap:3mm}
+.items-col{flex:1;min-width:0}
+.item-line{font-size:9px;margin-bottom:0.8mm;line-height:1.2}
 .breakdown-box{border:1px solid #1a4a7a;padding:2mm;margin-bottom:3mm}
 .breakdown-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:9px}
 .breakdown-row.total{border-top:1px solid #1a4a7a;margin-top:1mm;padding-top:2mm;font-weight:bold;font-size:11px}
@@ -706,8 +708,10 @@ HTML;
 .left-section{flex:1;border:1px solid #1a4a7a;padding:2mm}
 .right-section{width:52mm;min-width:52mm}
 .section-header{background:#e8f0f8;padding:1mm 2mm;font-weight:bold;font-size:9px;border-bottom:1px solid #1a4a7a;margin-bottom:2mm}
-.items-box{border:1px solid #1a4a7a;min-height:22mm;padding:2mm;margin-bottom:2mm}
-.item-line{font-size:10px;margin-bottom:1mm}
+.items-box{border:1px solid #1a4a7a;min-height:22mm;max-height:30mm;padding:2mm;margin-bottom:2mm;overflow:hidden}
+.items-columns{display:flex;gap:3mm}
+.items-col{flex:1;min-width:0}
+.item-line{font-size:9px;margin-bottom:0.8mm;line-height:1.2}
 .ticket-box{border:2px solid #c41e3a;padding:2mm;text-align:center;margin-bottom:2mm;background:#fff8f8}
 .ticket-label{font-size:9px;color:#c41e3a;font-weight:bold}
 .ticket-number{font-size:16px;font-weight:bold;color:#c41e3a;font-family:'Courier New',monospace}
@@ -831,10 +835,18 @@ FALLBACK;
 HTML;
     }
 
-    private function buildItemsHtml($items): string
+    /**
+     * Build items HTML for receipt - 2 COLUMN LAYOUT
+     * Column 1: First 3 item groups
+     * Column 2: Remaining item groups
+     * Prevents overflow by utilizing horizontal space
+     */
+    private function buildItemsHtml($items, int $itemsPerColumn = 3): string
     {
-        $html = '';
         $groupedItems = [];
+        $totalItemCount = count($items);
+
+        // Group items by category + purity + condition
         foreach ($items as $item) {
             $categoryName = strtoupper($item->category->name_ms ?? $item->category->name_en ?? 'BARANG KEMAS');
             $purity = $item->purity->code ?? '';
@@ -846,21 +858,71 @@ HTML;
             }
             $groupedItems[$key]['count']++;
         }
-        foreach ($groupedItems as $item) {
-            $qty = $item['count'];
-            $qtyWord = strtoupper($this->numberToMalayWord($qty));
-            $purityDisplay = $item['purity'] . ($item['karat'] ? ' (' . $item['karat'] . ')' : '');
-            $conditionText = '';
-            if ($item['condition'] && $item['condition'] !== 'GOOD') {
-                $conditionMap = ['BENT' => 'BENGKOK', 'BROKEN' => 'ROSAK', 'DAMAGED' => 'ROSAK', 'SCRATCHED' => 'CALAR'];
-                $conditionText = $conditionMap[$item['condition']] ?? $item['condition'];
+
+        $groupedItemsArray = array_values($groupedItems);
+        $totalGroups = count($groupedItemsArray);
+
+        // If only 1-2 items, no need for columns
+        if ($totalGroups <= 2) {
+            $html = '';
+            foreach ($groupedItemsArray as $item) {
+                $html .= $this->formatItemLine($item);
             }
-            $line = "({$qty}) {$qtyWord} {$item['name']} EMAS" . ($conditionText ? " ({$conditionText})" : '');
-            $html .= "<div class='item-line'>{$line}</div>";
-            if ($purityDisplay)
-                $html .= "<div class='item-line' style='margin-left:10px;'>({$purityDisplay})</div>";
+            return $html ?: "<div class='item-line'>Tiada item</div>";
         }
-        return $html ?: "<div class='item-line'>Tiada item</div>";
+
+        // Split items evenly into 2 columns
+        // Column 1 gets ceiling half, Column 2 gets the rest
+        $splitAt = ceil($totalGroups / 2);
+        $column1Items = array_slice($groupedItemsArray, 0, $splitAt);
+        $column2Items = array_slice($groupedItemsArray, $splitAt);
+
+        // Build Column 1 HTML
+        $col1Html = '';
+        foreach ($column1Items as $item) {
+            $col1Html .= $this->formatItemLine($item);
+        }
+
+        // Build Column 2 HTML
+        $col2Html = '';
+        foreach ($column2Items as $item) {
+            $col2Html .= $this->formatItemLine($item);
+        }
+
+        // If column 2 is empty, just return column 1
+        if (empty($col2Html)) {
+            return $col1Html;
+        }
+
+        // Build 2-column layout
+        $html = "<div class='items-columns'>";
+        $html .= "<div class='items-col'>{$col1Html}</div>";
+        $html .= "<div class='items-col'>{$col2Html}</div>";
+        $html .= "</div>";
+
+        return $html;
+    }
+
+    /**
+     * Format a single item line for the receipt
+     */
+    private function formatItemLine(array $item): string
+    {
+        $qty = $item['count'];
+        $qtyWord = strtoupper($this->numberToMalayWord($qty));
+        $purityDisplay = $item['purity'] . ($item['karat'] ? ' (' . $item['karat'] . ')' : '');
+        $conditionText = '';
+        if ($item['condition'] && $item['condition'] !== 'GOOD') {
+            $conditionMap = ['BENT' => 'BENGKOK', 'BROKEN' => 'ROSAK', 'DAMAGED' => 'ROSAK', 'SCRATCHED' => 'CALAR'];
+            $conditionText = $conditionMap[$item['condition']] ?? $item['condition'];
+        }
+
+        $line = "({$qty}) {$qtyWord} {$item['name']}" . ($conditionText ? " ({$conditionText})" : '');
+        $html = "<div class='item-line'>{$line}</div>";
+        if ($purityDisplay) {
+            $html .= "<div class='item-line' style='margin-left:8px;font-size:9px;'>({$purityDisplay})</div>";
+        }
+        return $html;
     }
 
     private function formatNumber($number, $decimals = 2): string
