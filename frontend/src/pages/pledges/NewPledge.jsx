@@ -2719,6 +2719,9 @@ export default function NewPledge() {
                             </span>
                             <span className="flex items-center gap-1">
                               <User className="w-3 h-3" />
+                              {result.country_code
+                                ? `${result.country_code.startsWith("+") ? "" : "+"}${result.country_code} `
+                                : ""}
                               {result.phone}
                             </span>
                           </div>
@@ -2764,6 +2767,9 @@ export default function NewPledge() {
                             )}
                           </p>
                           <p className="text-sm text-zinc-500">
+                            {customer.country_code
+                              ? `${customer.country_code.startsWith("+") ? "" : "+"}${customer.country_code} `
+                              : ""}
                             {formatPhone(customer.phone || "")}
                           </p>
                         </div>

@@ -246,7 +246,10 @@ export default function CustomerDetail() {
                 {customer.phone && (
                   <div className="flex items-center gap-3 min-w-0">
                     <Phone className="w-4 h-4 text-zinc-400 flex-shrink-0" />
-                    <span className="text-zinc-600 truncate">
+                    <span className="text-zinc-600">
+                      {customer.country_code
+                        ? `${customer.country_code.startsWith("+") ? "" : "+"}${customer.country_code} `
+                        : ""}
                       {customer.phone}
                     </span>
                   </div>
@@ -254,7 +257,10 @@ export default function CustomerDetail() {
                 {customer.whatsapp && customer.whatsapp !== customer.phone && (
                   <div className="flex items-center gap-3 min-w-0">
                     <Phone className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    <span className="text-zinc-600 truncate">
+                    <span className="text-zinc-600">
+                      {customer.country_code
+                        ? `${customer.country_code.startsWith("+") ? "" : "+"}${customer.country_code} `
+                        : ""}
                       {customer.whatsapp} (WhatsApp)
                     </span>
                   </div>
