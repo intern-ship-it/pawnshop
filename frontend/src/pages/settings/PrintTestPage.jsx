@@ -350,15 +350,14 @@ export default function PrintTestPage() {
             <button class="print-btn" onclick="printFront()">
               🖨️ Cetak DEPAN / Print FRONT
             </button>
-            ${
-              termsHtml
-                ? `
+            ${termsHtml
+        ? `
             <button class="print-btn secondary" onclick="toggleTerms()">
               📋 Tunjuk Terma / Show Terms
             </button>
             `
-                : ""
-            }
+        : ""
+      }
             <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
           </div>
           
@@ -380,9 +379,8 @@ export default function PrintTestPage() {
           ${receiptHtml}
         </div>
         
-        ${
-          termsHtml
-            ? `
+        ${termsHtml
+        ? `
         <div class="preview-container hidden-for-print" id="backPage">
           <div class="page-label terms">
             <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT (Tersembunyi / Hidden)</span>
@@ -391,8 +389,8 @@ export default function PrintTestPage() {
           ${termsHtml}
         </div>
         `
-            : ""
-        }
+        : ""
+      }
         
         <script>
           function printFront() {
@@ -648,7 +646,7 @@ export default function PrintTestPage() {
           ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
           <div class="barcode-text">${item.barcode || item.item_code || "N/A"}</div>
         </div>
-        <div class="footer-row">${item.purity || "916"} • ${item.net_weight ? parseFloat(item.net_weight).toFixed(3) + "g" : ""}</div>
+        <div class="footer-row">${item.purity || "916"} • ${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
       </div>
     `,
       )
@@ -661,20 +659,28 @@ export default function PrintTestPage() {
       <title>Barcode Labels - ${pledgeNo || "Test"}</title>
       <style>
         @page { 
-          size: 50mm auto; 
+          size: 35mm 25mm; 
           margin: 0; 
         }
         @media print {
           html, body {
-            width: 50mm !important;
+            width: 35mm !important;
+            height: 25mm !important;
             margin: 0 !important;
             padding: 0 !important;
           }
           .controls { display: none !important; }
           .labels-wrapper { 
-            width: 50mm !important; 
+            width: 35mm !important; 
             margin: 0 !important;
             box-shadow: none !important;
+          }
+          .label {
+            page-break-after: always;
+            page-break-inside: avoid;
+          }
+          .label:last-child {
+            page-break-after: avoid;
           }
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -709,33 +715,32 @@ export default function PrintTestPage() {
         .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
         .controls .info strong { color: #fbbf24; }
         .labels-wrapper { 
-          width: 50mm; 
+          width: 35mm; 
           margin: 0 auto; 
           background: white; 
           box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
         }
         .label { 
-          width: 50mm; 
-          min-height: 30mm;
-          padding: 2mm 3mm; 
+          width: 35mm; 
+          height: 25mm;
+          padding: 1.5mm 2mm; 
           background: white; 
           display: flex; 
           flex-direction: column; 
           overflow: hidden; 
           border-bottom: 1px dashed #ccc;
-          page-break-inside: avoid;
         }
         .label:last-child { border-bottom: none; }
         .header-row { 
           display: flex; 
           justify-content: space-between; 
           align-items: center; 
-          border-bottom: 0.3mm solid #333; 
-          padding-bottom: 1mm; 
-          margin-bottom: 1mm; 
+          border-bottom: 0.2mm solid #333; 
+          padding-bottom: 0.5mm; 
+          margin-bottom: 0.5mm; 
         }
-        .pledge-no { font-size: 9pt; font-weight: bold; }
-        .category { font-size: 8pt; font-weight: 600; text-transform: uppercase; color: #333; }
+        .pledge-no { font-size: 6pt; font-weight: bold; }
+        .category { font-size: 5pt; font-weight: 600; text-transform: uppercase; color: #333; }
         .barcode-section { 
           flex: 1; 
           text-align: center; 
@@ -743,24 +748,24 @@ export default function PrintTestPage() {
           flex-direction: column; 
           align-items: center; 
           justify-content: center;
-          padding: 2mm 0;
+          padding: 0.5mm 0;
         }
         .barcode-img { 
-          width: 42mm; 
-          height: 12mm; 
+          width: 30mm; 
+          height: 8mm; 
           object-fit: contain; 
         }
         .barcode-text { 
           font-family: 'Courier New', monospace; 
-          font-size: 8pt; 
-          margin-top: 1mm; 
+          font-size: 6pt; 
+          margin-top: 0.5mm; 
           font-weight: bold; 
-          letter-spacing: 0.5px; 
+          letter-spacing: 0.3px; 
         }
         .footer-row { 
-          border-top: 0.3mm solid #333; 
-          padding-top: 1mm; 
-          font-size: 9pt; 
+          border-top: 0.2mm solid #333; 
+          padding-top: 0.5mm; 
+          font-size: 6pt; 
           font-weight: bold; 
           text-align: center; 
         }
@@ -773,7 +778,7 @@ export default function PrintTestPage() {
       <div class="controls">
         <button onclick="window.print()">🏷️ Print ${labelCount} Label${labelCount > 1 ? "s" : ""}</button>
         <button class="close" onclick="window.close()">✕ Close</button>
-        <p class="info">Printer: <strong>Thermal 58mm</strong> | Labels: <strong>${labelCount}</strong></p>
+        <p class="info">Label Size: <strong>35mm × 25mm</strong> | Labels: <strong>${labelCount}</strong></p>
         <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
       </div>
       <div class="labels-wrapper">${barcodeLabels}</div>
@@ -1222,7 +1227,7 @@ export default function PrintTestPage() {
                   <div>
                     <p className="font-medium text-zinc-800">Barcode Labels</p>
                     <p className="text-xs text-zinc-500">
-                      50mm × Dynamic height
+                      35mm × 25mm
                     </p>
                   </div>
                   <Badge variant="warning">Labels</Badge>
@@ -1446,10 +1451,10 @@ export default function PrintTestPage() {
                   onClick={() => {
                     previewFormat === "html"
                       ? openStyledPrintWindow(
-                          previewHtml,
-                          termsHtml,
-                          selectedPledge?.pledge_no,
-                        )
+                        previewHtml,
+                        termsHtml,
+                        selectedPledge?.pledge_no,
+                      )
                       : openPlainTextPrintWindow(previewText, previewType);
                   }}
                   fullWidth
