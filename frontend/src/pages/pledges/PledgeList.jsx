@@ -235,29 +235,192 @@ export default function PledgeList() {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-            Accept: "text/html",
+            Accept: "application/json",
           },
           body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
         throw new Error(
-          errorData.message || "Failed to generate dot matrix receipt",
+          data.message || "Failed to generate dot matrix receipt",
         );
       }
 
-      const html = await response.text();
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.write(html);
-        printWindow.document.close();
-        // Auto-trigger print dialog
-        printWindow.onload = () => {
-          printWindow.print();
-        };
+      // Extract receipt and terms HTML from JSON response
+      const receiptHtml = data.data?.receipt_text || "";
+      const termsHtml = data.data?.terms_text || "";
+      const pledgeNo = data.data?.pledge_no || "";
+
+      if (!receiptHtml) {
+        throw new Error("No receipt content received");
       }
+
+      // Open styled print window with print controls
+      const printWindow = window.open("", "_blank", "width=950,height=800");
+      if (!printWindow) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Popup Blocked",
+            message: "Please allow popups to print receipts",
+          }),
+        );
+        return;
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Resit Pajak Gadai - ${pledgeNo}</title>
+          <style>
+            @page { size: A5 landscape; margin: 3mm; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .print-controls { display: none !important; }
+              .preview-container.hidden-for-print { display: none !important; }
+              .page-label { display: none !important; }
+            }
+            
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 0; background: #1f2937; font-family: Arial, sans-serif; min-height: 100vh; }
+            
+            .print-controls {
+              background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+              padding: 20px; 
+              margin: 10px;
+              border-radius: 12px;
+              box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+              text-align: center;
+            }
+            .print-controls h2 { color: white; margin: 0 0 10px 0; font-size: 16px; }
+            .print-controls p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 12px; }
+            
+            .btn-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+            .print-btn {
+              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+              color: #fff; border: none; padding: 14px 30px; font-size: 15px;
+              cursor: pointer; border-radius: 8px; font-weight: bold;
+              display: flex; align-items: center; gap: 8px;
+              transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .print-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+            .print-btn.secondary {
+              background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            }
+            .close-btn {
+              background: #6b7280; color: white; border: none; padding: 14px 20px;
+              font-size: 14px; cursor: pointer; border-radius: 8px;
+            }
+            
+            .info-note {
+              background: rgba(16, 185, 129, 0.2);
+              border: 1px solid rgba(16, 185, 129, 0.5);
+              border-radius: 8px;
+              padding: 10px 15px;
+              margin-top: 12px;
+              color: #a7f3d0;
+              font-size: 12px;
+            }
+            
+            .printer-note { font-size: 11px; color: #9ca3af; margin-top: 12px; text-align: center; }
+            .printer-note strong { color: #fbbf24; }
+            
+            .preview-container {
+              max-width: 210mm; margin: 15px auto; background: white;
+              box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden;
+            }
+            .preview-container.hidden-for-print { display: none; }
+            .page-label {
+              background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+              color: white; padding: 10px 15px; font-size: 12px; font-weight: bold;
+              display: flex; justify-content: space-between; align-items: center;
+            }
+            .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); }
+            .page-label .badge { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 10px; font-size: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="print-controls">
+            <h2>📄 Cetak Resit DEPAN Sahaja / Print FRONT Only</h2>
+            <p>Kertas dengan Terma & Syarat sudah dicetak sebelum ini</p>
+            <p>Paper with Terms & Conditions already pre-printed</p>
+            
+            <div class="btn-row">
+              <button class="print-btn" onclick="printFront()">
+                🖨️ Cetak DEPAN / Print FRONT
+              </button>
+              ${termsHtml ? `
+              <button class="print-btn secondary" onclick="toggleTerms()">
+                📋 Tunjuk Terma / Show Terms
+              </button>
+              ` : ""}
+              <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
+            </div>
+            
+            <div class="info-note">
+              💡 <strong>Tip:</strong> Gunakan kertas yang sudah dicetak Terma & Syarat di belakang.
+              <br>Use paper already printed with Terms & Conditions on the back.
+            </div>
+            
+            <p class="printer-note">
+              Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>A5 Landscape</strong> | Salinan: <strong>SALINAN PELANGGAN</strong>
+            </p>
+          </div>
+          
+          <div class="preview-container" id="frontPage">
+            <div class="page-label">
+              <span>📄 HALAMAN DEPAN / FRONT - RESIT PAJAK GADAI</span>
+              <span class="badge">SALINAN PELANGGAN</span>
+            </div>
+            ${receiptHtml}
+          </div>
+          
+          ${termsHtml ? `
+          <div class="preview-container hidden-for-print" id="backPage">
+            <div class="page-label terms">
+              <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT (Tersembunyi / Hidden)</span>
+              <span class="badge">SALINAN PELANGGAN</span>
+            </div>
+            ${termsHtml}
+          </div>
+          ` : ""}
+          
+          <script>
+            function printFront() {
+              document.getElementById('frontPage').classList.remove('hidden-for-print');
+              if (document.getElementById('backPage')) {
+                document.getElementById('backPage').classList.add('hidden-for-print');
+              }
+              window.print();
+            }
+            
+            function toggleTerms() {
+              const backPage = document.getElementById('backPage');
+              if (backPage) {
+                backPage.classList.toggle('hidden-for-print');
+                const btn = event.target;
+                if (backPage.classList.contains('hidden-for-print')) {
+                  btn.textContent = '📋 Tunjuk Terma / Show Terms';
+                } else {
+                  btn.textContent = '📋 Sembunyi Terma / Hide Terms';
+                }
+              }
+            }
+            
+            window.onload = function() { 
+              document.querySelector('.print-btn').focus(); 
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
 
       dispatch(
         addToast({
@@ -363,9 +526,8 @@ export default function PledgeList() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `pledges-export-${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
+    link.download = `pledges-export-${new Date().toISOString().split("T")[0]
+      }.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -420,9 +582,8 @@ export default function PledgeList() {
           addToast({
             type: "success",
             title: "Cancelled",
-            message: `Pledge ${
-              cancellingPledge.pledgeNo || cancellingPledge.receiptNo
-            } has been cancelled`,
+            message: `Pledge ${cancellingPledge.pledgeNo || cancellingPledge.receiptNo
+              } has been cancelled`,
           }),
         );
         setShowCancelModal(false);
