@@ -393,7 +393,12 @@ export default function CustomerList() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm text-zinc-600">
                         <Phone className="w-3.5 h-3.5 text-zinc-400" />
-                        <span>{customer.phone}</span>
+                        <span>
+                          {customer.country_code
+                            ? `${customer.country_code.startsWith("+") ? "" : "+"}${customer.country_code} `
+                            : ""}
+                          {customer.phone}
+                        </span>
                       </div>
                       {customer.email && (
                         <div className="flex items-center gap-2 text-sm text-zinc-500">

@@ -298,30 +298,38 @@ export default function CustomerDetail() {
             </div>
             <div className="p-5 space-y-3">
               {customer.gender && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Gender</span>
-                  <span className="text-zinc-800 capitalize">
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500 flex-shrink-0">Gender</span>
+                  <span className="text-zinc-800 capitalize text-right">
                     {customer.gender}
                   </span>
                 </div>
               )}
               {customer.date_of_birth && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Date of Birth</span>
-                  <span className="text-zinc-800">
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500 flex-shrink-0">
+                    Date of Birth
+                  </span>
+                  <span className="text-zinc-800 text-right">
                     {formatDate(customer.date_of_birth)}
                   </span>
                 </div>
               )}
               {customer.occupation && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Occupation</span>
-                  <span className="text-zinc-800">{customer.occupation}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500 flex-shrink-0">
+                    Occupation
+                  </span>
+                  <span className="text-zinc-800 text-right">
+                    {customer.occupation}
+                  </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Member Since</span>
-                <span className="text-zinc-800">
+              <div className="flex justify-between gap-4">
+                <span className="text-zinc-500 flex-shrink-0">
+                  Member Since
+                </span>
+                <span className="text-zinc-800 text-right">
                   {formatDate(customer.created_at)}
                 </span>
               </div>

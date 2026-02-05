@@ -3903,19 +3903,6 @@ export default function NewPledge() {
                     </span>
                   </div>
 
-                  {/* Handling Charge - Recorded separately, NOT deducted from payout */}
-                  {parseFloat(handlingCharge) > 0 && (
-                    <div className="flex items-center justify-between text-zinc-500 text-sm">
-                      <span className="flex items-center gap-1">
-                        <Info className="w-3 h-3" />
-                        Handling Charge (recorded separately)
-                      </span>
-                      <span className="text-zinc-500">
-                        {formatCurrency(parseFloat(handlingCharge))}
-                      </span>
-                    </div>
-                  )}
-
                   <div className="border-t border-emerald-200 my-2 pt-2 flex items-center justify-between">
                     <span className="text-emerald-800 font-bold text-lg">
                       Net Payout Amount
@@ -3924,12 +3911,6 @@ export default function NewPledge() {
                       {formatCurrency(netPayoutAmount)}
                     </span>
                   </div>
-
-                  {/* Business rule note */}
-                  <p className="text-xs text-emerald-600 mt-1">
-                    * Customer receives full loan amount. Handling charge
-                    recorded separately.
-                  </p>
                 </div>
               </div>
 
