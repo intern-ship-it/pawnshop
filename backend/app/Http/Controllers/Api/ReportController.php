@@ -43,8 +43,10 @@ class ReportController extends Controller
 
         // Summary
         $summary = [
-            'total_count' => $pledges->count(),
+            'total_pledges' => $pledges->count(),
             'total_loan_amount' => $pledges->sum('loan_amount'),
+            'average_loan' => $pledges->count() > 0 ? $pledges->avg('loan_amount') : 0,
+            'unique_customers' => $pledges->unique('customer_id')->count(),
             'total_items' => $pledges->sum(fn($p) => $p->items->count()),
             'total_weight' => $pledges->sum('total_weight'),
             'by_status' => $pledges->groupBy('status')->map->count(),
@@ -77,7 +79,7 @@ class ReportController extends Controller
         $renewals = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
-            'total_count' => $renewals->count(),
+            'total_renewals' => $renewals->count(),
             'total_interest' => $renewals->sum('interest_amount'),
             'total_collected' => $renewals->sum('total_payable'),
             'cash_collected' => $renewals->sum('cash_amount'),
@@ -111,7 +113,7 @@ class ReportController extends Controller
         $redemptions = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
-            'total_count' => $redemptions->count(),
+            'total_redemptions' => $redemptions->count(),
             'total_principal' => $redemptions->sum('principal_amount'),
             'total_interest' => $redemptions->sum('interest_amount'),
             'total_collected' => $redemptions->sum('total_payable'),
@@ -244,6 +246,11 @@ class ReportController extends Controller
             'transfer' => $redemptions->sum('transfer_amount'),
         ];
 
+        $totalCash = $pledgePayments['cash'] + $renewalPayments['cash'] + $redemptionPayments['cash'];
+        $totalTransfer = $pledgePayments['transfer'] + $renewalPayments['transfer'] + $redemptionPayments['transfer'];
+        $grandTotal = $pledgePayments['total'] + $renewalPayments['total'] + $redemptionPayments['total'];
+        $totalCount = $pledgePayments['count'] + $renewalPayments['count'] + $redemptionPayments['count'];
+
         return $this->success([
             'period' => [
                 'from' => $fromDate,
@@ -252,10 +259,13 @@ class ReportController extends Controller
             'pledges' => $pledgePayments,
             'renewals' => $renewalPayments,
             'redemptions' => $redemptionPayments,
-            'totals' => [
-                'cash' => $pledgePayments['cash'] + $renewalPayments['cash'] + $redemptionPayments['cash'],
-                'transfer' => $pledgePayments['transfer'] + $renewalPayments['transfer'] + $redemptionPayments['transfer'],
-                'grand_total' => $pledgePayments['total'] + $renewalPayments['total'] + $redemptionPayments['total'],
+            'summary' => [
+                'cash_total' => $totalCash,
+                'transfer_total' => $totalTransfer,
+                'total' => $grandTotal,
+                'transaction_count' => $totalCount,
+                'cash_percentage' => $grandTotal > 0 ? round(($totalCash / $grandTotal) * 100, 1) : 0,
+                'transfer_percentage' => $grandTotal > 0 ? round(($totalTransfer / $grandTotal) * 100, 1) : 0,
             ],
         ]);
     }
@@ -496,7 +506,7 @@ class ReportController extends Controller
                         $pledge->receipt_no,
                         $pledge->pledge_no,
                         $pledge->customer->name ?? '',
-                        $pledge->customer->ic_number ?? '',
+                        "\t" . ($pledge->customer->ic_number ?? ''),
                         is_array($pledge->items) ? count($pledge->items) : $pledge->items->count(),
                         number_format($pledge->total_weight, 3),
                         number_format($pledge->loan_amount, 2),
@@ -545,7 +555,7 @@ class ReportController extends Controller
                     fputcsv($output, [
                         $pledge->pledge_no,
                         $pledge->customer->name ?? '',
-                        $pledge->customer->ic_number ?? '',
+                        "\t" . ($pledge->customer->ic_number ?? ''),
                         date('d/m/Y', strtotime($pledge->pledge_date)),
                         date('d/m/Y', strtotime($pledge->due_date)),
                         number_format($pledge->loan_amount, 2),
@@ -561,7 +571,7 @@ class ReportController extends Controller
                 fputcsv($output, ['Pledges', $data->pledges->count, number_format($data->pledges->total, 2), number_format($data->pledges->cash, 2), number_format($data->pledges->transfer, 2)]);
                 fputcsv($output, ['Renewals', $data->renewals->count, number_format($data->renewals->total, 2), number_format($data->renewals->cash, 2), number_format($data->renewals->transfer, 2)]);
                 fputcsv($output, ['Redemptions', $data->redemptions->count, number_format($data->redemptions->total, 2), number_format($data->redemptions->cash, 2), number_format($data->redemptions->transfer, 2)]);
-                fputcsv($output, ['TOTAL', '', number_format($data->totals->grand_total, 2), number_format($data->totals->cash, 2), number_format($data->totals->transfer, 2)]);
+                fputcsv($output, ['TOTAL', '', number_format($data->summary->total, 2), number_format($data->summary->cash_total, 2), number_format($data->summary->transfer_total, 2)]);
                 break;
 
             case 'inventory':
@@ -587,8 +597,8 @@ class ReportController extends Controller
                 foreach ($data->customers as $customer) {
                     fputcsv($output, [
                         $customer->name,
-                        $customer->ic_number,
-                        $customer->phone ?? '',
+                        "\t" . $customer->ic_number,
+                        "\t" . ($customer->phone ?? ''),
                         $customer->pledges_count,
                         $customer->active_pledges_count,
                         number_format($customer->total_loan_amount ?? 0, 2),

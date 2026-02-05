@@ -83,6 +83,49 @@ class DotMatrixPrintController extends Controller
     }
 
     /**
+     * Bulk print Terms & Conditions pages only
+     * For pre-printing the back side of receipts
+     * @param Request $request - count: number of pages to print (default 10)
+     */
+    public function bulkTermsPages(Request $request): JsonResponse
+    {
+        try {
+            $count = min($request->input('count', 10), 50); // Max 50 pages at once
+            $branch = $request->user()->branch;
+            $settings = $this->getCompanySettings($branch);
+
+            // Create a dummy pledge object for the terms page
+            $dummyPledge = new \stdClass();
+            $dummyPledge->loan_amount = 1000; // Dummy amount for interest calculation
+
+            // Generate one terms page HTML
+            $termsHtml = $this->generateTermsPageHtml(new Pledge(), $settings);
+
+            // Add page-break-after style to terms-page for bulk printing
+            $termsHtml = str_replace('.terms-page{', '.terms-page{page-break-after:always;', $termsHtml);
+
+            // Build bulk HTML with multiple copies - just concatenate, no wrapper divs
+            $bulkHtml = '';
+            for ($i = 0; $i < $count; $i++) {
+                $bulkHtml .= $termsHtml;
+            }
+
+            return $this->success([
+                'terms_html' => $bulkHtml,
+                'count' => $count,
+                'format' => 'html',
+                'paper_size' => 'A5',
+                'orientation' => 'landscape',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Bulk Terms Print Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
+    }
+
+
+    /**
      * Generate renewal receipt - Malaysian Pawnshop Format
      * Returns HTML that matches the original blue form design
      * A5 Landscape: 210mm x 148mm - Exactly 2 pages (Receipt + Terms)
@@ -192,6 +235,23 @@ class DotMatrixPrintController extends Controller
         // Payment method
         $paymentMethod = ucfirst($renewal->payment_method ?? 'Cash');
 
+        // Get pledge items
+        $items = $pledge->items ?? collect();
+        $itemCount = $items->count();
+        $totalWeight = $items->sum('net_weight') ?: $items->sum('weight');
+
+        // Build items HTML
+        $itemsHtml = '';
+        foreach ($items as $item) {
+            $category = $item->category->name ?? $item->category_name ?? 'Item';
+            $purity = $item->purity->code ?? $item->purity_code ?? $item->purity ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->weight ?? 0, 2);
+            $itemsHtml .= "<div class='item-line'>{$category} {$purity} - {$weight}g</div>";
+        }
+        if (empty($itemsHtml)) {
+            $itemsHtml = '<div class="item-line">-</div>';
+        }
+
         return <<<HTML
 <div class="receipt">
     <div class="header">
@@ -224,13 +284,16 @@ class DotMatrixPrintController extends Controller
                 <div class="info-row"><span class="label">Jumlah Pinjaman:</span><span class="value amount">RM {$this->formatNumber($loanAmount)}</span></div>
                 <div class="info-row"><span class="label">Tempoh Pembaharuan:</span><span class="value">{$renewalMonths} Bulan</span></div>
             </div>
+            
+            <div class="section-title">Barang Diperbaharui / Items Renewed ({$itemCount})</div>
+            <div class="items-box">{$itemsHtml}</div>
         </div>
         
         <div class="right-section">
             <div class="section-title">Bayaran / Payment</div>
             <div class="breakdown-box">
                 {$interestBreakdownHtml}
-                <div class="breakdown-row total"><span>Jumlah Keuntungan / Interest:</span><span>RM {$this->formatNumber($interestAmount)}</span></div>
+                <div class="breakdown-row total"><span>Jumlah Faedah / Interest:</span><span>RM {$this->formatNumber($interestAmount)}</span></div>
             </div>
             
             <div class="dates-box">
@@ -282,6 +345,8 @@ class DotMatrixPrintController extends Controller
 .label{font-weight:bold;width:35mm;flex-shrink:0}
 .value{flex:1}
 .value.amount{font-weight:bold;font-size:12px;color:#c41e3a}
+.items-box{border:1px solid #1a4a7a;padding:2mm;min-height:15mm;max-height:25mm;overflow:hidden;margin-bottom:3mm}
+.item-line{font-size:9px;margin-bottom:1mm;line-height:1.3}
 .breakdown-box{border:1px solid #1a4a7a;padding:2mm;margin-bottom:3mm}
 .breakdown-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:9px}
 .breakdown-row.total{border-top:1px solid #1a4a7a;margin-top:1mm;padding-top:2mm;font-weight:bold}
@@ -449,7 +514,7 @@ HTML;
             <div class="section-title">Butiran Bayaran / Payment Details</div>
             <div class="breakdown-box">
                 <div class="breakdown-row"><span>Pinjaman Pokok / Principal:</span><span>RM {$this->formatNumber($principal)}</span></div>
-                <div class="breakdown-row"><span>Keuntungan ({$interestMonths} bulan) / Interest:</span><span>RM {$this->formatNumber($interestAmount)}</span></div>
+                <div class="breakdown-row"><span>Faedah ({$interestMonths} bulan) / Interest:</span><span>RM {$this->formatNumber($interestAmount)}</span></div>
                 <div class="breakdown-row total"><span>Jumlah Dibayar / Total Paid:</span><span>RM {$this->formatNumber($totalPaid)}</span></div>
             </div>
             
@@ -505,8 +570,10 @@ HTML;
 .info-row{display:flex;margin-bottom:1.5mm}
 .label{font-weight:bold;width:25mm;flex-shrink:0}
 .value{flex:1}
-.items-box{border:1px solid #1a4a7a;padding:2mm;min-height:20mm}
-.item-line{font-size:9px;margin-bottom:1mm}
+.items-box{border:1px solid #1a4a7a;padding:2mm;min-height:20mm;max-height:28mm;overflow:hidden}
+.items-columns{display:flex;gap:3mm}
+.items-col{flex:1;min-width:0}
+.item-line{font-size:9px;margin-bottom:0.8mm;line-height:1.2}
 .breakdown-box{border:1px solid #1a4a7a;padding:2mm;margin-bottom:3mm}
 .breakdown-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:9px}
 .breakdown-row.total{border-top:1px solid #1a4a7a;margin-top:1mm;padding-top:2mm;font-weight:bold;font-size:11px}
@@ -558,7 +625,12 @@ HTML;
 
         // If logo is a relative path, make it absolute
         if ($logoUrl && !str_starts_with($logoUrl, 'http') && !str_starts_with($logoUrl, 'data:')) {
-            $logoUrl = url('storage/' . ltrim($logoUrl, '/'));
+            $path = ltrim($logoUrl, '/');
+            if (str_starts_with($path, 'storage/')) {
+                $logoUrl = url($path);
+            } else {
+                $logoUrl = url('storage/' . $path);
+            }
         }
 
         return [
@@ -657,7 +729,7 @@ HTML;
             <div class="customer-row"><span class="customer-label">No. Kad Pengenalan:</span><span class="customer-value">{$icNumber}</span></div>
             <div class="customer-row"><span class="customer-label">Nama:</span><span class="customer-value">{$customer->name}</span></div>
             <div class="customer-row">
-                <span class="customer-label">Kerakyatan:</span><span class="customer-value">{$citizenship} ({$race})</span>
+                <span class="customer-label">Kerakyatan:</span><span class="customer-value">{$citizenship}</span>
                 <span class="customer-label">Tahun Lahir:</span><span class="customer-value">{$birthYear} ({$age})</span>
                 <span class="customer-label">Jantina:</span><span class="customer-value">{$gender}</span>
             </div>
@@ -666,9 +738,9 @@ HTML;
         <div class="right-section">
             <div class="ticket-box"><div class="ticket-label">NO. TIKET:</div><div class="ticket-number">{$pledge->pledge_no}</div></div>
             <div class="info-box"><div class="info-row"><span>CAJ PENGENDALIAN</span><span>TEMPOH TAMAT</span></div><div class="info-row"><b>{$settings['handling_fee']}</b><b>{$settings['redemption_period']}</b></div></div>
-            <div class="info-box"><div style="font-weight:bold;">KADAR KEUNTUNGAN BULANAN</div><div>{$settings['interest_rate_normal']}% Sebulan : Dalam tempoh 6 bulan</div><div>{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div></div>
+            <div class="info-box"><div style="font-weight:bold;">KADAR FAEDAH BULANAN</div><div>{$settings['interest_rate_normal']}% Sebulan : Dalam tempoh 6 bulan</div><div>{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div></div>
             <div class="catatan-box"><div class="catatan-label">Catatan:</div><div>{$catatan}</div></div>
-            <div class="keuntungan-box">KEUNTUNGAN DIKENA = RM {$this->formatNumber($monthlyInterest)} SEBULAN</div>
+            <div class="keuntungan-box">FAEDAH DIKENA = RM {$this->formatNumber($monthlyInterest)} SEBULAN</div>
         </div>
     </div>
 
@@ -689,46 +761,48 @@ HTML;
 </div>
 <style>
 @page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
-.receipt{width:202mm;height:140mm;padding:3mm;border:2px solid #1a4a7a;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff}
-.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2mm;border-bottom:2px solid #1a4a7a;padding-bottom:2mm}
+.receipt{width:202mm;height:136mm;padding:2.5mm;border:2px solid #1a4a7a;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;overflow:hidden}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5mm;border-bottom:2px solid #1a4a7a;padding-bottom:1.5mm}
 .header-left{display:flex;align-items:flex-start;gap:3mm;flex:1}
 .logo{height:14mm;width:auto;max-width:18mm;object-fit:contain}
 .company-info{flex:1}
-.company-name{font-size:16px;font-weight:bold;color:#c41e3a;margin-bottom:1px}
+.company-name{font-size:15px;font-weight:bold;color:#c41e3a;margin-bottom:1px}
 .company-name span{font-size:11px;color:#1a4a7a;font-weight:normal}
-.company-multilang{font-size:13px;font-weight:bold;color:#c41e3a;margin-bottom:2px}
+.company-multilang{font-size:12px;font-weight:bold;color:#c41e3a;margin-bottom:1px}
 .company-address{font-size:9px;color:#1a4a7a}
 .header-right{text-align:right;min-width:45mm}
-.established{background:#c41e3a;color:white;padding:3px 6px;border-radius:50%;font-size:8px;font-weight:bold;display:inline-block;margin-bottom:2mm;line-height:1.1}
-.phone-box{background:#c41e3a;color:white;padding:2px 5px;font-size:10px;margin-bottom:2mm;display:inline-block}
-.business-hours{font-size:8px;text-align:right;color:#c41e3a;font-weight:bold;line-height:1.3}
+.established{background:#c41e3a;color:white;padding:3px 6px;border-radius:50%;font-size:8px;font-weight:bold;display:inline-block;margin-bottom:1.5mm;line-height:1.1}
+.phone-box{background:#c41e3a;color:white;padding:2px 5px;font-size:10px;margin-bottom:1.5mm;display:inline-block}
+.business-hours{font-size:8px;text-align:right;color:#c41e3a;font-weight:bold;line-height:1.2}
 .main-content{display:flex;gap:3mm}
 .left-section{flex:1;border:1px solid #1a4a7a;padding:2mm}
 .right-section{width:52mm;min-width:52mm}
-.section-header{background:#e8f0f8;padding:1mm 2mm;font-weight:bold;font-size:9px;border-bottom:1px solid #1a4a7a;margin-bottom:2mm}
-.items-box{border:1px solid #1a4a7a;min-height:22mm;padding:2mm;margin-bottom:2mm}
-.item-line{font-size:10px;margin-bottom:1mm}
-.ticket-box{border:2px solid #c41e3a;padding:2mm;text-align:center;margin-bottom:2mm;background:#fff8f8}
+.section-header{background:#e8f0f8;padding:1mm 2mm;font-weight:bold;font-size:9px;border-bottom:1px solid #1a4a7a;margin-bottom:1.5mm}
+.items-box{border:1px solid #1a4a7a;min-height:20mm;max-height:26mm;padding:1.5mm;margin-bottom:1.5mm;overflow:hidden}
+.items-columns{display:flex;gap:3mm}
+.items-col{flex:1;min-width:0}
+.item-line{font-size:9px;margin-bottom:0.8mm;line-height:1.2}
+.ticket-box{border:2px solid #c41e3a;padding:1.5mm;text-align:center;margin-bottom:1.5mm;background:#fff8f8}
 .ticket-label{font-size:9px;color:#c41e3a;font-weight:bold}
-.ticket-number{font-size:16px;font-weight:bold;color:#c41e3a;font-family:'Courier New',monospace}
-.info-box{border:1px solid #1a4a7a;padding:2mm;font-size:9px;margin-bottom:2mm}
+.ticket-number{font-size:15px;font-weight:bold;color:#c41e3a;font-family:'Courier New',monospace}
+.info-box{border:1px solid #1a4a7a;padding:1.5mm;font-size:9px;margin-bottom:1.5mm}
 .info-row{display:flex;justify-content:space-between}
-.customer-row{display:flex;gap:3mm;margin-bottom:2mm;font-size:10px;flex-wrap:wrap}
+.customer-row{display:flex;gap:3mm;margin-bottom:1.5mm;font-size:10px;flex-wrap:wrap}
 .customer-label{font-weight:bold;min-width:22mm}
 .customer-value{border-bottom:1px dotted #1a4a7a;min-width:30mm}
-.catatan-box{border:1px solid #1a4a7a;padding:2mm;min-height:10mm;margin-bottom:2mm}
+.catatan-box{border:1px solid #1a4a7a;padding:1.5mm;min-height:8mm;margin-bottom:1.5mm}
 .catatan-label{font-size:9px;font-weight:bold}
-.keuntungan-box{background:#fffde8;border:1px solid #d4a800;padding:2mm;font-size:10px;font-weight:bold;text-align:center}
-.amount-section{border:2px solid #1a4a7a;padding:2mm;margin-top:2mm;background:#f8fafc}
-.amount-words{font-size:10px;font-weight:bold;margin-bottom:2mm}
+.keuntungan-box{background:#fffde8;border:1px solid #d4a800;padding:1.5mm;font-size:10px;font-weight:bold;text-align:center}
+.amount-section{border:2px solid #1a4a7a;padding:2mm;margin-top:1.5mm;background:#f8fafc}
+.amount-words{font-size:10px;font-weight:bold;margin-bottom:1.5mm}
 .amount-row{display:flex;justify-content:space-between;align-items:center}
 .amount-figure{font-size:14px;font-weight:bold}
-.date-box{text-align:center;border:1px solid #1a4a7a;padding:2mm 4mm}
+.date-box{text-align:center;border:1px solid #1a4a7a;padding:1.5mm 4mm}
 .date-label{font-size:8px;color:#666}
 .date-value{font-size:11px;font-weight:bold}
-.footer{margin-top:2mm;font-size:8px;border-top:1px solid #1a4a7a;padding-top:2mm}
-.footer-text{margin-bottom:1mm}
-.footer-bottom{display:flex;justify-content:space-between;align-items:flex-end;margin-top:2mm}
+.footer{margin-top:1.5mm;font-size:8px;border-top:1px solid #1a4a7a;padding-top:1.5mm}
+.footer-text{margin-bottom:0.8mm}
+.footer-bottom{display:flex;justify-content:space-between;align-items:flex-end;margin-top:1.5mm}
 .copy-label{font-size:11px;font-weight:bold;color:#c41e3a}
 .weight-info{text-align:right;font-size:9px}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -831,10 +905,18 @@ FALLBACK;
 HTML;
     }
 
-    private function buildItemsHtml($items): string
+    /**
+     * Build items HTML for receipt - 2 COLUMN LAYOUT
+     * Column 1: First 3 item groups
+     * Column 2: Remaining item groups
+     * Prevents overflow by utilizing horizontal space
+     */
+    private function buildItemsHtml($items, int $itemsPerColumn = 3): string
     {
-        $html = '';
         $groupedItems = [];
+        $totalItemCount = count($items);
+
+        // Group items by category + purity + condition
         foreach ($items as $item) {
             $categoryName = strtoupper($item->category->name_ms ?? $item->category->name_en ?? 'BARANG KEMAS');
             $purity = $item->purity->code ?? '';
@@ -846,21 +928,71 @@ HTML;
             }
             $groupedItems[$key]['count']++;
         }
-        foreach ($groupedItems as $item) {
-            $qty = $item['count'];
-            $qtyWord = strtoupper($this->numberToMalayWord($qty));
-            $purityDisplay = $item['purity'] . ($item['karat'] ? ' (' . $item['karat'] . ')' : '');
-            $conditionText = '';
-            if ($item['condition'] && $item['condition'] !== 'GOOD') {
-                $conditionMap = ['BENT' => 'BENGKOK', 'BROKEN' => 'ROSAK', 'DAMAGED' => 'ROSAK', 'SCRATCHED' => 'CALAR'];
-                $conditionText = $conditionMap[$item['condition']] ?? $item['condition'];
+
+        $groupedItemsArray = array_values($groupedItems);
+        $totalGroups = count($groupedItemsArray);
+
+        // If only 1-2 items, no need for columns
+        if ($totalGroups <= 2) {
+            $html = '';
+            foreach ($groupedItemsArray as $item) {
+                $html .= $this->formatItemLine($item);
             }
-            $line = "({$qty}) {$qtyWord} {$item['name']} EMAS" . ($conditionText ? " ({$conditionText})" : '');
-            $html .= "<div class='item-line'>{$line}</div>";
-            if ($purityDisplay)
-                $html .= "<div class='item-line' style='margin-left:10px;'>({$purityDisplay})</div>";
+            return $html ?: "<div class='item-line'>Tiada item</div>";
         }
-        return $html ?: "<div class='item-line'>Tiada item</div>";
+
+        // Split items evenly into 2 columns
+        // Column 1 gets ceiling half, Column 2 gets the rest
+        $splitAt = ceil($totalGroups / 2);
+        $column1Items = array_slice($groupedItemsArray, 0, $splitAt);
+        $column2Items = array_slice($groupedItemsArray, $splitAt);
+
+        // Build Column 1 HTML
+        $col1Html = '';
+        foreach ($column1Items as $item) {
+            $col1Html .= $this->formatItemLine($item);
+        }
+
+        // Build Column 2 HTML
+        $col2Html = '';
+        foreach ($column2Items as $item) {
+            $col2Html .= $this->formatItemLine($item);
+        }
+
+        // If column 2 is empty, just return column 1
+        if (empty($col2Html)) {
+            return $col1Html;
+        }
+
+        // Build 2-column layout
+        $html = "<div class='items-columns'>";
+        $html .= "<div class='items-col'>{$col1Html}</div>";
+        $html .= "<div class='items-col'>{$col2Html}</div>";
+        $html .= "</div>";
+
+        return $html;
+    }
+
+    /**
+     * Format a single item line for the receipt
+     */
+    private function formatItemLine(array $item): string
+    {
+        $qty = $item['count'];
+        $qtyWord = strtoupper($this->numberToMalayWord($qty));
+        $purityDisplay = $item['purity'] . ($item['karat'] ? ' (' . $item['karat'] . ')' : '');
+        $conditionText = '';
+        if ($item['condition'] && $item['condition'] !== 'GOOD') {
+            $conditionMap = ['BENT' => 'BENGKOK', 'BROKEN' => 'ROSAK', 'DAMAGED' => 'ROSAK', 'SCRATCHED' => 'CALAR'];
+            $conditionText = $conditionMap[$item['condition']] ?? $item['condition'];
+        }
+
+        $line = "({$qty}) {$qtyWord} {$item['name']}" . ($conditionText ? " ({$conditionText})" : '');
+        $html = "<div class='item-line'>{$line}</div>";
+        if ($purityDisplay) {
+            $html .= "<div class='item-line' style='margin-left:8px;font-size:9px;'>({$purityDisplay})</div>";
+        }
+        return $html;
     }
 
     private function formatNumber($number, $decimals = 2): string

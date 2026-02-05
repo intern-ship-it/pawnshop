@@ -246,7 +246,10 @@ export default function CustomerDetail() {
                 {customer.phone && (
                   <div className="flex items-center gap-3 min-w-0">
                     <Phone className="w-4 h-4 text-zinc-400 flex-shrink-0" />
-                    <span className="text-zinc-600 truncate">
+                    <span className="text-zinc-600">
+                      {customer.country_code
+                        ? `${customer.country_code.startsWith("+") ? "" : "+"}${customer.country_code} `
+                        : ""}
                       {customer.phone}
                     </span>
                   </div>
@@ -254,7 +257,10 @@ export default function CustomerDetail() {
                 {customer.whatsapp && customer.whatsapp !== customer.phone && (
                   <div className="flex items-center gap-3 min-w-0">
                     <Phone className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    <span className="text-zinc-600 truncate">
+                    <span className="text-zinc-600">
+                      {customer.country_code
+                        ? `${customer.country_code.startsWith("+") ? "" : "+"}${customer.country_code} `
+                        : ""}
                       {customer.whatsapp} (WhatsApp)
                     </span>
                   </div>
@@ -292,30 +298,38 @@ export default function CustomerDetail() {
             </div>
             <div className="p-5 space-y-3">
               {customer.gender && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Gender</span>
-                  <span className="text-zinc-800 capitalize">
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500 flex-shrink-0">Gender</span>
+                  <span className="text-zinc-800 capitalize text-right">
                     {customer.gender}
                   </span>
                 </div>
               )}
               {customer.date_of_birth && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Date of Birth</span>
-                  <span className="text-zinc-800">
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500 flex-shrink-0">
+                    Date of Birth
+                  </span>
+                  <span className="text-zinc-800 text-right">
                     {formatDate(customer.date_of_birth)}
                   </span>
                 </div>
               )}
               {customer.occupation && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Occupation</span>
-                  <span className="text-zinc-800">{customer.occupation}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="text-zinc-500 flex-shrink-0">
+                    Occupation
+                  </span>
+                  <span className="text-zinc-800 text-right">
+                    {customer.occupation}
+                  </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Member Since</span>
-                <span className="text-zinc-800">
+              <div className="flex justify-between gap-4">
+                <span className="text-zinc-500 flex-shrink-0">
+                  Member Since
+                </span>
+                <span className="text-zinc-800 text-right">
                   {formatDate(customer.created_at)}
                 </span>
               </div>

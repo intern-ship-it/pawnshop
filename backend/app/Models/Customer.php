@@ -50,6 +50,12 @@ class Customer extends Model
         'total_loan_amount' => 'decimal:2',
     ];
 
+    /**
+     * ISSUE 1 FIX: Append computed attributes to JSON/Array
+     * This makes 'is_active' automatically available when serializing
+     */
+    protected $appends = ['is_active'];
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
@@ -65,9 +71,20 @@ class Customer extends Model
         return $this->hasMany(Pledge::class);
     }
 
+    /**
+     * Get active pledges (status = 'active' only)
+     */
     public function activePledges(): HasMany
     {
         return $this->hasMany(Pledge::class)->where('status', 'active');
+    }
+
+    /**
+     * Get all outstanding pledges (active + overdue)
+     */
+    public function outstandingPledges(): HasMany
+    {
+        return $this->hasMany(Pledge::class)->whereIn('status', ['active', 'overdue']);
     }
 
     public function owners(): HasMany
@@ -87,12 +104,57 @@ class Customer extends Model
         return implode(', ', $parts);
     }
 
+    /**
+     * ISSUE 1 FIX: Computed attribute for customer active status
+     * 
+     * Customer is "Active" if they have at least 1 outstanding pledge
+     * (status = 'active' OR 'overdue')
+     * 
+     * Customer is "Inactive" if they have no outstanding pledges
+     * 
+     * @return bool
+     */
+    public function getIsActiveAttribute(): bool
+    {
+        // If blacklisted, always show as inactive
+        if ($this->is_blacklisted) {
+            return false;
+        }
+
+        // Check stored active_pledges count first (performance optimization)
+        if ($this->active_pledges !== null && $this->active_pledges > 0) {
+            return true;
+        }
+
+        // Fallback: Query database directly
+        // This handles cases where active_pledges count might be stale
+        return $this->pledges()
+            ->whereIn('status', ['active', 'overdue'])
+            ->exists();
+    }
+
+    /**
+     * ISSUE 1 FIX: Update customer statistics
+     * 
+     * Now counts BOTH 'active' AND 'overdue' pledges as "active_pledges"
+     * since both represent outstanding loans
+     */
     public function updateStats(): void
     {
+        // Count pledges with outstanding status (active + overdue)
+        $outstandingCount = $this->pledges()
+            ->whereIn('status', ['active', 'overdue'])
+            ->count();
+
+        // Calculate total loan amount for outstanding pledges only
+        $totalLoanAmount = $this->pledges()
+            ->whereIn('status', ['active', 'overdue'])
+            ->sum('loan_amount');
+
         $this->update([
             'total_pledges' => $this->pledges()->count(),
-            'active_pledges' => $this->pledges()->where('status', 'active')->count(),
-            'total_loan_amount' => $this->pledges()->sum('loan_amount'),
+            'active_pledges' => $outstandingCount,
+            'total_loan_amount' => $totalLoanAmount,
         ]);
     }
 

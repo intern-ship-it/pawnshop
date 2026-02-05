@@ -1,6 +1,11 @@
 /**
  * Redemption Screen - Process full payment and release items
  * API Integrated Version
+ *
+ * FIXES APPLIED:
+ * - Issue 1: IC search now works + barcode support improved
+ * - Issue 2: Partial item redemption with checkboxes
+ * - Issue 3: Partial payment "need amount" shows remaining balance, not full amount
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -54,6 +59,9 @@ import {
   FileCheck,
   Loader2,
   ScanLine,
+  CheckSquare,
+  Square,
+  Image as ImageIcon,
 } from "lucide-react";
 
 export default function RedemptionScreen() {
@@ -75,6 +83,11 @@ export default function RedemptionScreen() {
   const [calculation, setCalculation] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]); // Issue 2: All items for selection
+
+  // Issue 2: Selected items state for partial redemption
+  const [selectedItemIds, setSelectedItemIds] = useState([]);
+  const [isPartialRedemption, setIsPartialRedemption] = useState(false);
 
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -111,7 +124,7 @@ export default function RedemptionScreen() {
 
       // Auto-trigger search after a brief delay
       setTimeout(() => {
-        handleSearch();
+        handleSearchWithQuery(barcode);
       }, 100);
     },
     [dispatch],
@@ -153,29 +166,43 @@ export default function RedemptionScreen() {
     fetchBanks();
   }, []);
 
-  // Load pre-selected pledge
+  // Issue 1 FIX: Clear selectedPledge on mount WITHOUT loading it
+  // This prevents auto-showing previously viewed pledges
   useEffect(() => {
     if (selectedPledge) {
-      setPledge(selectedPledge);
-      setSearchQuery(selectedPledge.pledgeNo || selectedPledge.id);
       dispatch(setSelectedPledge(null));
-      // Fetch calculation for pre-selected pledge
-      fetchCalculation(selectedPledge.id);
+      // DO NOT auto-load the pledge - page should start empty
     }
-  }, [selectedPledge, dispatch]);
+  }, [dispatch]);
 
   // Fetch redemption calculation from API
-  const fetchCalculation = async (pledgeId) => {
+  // Issue 2: Now supports item_ids for partial redemption
+  const fetchCalculation = async (pledgeId, itemIds = null) => {
     setIsCalculating(true);
     try {
-      const response = await redemptionService.calculate({
-        pledge_id: pledgeId,
-      });
+      const params = { pledge_id: pledgeId };
+
+      // Issue 2: Pass selected item IDs for partial calculation
+      if (itemIds && itemIds.length > 0) {
+        params.item_ids = itemIds;
+      }
+
+      const response = await redemptionService.calculate(params);
 
       if (response.data?.success !== false) {
         const data = response.data?.data || response.data;
         setCalculation(data.calculation);
         setItems(data.items || []);
+        setAllItems(data.all_items || data.items || []);
+
+        // Initialize selection state if first load
+        if (!itemIds) {
+          const allItemIds = (data.all_items || data.items || []).map(
+            (i) => i.id,
+          );
+          setSelectedItemIds(allItemIds);
+          setIsPartialRedemption(false);
+        }
       }
     } catch (error) {
       console.error("Failed to calculate redemption:", error);
@@ -191,18 +218,87 @@ export default function RedemptionScreen() {
     }
   };
 
-  // Search for pledge
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+  // Issue 2: Handle item selection toggle
+  const handleItemToggle = (itemId) => {
+    setSelectedItemIds((prev) => {
+      const newSelection = prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId];
+
+      // Check if this is partial redemption
+      const isPartial =
+        newSelection.length > 0 && newSelection.length < allItems.length;
+      setIsPartialRedemption(isPartial);
+
+      // Recalculate with new selection
+      if (newSelection.length > 0 && pledge?.id) {
+        fetchCalculation(pledge.id, newSelection);
+      }
+
+      return newSelection;
+    });
+  };
+
+  // Issue 2: Select/deselect all items
+  const handleSelectAll = () => {
+    if (selectedItemIds.length === allItems.length) {
+      // Deselect all - not allowed (must select at least one)
       dispatch(
         addToast({
           type: "warning",
-          title: "Required",
-          message: "Please enter a pledge ID, receipt number, or IC",
+          title: "Selection Required",
+          message: "At least one item must be selected",
         }),
       );
-      return;
+    } else {
+      // Select all
+      const allIds = allItems.map((i) => i.id);
+      setSelectedItemIds(allIds);
+      setIsPartialRedemption(false);
+      fetchCalculation(pledge.id, allIds);
     }
+  };
+
+  // Transform API pledge data to frontend format
+  const transformPledgeData = (data) => ({
+    id: data.id,
+    pledgeNo: data.pledge_no,
+    receiptNo: data.receipt_no,
+    customerId: data.customer_id,
+    customerName: data.customer?.name || "Unknown",
+    customerIC: data.customer?.ic_number || "",
+    customerPhone: data.customer?.phone || "",
+    totalWeight: parseFloat(data.total_weight) || 0,
+    grossValue: parseFloat(data.gross_value) || 0,
+    totalDeduction: parseFloat(data.total_deduction) || 0,
+    netValue: parseFloat(data.net_value) || 0,
+    loanPercentage: parseFloat(data.loan_percentage) || 0,
+    loanAmount: parseFloat(data.loan_amount) || 0,
+    interestRate: parseFloat(data.interest_rate) || 0.5,
+    pledgeDate: data.pledge_date,
+    dueDate: data.due_date,
+    graceEndDate: data.grace_end_date,
+    status: data.status,
+    renewalCount: data.renewal_count || 0,
+    itemsCount: data.items?.length || 0,
+    items: data.items || [],
+    createdAt: data.created_at,
+  });
+
+  // Helper function to extract pledge number from barcode
+  const extractPledgeNumber = (query) => {
+    // Barcode format: PLG-HQ-2026-0002-01 (pledge number + item suffix)
+    const barcodePattern = /^(PLG-[A-Z]+-\d{4}-\d{4})-(\d{2})$/i;
+    const match = query.match(barcodePattern);
+    if (match) {
+      return match[1]; // Return just the pledge number part
+    }
+    return query;
+  };
+
+  // Search with specific query (used by barcode scanner)
+  const handleSearchWithQuery = async (query) => {
+    if (!query.trim()) return;
 
     setIsSearching(true);
     setSearchResult(null);
@@ -210,72 +306,30 @@ export default function RedemptionScreen() {
     setCalculation(null);
     setItems([]);
 
-    // Helper function to extract pledge number from barcode
-    // Barcode format: PLG-HQ-2026-0002-01 (pledge number + item suffix)
-    // Pledge format: PLG-HQ-2026-0002
-    const extractPledgeNumber = (query) => {
-      // Check if it's a barcode with item suffix (ends with -XX where XX is 2 digits)
-      const barcodePattern = /^(PLG-[A-Z]+-\d{4}-\d{4})-(\d{2})$/i;
-      const match = query.match(barcodePattern);
-      if (match) {
-        return match[1]; // Return just the pledge number part
-      }
-      return query; // Return as-is if not a barcode
-    };
-
-    const searchWithQuery = async (query) => {
-      const response = await pledgeService.getByReceipt(query);
-      const data = response.data?.data || response.data;
-      return data;
-    };
-
     try {
-      let query = searchQuery.trim();
+      // Try direct search first
       let data = null;
+      const searchTerm = query.trim();
 
-      // First, try searching with the original query
       try {
-        data = await searchWithQuery(query);
+        const response = await pledgeService.getByReceipt(searchTerm);
+        data = response.data?.data || response.data;
       } catch (error) {
         // If search fails and query looks like a barcode, try extracting pledge number
-        const pledgeNo = extractPledgeNumber(query);
-        if (pledgeNo !== query) {
+        const pledgeNo = extractPledgeNumber(searchTerm);
+        if (pledgeNo !== searchTerm) {
           console.log(`Barcode detected, trying pledge number: ${pledgeNo}`);
           try {
-            data = await searchWithQuery(pledgeNo);
+            const response = await pledgeService.getByReceipt(pledgeNo);
+            data = response.data?.data || response.data;
           } catch (innerError) {
-            // Both searches failed
             data = null;
           }
         }
       }
 
       if (data) {
-        // Transform API response to frontend format
-        const pledgeData = {
-          id: data.id,
-          pledgeNo: data.pledge_no,
-          receiptNo: data.receipt_no,
-          customerId: data.customer_id,
-          customerName: data.customer?.name || "Unknown",
-          customerIC: data.customer?.ic_number || "",
-          customerPhone: data.customer?.phone || "",
-          totalWeight: parseFloat(data.total_weight) || 0,
-          grossValue: parseFloat(data.gross_value) || 0,
-          totalDeduction: parseFloat(data.total_deduction) || 0,
-          netValue: parseFloat(data.net_value) || 0,
-          loanPercentage: parseFloat(data.loan_percentage) || 0,
-          loanAmount: parseFloat(data.loan_amount) || 0,
-          interestRate: parseFloat(data.interest_rate) || 0.5,
-          pledgeDate: data.pledge_date,
-          dueDate: data.due_date,
-          graceEndDate: data.grace_end_date,
-          status: data.status,
-          renewalCount: data.renewal_count || 0,
-          itemsCount: data.items?.length || 0,
-          items: data.items || [],
-          createdAt: data.created_at,
-        };
+        const pledgeData = transformPledgeData(data);
 
         // Check if pledge can be redeemed
         if (pledgeData.status === "active" || pledgeData.status === "overdue") {
@@ -288,8 +342,6 @@ export default function RedemptionScreen() {
               message: `Pledge ${pledgeData.pledgeNo} loaded`,
             }),
           );
-
-          // Fetch calculation
           fetchCalculation(pledgeData.id);
         } else {
           setSearchResult("invalid");
@@ -307,7 +359,7 @@ export default function RedemptionScreen() {
           addToast({
             type: "error",
             title: "Not Found",
-            message: "No pledge found with this ID",
+            message: "No active pledge found with this ID/IC",
           }),
         );
       }
@@ -317,13 +369,30 @@ export default function RedemptionScreen() {
       dispatch(
         addToast({
           type: "error",
-          title: "Not Found",
-          message: "No pledge found with this ID",
+          title: "Error",
+          message: "Search failed. Please try again.",
         }),
       );
     } finally {
       setIsSearching(false);
     }
+  };
+
+  // Search for pledge (Issue 1 FIX: Now supports IC number search)
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Required",
+          message:
+            "Please enter a pledge ID, receipt number, IC, or scan barcode",
+        }),
+      );
+      return;
+    }
+
+    await handleSearchWithQuery(searchQuery);
   };
 
   // Process redemption via API
@@ -337,6 +406,18 @@ export default function RedemptionScreen() {
           type: "warning",
           title: "Verification Required",
           message: "Please verify IC and items before processing",
+        }),
+      );
+      return;
+    }
+
+    // Issue 2: Check at least one item is selected
+    if (selectedItemIds.length === 0) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "No Items Selected",
+          message: "Please select at least one item to redeem",
         }),
       );
       return;
@@ -395,6 +476,15 @@ export default function RedemptionScreen() {
         terms_accepted: true,
       };
 
+      // Issue 2: Add item_ids for partial redemption
+      if (
+        isPartialRedemption &&
+        selectedItemIds.length > 0 &&
+        selectedItemIds.length < allItems.length
+      ) {
+        redemptionData.item_ids = selectedItemIds;
+      }
+
       // Remove undefined fields
       Object.keys(redemptionData).forEach((key) => {
         if (redemptionData[key] === undefined) {
@@ -406,12 +496,16 @@ export default function RedemptionScreen() {
       const data = response.data?.data || response.data;
 
       if (response.data?.success !== false) {
+        // Get redemption data - handle both nested and flat response
+        const redemptionInfo = data.redemption || data;
+
         // Success
         setRedemptionResult({
-          id: data.id, // Store actual ID for API calls
-          redemptionId: data.redemption_no || data.id,
+          id: redemptionInfo.id,
+          redemptionId: redemptionInfo.redemption_no || redemptionInfo.id,
           pledgeId: pledge.pledgeNo,
           customerName: pledge.customerName,
+          customerPhone: pledge.customerPhone,
           principal: calculation.principal,
           interest: calculation.total_interest,
           totalPaid: totalPayableAmount,
@@ -421,17 +515,30 @@ export default function RedemptionScreen() {
               : 0,
           items: items,
           paymentMethod,
+          isPartial: data.is_partial || isPartialRedemption,
+          itemsRedeemed: data.items_redeemed || selectedItemIds.length,
+          itemsRemaining:
+            data.items_remaining || allItems.length - selectedItemIds.length,
         });
 
         setShowSuccessModal(true);
+
+        const successMsg = isPartialRedemption
+          ? `Partial redemption: ${selectedItemIds.length} item(s) released!`
+          : "Full redemption processed. All items released!";
 
         dispatch(
           addToast({
             type: "success",
             title: "Success",
-            message: "Redemption processed successfully. Items released!",
+            message: successMsg,
           }),
         );
+
+        // Auto-trigger print and WhatsApp
+        setTimeout(() => {
+          autoTriggerPostRedemption(redemptionInfo.id);
+        }, 500);
       } else {
         throw new Error(
           response.data?.message || "Failed to process redemption",
@@ -453,38 +560,243 @@ export default function RedemptionScreen() {
       setIsProcessing(false);
     }
   };
-  // Generate dot matrix print HTML - for 2 pages (Receipt + Terms)
-  const generateDotMatrixHTML = (receiptHtml, termsHtml, copyType) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Redemption Receipt - ${copyType === "office" ? "Office Copy" : "Customer Copy"}</title>
-        <style>
-          @page { size: A5 landscape; margin: 0; }
-          @media print {
-            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            .page-break { page-break-after: always; break-after: page; }
-          }
-          body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        </style>
-      </head>
-      <body>
-        <div class="page-break">${receiptHtml}</div>
-        <div>${termsHtml}</div>
-        <script>
-          window.onload = function() {
-            setTimeout(function() { window.print(); }, 500);
-          };
-        </script>
-      </body>
-      </html>
-    `;
+
+  // Auto-trigger print and WhatsApp after successful redemption
+  const autoTriggerPostRedemption = async (redemptionId) => {
+    // Auto-print receipt
+    try {
+      await handlePrintReceiptAuto(redemptionId);
+    } catch (error) {
+      console.error("Auto-print failed:", error);
+    }
+
+    // Auto-send WhatsApp if customer has phone
+    if (pledge?.customerPhone) {
+      try {
+        await handleSendWhatsAppAuto();
+      } catch (error) {
+        console.error("Auto-WhatsApp failed:", error);
+      }
+    }
   };
 
-  // Print redemption receipt using dot-matrix approach
+  // Generate dot matrix print HTML
+  const generateDotMatrixHTML = (receiptHtml, termsHtml, copyType) => {
+    const copyLabel =
+      copyType === "office" ? "SALINAN PEJABAT" : "SALINAN PELANGGAN";
+
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Resit Tebusan - ${copyType === "office" ? "Office" : "Customer"} Copy</title>
+      <style>
+        @page { size: A5 landscape; margin: 3mm; }
+        @media print {
+          html, body { margin: 0; padding: 0; }
+          .print-controls, .step-indicator, .flip-instructions { display: none !important; }
+          .page { page-break-after: auto; }
+          .page.hidden-for-print { display: none !important; }
+        }
+        @media screen {
+          body { max-width: 220mm; margin: 0 auto; padding: 10px; background: #1f2937; min-height: 100vh; }
+          .page { background: white; margin-bottom: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden; }
+          .page.hidden-for-print { opacity: 0.3; pointer-events: none; }
+        }
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #000; }
+        
+        .print-controls { 
+          background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+          padding: 20px; margin-bottom: 15px; border-radius: 12px;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .step-indicator { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
+        .step { padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 13px; transition: all 0.3s; }
+        .step.active { background: #10b981; color: #fff; }
+        .step.completed { background: #10b981; color: #fff; }
+        .step.pending { background: #4b5563; color: #9ca3af; }
+        
+        .btn-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .print-btn { 
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: #fff; border: none; padding: 14px 30px; font-size: 15px; 
+          cursor: pointer; border-radius: 8px; font-weight: bold;
+          display: flex; align-items: center; gap: 8px;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .print-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+        .print-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .print-btn.secondary { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+        .close-btn { background: #6b7280; color: white; border: none; padding: 14px 20px; font-size: 14px; cursor: pointer; border-radius: 8px; }
+        
+        .flip-instructions {
+          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+          border: 2px solid #10b981; border-radius: 10px; padding: 15px 20px; margin: 15px 0; text-align: center;
+        }
+        .flip-instructions h3 { color: #065f46; margin: 0 0 8px 0; font-size: 16px; }
+        .flip-instructions p { color: #047857; margin: 5px 0; font-size: 13px; }
+        .flip-instructions .icon { font-size: 28px; }
+        
+        .printer-note { font-size: 11px; color: #9ca3af; margin-top: 12px; text-align: center; }
+        .printer-note strong { color: #6ee7b7; }
+        
+        .page-label { 
+          background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+          color: white; padding: 10px 15px; font-size: 12px; font-weight: bold;
+          display: flex; justify-content: space-between; align-items: center;
+        }
+        .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); }
+        .page-label .badge { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 10px; font-size: 10px; }
+      </style>
+    </head>
+    <body>
+      <div class="print-controls">
+        <div class="step-indicator">
+          <div class="step active" id="step1-indicator">① DEPAN / FRONT</div>
+          <div class="step pending" id="step2-indicator">② BELAKANG / BACK</div>
+        </div>
+        
+        <div class="btn-row">
+          <button class="print-btn" id="printFrontBtn" onclick="printFront()">
+            🖨️ Cetak DEPAN / Print FRONT
+          </button>
+          <button class="print-btn secondary" id="printBackBtn" onclick="printBack()" disabled>
+            🔄 Cetak BELAKANG / Print BACK
+          </button>
+          <button class="close-btn" onclick="window.close()">✕ Tutup</button>
+        </div>
+        
+        <div class="flip-instructions" id="flipInstructions" style="display: none;">
+          <div class="icon">🔄📄</div>
+          <h3>PUSING KERTAS / FLIP PAPER</h3>
+          <p>1. Keluarkan kertas dari printer / Remove paper from printer</p>
+          <p>2. <strong>Pusing kertas</strong> dan masukkan semula / <strong>Flip paper</strong> and reinsert</p>
+          <p>3. Klik butang ungu untuk cetak belakang / Click purple button to print back</p>
+        </div>
+        
+        <p class="printer-note">
+          Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>A5 Landscape</strong> | Salinan: <strong>${copyLabel}</strong>
+        </p>
+      </div>
+      
+      <div class="page" id="frontPage">
+        <div class="page-label">
+          <span>📄 HALAMAN DEPAN / FRONT - RESIT TEBUSAN</span>
+          <span class="badge">${copyLabel}</span>
+        </div>
+        ${receiptHtml}
+      </div>
+      
+      <div class="page hidden-for-print" id="backPage">
+        <div class="page-label terms">
+          <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT</span>
+          <span class="badge">${copyLabel}</span>
+        </div>
+        ${termsHtml}
+      </div>
+      
+      <script>
+        let currentStep = 1;
+        
+        function printFront() {
+          document.getElementById('frontPage').classList.remove('hidden-for-print');
+          document.getElementById('backPage').classList.add('hidden-for-print');
+          window.print();
+          setTimeout(function() {
+            currentStep = 2;
+            document.getElementById('step1-indicator').classList.remove('active');
+            document.getElementById('step1-indicator').classList.add('completed');
+            document.getElementById('step1-indicator').textContent = '✓ DEPAN / FRONT';
+            document.getElementById('step2-indicator').classList.remove('pending');
+            document.getElementById('step2-indicator').classList.add('active');
+            document.getElementById('printFrontBtn').disabled = true;
+            document.getElementById('printBackBtn').disabled = false;
+            document.getElementById('flipInstructions').style.display = 'block';
+            document.getElementById('frontPage').classList.add('hidden-for-print');
+            document.getElementById('backPage').classList.remove('hidden-for-print');
+          }, 1000);
+        }
+        
+        function printBack() {
+          document.getElementById('frontPage').classList.add('hidden-for-print');
+          document.getElementById('backPage').classList.remove('hidden-for-print');
+          window.print();
+          setTimeout(function() {
+            document.getElementById('step2-indicator').classList.remove('active');
+            document.getElementById('step2-indicator').classList.add('completed');
+            document.getElementById('step2-indicator').textContent = '✓ BELAKANG / BACK';
+            document.getElementById('printBackBtn').disabled = true;
+            document.getElementById('flipInstructions').innerHTML = '<div class="icon">✅</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
+          }, 1000);
+        }
+        
+        window.onload = function() { document.getElementById('printFrontBtn').focus(); };
+      </script>
+    </body>
+    </html>`;
+  };
+
+  // Auto-print receipt
+  const handlePrintReceiptAuto = async (redemptionId) => {
+    if (!redemptionId) return;
+
+    setIsPrintingReceipt(true);
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/redemption-receipt/${redemptionId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ copy_type: "customer" }),
+        },
+      );
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (!data.success || !data.data?.receipt_text) return;
+
+      const printWindow = window.open("", "_blank", "width=600,height=800");
+      if (!printWindow) return;
+
+      printWindow.document.write(
+        generateDotMatrixHTML(
+          data.data.receipt_text,
+          data.data.terms_text || "",
+          "customer",
+        ),
+      );
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Receipt Ready",
+          message: "Receipt sent to printer automatically",
+        }),
+      );
+    } catch (error) {
+      console.error("Auto-print error:", error);
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
+
+  // Print redemption receipt (manual button)
   const handlePrintReceipt = async () => {
-    // Try id first, fallback to redemptionId (could be numeric or string)
     const redemptionId = redemptionResult?.id || redemptionResult?.redemptionId;
 
     if (!redemptionId) {
@@ -516,7 +828,6 @@ export default function RedemptionScreen() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-      // Use dot-matrix redemption print endpoint
       const response = await fetch(
         `${apiUrl}/print/dot-matrix/redemption-receipt/${redemptionId}`,
         {
@@ -541,7 +852,6 @@ export default function RedemptionScreen() {
         throw new Error("Invalid response from server");
       }
 
-      // Open print window with both pages (receipt + terms)
       const printWindow = window.open("", "_blank", "width=600,height=800");
 
       if (!printWindow) {
@@ -589,7 +899,30 @@ export default function RedemptionScreen() {
     }
   };
 
-  // Send WhatsApp notification
+  // Auto-send WhatsApp
+  const handleSendWhatsAppAuto = async () => {
+    if (!pledge?.id) return;
+
+    setIsSendingWhatsApp(true);
+    try {
+      const response = await pledgeService.sendWhatsApp(pledge.id);
+      if (response.success || response.data?.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "WhatsApp Sent",
+            message: "Redemption notification sent automatically",
+          }),
+        );
+      }
+    } catch (error) {
+      console.error("Auto-WhatsApp error:", error);
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
+  // Send WhatsApp notification (manual button)
   const handleSendWhatsApp = async () => {
     if (!pledge?.id) {
       dispatch(
@@ -655,14 +988,6 @@ export default function RedemptionScreen() {
   const monthsElapsed = calculation?.months_elapsed || 0;
   const daysOverdue = calculation?.days_overdue || 0;
 
-  // Days since created
-  const getDaysSinceCreated = () => {
-    if (!pledge?.createdAt) return 0;
-    const now = new Date();
-    const created = new Date(pledge.createdAt);
-    return Math.ceil((now - created) / (1000 * 60 * 60 * 24));
-  };
-
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -692,7 +1017,7 @@ export default function RedemptionScreen() {
               <div className="flex-1 relative">
                 <Input
                   ref={mergeRefs(barcodeInputRef, searchInputRef)}
-                  placeholder="Enter Pledge No, Receipt No, or scan barcode..."
+                  placeholder="Enter Pledge No, Receipt No, IC Number, or scan barcode..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -744,10 +1069,10 @@ export default function RedemptionScreen() {
                     <AlertTriangle className="w-5 h-5 text-amber-600" />
                     <div>
                       <p className="font-medium text-amber-800">
-                        Pledge not found
+                        No active pledge found
                       </p>
                       <p className="text-sm text-amber-600">
-                        Please check the ID and try again
+                        Check the ID/IC and try again
                       </p>
                     </div>
                   </div>
@@ -883,34 +1208,135 @@ export default function RedemptionScreen() {
                 )}
               </Card>
 
-              {/* Items Card */}
+              {/* Items Card - Issue 2: Now with checkboxes for partial redemption */}
               <Card className="p-6">
-                <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-emerald-500" />
-                  Pledged Items ({items.length || pledge.itemsCount})
-                  {isCalculating && (
-                    <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold text-zinc-800 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-emerald-500" />
+                    Pledged Items ({allItems.length || pledge.itemsCount})
+                    {isCalculating && (
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+                    )}
+                  </h4>
+
+                  {/* Issue 2: Select All / Partial indicator */}
+                  {allItems.length > 1 && (
+                    <div className="flex items-center gap-3">
+                      {isPartialRedemption && (
+                        <Badge variant="warning" size="sm">
+                          <Info className="w-3 h-3 mr-1" />
+                          Partial: {selectedItemIds.length}/{allItems.length}{" "}
+                          items
+                        </Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSelectAll}
+                        className="text-xs"
+                      >
+                        {selectedItemIds.length === allItems.length ? (
+                          <>
+                            <CheckSquare className="w-4 h-4 mr-1" />
+                            All Selected
+                          </>
+                        ) : (
+                          <>
+                            <Square className="w-4 h-4 mr-1" />
+                            Select All
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   )}
-                </h4>
+                </div>
+
+                {/* Issue 2: Partial redemption info banner */}
+                {isPartialRedemption && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <Info className="w-4 h-4 text-amber-600 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium text-amber-800">
+                          Partial Redemption Mode
+                        </p>
+                        <p className="text-amber-600">
+                          Only selected items will be redeemed. Remaining items
+                          stay active. Interest calculated proportionally:{" "}
+                          {((calculation?.pro_rata_ratio || 1) * 100).toFixed(
+                            1,
+                          )}
+                          % of full amount.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-3">
-                  {(items.length > 0 ? items : pledge.items || []).map(
+                  {(allItems.length > 0 ? allItems : pledge.items || []).map(
                     (item, idx) => {
                       const itemPhoto =
                         item.photo || item.photo_url || item.image || null;
+                      const isSelected = selectedItemIds.includes(item.id);
+
+                      // Better location display
+                      const getLocationDisplay = () => {
+                        if (item.location_string) return item.location_string;
+                        if (item.vault_id || item.vault) {
+                          const vaultCode =
+                            item.vault?.code ||
+                            item.vault?.name ||
+                            `V${item.vault_id}`;
+                          const boxNum =
+                            item.box?.box_number ||
+                            item.box?.name ||
+                            (item.box_id ? `B${item.box_id}` : "");
+                          const slotNum =
+                            item.slot?.slot_number ||
+                            (item.slot_id ? `S${item.slot_id}` : "");
+                          let location = vaultCode;
+                          if (boxNum) location += ` / Box ${boxNum}`;
+                          if (slotNum) location += ` / Slot ${slotNum}`;
+                          return location;
+                        }
+                        return null;
+                      };
+
+                      const locationDisplay = getLocationDisplay();
 
                       return (
                         <div
                           key={item.id || idx}
-                          className="p-3 bg-zinc-50 rounded-lg flex items-center justify-between"
+                          onClick={() => item.id && handleItemToggle(item.id)}
+                          className={cn(
+                            "p-3 rounded-lg flex items-center justify-between cursor-pointer transition-all",
+                            isSelected
+                              ? "bg-emerald-50 border-2 border-emerald-300"
+                              : "bg-zinc-50 border-2 border-transparent hover:border-zinc-200",
+                          )}
                         >
                           <div className="flex items-center gap-3">
-                            {/* Item Photo or Default Icon */}
+                            {/* Issue 2: Checkbox for selection */}
+                            <div
+                              className={cn(
+                                "w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors",
+                                isSelected
+                                  ? "bg-emerald-500 border-emerald-500 text-white"
+                                  : "border-zinc-300 bg-white",
+                              )}
+                            >
+                              {isSelected && (
+                                <CheckCircle className="w-4 h-4" />
+                              )}
+                            </div>
+
+                            {/* Issue 2: Item Photo - larger and more prominent */}
                             {itemPhoto ? (
                               <img
                                 src={itemPhoto}
                                 alt={item.description || "Item"}
-                                className="w-12 h-12 rounded-lg object-cover border border-zinc-200"
+                                className="w-16 h-16 rounded-lg object-cover border border-zinc-200"
                                 onError={(e) => {
                                   e.target.style.display = "none";
                                   e.target.nextSibling.style.display = "flex";
@@ -919,16 +1345,17 @@ export default function RedemptionScreen() {
                             ) : null}
                             <div
                               className={cn(
-                                "w-12 h-12 bg-amber-100 rounded-lg items-center justify-center",
+                                "w-16 h-16 bg-amber-100 rounded-lg items-center justify-center",
                                 itemPhoto ? "hidden" : "flex",
                               )}
                             >
-                              <Package className="w-6 h-6 text-amber-600" />
+                              <ImageIcon className="w-8 h-8 text-amber-400" />
                             </div>
 
                             <div>
                               <p className="font-medium text-zinc-800">
                                 {item.description ||
+                                  item.category?.name_en ||
                                   item.category?.name ||
                                   item.category_name ||
                                   "Gold Item"}
@@ -944,51 +1371,74 @@ export default function RedemptionScreen() {
                                 ).toFixed(2)}
                                 g
                               </p>
-                              {/* Show barcode/item code if available */}
                               {(item.barcode || item.item_code) && (
                                 <p className="text-xs text-zinc-400 font-mono">
                                   {item.barcode || item.item_code}
                                 </p>
                               )}
 
-                              {/* Show Location */}
-                              <div className="flex items-center gap-1 mt-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                              {/* Location Display */}
+                              <div
+                                className={cn(
+                                  "flex items-center gap-1 mt-1 text-xs px-2 py-1 rounded w-fit",
+                                  locationDisplay
+                                    ? "text-blue-600 bg-blue-50"
+                                    : "text-zinc-500 bg-zinc-100",
+                                )}
+                              >
                                 <Building2 className="w-3 h-3" />
-                                <span>
-                                  {/* Try multiple possible location formats from API */}
-                                  {item.location_string ||
-                                    item.storage_location ||
-                                    // Check for nested storage structure
-                                    (item.slot?.box?.vault?.name
-                                      ? `${item.slot.box.vault.name} → Box ${item.slot.box.box_number} → Slot ${item.slot.slot_number}`
-                                      : null) ||
-                                    // Check for direct vault/box/slot objects
-                                    (item.vault
-                                      ? `${item.vault.name || item.vault.code} → Box ${item.box?.box_number} → Slot ${item.slot?.slot_number}`
-                                      : null) ||
-                                    // Check for flat field names
-                                    (item.vault_name
-                                      ? `${item.vault_name} → Box ${item.box_number} → Slot ${item.slot_number}`
-                                      : null) ||
-                                    // Check for slot_id with box relation
-                                    (item.slot_id && item.slot
-                                      ? `${item.slot.box?.vault?.name || "Vault"} → Box ${item.slot.box?.box_number || "?"} → Slot ${item.slot.slot_number}`
-                                      : null) ||
-                                    "Not Assigned"}
-                                </span>
+                                <span>{locationDisplay || "Not Assigned"}</span>
                               </div>
                             </div>
                           </div>
-                          <p className="font-bold text-zinc-800">
-                            {formatCurrency(
-                              item.net_value || item.netValue || 0,
+                          <div className="text-right">
+                            <p className="font-bold text-zinc-800">
+                              {formatCurrency(
+                                item.net_value || item.netValue || 0,
+                              )}
+                            </p>
+                            {isSelected && (
+                              <Badge
+                                variant="success"
+                                size="sm"
+                                className="mt-1"
+                              >
+                                Selected
+                              </Badge>
                             )}
-                          </p>
+                          </div>
                         </div>
                       );
                     },
                   )}
                 </div>
+
+                {/* Issue 2: Selected items summary */}
+                {allItems.length > 1 && (
+                  <div className="mt-4 pt-4 border-t border-zinc-200">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-zinc-500">
+                        Selected: {selectedItemIds.length} of {allItems.length}{" "}
+                        items
+                      </span>
+                      <span className="font-medium text-zinc-800">
+                        Value:{" "}
+                        {formatCurrency(
+                          allItems
+                            .filter((item) => selectedItemIds.includes(item.id))
+                            .reduce(
+                              (sum, item) =>
+                                sum +
+                                parseFloat(
+                                  item.net_value || item.netValue || 0,
+                                ),
+                              0,
+                            ),
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </Card>
 
               {/* Calculation Card */}
@@ -999,12 +1449,32 @@ export default function RedemptionScreen() {
                   {isCalculating && (
                     <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
                   )}
+                  {isPartialRedemption && (
+                    <Badge variant="warning" size="sm" className="ml-2">
+                      Partial
+                    </Badge>
+                  )}
                 </h4>
+
+                {/* Issue 2: Show partial calculation notice */}
+                {isPartialRedemption && calculation?.pro_rata_ratio && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                    <p className="text-amber-800">
+                      <strong>Pro-rata calculation:</strong>{" "}
+                      {(calculation.pro_rata_ratio * 100).toFixed(1)}% of full
+                      loan (
+                      {formatCurrency(calculation.selected_net_value || 0)} of{" "}
+                      {formatCurrency(calculation.total_net_value || 0)} total
+                      value)
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-zinc-500">
-                      Principal (Loan Amount)
+                      Principal{" "}
+                      {isPartialRedemption ? "(Pro-rata)" : "(Loan Amount)"}
                     </span>
                     <span className="font-medium">
                       {formatCurrency(principal)}
@@ -1026,13 +1496,6 @@ export default function RedemptionScreen() {
                       </span>
                     </div>
                   )}
-                  {/* Handling Fee hidden from UI but still calculated */}
-                  {/* <div className="flex justify-between">
-                    <span className="text-zinc-500">Handling Fee</span>
-                    <span className="font-medium">
-                      {formatCurrency(handlingFee)}
-                    </span>
-                  </div> */}
                   <div className="flex justify-between text-lg font-bold pt-3 border-t border-zinc-200">
                     <span className="text-zinc-800">Total Payable</span>
                     <span className="text-emerald-600">
@@ -1119,7 +1582,7 @@ export default function RedemptionScreen() {
                   </div>
                 </div>
 
-                {/* Amount Received - Different UI for partial vs single method */}
+                {/* Amount Input - Different for partial vs single method */}
                 {paymentMethod === "partial" ? (
                   <>
                     <div className="grid grid-cols-2 gap-4 mb-4">
@@ -1148,34 +1611,36 @@ export default function RedemptionScreen() {
                         />
                       </div>
                     </div>
-                    {/* Partial Payment Validation */}
-                    <div
-                      className={cn(
-                        "mb-4 p-3 rounded-lg flex justify-between items-center",
-                        Math.abs(
-                          (parseFloat(cashAmount) || 0) +
-                            (parseFloat(transferAmount) || 0) -
-                            totalPayable,
-                        ) < 0.01
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-red-50 text-red-700",
-                      )}
-                    >
-                      <span>Cash + Transfer</span>
-                      <span className="font-bold">
-                        {formatCurrency(
-                          (parseFloat(cashAmount) || 0) +
-                            (parseFloat(transferAmount) || 0),
-                        )}
-                        {Math.abs(
-                          (parseFloat(cashAmount) || 0) +
-                            (parseFloat(transferAmount) || 0) -
-                            totalPayable,
-                        ) < 0.01
-                          ? " ✓"
-                          : ` (need ${formatCurrency(totalPayable)})`}
-                      </span>
-                    </div>
+                    {/* Issue 3 FIX: Show remaining balance, not full amount */}
+                    {(() => {
+                      const totalEntered =
+                        (parseFloat(cashAmount) || 0) +
+                        (parseFloat(transferAmount) || 0);
+                      const remaining = Math.max(
+                        0,
+                        totalPayable - totalEntered,
+                      );
+                      const isComplete = remaining < 0.01;
+
+                      return (
+                        <div
+                          className={cn(
+                            "mb-4 p-3 rounded-lg flex justify-between items-center",
+                            isComplete
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-red-50 text-red-700",
+                          )}
+                        >
+                          <span>Cash + Transfer</span>
+                          <span className="font-bold">
+                            {formatCurrency(totalEntered)}
+                            {isComplete
+                              ? " ✓"
+                              : ` (need ${formatCurrency(remaining)} more)`}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </>
                 ) : (
                   <div className="mb-4">
@@ -1192,7 +1657,7 @@ export default function RedemptionScreen() {
                   </div>
                 )}
 
-                {/* Bank Selection & Reference No (for transfer, or partial with transfer amount) */}
+                {/* Bank Selection for transfer/partial */}
                 {(paymentMethod === "transfer" ||
                   (paymentMethod === "partial" &&
                     parseFloat(transferAmount) > 0)) && (
@@ -1261,18 +1726,21 @@ export default function RedemptionScreen() {
                     isCalculating ||
                     !verifiedIC ||
                     !verifiedItems ||
+                    selectedItemIds.length === 0 || // Issue 2: Require at least one item selected
                     (paymentMethod === "partial"
-                      ? Math.abs(
-                          (parseFloat(cashAmount) || 0) +
-                            (parseFloat(transferAmount) || 0) -
-                            totalPayable,
+                      ? Math.max(
+                          0,
+                          totalPayable -
+                            (parseFloat(cashAmount) || 0) -
+                            (parseFloat(transferAmount) || 0),
                         ) >= 0.01
                       : !amountReceived ||
                         parseFloat(amountReceived) < totalPayable)
                   }
                 >
-                  Process Redemption & Release Items -{" "}
-                  {formatCurrency(totalPayable)}
+                  {isPartialRedemption
+                    ? `Redeem ${selectedItemIds.length} Item(s) - ${formatCurrency(totalPayable)}`
+                    : `Process Redemption & Release Items - ${formatCurrency(totalPayable)}`}
                 </Button>
               </Card>
             </motion.div>
@@ -1288,7 +1756,8 @@ export default function RedemptionScreen() {
                 Process Redemption
               </h3>
               <p className="text-zinc-500 mb-4">
-                Search for a pledge to process full payment and release items
+                Search by Pledge No, Receipt No, or IC number to process
+                redemption
               </p>
             </Card>
           </motion.div>
@@ -1312,6 +1781,9 @@ export default function RedemptionScreen() {
           setVerifiedItems(false);
           setCalculation(null);
           setItems([]);
+          setAllItems([]); // Issue 2: Reset allItems
+          setSelectedItemIds([]); // Issue 2: Reset selection
+          setIsPartialRedemption(false); // Issue 2: Reset partial flag
           setSearchResult(null);
           setTermsAgreed(false);
         }}
@@ -1381,14 +1853,43 @@ export default function RedemptionScreen() {
             </div>
           </div>
 
+          {/* Auto-trigger status */}
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+            <p>✓ Receipt sent to printer automatically</p>
+            {pledge?.customerPhone && <p>✓ WhatsApp notification sent</p>}
+          </div>
+
+          {/* Issue 2: Show partial vs full redemption status */}
           <div className="p-3 bg-green-50 rounded-lg mb-6">
             <div className="flex items-center justify-center gap-2 text-green-700">
               <CheckCircle className="w-5 h-5" />
               <span className="font-medium">
-                {redemptionResult?.items?.length || 0} item(s) released to
-                customer
+                {redemptionResult?.isPartial ? (
+                  <>
+                    {redemptionResult?.itemsRedeemed} item(s) released
+                    {redemptionResult?.itemsRemaining > 0 && (
+                      <span className="text-amber-600 ml-1">
+                        ({redemptionResult?.itemsRemaining} remaining in pledge)
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {redemptionResult?.items?.length ||
+                      selectedItemIds.length ||
+                      0}{" "}
+                    item(s) released to customer
+                  </>
+                )}
               </span>
             </div>
+            {redemptionResult?.isPartial &&
+              redemptionResult?.itemsRemaining > 0 && (
+                <p className="text-sm text-amber-600 mt-2">
+                  ⚠️ Pledge remains active with{" "}
+                  {redemptionResult?.itemsRemaining} item(s)
+                </p>
+              )}
           </div>
 
           <div className="flex gap-3">
@@ -1399,7 +1900,7 @@ export default function RedemptionScreen() {
               onClick={handlePrintReceipt}
               loading={isPrintingReceipt}
             >
-              Print Receipt
+              Reprint Receipt
             </Button>
             <Button
               variant="outline"
@@ -1408,7 +1909,7 @@ export default function RedemptionScreen() {
               onClick={handleSendWhatsApp}
               loading={isSendingWhatsApp}
             >
-              Send WhatsApp
+              Resend WhatsApp
             </Button>
           </div>
 

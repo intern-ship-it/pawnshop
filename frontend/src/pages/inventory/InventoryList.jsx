@@ -1,5 +1,6 @@
 /**
  * Inventory List - Fully API Integrated
+ * ISSUE 2 FIX: Fixed status filter to use item status (stored/released)
  * NO localStorage - All data from backend API
  * Working Print Labels + Actions
  */
@@ -40,6 +41,7 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  Archive,
 } from "lucide-react";
 
 // Purity labels
@@ -52,21 +54,43 @@ const purityLabels = {
   375: "375 (9K)",
 };
 
-// Status config
-const getStatusConfig = (status) => {
-  switch (status) {
-    case "active":
+/**
+ * ISSUE 2 FIX: Status config based on ITEM status (not pledge status)
+ * Items have their own status: stored, released
+ * This is different from pledge status: active, overdue, redeemed
+ */
+const getItemStatusConfig = (itemStatus) => {
+  switch (itemStatus) {
+    case "stored":
+    case null:
+    case undefined:
       return { label: "In Storage", variant: "success", icon: CheckCircle };
+    case "released":
+      return { label: "Released", variant: "info", icon: Archive };
+    default:
+      return {
+        label: itemStatus || "Unknown",
+        variant: "default",
+        icon: Package,
+      };
+  }
+};
+
+// Get pledge status for additional context
+const getPledgeStatusConfig = (pledgeStatus) => {
+  switch (pledgeStatus) {
+    case "active":
+      return { label: "Active", variant: "success", icon: CheckCircle };
     case "overdue":
       return { label: "Overdue", variant: "error", icon: AlertTriangle };
-    case "expiring":
-      return { label: "Expiring", variant: "warning", icon: Clock };
     case "redeemed":
-      return { label: "Released", variant: "info", icon: Clock };
-    case "defaulted":
-      return { label: "Defaulted", variant: "error", icon: AlertTriangle };
+      return { label: "Redeemed", variant: "secondary", icon: Archive };
     default:
-      return { label: status || "Unknown", variant: "default", icon: Package };
+      return {
+        label: pledgeStatus || "Unknown",
+        variant: "default",
+        icon: Package,
+      };
   }
 };
 
@@ -84,6 +108,12 @@ export default function InventoryList() {
 
   // Filter State
   const [searchQuery, setSearchQuery] = useState("");
+  /**
+   * ISSUE 2 FIX: Status filter now uses ITEM status values
+   * - "all" = show all items
+   * - "in_storage" = items with status='stored' or null
+   * - "released" = items with status='released'
+   */
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [purityFilter, setPurityFilter] = useState("all");
@@ -117,13 +147,17 @@ export default function InventoryList() {
     fetchInventory();
   }, [statusFilter]);
 
-  // Fetch inventory items from API
+  /**
+   * ISSUE 2 FIX: Fetch inventory with correct status parameter
+   */
   const fetchInventory = async () => {
     setIsLoading(true);
     try {
       const params = { per_page: 500 };
+
+      // ISSUE 2 FIX: Send correct status values to backend
       if (statusFilter !== "all") {
-        params.status = statusFilter;
+        params.status = statusFilter; // "in_storage" or "released"
       }
 
       const response = await inventoryService.getAll(params);
@@ -205,7 +239,7 @@ export default function InventoryList() {
   const formatLocation = (item) => {
     // API returns vault, box, slot as separate objects (not nested)
     if (item.vault && item.box && item.slot) {
-      return `${item.vault.name} → ${item.box.name} → Slot ${item.slot.slot_number}`;
+      return `${item.vault.name || item.vault.code} → Box ${item.box.box_number || item.box.name} → Slot ${item.slot.slot_number}`;
     }
     // Fallback: check for nested structure (in case some APIs return it nested)
     if (item.slot?.box?.vault) {
@@ -251,7 +285,7 @@ export default function InventoryList() {
     return Array.from(locs);
   }, [inventoryItems]);
 
-  // Filter items client-side
+  // Filter items client-side (for additional filters beyond status)
   const filteredItems = useMemo(() => {
     return inventoryItems.filter((item) => {
       // Search
@@ -294,29 +328,46 @@ export default function InventoryList() {
     locationFilter,
   ]);
 
-  // Calculate stats
+  /**
+   * ISSUE 2 FIX: Calculate stats using ITEM status (not pledge status)
+   */
   const stats = useMemo(
     () => ({
       total: inventorySummary.total_items || inventoryItems.length,
+      // ISSUE 2 FIX: Use item status for "In Storage" count
       inStorage:
-        inventorySummary.active_count ||
-        inventoryItems.filter((i) => i.pledge?.status === "active").length,
+        inventorySummary.in_storage ??
+        inventoryItems.filter(
+          (i) =>
+            i.status === "stored" ||
+            i.status === null ||
+            i.status === undefined,
+        ).length,
+      // ISSUE 2 FIX: Use item status for "Released" count
+      released:
+        inventorySummary.released ??
+        inventoryItems.filter((i) => i.status === "released").length,
+      // Overdue count (from pledge status)
       overdue:
-        inventorySummary.overdue_count ||
+        inventorySummary.overdue_count ??
         inventoryItems.filter((i) => i.pledge?.status === "overdue").length,
       totalWeight:
         inventorySummary.total_weight ||
-        inventoryItems.reduce((sum, i) => sum + (parseFloat(i.weight) || 0), 0),
+        inventoryItems.reduce(
+          (sum, i) => sum + (parseFloat(i.net_weight || i.weight) || 0),
+          0,
+        ),
       totalValue:
         inventorySummary.total_value ||
         inventoryItems.reduce(
-          (sum, i) => sum + (parseFloat(i.estimated_value) || 0),
+          (sum, i) => sum + (parseFloat(i.net_value || i.estimated_value) || 0),
           0,
         ),
-      noLocation: inventoryItems.filter(
-        (i) =>
-          !i.slot_id && !i.storage_location && i.pledge?.status !== "redeemed",
-      ).length,
+      noLocation:
+        inventorySummary.unassigned ??
+        inventoryItems.filter(
+          (i) => !i.slot_id && !i.storage_location && i.status !== "released",
+        ).length,
     }),
     [inventorySummary, inventoryItems],
   );
@@ -345,6 +396,7 @@ export default function InventoryList() {
     setPurityFilter("all");
     setLocationFilter("all");
     setSearchQuery("");
+    setStatusFilter("all");
     setCurrentPage(1);
     fetchInventory();
   };
@@ -428,16 +480,8 @@ export default function InventoryList() {
         <div class="labels-container">
           ${selectedData
             .map((item, index) => {
-              const catName =
-                item.category?.name_en ||
-                item.category?.name ||
-                item.category?.code ||
-                (typeof item.category === "string" ? item.category : "Gold");
-              const purName =
-                item.purity?.name_en ||
-                item.purity?.name ||
-                item.purity?.code ||
-                (typeof item.purity === "string" ? item.purity : "916");
+              const catName = getCategoryName(item.category);
+              const purName = getPurityName(item.purity);
               const barcodeValue = (item.barcode || "NOCODE")
                 .replace(/[^A-Z0-9]/gi, "")
                 .substring(0, 20);
@@ -453,7 +497,7 @@ export default function InventoryList() {
                 item.barcode || "N/A"
               }</div>
               <div class="label-footer">
-                <span>${item.weight || 0}g | ${purName}</span>
+                <span>${item.net_weight || item.weight || 0}g | ${purName}</span>
                 <span>${(item.pledge?.customer?.name || "Customer").substring(
                   0,
                   15,
@@ -594,16 +638,8 @@ export default function InventoryList() {
         <div class="stickers-container">
           ${selectedData
             .map((item, index) => {
-              const catName =
-                item.category?.name_en ||
-                item.category?.name ||
-                item.category?.code ||
-                (typeof item.category === "string" ? item.category : "Gold");
-              const purName =
-                item.purity?.name_en ||
-                item.purity?.name ||
-                item.purity?.code ||
-                (typeof item.purity === "string" ? item.purity : "916");
+              const catName = getCategoryName(item.category);
+              const purName = getPurityName(item.purity);
               return `
             <div class="sticker">
               <div class="sticker-header">${
@@ -626,12 +662,12 @@ export default function InventoryList() {
                 </div>
                 <div class="sticker-row">
                   <span class="sticker-label">Weight:</span>
-                  <span class="sticker-value">${item.weight || 0}g</span>
+                  <span class="sticker-value">${item.net_weight || item.weight || 0}g</span>
                 </div>
                 <div class="sticker-row">
                   <span class="sticker-label">Value:</span>
                   <span class="sticker-value">RM ${parseFloat(
-                    item.estimated_value || 0,
+                    item.net_value || item.estimated_value || 0,
                   ).toLocaleString()}</span>
                 </div>
               </div>
@@ -738,7 +774,7 @@ export default function InventoryList() {
           </div>
           <div class="barcode-text">${item.barcode || "N/A"}</div>
           <div class="label-footer">
-            <span>${item.weight || 0}g | ${purName}</span>
+            <span>${item.net_weight || item.weight || 0}g | ${purName}</span>
             <span>${(item.pledge?.customer?.name || "Customer").substring(
               0,
               15,
@@ -829,10 +865,11 @@ export default function InventoryList() {
       Customer: item.pledge?.customer?.name || "",
       Category: getCategoryName(item.category),
       Purity: getPurityName(item.purity),
-      "Weight (g)": item.weight || 0,
-      "Value (RM)": item.estimated_value || 0,
+      "Weight (g)": item.net_weight || item.weight || 0,
+      "Value (RM)": item.net_value || item.estimated_value || 0,
       Location: formatLocation(item) || "Unassigned",
-      Status: item.pledge?.status || "",
+      "Item Status": item.status || "stored",
+      "Pledge Status": item.pledge?.status || "",
       "Due Date": item.pledge?.due_date || "",
     }));
 
@@ -902,7 +939,7 @@ export default function InventoryList() {
         </div>
       }
     >
-      {/* Stats Cards */}
+      {/* ISSUE 2 FIX: Stats Cards now show correct counts */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <Card className="p-4">
           <div className="flex items-center gap-3">
@@ -916,7 +953,18 @@ export default function InventoryList() {
           </div>
         </Card>
 
-        <Card className="p-4">
+        {/* ISSUE 2 FIX: In Storage count - uses item status */}
+        <Card
+          className={cn(
+            "p-4 cursor-pointer transition-all hover:shadow-md",
+            statusFilter === "in_storage" && "ring-2 ring-emerald-500",
+          )}
+          onClick={() =>
+            setStatusFilter(
+              statusFilter === "in_storage" ? "all" : "in_storage",
+            )
+          }
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
               <CheckCircle className="w-5 h-5 text-emerald-600" />
@@ -930,14 +978,25 @@ export default function InventoryList() {
           </div>
         </Card>
 
-        <Card className="p-4">
+        {/* ISSUE 2 FIX: Released count - uses item status */}
+        <Card
+          className={cn(
+            "p-4 cursor-pointer transition-all hover:shadow-md",
+            statusFilter === "released" && "ring-2 ring-blue-500",
+          )}
+          onClick={() =>
+            setStatusFilter(statusFilter === "released" ? "all" : "released")
+          }
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+              <Archive className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Overdue</p>
-              <p className="text-xl font-bold text-red-600">{stats.overdue}</p>
+              <p className="text-xs text-zinc-500">Released</p>
+              <p className="text-xl font-bold text-blue-600">
+                {stats.released}
+              </p>
             </div>
           </div>
         </Card>
@@ -999,17 +1058,16 @@ export default function InventoryList() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* ISSUE 2 FIX: Status filter now uses correct item status values */}
             <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               options={[
                 { value: "all", label: "All Status" },
-                { value: "active", label: "In Storage" },
-                { value: "overdue", label: "Overdue" },
-                { value: "expiring", label: "Expiring" },
-                { value: "redeemed", label: "Released" },
+                { value: "in_storage", label: "In Storage" },
+                { value: "released", label: "Released" },
               ]}
-              className="w-32"
+              className="w-36"
             />
 
             <Button
@@ -1279,8 +1337,9 @@ export default function InventoryList() {
                       </tr>
                     ) : (
                       paginatedItems.map((item) => {
-                        const status = getStatusConfig(item.pledge?.status);
-                        const StatusIcon = status.icon;
+                        // ISSUE 2 FIX: Use ITEM status for display
+                        const itemStatus = getItemStatusConfig(item.status);
+                        const ItemStatusIcon = itemStatus.icon;
                         const isSelected = selectedItems.includes(item.id);
                         const location = formatLocation(item);
 
@@ -1349,7 +1408,7 @@ export default function InventoryList() {
                             </td>
                             <td className="p-4">
                               <span className="font-medium">
-                                {item.weight}g
+                                {item.net_weight || item.weight}g
                               </span>
                             </td>
                             <td className="p-4">
@@ -1373,9 +1432,10 @@ export default function InventoryList() {
                               )}
                             </td>
                             <td className="p-4">
-                              <Badge variant={status.variant}>
-                                <StatusIcon className="w-3 h-3 mr-1" />
-                                {status.label}
+                              {/* ISSUE 2 FIX: Show ITEM status badge */}
+                              <Badge variant={itemStatus.variant}>
+                                <ItemStatusIcon className="w-3 h-3 mr-1" />
+                                {itemStatus.label}
                               </Badge>
                             </td>
                             <td className="p-4">
@@ -1402,7 +1462,8 @@ export default function InventoryList() {
                                 >
                                   <Printer className="w-4 h-4" />
                                 </Button>
-                                {item.pledge?.status !== "redeemed" && (
+                                {/* Only show location button for stored items */}
+                                {item.status !== "released" && (
                                   <Button
                                     variant="ghost"
                                     size="icon-sm"
@@ -1571,7 +1632,8 @@ export default function InventoryList() {
                 </div>
               ) : (
                 paginatedItems.map((item) => {
-                  const status = getStatusConfig(item.pledge?.status);
+                  // ISSUE 2 FIX: Use ITEM status for display
+                  const itemStatus = getItemStatusConfig(item.status);
                   const isSelected = selectedItems.includes(item.id);
                   const location = formatLocation(item);
 
@@ -1595,8 +1657,9 @@ export default function InventoryList() {
                               <Square className="w-5 h-5 text-zinc-400" />
                             )}
                           </button>
-                          <Badge variant={status.variant} size="sm">
-                            {status.label}
+                          {/* ISSUE 2 FIX: Show ITEM status badge */}
+                          <Badge variant={itemStatus.variant} size="sm">
+                            {itemStatus.label}
                           </Badge>
                         </div>
 
@@ -1612,7 +1675,9 @@ export default function InventoryList() {
                             {purityLabels[getPurityName(item.purity)] ||
                               getPurityName(item.purity)}
                           </p>
-                          <p className="text-sm font-medium">{item.weight}g</p>
+                          <p className="text-sm font-medium">
+                            {item.net_weight || item.weight}g
+                          </p>
                         </div>
 
                         <div className="mt-3 pt-3 border-t border-zinc-200">

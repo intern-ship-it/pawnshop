@@ -22,6 +22,11 @@ class CheckPermission
             ], 401);
         }
 
+        // Ensure role is loaded
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
         // Super admin has all permissions
         if ($user->isSuperAdmin()) {
             return $next($request);

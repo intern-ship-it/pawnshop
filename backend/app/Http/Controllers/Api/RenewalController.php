@@ -93,19 +93,85 @@ class RenewalController extends Controller
 
     /**
      * Get pledges due for renewal
+     * Supports: date_from, date_to, search (IC/pledge_no/receipt_no)
+     * 
+     * FIXES:
+     * - Issue 1: IC search now returns all active pledges for that customer
+     * - Issue 2: Date filters (date_from/date_to) now work properly
+     * - Issue 4: Items include vault/box/slot location data
      */
     public function dueList(Request $request): JsonResponse
     {
         $branchId = $request->user()->branch_id;
-        $today = Carbon::today();
-        $days = $request->get('days', 7);
 
-        $pledges = Pledge::where('branch_id', $branchId)
-            ->where('status', 'active')
-            ->whereBetween('due_date', [$today, $today->copy()->addDays($days)])
-            ->with(['customer:id,name,ic_number,phone', 'items:id,pledge_id,category_id,net_weight'])
-            ->orderBy('due_date')
+        $query = Pledge::where('branch_id', $branchId)
+            ->whereIn('status', ['active', 'overdue']) // Include overdue pledges too
+            ->with([
+                'customer:id,name,ic_number,phone',
+                'items:id,pledge_id,category_id,purity_id,net_weight,net_value,vault_id,box_id,slot_id,description,barcode',
+                'items.category:id,name_en,name_ms',
+                'items.purity:id,code,name',
+                'items.vault:id,code,name',
+                'items.box:id,vault_id,box_number,name',
+                'items.slot:id,box_id,slot_number'
+            ]);
+
+        // Date range filter - use date_from/date_to if provided (Issue 2 fix)
+        if ($dateFrom = $request->get('date_from')) {
+            $query->whereDate('due_date', '>=', $dateFrom);
+        }
+        if ($dateTo = $request->get('date_to')) {
+            $query->whereDate('due_date', '<=', $dateTo);
+        }
+
+        // Fallback to 'days' parameter if no date range provided
+        if (!$request->get('date_from') && !$request->get('date_to')) {
+            $days = $request->get('days', 7);
+            $today = Carbon::today();
+            $query->whereBetween('due_date', [$today, $today->copy()->addDays($days)]);
+        }
+
+        // Search by IC number, pledge_no, or receipt_no (Issue 1 fix)
+        if ($search = $request->get('search')) {
+            $searchTerm = trim($search);
+            $searchNormalized = strtoupper(str_replace('-', '', $searchTerm));
+            $cleanIC = preg_replace('/[-\s]/', '', $searchTerm);
+
+            $query->where(function ($q) use ($searchTerm, $searchNormalized, $cleanIC) {
+                // Match pledge_no or receipt_no (with or without hyphens)
+                $q->where('pledge_no', 'like', "%{$searchTerm}%")
+                    ->orWhere('receipt_no', 'like', "%{$searchTerm}%")
+                    ->orWhereRaw("REPLACE(pledge_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
+                    ->orWhereRaw("REPLACE(receipt_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
+                    // Match customer IC number
+                    ->orWhereHas('customer', function ($cq) use ($searchTerm, $cleanIC) {
+                        $cq->where('ic_number', 'like', "%{$searchTerm}%")
+                            ->orWhereRaw("REPLACE(REPLACE(ic_number, '-', ''), ' ', '') LIKE ?", ["%{$cleanIC}%"])
+                            ->orWhere('name', 'like', "%{$searchTerm}%");
+                    });
+            });
+        }
+
+        $pledges = $query->orderBy('due_date')
             ->get();
+
+        // Add location_string to each item for easier frontend display (Issue 4 fix)
+        $pledges->each(function ($pledge) {
+            $pledge->items->each(function ($item) {
+                if ($item->vault_id && $item->vault) {
+                    $location = $item->vault->code ?? $item->vault->name ?? 'Vault';
+                    if ($item->box) {
+                        $location .= ' / Box ' . ($item->box->box_number ?? $item->box->name ?? $item->box_id);
+                    }
+                    if ($item->slot) {
+                        $location .= ' / Slot ' . ($item->slot->slot_number ?? $item->slot_id);
+                    }
+                    $item->location_string = $location;
+                } else {
+                    $item->location_string = null;
+                }
+            });
+        });
 
         return $this->success($pledges);
     }

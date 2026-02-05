@@ -77,9 +77,6 @@ class CustomerController extends Controller
     /**
      * Create new customer
      */
-    /**
-     * Create new customer
-     */
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -209,9 +206,6 @@ class CustomerController extends Controller
     /**
      * Update customer
      */
-    /**
-     * Update customer
-     */
     public function update(Request $request, Customer $customer): JsonResponse
     {
         // Check branch access
@@ -336,6 +330,7 @@ class CustomerController extends Controller
 
     /**
      * Get customer active pledges
+     * Issue 1 FIX: Include both 'active' and 'overdue' pledges
      */
     public function activePledges(Request $request, Customer $customer): JsonResponse
     {
@@ -344,7 +339,7 @@ class CustomerController extends Controller
         }
 
         $pledges = $customer->pledges()
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'overdue']) // FIX: Include overdue
             ->with(['items.category', 'items.purity'])
             ->orderBy('due_date')
             ->get();
@@ -355,6 +350,7 @@ class CustomerController extends Controller
 
     /**
      * Get customer statistics
+     * Issue 1 FIX: Count both 'active' and 'overdue' as active pledges
      */
     public function statistics(Request $request, Customer $customer): JsonResponse
     {
@@ -362,13 +358,19 @@ class CustomerController extends Controller
             return $this->error('Unauthorized', 403);
         }
 
+        // FIX: Count both active and overdue pledges as "active"
+        $activePledgeCount = $customer->pledges()->whereIn('status', ['active', 'overdue'])->count();
+        $activeLoanAmount = $customer->pledges()->whereIn('status', ['active', 'overdue'])->sum('loan_amount');
+
         $stats = [
             'total_pledges' => $customer->total_pledges ?? $customer->pledges()->count(),
-            'active_pledges' => $customer->active_pledges ?? $customer->pledges()->where('status', 'active')->count(),
-            'total_loan_amount' => $customer->total_loan_amount ?? $customer->pledges()->where('status', 'active')->sum('loan_amount'),
+            'active_pledges' => $activePledgeCount,
+            'total_loan_amount' => $activeLoanAmount,
             'total_renewals' => $customer->pledges()->withCount('renewals')->get()->sum('renewals_count'),
             'total_redemptions' => $customer->pledges()->where('status', 'redeemed')->count(),
             'overdue_pledges' => $customer->pledges()->where('status', 'overdue')->count(),
+            // Add is_active for frontend convenience
+            'is_active' => $activePledgeCount > 0,
         ];
 
         return $this->success($stats);

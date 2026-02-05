@@ -41,6 +41,7 @@ export default function PrintTestPage() {
   const [copyType, setCopyType] = useState("customer");
   const [testResults, setTestResults] = useState([]);
   const [showTerms, setShowTerms] = useState(false);
+  const [bulkTermsCount, setBulkTermsCount] = useState(10);
 
   useEffect(() => {
     fetchPledges();
@@ -93,7 +94,11 @@ export default function PrintTestPage() {
   };
 
   // Test Dot Matrix Print - HANDLES BOTH HTML AND TEXT
-  const testDotMatrixPrint = async (copy = copyType, openWindow = true) => {
+  const testDotMatrixPrint = async (
+    copy = copyType,
+    openWindow = true,
+    mode = "wizard",
+  ) => {
     if (!selectedPledge) {
       dispatch(
         addToast({
@@ -157,11 +162,19 @@ export default function PrintTestPage() {
 
       if (openWindow && receiptContent) {
         if (isHtml) {
-          openStyledPrintWindow(
-            receiptContent,
-            termsContent,
-            selectedPledge.pledge_no,
-          );
+          if (mode === "standard") {
+            openStandardPrintWindow(
+              receiptContent,
+              termsContent,
+              selectedPledge.pledge_no,
+            );
+          } else {
+            openStyledPrintWindow(
+              receiptContent,
+              termsContent,
+              selectedPledge.pledge_no,
+            );
+          }
         } else {
           openPlainTextPrintWindow(
             receiptContent,
@@ -194,9 +207,9 @@ export default function PrintTestPage() {
     }
   };
 
-  // Open STYLED HTML print window
-  const openStyledPrintWindow = (receiptHtml, termsHtml, pledgeNo) => {
-    const printWindow = window.open("", "_blank", "width=950,height=750");
+  // Open STANDARD HTML print window (Old/Direct Print behavior)
+  const openStandardPrintWindow = (receiptHtml, termsHtml, pledgeNo) => {
+    const printWindow = window.open("", "_blank", "width=950,height=800");
     if (!printWindow) {
       dispatch(
         addToast({
@@ -212,71 +225,201 @@ export default function PrintTestPage() {
       <!DOCTYPE html>
       <html>
       <head>
+        <title>Receipt - ${pledgeNo}</title>
+        <style>
+          @page { size: A5 landscape; margin: 3mm; }
+          @media print {
+            .no-print { display: none !important; }
+            .page-break { page-break-after: always; break-after: page; }
+          }
+          body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+          .no-print { padding: 20px; text-align: center; background: #f0f0f0; border-bottom: 1px solid #ccc; }
+          .print-btn { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="no-print">
+          <button class="print-btn" onclick="window.print()">🖨️ Print All Pages</button>
+        </div>
+        <div class="page-break">${receiptHtml}</div>
+        <div>${termsHtml}</div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
+  // Open STYLED HTML print window - FRONT PAGE ONLY (Terms are pre-printed)
+  const openStyledPrintWindow = (receiptHtml, termsHtml, pledgeNo) => {
+    const printWindow = window.open("", "_blank", "width=950,height=800");
+    if (!printWindow) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Popup Blocked",
+          message: "Please allow popups",
+        }),
+      );
+      return;
+    }
+
+    const copyLabel =
+      copyType === "office" ? "SALINAN PEJABAT" : "SALINAN PELANGGAN";
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
         <meta charset="UTF-8">
         <title>Resit Pajak Gadai - ${pledgeNo}</title>
         <style>
-          @page { size: A5 landscape; margin: 5mm; }
+          @page { size: A5 landscape; margin: 3mm; }
           @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .print-controls { display: none !important; }
-            .page-break { page-break-before: always; }
-            .preview-container { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+            .preview-container.hidden-for-print { display: none !important; }
             .page-label { display: none !important; }
           }
           
-          body { margin: 0; padding: 0; background: #e5e7eb; font-family: Arial, sans-serif; }
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 0; background: #1f2937; font-family: Arial, sans-serif; min-height: 100vh; }
           
           .print-controls {
-            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
-            padding: 15px 20px; text-align: center; position: sticky; top: 0; z-index: 100;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            padding: 20px; 
+            margin: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-align: center;
           }
+          .print-controls h2 { color: white; margin: 0 0 10px 0; font-size: 16px; }
+          .print-controls p { color: rgba(255,255,255,0.7); margin: 5px 0; font-size: 12px; }
+          
+          .btn-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
           .print-btn {
-            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-            color: white; border: none; padding: 12px 25px; font-size: 14px;
-            cursor: pointer; border-radius: 8px; font-weight: bold; margin: 0 5px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff; border: none; padding: 14px 30px; font-size: 15px;
+            cursor: pointer; border-radius: 8px; font-weight: bold;
+            display: flex; align-items: center; gap: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
           }
-          .print-btn:hover { transform: translateY(-1px); }
-          .print-btn.green { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+          .print-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+          .print-btn.secondary {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+          }
           .close-btn {
-            background: #6b7280; color: white; border: none; padding: 12px 20px;
-            font-size: 14px; cursor: pointer; border-radius: 8px; margin-left: 10px;
+            background: #6b7280; color: white; border: none; padding: 14px 20px;
+            font-size: 14px; cursor: pointer; border-radius: 8px;
           }
-          .printer-note { font-size: 12px; color: #9ca3af; margin-top: 10px; }
+          
+          .info-note {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-top: 12px;
+            color: #a7f3d0;
+            font-size: 12px;
+          }
+          
+          .printer-note { font-size: 11px; color: #9ca3af; margin-top: 12px; text-align: center; }
+          .printer-note strong { color: #fbbf24; }
           
           .preview-container {
-            max-width: 210mm; margin: 20px auto; background: white;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden;
+            max-width: 210mm; margin: 15px auto; background: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden;
           }
+          .preview-container.hidden-for-print { display: none; }
           .page-label {
-            background: linear-gradient(135deg, #1a4a7a 0%, #2563eb 100%);
-            color: white; padding: 8px 15px; font-size: 12px; font-weight: bold;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white; padding: 10px 15px; font-size: 12px; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
           }
-          .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%); }
+          .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); }
+          .page-label .badge { background: rgba(255,255,255,0.2); padding: 3px 10px; border-radius: 10px; font-size: 10px; }
         </style>
       </head>
       <body>
         <div class="print-controls">
-          <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
-          <button class="print-btn green" onclick="window.print()">📄 Print Both Pages</button>
-          <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
-          <p class="printer-note">Pilih printer: <strong>Any Printer</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
+          <h2>📄 Cetak Resit DEPAN Sahaja / Print FRONT Only</h2>
+          <p>Kertas dengan Terma & Syarat sudah dicetak sebelum ini</p>
+          <p>Paper with Terms & Conditions already pre-printed</p>
+          
+          <div class="btn-row">
+            <button class="print-btn" onclick="printFront()">
+              🖨️ Cetak DEPAN / Print FRONT
+            </button>
+            ${
+              termsHtml
+                ? `
+            <button class="print-btn secondary" onclick="toggleTerms()">
+              📋 Tunjuk Terma / Show Terms
+            </button>
+            `
+                : ""
+            }
+            <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
+          </div>
+          
+          <div class="info-note">
+            💡 <strong>Tip:</strong> Gunakan kertas yang sudah dicetak Terma & Syarat di belakang.
+            <br>Use paper already printed with Terms & Conditions on the back.
+          </div>
+          
+          <p class="printer-note">
+            Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>A5 Landscape</strong> | Salinan: <strong>${copyLabel}</strong>
+          </p>
         </div>
         
-        <div class="preview-container">
-          <div class="page-label">📄 HALAMAN 1: RESIT / PAGE 1: RECEIPT</div>
+        <div class="preview-container" id="frontPage">
+          <div class="page-label">
+            <span>📄 HALAMAN DEPAN / FRONT - RESIT PAJAK GADAI</span>
+            <span class="badge">${copyLabel}</span>
+          </div>
           ${receiptHtml}
         </div>
         
         ${
           termsHtml
             ? `
-        <div class="preview-container page-break" style="margin-top: 20px;">
-          <div class="page-label terms">📋 HALAMAN 2: TERMA & SYARAT / PAGE 2: TERMS</div>
+        <div class="preview-container hidden-for-print" id="backPage">
+          <div class="page-label terms">
+            <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT (Tersembunyi / Hidden)</span>
+            <span class="badge">${copyLabel}</span>
+          </div>
           ${termsHtml}
         </div>
         `
             : ""
         }
+        
+        <script>
+          function printFront() {
+            document.getElementById('frontPage').classList.remove('hidden-for-print');
+            if (document.getElementById('backPage')) {
+              document.getElementById('backPage').classList.add('hidden-for-print');
+            }
+            window.print();
+          }
+          
+          function toggleTerms() {
+            const backPage = document.getElementById('backPage');
+            if (backPage) {
+              backPage.classList.toggle('hidden-for-print');
+              const btn = event.target;
+              if (backPage.classList.contains('hidden-for-print')) {
+                btn.textContent = '📋 Tunjuk Terma / Show Terms';
+              } else {
+                btn.textContent = '📋 Sembunyi Terma / Hide Terms';
+              }
+            }
+          }
+          
+          window.onload = function() { 
+            document.querySelector('.print-btn').focus(); 
+          };
+        </script>
       </body>
       </html>
     `);
@@ -643,6 +786,169 @@ export default function PrintTestPage() {
     printWindow.focus();
   };
 
+  // Print bulk Terms & Conditions pages
+  const printBulkTerms = async () => {
+    setPrinting(true);
+    setPreviewType("Bulk Terms Pages");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+      const response = await fetch(`${apiUrl}/print/dot-matrix/bulk-terms`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ count: bulkTermsCount }),
+      });
+
+      const data = await response.json();
+      const duration = Date.now() - startTime;
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate terms pages");
+      }
+
+      const termsContent = data.data?.terms_html || "";
+      const count = data.data?.count || bulkTermsCount;
+
+      logResult("Bulk Terms", true, `${count} page(s)`, duration);
+
+      // Open print window with bulk terms
+      openBulkTermsPrintWindow(termsContent, count);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `${count} terms pages ready to print (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Bulk Terms", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Open bulk terms print window
+  const openBulkTermsPrintWindow = (termsHtml, count) => {
+    const printWindow = window.open("", "_blank", "width=950,height=800");
+    if (!printWindow) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Popup Blocked",
+          message: "Please allow popups",
+        }),
+      );
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Bulk Terms & Conditions - ${count} Pages</title>
+        <style>
+          @page { size: A5 landscape; margin: 2mm; }
+          @media print {
+            body { margin: 0; padding: 0; }
+            .print-controls, .preview-label { display: none !important; }
+            .preview-container { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; background: transparent !important; }
+          }
+          
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 0; background: #1f2937; font-family: Arial, sans-serif; }
+          
+          .print-controls {
+            background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+            padding: 20px; 
+            margin: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-align: center;
+          }
+          .print-controls h2 { color: white; margin: 0 0 10px 0; font-size: 18px; }
+          .print-controls p { color: rgba(255,255,255,0.8); margin: 5px 0; font-size: 13px; }
+          
+          .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; }
+          .print-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff; border: none; padding: 14px 30px; font-size: 15px;
+            cursor: pointer; border-radius: 8px; font-weight: bold;
+            display: flex; align-items: center; gap: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+          }
+          .print-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+          .close-btn {
+            background: #6b7280; color: white; border: none; padding: 14px 20px;
+            font-size: 14px; cursor: pointer; border-radius: 8px;
+          }
+          
+          .info-box {
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 15px;
+          }
+          .info-box p { color: #fde68a; margin: 3px 0; font-size: 12px; }
+          .info-box strong { color: #fbbf24; }
+          
+          .preview-container {
+            max-width: 210mm; margin: 15px auto; background: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden;
+          }
+          .preview-label {
+            background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+            color: white; padding: 10px 15px; font-size: 12px; font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-controls">
+          <h2>📋 Bulk Terms & Conditions</h2>
+          <p>${count} pages ready to print</p>
+          <p>Pre-print these pages, then use them as receipt paper (front side only)</p>
+          
+          <div class="btn-row">
+            <button class="print-btn" onclick="window.print()">
+              🖨️ Print All ${count} Pages
+            </button>
+            <button class="close-btn" onclick="window.close()">✕ Close</button>
+          </div>
+          
+          <div class="info-box">
+            <p>📌 <strong>Workflow:</strong></p>
+            <p>1. Print these ${count} Terms & Conditions pages</p>
+            <p>2. Use as pre-printed paper stock</p>
+            <p>3. When creating pledges, print only the FRONT (receipt) page</p>
+            <p>4. No flipping required - saves time!</p>
+          </div>
+        </div>
+        
+        <div class="preview-container">
+          <div class="preview-label">📋 PREVIEW - ${count} TERMA & SYARAT PAGES</div>
+          ${termsHtml}
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
   const filteredPledges = pledges.filter((p) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -845,25 +1151,42 @@ export default function PrintTestPage() {
                   </div>
                   <Badge variant="info">HTML</Badge>
                 </div>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {/* New Manual Duplex Print */}
                   <Button
                     variant="primary"
                     size="sm"
                     leftIcon={Printer}
-                    onClick={() => testDotMatrixPrint(copyType)}
+                    onClick={() => testDotMatrixPrint(copyType, true, "wizard")}
                     loading={printing && previewType.includes("Receipt")}
                     disabled={!selectedPledge || printing}
-                    fullWidth
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-blue-600 hover:bg-blue-700 col-span-2"
                   >
-                    Print
+                    Print (Manual Duplex)
                   </Button>
+
+                  {/* Old Standard Print */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={Printer}
+                    onClick={() =>
+                      testDotMatrixPrint(copyType, true, "standard")
+                    }
+                    disabled={!selectedPledge || printing}
+                    className="col-span-1"
+                  >
+                    Old Print
+                  </Button>
+
+                  {/* Preview */}
                   <Button
                     variant="outline"
                     size="sm"
                     leftIcon={Eye}
                     onClick={() => testDotMatrixPrint(copyType, false)}
                     disabled={!selectedPledge || printing}
+                    className="col-span-1"
                   >
                     Preview
                   </Button>
@@ -942,6 +1265,57 @@ export default function PrintTestPage() {
                 >
                   Print Both
                 </Button>
+              </div>
+
+              {/* Bulk Terms - NEW */}
+              <div className="p-3 bg-violet-50 rounded-lg border border-violet-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-violet-800">
+                      Bulk Print Terms
+                    </p>
+                    <p className="text-xs text-violet-600">
+                      Pre-print back pages
+                    </p>
+                  </div>
+                  <Badge className="bg-violet-500 text-white">Bulk</Badge>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={bulkTermsCount}
+                    onChange={(e) =>
+                      setBulkTermsCount(
+                        Math.min(
+                          50,
+                          Math.max(1, parseInt(e.target.value) || 10),
+                        ),
+                      )
+                    }
+                    className="w-20 text-center"
+                  />
+                  <span className="text-sm text-violet-600 self-center">
+                    pages
+                  </span>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={FileText}
+                  onClick={printBulkTerms}
+                  loading={printing && previewType === "Bulk Terms Pages"}
+                  disabled={printing}
+                  fullWidth
+                  className="bg-violet-600 hover:bg-violet-700"
+                >
+                  Print {bulkTermsCount} Terms Pages
+                </Button>
+                <p className="text-xs text-violet-500 mt-2">
+                  💡 Pre-print terms, then print only front page when creating
+                  pledges
+                </p>
               </div>
             </div>
           </Card>

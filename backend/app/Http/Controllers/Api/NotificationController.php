@@ -195,7 +195,7 @@ class NotificationController extends Controller
                     ? "Last reconciliation was {$daysSinceReconciliation} days ago"
                     : "No stock reconciliation has been performed",
                 'category' => 'reconciliation',
-                'action_url' => '/stock-reconciliation',
+                'action_url' => '/inventory/reconciliation',
                 'is_read' => false,
                 'time_ago' => $lastReconciliation ? "{$daysSinceReconciliation} days ago" : 'never',
                 'is_live' => true,
@@ -212,7 +212,7 @@ class NotificationController extends Controller
                 'title' => 'Day End Complete',
                 'message' => 'Daily reconciliation completed successfully',
                 'category' => 'reconciliation',
-                'action_url' => '/day-end',
+                'action_url' => '/reports/day-end',
                 'is_read' => false,
                 'time_ago' => $todayDayEnd->created_at->diffForHumans(),
                 'is_live' => true,
@@ -226,7 +226,7 @@ class NotificationController extends Controller
                 'title' => 'Day End Pending',
                 'message' => 'Daily reconciliation not yet completed',
                 'category' => 'reconciliation',
-                'action_url' => '/day-end',
+                'action_url' => '/reports/day-end',
                 'is_read' => false,
                 'time_ago' => 'action required',
                 'is_live' => true,
@@ -259,7 +259,7 @@ class NotificationController extends Controller
                     'title' => 'Storage Capacity Alert',
                     'message' => "{$lowStorageVaults} vault(s) are >80% full",
                     'category' => 'storage',
-                    'action_url' => '/storage',
+                    'action_url' => '/inventory/rack-map',
                     'is_read' => false,
                     'time_ago' => 'check now',
                     'is_live' => true,
@@ -356,7 +356,7 @@ class NotificationController extends Controller
                 'title' => "Today's Activity",
                 'message' => implode(', ', $activityParts),
                 'category' => 'activity',
-                'action_url' => '/dashboard',
+                'action_url' => '/',
                 'is_read' => false,
                 'time_ago' => 'today',
                 'is_live' => true,
@@ -443,20 +443,19 @@ class NotificationController extends Controller
         // Limit total
         $allNotifications = array_slice($allNotifications, 0, $limit);
 
-        // Count unread
+        // Count unread - ONLY stored notifications (live cannot be marked as read)
         $storedUnread = Notification::forUser($user->id)
             ->forBranch($user->branch_id)
             ->unread()
             ->recent(30)
             ->count();
 
-        $totalUnread = $storedUnread + count($liveNotifications);
-
         return response()->json([
             'success' => true,
             'data' => [
                 'notifications' => $allNotifications,
-                'unread_count' => $totalUnread,
+                'unread_count' => $storedUnread, // Only stored, not live
+                'live_count' => count($liveNotifications), // Separate live count
             ]
         ]);
     }

@@ -14,6 +14,8 @@ class InventoryController extends Controller
 {
     /**
      * List all inventory items
+     * 
+     * ISSUE 2 FIX: Support both item_status and pledge_status filters
      */
     public function index(Request $request): JsonResponse
     {
@@ -24,12 +26,40 @@ class InventoryController extends Controller
         })
             ->with(['pledge.customer:id,name,ic_number', 'category', 'purity', 'vault', 'box', 'slot']);
 
-        // Filter by status
+        // ISSUE 2 FIX: Filter by item status (stored/released)
         if ($status = $request->get('status')) {
-            $query->where('status', $status);
+            if ($status === 'all') {
+                // No filter - show all items
+            } elseif ($status === 'in_storage' || $status === 'stored') {
+                // In Storage = item status is 'stored' (or null for legacy data)
+                $query->where(function ($q) {
+                    $q->where('status', 'stored')
+                        ->orWhereNull('status');
+                });
+            } elseif ($status === 'released' || $status === 'redeemed') {
+                // Released = item has been released/redeemed
+                $query->where('status', 'released');
+            } else {
+                // Direct status match
+                $query->where('status', $status);
+            }
         } else {
-            // Default: only stored items
-            $query->where('status', 'stored');
+            // Default: only stored items (items still in storage)
+            $query->where(function ($q) {
+                $q->where('status', 'stored')
+                    ->orWhereNull('status');
+            });
+        }
+
+        // ISSUE 2 FIX: Filter by pledge status (active/overdue/redeemed)
+        if ($pledgeStatus = $request->get('pledge_status')) {
+            $query->whereHas('pledge', function ($q) use ($pledgeStatus) {
+                if ($pledgeStatus === 'active') {
+                    $q->whereIn('status', ['active', 'overdue']);
+                } else {
+                    $q->where('status', $pledgeStatus);
+                }
+            });
         }
 
         // Filter by category
@@ -55,6 +85,9 @@ class InventoryController extends Controller
                     ->orWhereHas('pledge', function ($pq) use ($search) {
                         $pq->where('pledge_no', 'like', "%{$search}%")
                             ->orWhere('receipt_no', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('pledge.customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%");
                     });
             });
         }
@@ -109,7 +142,9 @@ class InventoryController extends Controller
         $query = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
             $q->where('branch_id', $branchId);
         })
-            ->where('status', 'stored')
+            ->where(function ($q) {
+                $q->where('status', 'stored')->orWhereNull('status');
+            })
             ->where('vault_id', $validated['vault_id']);
 
         if (isset($validated['box_id'])) {
@@ -160,8 +195,9 @@ class InventoryController extends Controller
             return $this->error('Unauthorized', 403);
         }
 
-        if ($pledgeItem->status !== 'stored') {
-            return $this->error('Can only move stored items', 422);
+        // Only allow location update for stored items
+        if ($pledgeItem->status === 'released') {
+            return $this->error('Cannot move released items', 422);
         }
 
         $validated = $request->validate([
@@ -200,6 +236,7 @@ class InventoryController extends Controller
                 'slot_id' => $validated['slot_id'],
                 'location_assigned_at' => now(),
                 'location_assigned_by' => $userId,
+                'status' => 'stored', // Ensure status is stored
             ]);
 
             // Occupy new slot
@@ -282,9 +319,9 @@ class InventoryController extends Controller
                     continue;
                 }
 
-                // Verify status
-                if ($item->status !== 'stored') {
-                    $errors[] = "Item {$item->barcode}: not stored";
+                // Verify status - only move stored items
+                if ($item->status === 'released') {
+                    $errors[] = "Item {$item->barcode}: already released";
                     continue;
                 }
 
@@ -313,6 +350,7 @@ class InventoryController extends Controller
                     'slot_id' => $itemData['slot_id'],
                     'location_assigned_at' => now(),
                     'location_assigned_by' => $userId,
+                    'status' => 'stored',
                 ]);
 
                 // Occupy new slot
@@ -351,32 +389,79 @@ class InventoryController extends Controller
 
     /**
      * Get inventory summary
+     * 
+     * ISSUE 2 FIX: Return proper counts for all statuses
      */
     public function summary(Request $request): JsonResponse
     {
         $branchId = $request->user()->branch_id;
 
-        $items = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-            $q->where('branch_id', $branchId)->where('status', 'active');
-        })
-            ->where('status', 'stored')
-            ->get();
+        // Get ALL items for this branch (not filtered by pledge status)
+        $allItems = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
+            $q->where('branch_id', $branchId);
+        })->get();
+
+        // Items currently in storage (status = stored or null)
+        $storedItems = $allItems->filter(function ($item) {
+            return $item->status === 'stored' || $item->status === null;
+        });
+
+        // Items that have been released
+        $releasedItems = $allItems->filter(function ($item) {
+            return $item->status === 'released';
+        });
+
+        // Get pledge IDs to check their statuses
+        $pledgeIds = $storedItems->pluck('pledge_id')->unique();
+        $pledges = \App\Models\Pledge::whereIn('id', $pledgeIds)->get()->keyBy('id');
+
+        // Count by pledge status (only for stored items)
+        $activeCount = 0;
+        $overdueCount = 0;
+
+        foreach ($storedItems as $item) {
+            $pledge = $pledges->get($item->pledge_id);
+            if ($pledge) {
+                if ($pledge->status === 'active') {
+                    $activeCount++;
+                } elseif ($pledge->status === 'overdue') {
+                    $overdueCount++;
+                }
+            }
+        }
 
         $summary = [
-            'total_items' => $items->count(),
-            'total_weight' => round($items->sum('net_weight'), 3),
-            'total_value' => round($items->sum('net_value'), 2),
-            'by_category' => $items->groupBy('category_id')->map(fn($g) => [
+            // Total counts
+            'total_items' => $allItems->count(),
+
+            // By ITEM status
+            'in_storage' => $storedItems->count(),
+            'released' => $releasedItems->count(),
+
+            // By PLEDGE status (for stored items only)
+            'active_count' => $activeCount,
+            'overdue_count' => $overdueCount,
+
+            // Weight and value (stored items only)
+            'total_weight' => round($storedItems->sum('net_weight'), 3),
+            'total_value' => round($storedItems->sum('net_value'), 2),
+
+            // By category (stored items only)
+            'by_category' => $storedItems->groupBy('category_id')->map(fn($g) => [
                 'count' => $g->count(),
                 'weight' => round($g->sum('net_weight'), 3),
                 'value' => round($g->sum('net_value'), 2),
             ]),
-            'by_purity' => $items->groupBy('purity_id')->map(fn($g) => [
+
+            // By purity (stored items only)
+            'by_purity' => $storedItems->groupBy('purity_id')->map(fn($g) => [
                 'count' => $g->count(),
                 'weight' => round($g->sum('net_weight'), 3),
                 'value' => round($g->sum('net_value'), 2),
             ]),
-            'unassigned' => $items->whereNull('slot_id')->count(),
+
+            // Items without location assignment
+            'unassigned' => $storedItems->whereNull('slot_id')->count(),
         ];
 
         return $this->success($summary);
