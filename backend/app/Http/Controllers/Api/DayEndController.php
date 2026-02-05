@@ -92,7 +92,15 @@ class DayEndController extends Controller
             ->first();
 
         if (!$report) {
-            return $this->error('Report not found for this date', 404);
+            // No report exists - return calculated stats instead of 404
+            $stats = $this->calculateDayStats($branchId, $date);
+
+            return $this->success([
+                'report' => null,
+                'stats' => $stats,
+                'report_date' => $date,
+                'message' => 'No day-end report exists for this date',
+            ]);
         }
 
         return $this->success($report);
