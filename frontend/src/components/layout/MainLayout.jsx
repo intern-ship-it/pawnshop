@@ -12,6 +12,8 @@ import Sidebar from "./Sidebar";
 import Header from "./Header";
 import Toast from "@/components/common/Toast";
 import { GlobalCameraModal, Breadcrumb } from "@/components/common";
+import UpdateBanner from "@/components/common/UpdateBanner";
+import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { Loader2 } from "lucide-react";
 import { setSettings } from "@/features/ui/uiSlice";
 import settingsService from "@/services/settingsService";
@@ -27,6 +29,10 @@ export default function MainLayout() {
   const { sidebarCollapsed, toasts } = useAppSelector((state) => state.ui);
 
   const [isVerifying, setIsVerifying] = useState(true);
+
+  // Version check for app updates
+  const { updateAvailable, newVersion, applyUpdate, dismissUpdate } =
+    useVersionCheck();
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -90,7 +96,7 @@ export default function MainLayout() {
                 name: companyMap.name || "PawnSys",
                 license: companyMap.registration_no || "",
               },
-            })
+            }),
           );
         }
       } catch (error) {
@@ -126,12 +132,20 @@ export default function MainLayout() {
 
   return (
     <div className="min-h-screen bg-stone-100">
+      {/* Version Update Banner */}
+      <UpdateBanner
+        show={updateAvailable}
+        version={newVersion}
+        onUpdate={applyUpdate}
+        onDismiss={dismissUpdate}
+      />
+
       <Sidebar />
 
       <div
         className={cn(
           "min-h-screen transition-all duration-300",
-          sidebarCollapsed ? "ml-20" : "ml-64"
+          sidebarCollapsed ? "ml-20" : "ml-64",
         )}
       >
         <Header />

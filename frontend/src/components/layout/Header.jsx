@@ -86,9 +86,19 @@ export default function Header() {
     try {
       setNotificationLoading(true);
       const response = await notificationService.getAll(10);
-      if (response.success) {
+      console.log("Notification API response:", response);
+
+      // Handle both wrapped {success, data} and direct {notifications} formats
+      if (response.success && response.data) {
+        // Wrapped format: { success: true, data: { notifications: [...] } }
         setNotifications(response.data.notifications || []);
         setUnreadCount(response.data.unread_count || 0);
+      } else if (response.notifications) {
+        // Direct format: { notifications: [...], unread_count: N }
+        setNotifications(response.notifications || []);
+        setUnreadCount(response.unread_count || 0);
+      } else {
+        console.warn("Unexpected notification response format:", response);
       }
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
