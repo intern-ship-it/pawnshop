@@ -444,7 +444,7 @@ export default function InventoryList() {
     return filteredItems.filter((item) => selectedItems.includes(item.id));
   };
 
-  // Print barcode labels
+  // Print barcode labels - 50mm x 50mm thermal labels
   const handlePrintBarcodeLabels = () => {
     setIsPrinting(true);
     const selectedData = getSelectedItemsData();
@@ -456,53 +456,141 @@ export default function InventoryList() {
         <title>Barcode Labels - PawnSys</title>
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; background: #fff; }
-          .labels-container { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; }
-          .label { 
-            width: 220px; 
-            border: 1px solid #000; 
-            padding: 8px; 
-            page-break-inside: avoid;
-            background: #fff;
+          @page { 
+            size: 50mm 50mm; 
+            margin: 0; 
           }
-          .label-header { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
-          .barcode-container { text-align: center; margin: 5px 0; }
-          .barcode-container svg { max-width: 100%; height: 50px; }
-          .label-footer { font-size: 9px; display: flex; justify-content: space-between; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; }
           @media print {
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .labels-container { gap: 5px; padding: 5px; }
+            html, body {
+              width: 50mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .controls { display: none !important; }
+            .labels-container { 
+              width: 50mm !important; 
+              margin: 0 !important;
+              padding: 0 !important;
+              gap: 0 !important;
+            }
+            .label {
+              page-break-after: always;
+              page-break-inside: avoid;
+              border: none !important;
+              box-shadow: none !important;
+            }
+            .label:last-child {
+              page-break-after: avoid;
+            }
+          }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; background: #f5f5f5; }
+          .controls { 
+            text-align: center; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%); 
+            margin-bottom: 15px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 8px;
+          }
+          .controls button { 
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%); 
+            color: white; 
+            border: none; 
+            padding: 12px 25px; 
+            cursor: pointer; 
+            border-radius: 8px; 
+            margin: 0 5px; 
+            font-weight: bold;
+            font-size: 14px;
+          }
+          .controls button.close { background: #6b7280; }
+          .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
+          .controls .info strong { color: #fbbf24; }
+          .labels-container { 
+            width: 50mm; 
+            margin: 0 auto; 
+            background: white; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+          }
+          .label { 
+            width: 50mm; 
+            height: 50mm;
+            padding: 2mm 3mm; 
+            background: white; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden;
+            border-bottom: 1px dashed #ccc;
+          }
+          .label:last-child { border-bottom: none; }
+          .label-header { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 0.3mm solid #333;
+            padding-bottom: 1mm;
+            margin-bottom: 1mm;
+          }
+          .pledge-no { font-size: 8pt; font-weight: bold; }
+          .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+          .barcode-container { 
+            flex: 1;
+            text-align: center; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1mm 0;
+          }
+          .barcode-container svg { 
+            width: 44mm; 
+            height: 18mm; 
+          }
+          .barcode-text { 
+            font-family: 'Courier New', monospace;
+            font-size: 9pt; 
+            margin-top: 1mm;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+          }
+          .label-footer { 
+            border-top: 0.3mm solid #333;
+            padding-top: 1mm;
+            font-size: 8pt; 
+            font-weight: bold;
+            text-align: center;
+          }
+          @media screen { 
+            body { padding: 20px; } 
           }
         </style>
       </head>
       <body>
+        <div class="controls">
+          <button onclick="window.print()">🏷️ Print ${selectedData.length} Label${selectedData.length > 1 ? "s" : ""}</button>
+          <button class="close" onclick="window.close()">✕ Close</button>
+          <p class="info">Label Size: <strong>50mm × 50mm</strong> | Labels: <strong>${selectedData.length}</strong></p>
+          <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
+        </div>
         <div class="labels-container">
           ${selectedData
             .map((item, index) => {
               const catName = getCategoryName(item.category);
               const purName = getPurityName(item.purity);
-              const barcodeValue = (item.barcode || "NOCODE")
-                .replace(/[^A-Z0-9]/gi, "")
-                .substring(0, 20);
               return `
             <div class="label">
-              <div class="label-header">${
-                item.pledge?.pledge_no || "N/A"
-              } | ${catName}</div>
+              <div class="label-header">
+                <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
+                <span class="category">${catName}</span>
+              </div>
               <div class="barcode-container">
                 <svg id="barcode-${index}"></svg>
+                <div class="barcode-text">${item.barcode || "N/A"}</div>
               </div>
-              <div style="font-size: 10px; text-align: center; font-family: monospace;">${
-                item.barcode || "N/A"
-              }</div>
-              <div class="label-footer">
-                <span>${item.net_weight || item.weight || 0}g | ${purName}</span>
-                <span>${(item.pledge?.customer?.name || "Customer").substring(
-                  0,
-                  15,
-                )}</span>
-              </div>
+              <div class="label-footer">${purName} • ${item.net_weight || item.weight || 0}g</div>
             </div>
           `;
             })
@@ -519,8 +607,8 @@ export default function InventoryList() {
               try {
                 JsBarcode("#barcode-${index}", "${barcodeValue}", {
                   format: "CODE128",
-                  width: 1.5,
-                  height: 40,
+                  width: 2,
+                  height: 50,
                   displayValue: false,
                   margin: 0
                 });
@@ -528,7 +616,7 @@ export default function InventoryList() {
             `;
               })
               .join("")}
-            setTimeout(function() { window.print(); }, 300);
+            document.querySelector('button').focus();
           };
         </script>
       </body>
@@ -733,7 +821,7 @@ export default function InventoryList() {
     }
   };
 
-  // Print single item label
+  // Print single item label - 50mm x 50mm thermal label
   const handlePrintSingleLabel = (item) => {
     const catName = getCategoryName(item.category);
     const purName = getPurityName(item.purity);
@@ -748,37 +836,125 @@ export default function InventoryList() {
         <title>Label - ${item.barcode}</title>
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; padding: 20px; background: #fff; }
-          .label { 
-            width: 220px; 
-            border: 1px solid #000; 
-            padding: 8px; 
-            background: #fff;
+          @page { 
+            size: 50mm 50mm; 
+            margin: 0; 
           }
-          .label-header { font-size: 11px; font-weight: bold; margin-bottom: 5px; }
-          .barcode-container { text-align: center; margin: 5px 0; }
-          .barcode-container svg { max-width: 100%; height: 50px; }
-          .barcode-text { font-size: 10px; text-align: center; font-family: monospace; }
-          .label-footer { font-size: 9px; display: flex; justify-content: space-between; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; }
-          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+          @media print {
+            html, body {
+              width: 50mm !important;
+              height: 50mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .controls { display: none !important; }
+            .labels-wrapper { 
+              width: 50mm !important; 
+              margin: 0 !important;
+              box-shadow: none !important;
+            }
+          }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; background: #f5f5f5; }
+          .controls { 
+            text-align: center; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%); 
+            margin-bottom: 15px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 8px;
+          }
+          .controls button { 
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%); 
+            color: white; 
+            border: none; 
+            padding: 12px 25px; 
+            cursor: pointer; 
+            border-radius: 8px; 
+            margin: 0 5px; 
+            font-weight: bold;
+            font-size: 14px;
+          }
+          .controls button.close { background: #6b7280; }
+          .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
+          .controls .info strong { color: #fbbf24; }
+          .labels-wrapper { 
+            width: 50mm; 
+            margin: 0 auto; 
+            background: white; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+          }
+          .label { 
+            width: 50mm; 
+            height: 50mm;
+            padding: 2mm 3mm; 
+            background: white; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden;
+          }
+          .label-header { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 0.3mm solid #333;
+            padding-bottom: 1mm;
+            margin-bottom: 1mm;
+          }
+          .pledge-no { font-size: 8pt; font-weight: bold; }
+          .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+          .barcode-container { 
+            flex: 1;
+            text-align: center; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1mm 0;
+          }
+          .barcode-container svg { 
+            width: 44mm; 
+            height: 18mm; 
+          }
+          .barcode-text { 
+            font-family: 'Courier New', monospace;
+            font-size: 9pt; 
+            margin-top: 1mm;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+          }
+          .label-footer { 
+            border-top: 0.3mm solid #333;
+            padding-top: 1mm;
+            font-size: 8pt; 
+            font-weight: bold;
+            text-align: center;
+          }
+          @media screen { 
+            body { padding: 20px; } 
+          }
         </style>
       </head>
       <body>
-        <div class="label">
-          <div class="label-header">${
-            item.pledge?.pledge_no || "N/A"
-          } | ${catName}</div>
-          <div class="barcode-container">
-            <svg id="single-barcode"></svg>
-          </div>
-          <div class="barcode-text">${item.barcode || "N/A"}</div>
-          <div class="label-footer">
-            <span>${item.net_weight || item.weight || 0}g | ${purName}</span>
-            <span>${(item.pledge?.customer?.name || "Customer").substring(
-              0,
-              15,
-            )}</span>
+        <div class="controls">
+          <button onclick="window.print()">🏷️ Print Label</button>
+          <button class="close" onclick="window.close()">✕ Close</button>
+          <p class="info">Label Size: <strong>50mm × 50mm</strong></p>
+          <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
+        </div>
+        <div class="labels-wrapper">
+          <div class="label">
+            <div class="label-header">
+              <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
+              <span class="category">${catName}</span>
+            </div>
+            <div class="barcode-container">
+              <svg id="single-barcode"></svg>
+              <div class="barcode-text">${item.barcode || "N/A"}</div>
+            </div>
+            <div class="label-footer">${purName} • ${item.net_weight || item.weight || 0}g</div>
           </div>
         </div>
         <script>
@@ -786,13 +962,13 @@ export default function InventoryList() {
             try {
               JsBarcode("#single-barcode", "${barcodeValue}", {
                 format: "CODE128",
-                width: 1.5,
-                height: 40,
+                width: 2,
+                height: 50,
                 displayValue: false,
                 margin: 0
               });
             } catch(e) { console.log(e); }
-            setTimeout(function() { window.print(); }, 300);
+            document.querySelector('button').focus();
           };
         </script>
       </body>
