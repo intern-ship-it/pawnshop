@@ -1124,4 +1124,428 @@ HTML;
         return ucfirst(trim($words));
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  Pre-Printed Form Generation (Blank Templates)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Generate Pre-Printed Form (Blank Template)
+     * Prints the FORM DESIGN ONLY - no customer data
+     * For bulk printing on blank paper to create pre-printed form stock
+     *
+     * FRONT: Pledge ticket form with all labels, borders, yellow boxes
+     * BACK:  Terms & Conditions + Redeemer details section
+     */
+    public function prePrintedForm(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'count' => 'sometimes|integer|min:1|max:50',
+                'page' => 'sometimes|in:front,back,both',
+            ]);
+
+            $count = $validated['count'] ?? 1;
+            $page = $validated['page'] ?? 'both';
+
+            $branch = $request->user()->branch;
+            $settings = $this->getCompanySettings($branch);
+
+            $frontHtml = '';
+            $backHtml = '';
+
+            if ($page === 'front' || $page === 'both') {
+                $frontHtml = $this->generatePrePrintedFrontPage($settings);
+            }
+            if ($page === 'back' || $page === 'both') {
+                $backHtml = $this->generatePrePrintedBackPage($settings);
+            }
+
+            // Build bulk HTML if count > 1
+            $bulkFrontHtml = '';
+            $bulkBackHtml = '';
+            for ($i = 0; $i < $count; $i++) {
+                if ($frontHtml)
+                    $bulkFrontHtml .= $frontHtml;
+                if ($backHtml)
+                    $bulkBackHtml .= $backHtml;
+            }
+
+            return $this->success([
+                'front_html' => $bulkFrontHtml,
+                'back_html' => $bulkBackHtml,
+                'count' => $count,
+                'page' => $page,
+                'format' => 'html',
+                'paper_size' => 'A5',
+                'orientation' => 'landscape',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Pre-Printed Form Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
+    }
+
+
+    /**
+     * FRONT PAGE — Pre-Printed Blank Form (A5 Landscape)
+     * Exact clone of physical form with proper CSS scoping
+     */
+    private function generatePrePrintedFrontPage(array $settings): string
+    {
+        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.');
+        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?? '新泰當');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?? 'அடகு கடை');
+        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.');
+        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480');
+        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562');
+        $estYear = htmlspecialchars($settings['established_year'] ?? '1966');
+        $businessDays = htmlspecialchars($settings['business_days'] ?? 'ISNIN - AHAD');
+        $businessHours = htmlspecialchars($settings['business_hours'] ?? '8.30AM - 6.00PM');
+        $closedDays = htmlspecialchars($settings['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA');
+        $handlingFee = htmlspecialchars($settings['handling_fee'] ?? '50 SEN');
+        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN');
+        $interestNormal = htmlspecialchars($settings['interest_rate_normal'] ?? '1.5');
+        $interestOverdue = htmlspecialchars($settings['interest_rate_overdue'] ?? '2.0');
+        $logoUrl = $settings['logo_url'] ?? null;
+
+        // Build phone display
+        $phoneHtml = $phone1;
+        if ($phone2) {
+            $phoneHtml .= '<br>' . $phone2;
+        }
+
+        // Build logo HTML - only show if logo exists
+        $logoHtml = '';
+        if ($logoUrl) {
+            $logoHtml = '<img src="' . htmlspecialchars($logoUrl) . '" class="pp-logo" alt="Logo">';
+        }
+
+        return <<<'HTMLSTART'
+<style>
+/* ═══ FRONT PAGE STYLES ═══ */
+.pp-front {
+    width: 210mm; height: 148mm; padding: 2.5mm 3mm 2mm 4mm;
+    font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
+    background: #fff !important; overflow: hidden; box-sizing: border-box;
+    page-break-after: always; break-after: page;
+}
+.pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Header - Logo + Company info left, Phone+SEJAK row right */
+.pp-hdr { display: flex; align-items: flex-start; gap: 0; padding-bottom: 1.5mm; border-bottom: 1px solid #1a4a7a; }
+.pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 2mm; }
+.pp-logo { width: 12mm; height: 12mm; object-fit: contain; flex-shrink: 0; }
+.pp-co-info { flex: 1; }
+.pp-co-name { font-size: 33px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+.pp-co-reg { font-size: 7px; color: #1a4a7a; }
+.pp-co-multi { font-size: 2rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
+.pp-co-addr { font-size: 9px; color: #1a4a7a; margin-top: 0.5mm; }
+
+/* Right side: Phone box + SEJAK on same row, then Hours below */
+.pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 55mm; }
+.pp-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }
+.pp-phone-box { background: #d42027; color: #fff; padding: 2mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 1.5mm; }
+.pp-phone-icon { font-size: 14px; color: #d42027; background: #fff; border-radius: 50%; width: 6mm; height: 6mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pp-phone-nums { font-size: 11px; font-weight: bold; line-height: 1.35; }
+.pp-sejak { background: #d42027; color: #fff; width: 14mm; height: 14mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 2px solid #b01a20; }
+.pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; letter-spacing: 0.5px; }
+.pp-sejak-yr { font-size: 12px; font-weight: bold; line-height: 1; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 55mm; }
+.pp-hrs-title { font-size: 13px; font-weight: bold; text-align: center; }
+.pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.4; }
+
+/* Middle section - Items left, Yellow boxes right */
+.pp-mid { display: flex; border: 1px solid #1a4a7a; margin-bottom: 0; }
+.pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; }
+.pp-items-title { font-size: 9px; font-weight: bold; text-decoration: underline; margin-bottom: 1.5mm; }
+.pp-items-area { min-height: 22mm; padding-left: 3mm; }
+.pp-item-n { font-size: 10px; height: 5.5mm; line-height: 5.5mm; }
+
+/* Right column - Same width as header hrs-box (55mm) */
+.pp-rcol { width: 55mm; min-width: 55mm; }
+.pp-tkt-box { background: #f5c518; padding: 2mm; border-bottom: 1px solid #1a4a7a; }
+.pp-tkt-lbl { font-size: 9px; font-weight: bold; color: #000; }
+.pp-tkt-space { min-height: 10mm; }
+.pp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; color: #1a4a7a;}
+.pp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
+.pp-rate-cell:first-child { border-right: 1px solid #1a4a7a; }
+.pp-rate-lbl { font-size: 7px; font-weight: bold; color: #000; }
+.pp-rate-val { font-size: 11px; font-weight: bold; color: #000; }
+.pp-rate-big { font-size: 15px; }
+.pp-kadar { padding: 1.5mm 2mm; color: #1a4a7a; }
+.pp-kadar-title { font-size: 8px; font-weight: bold; color: #000; text-align: center; }
+.pp-kadar-ln { font-size: 7.5px; color: #000; line-height: 1.5; }
+
+/* Customer section - NO DOTTED LINES */
+.pp-cust-sec { display: flex; }
+.pp-cust-left { flex: 1; }
+.pp-cust-title { font-size: 9px; font-weight: bold; text-decoration: underline; padding: 1mm 0; }
+.pp-cust-box { border: 2px solid #d42027; padding: 2mm 2.5mm; min-height: 30mm; }
+.pp-cust-row { display: flex; align-items: baseline; margin-bottom: 3mm; font-size: 11px; font-weight: bold; }
+.pp-cust-row:last-child { margin-bottom: 0; }
+.pp-cust-lbl { white-space: nowrap; min-width: 24mm; }
+.pp-cust-lbl-s { white-space: nowrap; margin-left: 3mm; }
+.pp-cust-sp { flex: 1; min-height: 5mm; }
+.pp-cust-sp-s { width: 24mm; min-height: 5mm; }
+
+.pp-cust-right { width: 55mm; min-width: 55mm; display: flex; flex-direction: column; }
+.pp-cat-hdr { font-size: 10px; font-weight: bold; border: 1px solid #1a4a7a; border-bottom: none; padding: 1mm 2mm; }
+.pp-cat-area { border: 1px solid #1a4a7a; flex: 1; min-height: 14mm; }
+.pp-keuntungan { font-size: 9px; font-weight: bold; color: #d42027; padding: 1.5mm 1mm; line-height: 1.4; }
+
+/* Amount section - NO DOTTED LINES */
+.pp-amt-row { border: 1px solid #1a4a7a; border-bottom: none; padding: 1.5mm 2.5mm; display: flex; align-items: baseline; gap: 2mm; }
+.pp-amt-lbl { font-size: 11px; font-weight: bold; }
+.pp-amt-sp { flex: 1; min-height: 5mm; }
+.pp-amt-sahaja { font-size: 11px; font-weight: bold; }
+
+/* Bottom section - NO DOTTED LINES */
+.pp-bot { display: flex; border: 1.5px solid #1a4a7a; }
+.pp-pin-cell { flex: 1; padding: 1.5mm 2.5mm; display: flex; align-items: baseline; gap: 1.5mm; border-right: 1.5px solid #1a4a7a; }
+.pp-pin-lbl { font-size: 10px; }
+.pp-pin-rm { font-size: 15px; font-weight: bold; }
+.pp-pin-sp { flex: 1; min-height: 7mm; }
+.pp-pin-stars { font-size: 15px; font-weight: bold; }
+.pp-dt-cell { width: 30mm; text-align: center; padding: 1mm 2mm; border-right: 1.5px solid #1a4a7a; }
+.pp-dt-cell:last-child { border-right: none; }
+.pp-dt-lbl { font-size: 8px; font-weight: bold; }
+.pp-dt-sp { min-height: 6mm; }
+.pp-dt-yel { background: #f5c518; }
+
+/* Footer */
+.pp-ftr { font-size: 7px; line-height: 1.4; margin-top: 0.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
+.pp-ftr-left { flex: 1; }
+.pp-ftr-right { text-align: right; font-size: 6px; }
+.pp-gm-box { display: inline-block; text-align: center; font-size: 7px; line-height: 1.3; min-width: 10mm; vertical-align: top; }
+
+@media print {
+    .pp-front { page-break-after: always; break-after: page; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+HTMLSTART
+            . <<<HTML
+<div class="pp-front">
+    <!-- HEADER -->
+    <div class="pp-hdr">
+        <div class="pp-hdr-left">
+            {$logoHtml}
+            <div class="pp-co-info">
+                <div class="pp-co-name">{$companyName}</div>
+                <!-- <div class="pp-co-reg">{$regNo}</div> -->
+                <div class="pp-co-multi">{$chineseName} {$tamilName}</div>
+                <div class="pp-co-addr">{$address}</div>
+            </div>
+        </div>
+        <div class="pp-hdr-right">
+            <!-- Phone + SEJAK on same row -->
+            <div class="pp-top-row">
+                <div class="pp-phone-box">
+                    <span class="pp-phone-icon">☎</span>
+                    <div class="pp-phone-nums">{$phoneHtml}</div>
+                </div>
+                <div class="pp-sejak">
+                    <span class="pp-sejak-lbl">SEJAK</span>
+                    <span class="pp-sejak-yr">{$estYear}</span>
+                </div>
+            </div>
+            <div class="pp-hrs-box">
+                <div class="pp-hrs-title">BUKA 7 HARI</div>
+                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+                <div class="pp-hrs-line">{$closedDays}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MIDDLE: Items + Ticket/Rates -->
+    <div class="pp-mid">
+        <div class="pp-items-sec">
+            <div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div>
+            <div class="pp-items-area">
+               
+            </div>
+        </div>
+        <div class="pp-rcol">
+            <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
+            <div class="pp-rate-row">
+                <div class="pp-rate-cell"><div class="pp-rate-lbl">CAJ PENGENDALIAN</div><div class="pp-rate-val">{$handlingFee}</div></div>
+                <div class="pp-rate-cell"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
+            </div>
+            <div class="pp-kadar">
+                <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
+                <div class="pp-kadar-ln">{$interestNormal}% Sebulan : Dalam tempoh 6 bulan</div>
+                <div class="pp-kadar-ln">{$interestOverdue}% Sebulan : Lepas tempoh 6 bulan</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOMER -->
+    <div class="pp-cust-sec">
+        <div class="pp-cust-left">
+            <div class="pp-cust-title">Butir-butir terperinci mengenai pemajak gadai:-</div>
+            <div class="pp-cust-box">
+                <div class="pp-cust-row"><span class="pp-cust-lbl">No. Kad :<br>Pengenalan</span><span class="pp-cust-sp"></span></div>
+                <div class="pp-cust-row"><span class="pp-cust-lbl">Nama :</span><span class="pp-cust-sp"></span></div>
+                <div class="pp-cust-row">
+                    <span class="pp-cust-lbl">Kerakyatan :</span><span class="pp-cust-sp-s"></span>
+                    <span class="pp-cust-lbl-s">Tahun Lahir :</span><span class="pp-cust-sp-s"></span>
+                    <span class="pp-cust-lbl-s">Jantina :</span><span class="pp-cust-sp-s"></span>
+                </div>
+                <div class="pp-cust-row" style="justify-content:flex-end;"><span class="pp-cust-lbl-s">Panjang (cm) :</span><span class="pp-cust-sp-s"></span></div>
+                <div class="pp-cust-row"><span class="pp-cust-lbl">Alamat :</span><span class="pp-cust-sp"></span></div>
+            </div>
+        </div>
+        <div class="pp-cust-right">
+            <div class="pp-cat-hdr">Catatan :</div>
+            <div class="pp-cat-area"></div>
+            <div class="pp-keuntungan">KEUNTUNGAN DIKENA = RM ________ SEBULAN</div>
+        </div>
+    </div>
+
+    <!-- AMOUNT -->
+    <div class="pp-amt-row"><span class="pp-amt-lbl">Amaun</span><span class="pp-amt-sp"></span><span class="pp-amt-sahaja">SAHAJA</span></div>
+
+    <!-- BOTTOM -->
+    <div class="pp-bot">
+        <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
+        <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div>
+        <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="pp-ftr">
+        <div class="pp-ftr-left">
+            <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+        </div>
+        <div class="pp-ftr-right">
+            <span style="font-size:5px;vertical-align:super;">Termasuk Emas, Batu<br>dan lain-lain</span> Berat :
+            <div class="pp-gm-box">(gm)<br><br>L U</div>
+        </div>
+    </div>
+</div>
+HTML;
+    }
+
+
+    /**
+     * BACK PAGE — Pre-Printed Blank Form (A5 Landscape)
+     * Exact clone of physical form with proper CSS scoping
+     */
+    private function generatePrePrintedBackPage(array $settings): string
+    {
+        // Fetch terms from database
+        $termsItems = [];
+        try {
+            $dbTerms = TermsCondition::where('is_active', true)
+                ->where('activity_type', 'pledge')
+                ->orderBy('sort_order', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            if ($dbTerms->count() > 0) {
+                foreach ($dbTerms as $term) {
+                    $content = $term->content_ms ?? $term->content_en ?? '';
+                    $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
+                    $termsItems[] = $content;
+                }
+            }
+        } catch (\Exception $e) {
+            // fallback below
+        }
+
+        // Fallback default terms if DB empty
+        if (empty($termsItems)) {
+            $termsItems = [
+                'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
+                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
+                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
+                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u><i>Setelah membayar amaun keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran amaun keuntungan.</i></u></b>',
+                'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong. Dia berhak, atas permintaan, kepada apa-apa lebihan jika ada selepas potongan keuntungan yang kena di bayar ke atas sandaran itu dan kos lelong.',
+                'Apa-apa pertanyaan boleh dialamatkan kepada:<br>Pendaftar Pemegang Pajak Gadai,<br>Kementerian Perumahan dan Kerajaan Tempatan, BKKK.<br>Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
+                'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
+                'Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.',
+                'Sila maklumkan kami sekiranya anda menukarkan alamat. Jika tidak, alamat seperti yang tercatat di dalam tiket akan dianggap betul.',
+                'Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am. Jika tidak, kadar ketuntutan lebih satu bulan akan dikira.',
+                'Barang-barang curian tidak diterima. Adalah dianggap bahawa barang-barang yang dipajak gadai adalah bukan barang curian.',
+                'Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.',
+            ];
+        }
+
+        $termsHtml = '';
+        foreach ($termsItems as $idx => $content) {
+            $num = $idx + 1;
+            $termsHtml .= "<div class=\"pp-tm\"><b>{$num}.</b> {$content}</div>\n";
+        }
+
+        return <<<'HTMLSTART'
+<style>
+/* ═══ BACK PAGE STYLES ═══ */
+.pp-back {
+    width: 210mm; height: 148mm; padding: 3mm 4mm; display: flex;
+    font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
+    background: #fff !important; overflow: hidden; box-sizing: border-box;
+    page-break-after: always; break-after: page;
+}
+.pp-back * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Terms column */
+.pp-terms-col { flex: 1; padding-right: 2mm; overflow: hidden; }
+.pp-terms-h { font-size: 12px; font-weight: bold; text-align: center; text-decoration: underline; margin-bottom: 1.5mm; }
+.pp-tm { font-size: 7.5px; line-height: 1.3; margin-bottom: 0.8mm; text-align: justify; }
+.pp-notice {
+    border: 2.5px solid #1a4a7a; padding: 2.5mm 4mm; margin-top: 2mm;
+    text-align: center; font-size: 11px; font-weight: bold; line-height: 1.35;
+}
+
+/* Redeemer column */
+.pp-red-col {
+    width: 56mm; min-width: 56mm; border: 1.5px solid #1a4a7a;
+    padding: 2mm 2.5mm; display: flex; flex-direction: column;
+}
+.pp-red-h {
+    font-size: 10px; font-weight: bold; text-align: center;
+    border-bottom: 1.5px solid #1a4a7a; padding-bottom: 1.5mm; margin-bottom: 3mm;
+}
+.pp-rr { margin-bottom: 3mm; }
+.pp-rl { font-size: 8px; font-weight: bold; }
+.pp-rb { min-height: 5mm; border-bottom: 1px dotted #1a4a7a; }
+.pp-rd { font-size: 8px; text-align: right; }
+.pp-ri { display: flex; gap: 2mm; }
+.pp-rh { flex: 1; }
+.pp-sig-l { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
+.pp-sig-b { border: 1px solid #1a4a7a; min-height: 14mm; }
+
+@media print {
+    .pp-back { page-break-after: always; break-after: page; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+HTMLSTART
+            . <<<HTML
+<div class="pp-back">
+    <div class="pp-terms-col">
+        <div class="pp-terms-h">TERMA DAN SYARAT</div>
+        {$termsHtml}
+        <div class="pp-notice">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>
+    </div>
+
+    <div class="pp-red-col">
+        <div class="pp-red-h">Butir-butir Penebus</div>
+        <div class="pp-rr"><span class="pp-rl">No. K/P:</span><div class="pp-rb"></div></div>
+        <div class="pp-rr"><span class="pp-rl">Nama:</span><div class="pp-rb"></div></div>
+        <div class="pp-rr"><span class="pp-rl">Kerakyatan:</span><div class="pp-rb"></div></div>
+        <div class="pp-rr"><div class="pp-ri"><div class="pp-rh"><span class="pp-rl">Tahun Lahir:</span><div class="pp-rb"></div></div><div class="pp-rh"><span class="pp-rl">Umur:</span><div class="pp-rb"></div></div></div></div>
+        <div class="pp-rr"><span class="pp-rl">Jantina:</span><div class="pp-rb"></div></div>
+        <div class="pp-rr"><span class="pp-rl">H/P No:</span><div class="pp-rb"></div></div>
+        <div class="pp-rr"><span class="pp-rl">Alamat:</span><div class="pp-rb"></div><div class="pp-rb"></div><div class="pp-rb"></div></div>
+        <div style="flex:1;"></div>
+        <div><div class="pp-sig-l">Cap Jari /<br>Tandatangan</div><div class="pp-sig-b"></div></div>
+    </div>
+</div>
+HTML;
+    }
+
 }

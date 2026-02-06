@@ -531,6 +531,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 ->middleware('check.permission:redemptions,print');
             Route::post('/bulk-terms', [DotMatrixPrintController::class, 'bulkTermsPages'])
                 ->middleware('check.permission:pledges,print');
+            Route::post('/pre-printed-form', [DotMatrixPrintController::class, 'prePrintedForm'])
+                ->middleware('check.permission:pledges,print');
         });
 
         // Barcode print

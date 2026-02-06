@@ -590,7 +590,7 @@ export default function InventoryList() {
                 <svg id="barcode-${index}"></svg>
                 <div class="barcode-text">${item.barcode || "N/A"}</div>
               </div>
-              <div class="label-footer">${purName} • ${item.net_weight || item.weight || 0}g</div>
+              <div class="label-footer">${purName} • ${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
             </div>
           `;
             })
@@ -954,7 +954,7 @@ export default function InventoryList() {
               <svg id="single-barcode"></svg>
               <div class="barcode-text">${item.barcode || "N/A"}</div>
             </div>
-            <div class="label-footer">${purName} • ${item.net_weight || item.weight || 0}g</div>
+            <div class="label-footer">${purName} • ${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
           </div>
         </div>
         <script>
