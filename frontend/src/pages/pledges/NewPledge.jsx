@@ -706,21 +706,21 @@ export default function NewPledge() {
   const categoryOptions =
     backendCategories.length > 0
       ? backendCategories.map((cat) => ({
-        value: cat.code || cat.slug || cat.name_en,
-        label: `${cat.name_en}${cat.name_ms ? ` (${cat.name_ms})` : ""}`,
-      }))
+          value: cat.code || cat.slug || cat.name_en,
+          label: `${cat.name_en}${cat.name_ms ? ` (${cat.name_ms})` : ""}`,
+        }))
       : itemCategories;
 
   // Compute purity options from backend data (with fallback to hardcoded)
   const dynamicPurityOptions =
     backendPurities.length > 0
       ? backendPurities.map((purity) => ({
-        value: purity.code,
-        label: `${purity.code}${purity.karat ? ` (${purity.karat})` : ""}`,
-        priceKey: `price${purity.code}`,
-        karat: purity.karat || "",
-        percentage: purity.percentage || 0,
-      }))
+          value: purity.code,
+          label: `${purity.code}${purity.karat ? ` (${purity.karat})` : ""}`,
+          priceKey: `price${purity.code}`,
+          karat: purity.karat || "",
+          percentage: purity.percentage || 0,
+        }))
       : purityOptions;
 
   const fetchGoldPrices = async () => {
@@ -1632,19 +1632,19 @@ export default function NewPledge() {
       <title>Barcode Label - ${receiptNo || pledgeNo || "Pledge"}</title>
       <style>
         @page { 
-          size: 35mm 25mm; 
+          size: 50mm 50mm; 
           margin: 0; 
         }
         @media print {
           html, body {
-            width: 35mm;
-            height: 25mm;
+            width: 50mm;
+            height: 50mm;
             margin: 0;
             padding: 0;
           }
           .controls { display: none !important; }
           .labels-wrapper { 
-            width: 35mm !important; 
+            width: 50mm !important; 
             margin: 0 !important;
             box-shadow: none !important;
           }
@@ -1662,7 +1662,7 @@ export default function NewPledge() {
           background: linear-gradient(135deg, #1f2937 0%, #374151 100%); 
           margin-bottom: 15px;
           width: 100%;
-          max-width: 300px;
+          max-width: 400px;
           margin-left: auto;
           margin-right: auto;
           border-radius: 8px;
@@ -1681,15 +1681,15 @@ export default function NewPledge() {
         .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
         .controls .info strong { color: #fbbf24; }
         .labels-wrapper { 
-          width: 35mm; 
+          width: 50mm; 
           margin: 0 auto; 
           background: white; 
           box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
         }
         .label { 
-          width: 35mm; 
-          height: 25mm;
-          padding: 1.5mm 2mm; 
+          width: 50mm; 
+          height: 50mm;
+          padding: 2mm 3mm; 
           background: white; 
           display: flex; 
           flex-direction: column; 
@@ -1699,12 +1699,12 @@ export default function NewPledge() {
           display: flex; 
           justify-content: space-between; 
           align-items: center; 
-          border-bottom: 0.2mm solid #333; 
-          padding-bottom: 0.5mm; 
-          margin-bottom: 0.5mm; 
+          border-bottom: 0.3mm solid #333; 
+          padding-bottom: 1mm; 
+          margin-bottom: 1mm; 
         }
-        .pledge-no { font-size: 6pt; font-weight: bold; }
-        .items-count { font-size: 5pt; font-weight: 600; text-transform: uppercase; color: #333; }
+        .pledge-no { font-size: 8pt; font-weight: bold; }
+        .items-count { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
         .barcode-section { 
           flex: 1; 
           text-align: center; 
@@ -1712,24 +1712,24 @@ export default function NewPledge() {
           flex-direction: column; 
           align-items: center; 
           justify-content: center;
-          padding: 0.5mm 0;
+          padding: 1mm 0;
         }
         .barcode-img { 
-          width: 30mm; 
-          height: 8mm; 
+          width: 44mm; 
+          height: 18mm; 
           object-fit: contain; 
         }
         .barcode-text { 
           font-family: 'Courier New', monospace; 
-          font-size: 6pt; 
-          margin-top: 0.5mm; 
+          font-size: 9pt; 
+          margin-top: 1mm; 
           font-weight: bold; 
-          letter-spacing: 0.3px; 
+          letter-spacing: 0.5px; 
         }
         .footer-row { 
-          border-top: 0.2mm solid #333; 
-          padding-top: 0.5mm; 
-          font-size: 6pt; 
+          border-top: 0.3mm solid #333; 
+          padding-top: 1mm; 
+          font-size: 8pt; 
           font-weight: bold; 
           text-align: center; 
         }
@@ -1743,7 +1743,7 @@ export default function NewPledge() {
       <div class="controls">
         <button onclick="window.print()">🏷️ Print Barcode Label</button>
         <button class="close" onclick="window.close()">✕ Close</button>
-        <p class="info">Label Size: <strong>35mm × 25mm</strong> | <strong>1 Label per Pledge</strong></p>
+        <p class="info">Label Size: <strong>50mm × 50mm</strong> | <strong>1 Label per Pledge</strong></p>
         <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
       </div>
       <div class="labels-wrapper">
@@ -2223,7 +2223,7 @@ export default function NewPledge() {
         transfer_amount:
           payoutMethod === "transfer" || payoutMethod === "partial"
             ? parseFloat(transferAmount) ||
-            (payoutMethod === "transfer" ? netPayoutAmount : 0)
+              (payoutMethod === "transfer" ? netPayoutAmount : 0)
             : 0,
         reference_no: referenceNo || null,
       };
@@ -2267,10 +2267,11 @@ export default function NewPledge() {
         addToast({
           type: "success",
           title: "Success",
-          message: `Pledge ${createdPledge.receipt_no ||
+          message: `Pledge ${
+            createdPledge.receipt_no ||
             createdPledge.pledge_no ||
             createdPledge.id
-            } created successfully`,
+          } created successfully`,
         }),
       );
 
@@ -2623,10 +2624,10 @@ export default function NewPledge() {
                       "w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center border-2 transition-all",
                       isActive && "border-amber-500 bg-amber-50 text-amber-600",
                       isCompleted &&
-                      "border-emerald-500 bg-emerald-500 text-white",
+                        "border-emerald-500 bg-emerald-500 text-white",
                       !isActive &&
-                      !isCompleted &&
-                      "border-zinc-300 bg-white text-zinc-400",
+                        !isCompleted &&
+                        "border-zinc-300 bg-white text-zinc-400",
                     )}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -2785,8 +2786,8 @@ export default function NewPledge() {
                             {Array.isArray(customer.active_pledges)
                               ? customer.active_pledges.length
                               : customer.total_pledges ||
-                              customerPledges.length ||
-                              0}
+                                customerPledges.length ||
+                                0}
                           </p>
                         </div>
                         <Button
@@ -2825,13 +2826,13 @@ export default function NewPledge() {
                             ).toLowerCase();
                             const dueDate = pledge.due_date
                               ? new Date(pledge.due_date).toLocaleDateString(
-                                "en-MY",
-                                {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                },
-                              )
+                                  "en-MY",
+                                  {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  },
+                                )
                               : "N/A";
 
                             return (
@@ -2896,14 +2897,14 @@ export default function NewPledge() {
                         {customerPledges.some(
                           (p) => (p.status || "").toLowerCase() === "overdue",
                         ) && (
-                            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                              <p className="text-xs text-red-700">
-                                Customer has overdue pledge(s). Please verify
-                                before creating new pledge.
-                              </p>
-                            </div>
-                          )}
+                          <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            <p className="text-xs text-red-700">
+                              Customer has overdue pledge(s). Please verify
+                              before creating new pledge.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </motion.div>
@@ -3060,8 +3061,8 @@ export default function NewPledge() {
                           />
                           {item.pricePerGram &&
                             parseFloat(item.pricePerGram) ===
-                            (goldPrices[item.purity] ||
-                              getMarketPrice(item.purity)) && (
+                              (goldPrices[item.purity] ||
+                                getMarketPrice(item.purity)) && (
                               <span className="absolute -right-14 top-1/2 -translate-y-1/2 text-[10px] text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded whitespace-nowrap">
                                 Market
                               </span>
@@ -3664,14 +3665,14 @@ export default function NewPledge() {
                                 key={i}
                                 className={cn(
                                   isNewRatePeriod &&
-                                  interestScenario === "renewed" &&
-                                  "bg-amber-50/50",
+                                    interestScenario === "renewed" &&
+                                    "bg-amber-50/50",
                                   isNewRatePeriod &&
-                                  interestScenario === "overdue" &&
-                                  "bg-red-50/50",
+                                    interestScenario === "overdue" &&
+                                    "bg-red-50/50",
                                   i === 6 &&
-                                  interestScenario !== "standard" &&
-                                  "border-b-2 border-zinc-300",
+                                    interestScenario !== "standard" &&
+                                    "border-b-2 border-zinc-300",
                                 )}
                               >
                                 <td className="px-3 py-2 text-zinc-700">
@@ -3983,48 +3984,48 @@ export default function NewPledge() {
 
                 {(payoutMethod === "transfer" ||
                   payoutMethod === "partial") && (
-                    <>
-                      <Input
-                        label="Transfer Amount (RM)"
-                        type="number"
-                        step="0.01"
-                        value={transferAmount}
-                        onChange={(e) => setTransferAmount(e.target.value)}
-                        disabled={payoutMethod === "transfer"}
-                        leftIcon={Building2}
-                      />
+                  <>
+                    <Input
+                      label="Transfer Amount (RM)"
+                      type="number"
+                      step="0.01"
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      disabled={payoutMethod === "transfer"}
+                      leftIcon={Building2}
+                    />
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <Select
-                          label="Bank Name"
-                          value={bankId}
-                          onChange={(e) => setBankId(e.target.value)}
-                          options={[
-                            { value: "", label: "Select Bank..." },
-                            ...backendBanks.map((bank) => ({
-                              value: String(bank.id),
-                              label: bank.name,
-                            })),
-                          ]}
-                          required
-                        />
-                        <Input
-                          label="Account Number"
-                          placeholder="Enter account number"
-                          value={accountNumber}
-                          onChange={(e) => setAccountNumber(e.target.value)}
-                          required
-                        />
-                      </div>
-
-                      <Input
-                        label="Reference Number (Optional)"
-                        placeholder="Transaction reference"
-                        value={referenceNo}
-                        onChange={(e) => setReferenceNo(e.target.value)}
+                    <div className="grid grid-cols-2 gap-4">
+                      <Select
+                        label="Bank Name"
+                        value={bankId}
+                        onChange={(e) => setBankId(e.target.value)}
+                        options={[
+                          { value: "", label: "Select Bank..." },
+                          ...backendBanks.map((bank) => ({
+                            value: String(bank.id),
+                            label: bank.name,
+                          })),
+                        ]}
+                        required
                       />
-                    </>
-                  )}
+                      <Input
+                        label="Account Number"
+                        placeholder="Enter account number"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <Input
+                      label="Reference Number (Optional)"
+                      placeholder="Transaction reference"
+                      value={referenceNo}
+                      onChange={(e) => setReferenceNo(e.target.value)}
+                    />
+                  </>
+                )}
               </div>
 
               {payoutMethod === "partial" && (
@@ -4036,8 +4037,8 @@ export default function NewPledge() {
                         "font-medium",
                         Math.abs(
                           (parseFloat(cashAmount) || 0) +
-                          (parseFloat(transferAmount) || 0) -
-                          loanAmount,
+                            (parseFloat(transferAmount) || 0) -
+                            loanAmount,
                         ) < 0.01
                           ? "text-emerald-600"
                           : "text-red-600",
@@ -4045,7 +4046,7 @@ export default function NewPledge() {
                     >
                       {formatCurrency(
                         (parseFloat(cashAmount) || 0) +
-                        (parseFloat(transferAmount) || 0),
+                          (parseFloat(transferAmount) || 0),
                       )}
                     </span>
                   </div>
@@ -4170,8 +4171,9 @@ export default function NewPledge() {
                         { value: "", label: "Select Box..." },
                         ...boxes.map((b) => ({
                           value: b.id,
-                          label: `${b.name || `Box ${b.box_number}`} (${(b.total_slots || 0) - (b.occupied_slots || 0)
-                            } available)`,
+                          label: `${b.name || `Box ${b.box_number}`} (${
+                            (b.total_slots || 0) - (b.occupied_slots || 0)
+                          } available)`,
                         })),
                       ]}
                     />
@@ -4279,12 +4281,12 @@ export default function NewPledge() {
                               className={cn(
                                 "w-10 h-10 rounded-lg text-xs font-bold transition-all",
                                 slot.is_occupied &&
-                                "bg-red-100 text-red-400 cursor-not-allowed",
+                                  "bg-red-100 text-red-400 cursor-not-allowed",
                                 !slot.is_occupied &&
-                                !isAssignedInPledge &&
-                                "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                  !isAssignedInPledge &&
+                                  "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
                                 isAssignedInPledge &&
-                                "bg-amber-500 text-white ring-2 ring-amber-300",
+                                  "bg-amber-500 text-white ring-2 ring-amber-300",
                               )}
                               title={
                                 slot.is_occupied
@@ -4785,13 +4787,13 @@ export default function NewPledge() {
                 className={cn(
                   "flex items-center justify-between p-3 rounded-lg border transition-all",
                   printJobStatus.dotMatrixOffice.status === "success" &&
-                  "bg-emerald-50 border-emerald-200",
+                    "bg-emerald-50 border-emerald-200",
                   printJobStatus.dotMatrixOffice.status === "failed" &&
-                  "bg-red-50 border-red-200",
+                    "bg-red-50 border-red-200",
                   printJobStatus.dotMatrixOffice.status === "running" &&
-                  "bg-blue-50 border-blue-200",
+                    "bg-blue-50 border-blue-200",
                   printJobStatus.dotMatrixOffice.status === "pending" &&
-                  "bg-zinc-50 border-zinc-200",
+                    "bg-zinc-50 border-zinc-200",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -4799,13 +4801,13 @@ export default function NewPledge() {
                     className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center",
                       printJobStatus.dotMatrixOffice.status === "success" &&
-                      "bg-emerald-100",
+                        "bg-emerald-100",
                       printJobStatus.dotMatrixOffice.status === "failed" &&
-                      "bg-red-100",
+                        "bg-red-100",
                       printJobStatus.dotMatrixOffice.status === "running" &&
-                      "bg-blue-100",
+                        "bg-blue-100",
                       printJobStatus.dotMatrixOffice.status === "pending" &&
-                      "bg-zinc-200",
+                        "bg-zinc-200",
                     )}
                   >
                     {printJobStatus.dotMatrixOffice.status === "success" && (
@@ -4847,13 +4849,13 @@ export default function NewPledge() {
                 className={cn(
                   "flex items-center justify-between p-3 rounded-lg border transition-all",
                   printJobStatus.dotMatrixCustomer.status === "success" &&
-                  "bg-emerald-50 border-emerald-200",
+                    "bg-emerald-50 border-emerald-200",
                   printJobStatus.dotMatrixCustomer.status === "failed" &&
-                  "bg-red-50 border-red-200",
+                    "bg-red-50 border-red-200",
                   printJobStatus.dotMatrixCustomer.status === "running" &&
-                  "bg-blue-50 border-blue-200",
+                    "bg-blue-50 border-blue-200",
                   printJobStatus.dotMatrixCustomer.status === "pending" &&
-                  "bg-zinc-50 border-zinc-200",
+                    "bg-zinc-50 border-zinc-200",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -4861,13 +4863,13 @@ export default function NewPledge() {
                     className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center",
                       printJobStatus.dotMatrixCustomer.status === "success" &&
-                      "bg-emerald-100",
+                        "bg-emerald-100",
                       printJobStatus.dotMatrixCustomer.status === "failed" &&
-                      "bg-red-100",
+                        "bg-red-100",
                       printJobStatus.dotMatrixCustomer.status === "running" &&
-                      "bg-blue-100",
+                        "bg-blue-100",
                       printJobStatus.dotMatrixCustomer.status === "pending" &&
-                      "bg-zinc-200",
+                        "bg-zinc-200",
                     )}
                   >
                     {printJobStatus.dotMatrixCustomer.status === "success" && (
@@ -4909,13 +4911,13 @@ export default function NewPledge() {
                 className={cn(
                   "flex items-center justify-between p-3 rounded-lg border transition-all",
                   printJobStatus.barcode.status === "success" &&
-                  "bg-emerald-50 border-emerald-200",
+                    "bg-emerald-50 border-emerald-200",
                   printJobStatus.barcode.status === "failed" &&
-                  "bg-red-50 border-red-200",
+                    "bg-red-50 border-red-200",
                   printJobStatus.barcode.status === "running" &&
-                  "bg-blue-50 border-blue-200",
+                    "bg-blue-50 border-blue-200",
                   printJobStatus.barcode.status === "pending" &&
-                  "bg-zinc-50 border-zinc-200",
+                    "bg-zinc-50 border-zinc-200",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -4923,13 +4925,13 @@ export default function NewPledge() {
                     className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center",
                       printJobStatus.barcode.status === "success" &&
-                      "bg-emerald-100",
+                        "bg-emerald-100",
                       printJobStatus.barcode.status === "failed" &&
-                      "bg-red-100",
+                        "bg-red-100",
                       printJobStatus.barcode.status === "running" &&
-                      "bg-blue-100",
+                        "bg-blue-100",
                       printJobStatus.barcode.status === "pending" &&
-                      "bg-zinc-200",
+                        "bg-zinc-200",
                     )}
                   >
                     {printJobStatus.barcode.status === "success" && (
@@ -4971,15 +4973,15 @@ export default function NewPledge() {
                 className={cn(
                   "flex items-center justify-between p-3 rounded-lg border transition-all",
                   printJobStatus.whatsapp.status === "success" &&
-                  "bg-emerald-50 border-emerald-200",
+                    "bg-emerald-50 border-emerald-200",
                   printJobStatus.whatsapp.status === "failed" &&
-                  "bg-red-50 border-red-200",
+                    "bg-red-50 border-red-200",
                   printJobStatus.whatsapp.status === "running" &&
-                  "bg-blue-50 border-blue-200",
+                    "bg-blue-50 border-blue-200",
                   printJobStatus.whatsapp.status === "skipped" &&
-                  "bg-gray-50 border-gray-200",
+                    "bg-gray-50 border-gray-200",
                   printJobStatus.whatsapp.status === "pending" &&
-                  "bg-zinc-50 border-zinc-200",
+                    "bg-zinc-50 border-zinc-200",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -4987,15 +4989,15 @@ export default function NewPledge() {
                     className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center",
                       printJobStatus.whatsapp.status === "success" &&
-                      "bg-emerald-100",
+                        "bg-emerald-100",
                       printJobStatus.whatsapp.status === "failed" &&
-                      "bg-red-100",
+                        "bg-red-100",
                       printJobStatus.whatsapp.status === "running" &&
-                      "bg-blue-100",
+                        "bg-blue-100",
                       printJobStatus.whatsapp.status === "skipped" &&
-                      "bg-gray-100",
+                        "bg-gray-100",
                       printJobStatus.whatsapp.status === "pending" &&
-                      "bg-zinc-200",
+                        "bg-zinc-200",
                     )}
                   >
                     {printJobStatus.whatsapp.status === "success" && (
