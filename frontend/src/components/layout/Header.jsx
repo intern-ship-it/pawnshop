@@ -801,10 +801,10 @@ export default function Header() {
             {notificationOpen && (
               <>
                 <div
-                  className="fixed inset-0 z-40"
+                  className="fixed inset-0 z-[999]"
                   onClick={() => setNotificationOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-zinc-200 z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-zinc-200 z-[1000] overflow-hidden">
                   <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-white">
                     <div>
                       <h3 className="font-bold text-zinc-800">Notifications</h3>

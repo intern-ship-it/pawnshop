@@ -794,12 +794,16 @@ export default function CustomerDetail() {
                                                   0,
                                               )}
                                             </p>
-                                            <p className="text-xs text-zinc-500">
-                                              Loan:{" "}
-                                              {formatCurrency(
-                                                item.loan_amount || 0,
+                                            {item.loan_amount &&
+                                              parseFloat(item.loan_amount) >
+                                                0 && (
+                                                <p className="text-xs text-zinc-500">
+                                                  Loan:{" "}
+                                                  {formatCurrency(
+                                                    item.loan_amount,
+                                                  )}
+                                                </p>
                                               )}
-                                            </p>
                                           </div>
                                         </div>
                                       );

@@ -69,6 +69,11 @@ export const formatDateTime = (datetime) => {
 export const formatPhone = (phone) => {
   if (!phone) return '-'
 
+  // If phone already has country code (starts with +), return as-is
+  if (phone.startsWith('+')) {
+    return phone
+  }
+
   // Remove non-numeric characters
   const cleaned = phone.replace(/\D/g, '')
 
@@ -88,8 +93,8 @@ export const formatPhone = (phone) => {
     return `+60 ${num.slice(0, 2)}-${num.slice(2, 5)} ${num.slice(5)}`
   }
 
-  // Unknown format - just add +60 prefix
-  return `+60 ${phone}`
+  // Unknown format - return as-is (don't assume +60)
+  return phone
 }
 
 /**

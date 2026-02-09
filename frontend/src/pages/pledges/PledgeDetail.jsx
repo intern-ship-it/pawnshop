@@ -100,7 +100,11 @@ export default function PledgeDetail() {
           customerId: data.customer_id,
           customerName: data.customer?.name || "Unknown",
           customerIC: data.customer?.ic_number || "",
-          customerPhone: data.customer?.phone || "",
+          customerPhone: (data.customer?.phone || "").startsWith("+")
+            ? data.customer?.phone || ""
+            : data.customer?.country_code
+              ? `${data.customer.country_code.startsWith("+") ? "" : "+"}${data.customer.country_code} ${data.customer?.phone || ""}`
+              : data.customer?.phone || "",
           customerAddress: data.customer?.address || "",
           totalWeight: parseFloat(data.total_weight) || 0,
           grossValue: parseFloat(data.gross_value) || 0,
