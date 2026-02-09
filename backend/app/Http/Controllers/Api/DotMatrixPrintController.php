@@ -1382,20 +1382,43 @@ HTMLSTART
 
     <div class="pp-cust-title-row">
         <span class="pp-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span>
-        <span class="pp-cust-title-divider"></span>
-        <span class="pp-cust-title-right">Catatan :</span>
+        <span class="pp-cust-title-divider">|</span>
+        <span class="pp-cust-title-right"></span>
     </div>
 
     <div class="pp-cust-box">
-        <div class="pp-cust-row"><span class="pp-cust-lbl">No. Kad :<br>Pengenalan</span><span class="pp-cust-sp"></span></div>
-        <div class="pp-cust-row"><span class="pp-cust-lbl">Nama :</span><span class="pp-cust-sp"></span></div>
+        <!-- Row 1: IC | Name | Nationality -->
         <div class="pp-cust-row">
-            <span class="pp-cust-lbl">Kerakyatan :</span><span class="pp-cust-sp-s"></span>
-            <span class="pp-cust-lbl-s" style="margin-left: auto;">Tahun Lahir :</span><span class="pp-cust-sp-s"></span>
-            <span class="pp-cust-lbl-s">Jantina :</span><span class="pp-cust-sp-s"></span>
-            <span class="pp-cust-lbl-s">Panjang (cm) :</span><span class="pp-cust-sp-s"></span>
+            <span class="pp-cust-lbl" style="min-width: 25mm;">No. Kad :<br>Pengenalan</span>
+            <span class="pp-cust-sp" style="flex: 1;"></span>
+            
+            <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Nama :</span>
+            <span class="pp-cust-sp" style="flex: 2;"></span>
+            
+            <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Kerakyatan :</span>
+            <span class="pp-cust-sp" style="flex: 1;"></span>
         </div>
-        <div class="pp-cust-row"><span class="pp-cust-lbl">Alamat :</span><span class="pp-cust-sp"></span></div>
+
+        <!-- Row 2: Birth Year | Gender -->
+        <div class="pp-cust-row">
+            <span class="pp-cust-lbl" style="min-width: 25mm;">Tahun Lahir :</span>
+            <span class="pp-cust-sp" style="flex: 1;"></span>
+            
+            <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Jantina :</span>
+            <span class="pp-cust-sp" style="flex: 2;"></span>
+        </div>
+
+        <!-- Row 3: Address -->
+        <div class="pp-cust-row">
+            <span class="pp-cust-lbl" style="min-width: 20mm;">Alamat :</span>
+            <span class="pp-cust-sp" style="flex: 1;"></span>
+        </div>
+        
+        <!-- Row 4: Catatan -->
+        <div class="pp-cust-row">
+            <span class="pp-cust-lbl" style="min-width: 20mm;">Catatan :</span>
+            <span class="pp-cust-sp" style="flex: 1;"></span>
+        </div>
     </div>
 
     <div class="pp-amt-row"><span class="pp-amt-lbl">Amaun</span></div>
@@ -1635,15 +1658,12 @@ HTML;
 
     /**
      * Generate FRONT PAGE Data Overlay for Pre-Printed Form
-     * Only prints variable data - no borders, no labels, no background
-     * 
-     * IMPORTANT: Adjust position values (top, left, right) to match your physical form
+     * MATCHED TO NEW FORM LAYOUT (Image 2)
      */
     private function generatePrePrintedDataOverlay(Pledge $pledge, array $settings): string
     {
         $customer = $pledge->customer;
         $loanAmount = $pledge->loan_amount ?? 0;
-        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal']) / 100);
 
         // Calculate total weight
         $totalWeight = 0;
@@ -1662,7 +1682,7 @@ HTML;
         // Format IC
         $icNumber = $this->formatIC($customer->ic_number ?? '');
 
-        // Extract birth year and gender from IC
+        // Extract customer details
         $birthYear = $this->extractBirthYear($customer);
         $gender = $this->getGender($customer);
         $nationality = $this->getCitizenship($customer);
@@ -1678,11 +1698,13 @@ HTML;
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
             $desc = $item->description ?? '';
+
             if ($desc) {
                 if ($catatan)
-                    $catatan .= "\n";
+                    $catatan .= "; ";
                 $catatan .= $desc;
             }
+
             $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
             $itemNumber++;
         }
@@ -1694,19 +1716,16 @@ HTML;
         // Customer address
         $address = $this->formatCustomerAddress($customer);
 
-
-
         return <<<HTML
 <style>
-/* ═══ PRE-PRINTED DATA OVERLAY STYLES ═══ */
-/* Only data - no borders, no backgrounds, transparent */
+/* ═══ PRE-PRINTED DATA OVERLAY - MATCHED TO NEW FORM (Image 2) ═══ */
 .ppo-page {
     width: 210mm;
     height: 148mm;
     padding: 0;
     margin: 0;
     position: relative;
-    font-family: "Courier New", Courier, monospace;
+    font-family: Arial, Helvetica, sans-serif;
     font-weight: bold;
     color: #000;
     background: transparent !important;
@@ -1720,160 +1739,132 @@ HTML;
     padding: 0;
 }
 
-/* ═══ FIELD POSITIONS - ADJUSTED TO MATCH PRE-PRINTED FORM ═══ */
-
-/* TICKET NUMBER - Yellow NO.TIKET box top right */
+/* ═══ TICKET NUMBER - Yellow "NO. TIKET:" box ═══ */
 .ppo-ticket {
     position: absolute;
-    top: 30mm;
+    top: 24mm;
     right: 8mm;
-    width: 45mm;
+    width: 44mm;
     text-align: center;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: bold;
+    font-family: 'Courier New', monospace;
 }
 
-/* ITEMS LIST - Below header, left side */
+/* ═══ ITEMS LIST - Large box on left ═══ */
 .ppo-items {
     position: absolute;
-    top: 32mm;
-    left: 8mm;
-    width: 140mm;
-    font-size: 9px;
-    line-height: 1.4;
+    top: 22mm;
+    left: 7mm;
+    width: 138mm;
+    font-size: 10px;
+    line-height: 1.6;
 }
 .ppo-item {
-    margin-bottom: 0.5mm;
+    margin-bottom: 1.5mm;
 }
 
 /* ═══ CUSTOMER SECTION - Red bordered box ═══ */
-/* IC Number - After "No. Kad Pengenalan" label */
+/* Row 1: No. Kad Pengenalan | Nama | Kerakyatan */
 .ppo-ic {
     position: absolute;
-    top: 72mm;
-    left: 26mm;
+    top: 62mm;
+    left: 42mm;
     font-size: 10px;
 }
 
-/* Customer Name - After "Nama" label */
 .ppo-name {
     position: absolute;
-    top: 81mm;
-    left: 25mm;
+    top: 62mm;
+    left: 108mm;
     font-size: 10px;
 }
 
-/* Nationality - After "Kerakyatan" label */
 .ppo-nationality {
     position: absolute;
-    top: 89mm;
-    left: 32mm;
-    font-size: 9px;
+    top: 62mm;
+    left: 170mm;
+    font-size: 10px;
 }
 
-/* Birth Year - After "Tahun Lahir" label */
+/* Row 2: Tahun Lahir | Jantina */
 .ppo-birthyear {
     position: absolute;
-    top: 89mm;
-    left: 80mm;
-    font-size: 9px;
+    top: 70mm;
+    left: 32mm;
+    font-size: 10px;
 }
 
-/* Gender - After "Jantina" label */
 .ppo-gender {
     position: absolute;
-    top: 89mm;
-    left: 118mm;
-    font-size: 9px;
+    top: 70mm;
+    left: 108mm;
+    font-size: 10px;
 }
 
-/* Panjang (cm) - if needed */
-.ppo-length {
-    position: absolute;
-    top: 89mm;
-    left: 95mm;
-    font-size: 9px;
-}
-
-/* Address - After "Alamat" label - BELOW kerakyatan row */
+/* Row 3: Alamat - full width */
 .ppo-address {
     position: absolute;
-    top: 98mm;
-    left: 28mm;
-    width: 125mm;
+    top: 78mm;
+    left: 22mm;
+    width: 180mm;
     font-size: 9px;
-    line-height: 1.2;
+    line-height: 1.3;
 }
 
-/* ═══ CATATAN SECTION - Right side column ═══ */
+/* Row 4: Catatan - full width */
 .ppo-catatan {
     position: absolute;
-    top: 68mm;
-    right: 8mm;
-    width: 45mm;
-    font-size: 8px;
-    line-height: 1.3;
-    text-align: center;
-}
-
-/* Monthly interest display - In Catatan area */
-.ppo-interest {
-    position: absolute;
-    top: 76mm;
-    right: 8mm;
-    width: 45mm;
-    font-size: 10px;
-    font-weight: bold;
-    text-align: center;
-    color: #c00;
-}
-
-/* ═══ AMOUNT SECTION - Bottom red bordered area ═══ */
-/* Amount in words - After "Amaun" */
-.ppo-amount-words {
-    position: absolute;
-    top: 105mm;
-    left: 30mm;
-    width: 135mm;
-    font-size: 7px;
+    top: 86mm;
+    left: 24mm;
+    width: 178mm;
+    font-size: 9px;
     line-height: 1.2;
 }
 
-/* Loan Amount RM - After "Pinjaman RM" */
+/* ═══ AMAUN ROW ═══ */
+.ppo-amount-words {
+    position: absolute;
+    top: 94mm;
+    left: 22mm;
+    width: 180mm;
+    font-size: 9px;
+}
+
+/* ═══ BOTTOM ROW - Pinjaman RM | Tarikh Dipajak | Tarikh Cukup Tempoh ═══ */
 .ppo-loan-amount {
     position: absolute;
-    top: 113mm;
-    left: 28mm;
+    top: 103mm;
+    left: 32mm;
     font-size: 14px;
     font-weight: bold;
+    font-family: 'Courier New', monospace;
 }
 
-/* Pledge Date - Tarikh Dipajak box */
 .ppo-pledge-date {
     position: absolute;
-    top: 115mm;
-    left: 148mm;
+    top: 105mm;
+    left: 138mm;
     width: 30mm;
-    font-size: 9px;
+    font-size: 10px;
     text-align: center;
 }
 
-/* Due Date - Tarikh Cukup Tempoh yellow box */
 .ppo-due-date {
     position: absolute;
-    top: 115mm;
-    left: 176mm;
+    top: 105mm;
+    left: 172mm;
     width: 30mm;
-    font-size: 9px;
+    font-size: 10px;
     text-align: center;
 }
 
-/* Total Weight - Bottom right footer area */
+/* ═══ WEIGHT - Bottom right ═══ */
 .ppo-weight {
     position: absolute;
-    top: 130mm;
-    right: 8mm;
-    font-size: 8px;
+    top: 115mm;
+    right: 12mm;
+    font-size: 9px;
 }
 
 @media print {
@@ -1897,43 +1888,30 @@ HTML;
         {$itemsText}
     </div>
     
-    <!-- CUSTOMER IC -->
+    <!-- ROW 1: IC | NAME | NATIONALITY -->
     <div class="ppo-ic">{$icNumber}</div>
-    
-    <!-- CUSTOMER NAME -->
     <div class="ppo-name">{$customer->name}</div>
-    
-    <!-- NATIONALITY -->
     <div class="ppo-nationality">{$nationality}</div>
     
-    <!-- BIRTH YEAR -->
+    <!-- ROW 2: BIRTH YEAR | GENDER -->
     <div class="ppo-birthyear">{$birthYear}</div>
-    
-    <!-- GENDER -->
     <div class="ppo-gender">{$gender}</div>
     
-    <!-- ADDRESS -->
+    <!-- ROW 3: ADDRESS -->
     <div class="ppo-address">{$address}</div>
     
-    <!-- CATATAN (Notes) -->
+    <!-- ROW 4: CATATAN -->
     <div class="ppo-catatan">{$catatan}</div>
-    
-    <!-- MONTHLY INTEREST -->
-    <div class="ppo-interest">RM {$this->formatNumber($monthlyInterest)} / bulan</div>
     
     <!-- AMOUNT IN WORDS -->
     <div class="ppo-amount-words">{$amountWords} SAHAJA</div>
     
-    <!-- LOAN AMOUNT -->
+    <!-- BOTTOM ROW -->
     <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
-    
-    <!-- PLEDGE DATE -->
     <div class="ppo-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
-    
-    <!-- DUE DATE -->
     <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div>
     
-    <!-- TOTAL WEIGHT -->
+    <!-- WEIGHT -->
     <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
 </div>
 HTML;

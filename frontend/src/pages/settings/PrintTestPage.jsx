@@ -1874,37 +1874,6 @@ export default function PrintTestPage() {
                   customer data
                 </p>
               </div>
-
-              {/* Pre-Printed Data Overlay - NEW */}
-              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-medium text-orange-800">
-                      Pre-Printed Data Overlay
-                    </p>
-                    <p className="text-xs text-orange-600">
-                      Print data on carbonless forms
-                    </p>
-                  </div>
-                  <Badge className="bg-orange-500 text-white">Overlay</Badge>
-                </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={Layers}
-                  onClick={printPrePrintedOverlay}
-                  loading={printing && previewType === "Pre-Printed Overlay"}
-                  disabled={!selectedPledge || printing}
-                  fullWidth
-                  className="bg-orange-600 hover:bg-orange-700"
-                >
-                  Test Overlay Alignment
-                </Button>
-                <p className="text-xs text-orange-500 mt-2">
-                  🔀 Prints ONLY data to overlay on pre-printed forms. Selected:{" "}
-                  <strong>{selectedPledge?.pledge_no || "None"}</strong>
-                </p>
-              </div>
             </div>
           </Card>
 
