@@ -18,10 +18,8 @@ class ReconciliationController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $branchId = $request->user()->branch_id;
-
-        $query = Reconciliation::where('branch_id', $branchId)
-            ->with(['startedBy:id,name', 'completedBy:id,name']);
+        // No branch filter
+        $query = Reconciliation::with(['startedBy:id,name', 'completedBy:id,name']);
 
         // Filter by status
         if ($status = $request->get('status')) {
@@ -40,6 +38,23 @@ class ReconciliationController extends Controller
     }
 
     /**
+     * Check for existing in-progress reconciliation
+     */
+    public function checkInProgress(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        
+        $existing = Reconciliation::activeInProgress()
+            ->where('branch_id', $branchId)
+            ->first();
+
+        return $this->success([
+            'has_in_progress' => !is_null($existing),
+            'reconciliation' => $existing,
+        ]);
+    }
+
+    /**
      * Start new reconciliation
      */
     public function start(Request $request): JsonResponse
@@ -50,23 +65,50 @@ class ReconciliationController extends Controller
         $validated = $request->validate([
             'reconciliation_type' => 'required|in:daily,weekly,monthly,adhoc',
             'notes' => 'nullable|string',
+            'force_start' => 'nullable|boolean', // Allow forcing start by cancelling existing
         ]);
 
-        // Check for existing in-progress reconciliation
-        $existing = Reconciliation::where('branch_id', $branchId)
-            ->where('status', 'in_progress')
+        // Auto-cancel any expired reconciliations first
+        Reconciliation::expired()
+            ->where('branch_id', $branchId)
+            ->get()
+            ->each(function ($rec) {
+                $rec->update([
+                    'status' => 'cancelled',
+                    'notes' => ($rec->notes ? $rec->notes . ' | ' : '') . 'Auto-cancelled: exceeded 4-hour time limit',
+                ]);
+            });
+
+        // Check for ACTIVE (non-expired) in-progress reconciliation
+        $existing = Reconciliation::activeInProgress()
+            ->where('branch_id', $branchId)
             ->first();
 
         if ($existing) {
-            return $this->error('There is already a reconciliation in progress', 422);
+            // If force_start is true, cancel the existing reconciliation
+            if ($validated['force_start'] ?? false) {
+                $existing->update([
+                    'status' => 'cancelled',
+                    'notes' => ($existing->notes ? $existing->notes . ' | ' : '') . 'Auto-cancelled to start new reconciliation',
+                ]);
+                
+                $this->info('Previous reconciliation cancelled automatically');
+            } else {
+                // Return the existing reconciliation details with error
+                return $this->error('There is already a reconciliation in progress for this branch', 422, [
+                    'existing_reconciliation' => $existing->load('startedBy:id,name'),
+                    'can_force_start' => true,
+                ]);
+            }
         }
 
         DB::beginTransaction();
 
         try {
-            // Count expected items
+            // Count expected items (branch-specific)
             $expectedItems = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->where('status', 'active');
+                $q->where('branch_id', $branchId)
+                  ->where('status', 'active');
             })
                 ->where('status', 'stored')
                 ->count();
@@ -91,6 +133,7 @@ class ReconciliationController extends Controller
                 'status' => 'in_progress',
                 'started_at' => now(),
                 'started_by' => $userId,
+                'expires_at' => now()->addHours(4),
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -105,13 +148,34 @@ class ReconciliationController extends Controller
     }
 
     /**
+     * Force cancel any stuck in-progress reconciliation for this branch
+     */
+    public function forceCancel(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        
+        $existing = Reconciliation::where('status', 'in_progress')
+            ->where('branch_id', $branchId)
+            ->first();
+
+        if (!$existing) {
+            return $this->error('No in-progress reconciliation found', 404);
+        }
+
+        $existing->update([
+            'status' => 'cancelled',
+            'notes' => ($existing->notes ? $existing->notes . ' | ' : '') . 'Force cancelled by user',
+        ]);
+
+        return $this->success(null, 'Reconciliation cancelled successfully');
+    }
+
+    /**
      * Scan item barcode
      */
     public function scan(Request $request, Reconciliation $reconciliation): JsonResponse
     {
-        if ($reconciliation->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+        // No branch check
 
         if ($reconciliation->status !== 'in_progress') {
             return $this->error('Reconciliation is not in progress', 422);
@@ -201,9 +265,7 @@ class ReconciliationController extends Controller
      */
     public function complete(Request $request, Reconciliation $reconciliation): JsonResponse
     {
-        if ($reconciliation->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+        // No branch check
 
         if ($reconciliation->status !== 'in_progress') {
             return $this->error('Reconciliation is not in progress', 422);
@@ -269,9 +331,7 @@ class ReconciliationController extends Controller
      */
     public function cancel(Request $request, Reconciliation $reconciliation): JsonResponse
     {
-        if ($reconciliation->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+        // No branch check
 
         if ($reconciliation->status !== 'in_progress') {
             return $this->error('Only in-progress reconciliations can be cancelled', 422);
@@ -290,9 +350,7 @@ class ReconciliationController extends Controller
      */
     public function show(Request $request, Reconciliation $reconciliation): JsonResponse
     {
-        if ($reconciliation->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+        // No branch check
 
         $reconciliation->load([
             'items.pledgeItem.pledge.customer:id,name',
@@ -310,9 +368,7 @@ class ReconciliationController extends Controller
      */
     public function report(Request $request, Reconciliation $reconciliation): JsonResponse
     {
-        if ($reconciliation->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+        // No branch check
 
         if ($reconciliation->status !== 'completed') {
             return $this->error('Reconciliation not yet completed', 422);

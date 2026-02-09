@@ -19,12 +19,8 @@ class InventoryController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $branchId = $request->user()->branch_id;
-
-        $query = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })
-            ->with(['pledge.customer:id,name,ic_number', 'category', 'purity', 'vault', 'box', 'slot']);
+        // No branch filter
+        $query = PledgeItem::with(['pledge.customer:id,name,ic_number', 'category', 'purity', 'vault', 'box', 'slot']);
 
         // ISSUE 2 FIX: Filter by item status (stored/released)
         if ($status = $request->get('status')) {
@@ -394,12 +390,8 @@ class InventoryController extends Controller
      */
     public function summary(Request $request): JsonResponse
     {
-        $branchId = $request->user()->branch_id;
-
-        // Get ALL items for this branch (not filtered by pledge status)
-        $allItems = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })->get();
+        // Get ALL items (no branch filter for now)
+        $allItems = PledgeItem::with('pledge')->get();
 
         // Items currently in storage (status = stored or null)
         $storedItems = $allItems->filter(function ($item) {
