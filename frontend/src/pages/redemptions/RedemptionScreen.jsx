@@ -328,6 +328,54 @@ export default function RedemptionScreen() {
         }
       }
 
+      // If direct search fails, try searching by customer name/IC
+      if (!data) {
+        console.log(
+          `Direct search failed, trying customer name/IC search: ${searchTerm}`,
+        );
+        try {
+          // Note: API interceptor already unwraps response.data
+          // So 'response' here is already { success: true, data: [...], meta: {...} }
+          const response = await pledgeService.getAll({
+            search: searchTerm,
+            per_page: 50,
+            status: "active,overdue", // Only get redeemable pledges
+            with_items: true, // Include full item data
+          });
+
+          console.log("Customer search response:", response);
+
+          // response.data is the array of pledges (interceptor already unwrapped)
+          const pledges = response?.data || [];
+
+          if (Array.isArray(pledges) && pledges.length > 0) {
+            // Filter to only active/overdue pledges (in case status filter didn't work)
+            const redeemablePledges = pledges.filter(
+              (p) => p.status === "active" || p.status === "overdue",
+            );
+
+            console.log(`Found ${redeemablePledges.length} redeemable pledges`);
+
+            if (redeemablePledges.length === 1) {
+              // Single result - auto-load it
+              data = redeemablePledges[0];
+            } else if (redeemablePledges.length > 1) {
+              // Multiple results - show the first one and notify user
+              data = redeemablePledges[0];
+              dispatch(
+                addToast({
+                  type: "info",
+                  title: "Multiple Pledges Found",
+                  message: `Found ${redeemablePledges.length} pledges for "${searchTerm}". Showing the most recent one.`,
+                }),
+              );
+            }
+          }
+        } catch (searchError) {
+          console.error("Customer name/IC search failed:", searchError);
+        }
+      }
+
       if (data) {
         const pledgeData = transformPledgeData(data);
 
@@ -359,7 +407,7 @@ export default function RedemptionScreen() {
           addToast({
             type: "error",
             title: "Not Found",
-            message: "No active pledge found with this ID/IC",
+            message: "No active pledge found with this ID/IC/Name",
           }),
         );
       }
@@ -386,7 +434,7 @@ export default function RedemptionScreen() {
           type: "warning",
           title: "Required",
           message:
-            "Please enter a pledge ID, receipt number, IC, or scan barcode",
+            "Please enter a pledge ID, receipt number, customer name, IC, or scan barcode",
         }),
       );
       return;
@@ -1017,7 +1065,7 @@ export default function RedemptionScreen() {
               <div className="flex-1 relative">
                 <Input
                   ref={mergeRefs(barcodeInputRef, searchInputRef)}
-                  placeholder="Enter Pledge No, Receipt No, IC Number, or scan barcode..."
+                  placeholder="Enter Pledge No, Receipt No, Customer Name, IC, or scan barcode..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -1072,7 +1120,7 @@ export default function RedemptionScreen() {
                         No active pledge found
                       </p>
                       <p className="text-sm text-amber-600">
-                        Check the ID/IC and try again
+                        Check the ID, IC, or customer name and try again
                       </p>
                     </div>
                   </div>
