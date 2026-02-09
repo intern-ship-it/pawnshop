@@ -846,7 +846,7 @@ export default function PledgeDetail() {
                 <CreditCard className="w-5 h-5 text-zinc-400" />
                 Pledge Charges & Payout
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
                   <p className="text-sm text-blue-600 font-medium">
                     Loan Amount
@@ -858,7 +858,7 @@ export default function PledgeDetail() {
                     {pledge.loanPercentage}% of Net Value
                   </p>
                 </div>
-                <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+                {/* <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
                   <p className="text-sm text-amber-600 font-medium">
                     Handling Fee
                   </p>
@@ -866,7 +866,7 @@ export default function PledgeDetail() {
                     {formatCurrency(pledge.handlingFee)}
                   </p>
                   <p className="text-xs text-amber-500 mt-1">Service charge</p>
-                </div>
+                </div> */}
                 <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
                   <p className="text-sm text-emerald-600 font-medium">
                     Payout Amount
