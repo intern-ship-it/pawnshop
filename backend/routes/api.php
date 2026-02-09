@@ -533,6 +533,15 @@ Route::middleware('auth:sanctum')->group(function () {
                 ->middleware('check.permission:pledges,print');
             Route::post('/pre-printed-form', [DotMatrixPrintController::class, 'prePrintedForm'])
                 ->middleware('check.permission:pledges,print');
+
+            // Pre-Printed Form Data Overlay (for carbonless forms)
+            // These print ONLY the data to overlay on pre-printed paper
+            Route::post('/pre-printed/pledge/{pledge}', [DotMatrixPrintController::class, 'prePrintedPledgeReceipt'])
+                ->middleware('check.permission:pledges,print');
+            Route::post('/pre-printed/renewal/{renewal}', [DotMatrixPrintController::class, 'prePrintedRenewalReceipt'])
+                ->middleware('check.permission:renewals,print');
+            Route::post('/pre-printed/redemption/{redemption}', [DotMatrixPrintController::class, 'prePrintedRedemptionReceipt'])
+                ->middleware('check.permission:redemptions,print');
         });
 
         // Barcode print

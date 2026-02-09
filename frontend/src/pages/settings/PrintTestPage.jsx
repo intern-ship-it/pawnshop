@@ -21,6 +21,7 @@ import {
   TestTube,
   Receipt,
   RotateCcw,
+  Layers,
 } from "lucide-react";
 
 export default function PrintTestPage() {
@@ -1170,6 +1171,286 @@ export default function PrintTestPage() {
     printWindow.focus();
   };
 
+  // Print Pre-Printed Data Overlay (prints ONLY data on pre-printed carbonless forms)
+  const printPrePrintedOverlay = async () => {
+    if (!selectedPledge) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please select a pledge first",
+        }),
+      );
+      return;
+    }
+
+    setPrinting(true);
+    setPreviewType("Pre-Printed Overlay");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pre-printed/pledge/${selectedPledge.id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
+      );
+
+      const data = await response.json();
+      const duration = Date.now() - startTime;
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate overlay");
+      }
+
+      const frontHtml = data.data?.front_html || "";
+      const pledgeNo = data.data?.pledge_no || selectedPledge.pledge_no;
+
+      logResult(
+        "Pre-Printed Overlay",
+        true,
+        `Data overlay for ${pledgeNo}`,
+        duration,
+      );
+
+      // Open overlay test window
+      openPrePrintedOverlayWindow(frontHtml, pledgeNo);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `Overlay ready (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Pre-Printed Overlay", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Open Pre-Printed Overlay Test Window (shows data over form for alignment check)
+  const openPrePrintedOverlayWindow = (dataHtml, pledgeNo) => {
+    const printWindow = window.open("", "_blank", "width=950,height=800");
+    if (!printWindow) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Popup Blocked",
+          message: "Please allow popups",
+        }),
+      );
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>Pre-Printed Overlay Test - ${pledgeNo}</title>
+        <style>
+          body { background: #444; padding: 20px; margin: 0; font-family: Arial, sans-serif; }
+          .ctrl {
+            text-align: center; padding: 16px 20px; background: #1a1a2e; margin-bottom: 20px;
+            border-radius: 10px; position: sticky; top: 0; z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+          }
+          .ctrl h2 { color: #10b981; margin: 0 0 8px 0; font-size: 18px; }
+          .ctrl p { color: #9ca3af; margin: 4px 0; font-size: 13px; }
+          .ctrl .highlight { color: #fbbf24; font-weight: bold; }
+          .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+          .ctrl button {
+            padding: 12px 24px; font-size: 14px; cursor: pointer; border: none;
+            border-radius: 8px; font-weight: bold; transition: all 0.2s;
+          }
+          .btn-form { background: #3b82f6; color: #fff; }
+          .btn-data { background: #ef4444; color: #fff; }
+          .btn-both { background: #10b981; color: #fff; }
+          .btn-print { background: #f59e0b; color: #000; }
+          .btn-close { background: #6b7280; color: #fff; }
+          .ctrl button:hover { transform: translateY(-2px); }
+          .preview-container {
+            position: relative; width: 210mm; height: 148mm; margin: 20px auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5); background: #fff;
+          }
+          .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+          .form-layer.semi { opacity: 0.3; }
+          .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+          .hidden { display: none !important; }
+          /* Pre-printed form styles */
+          .pp-front { width: 210mm; height: 148mm; padding: 3mm 5mm; font-family: Arial, sans-serif; color: #1a4a7a; background: #fff !important; overflow: hidden; box-sizing: border-box; }
+          .pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
+          .pp-hdr { display: flex; align-items: flex-start; padding-bottom: 1.5mm; border-bottom: 1px solid #1a4a7a; }
+          .pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 2mm; }
+          .pp-co-info { flex: 1; }
+          .pp-co-name { font-size: 26px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+          .pp-co-multi { font-size: 1.5rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
+          .pp-co-addr { font-size: 8px; color: #1a4a7a; margin-top: 0.5mm; }
+          .pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 50mm; }
+          .pp-top-row { display: flex; align-items: center; gap: 1.5mm; margin-bottom: 0.5mm; }
+          .pp-phone-box { background: #d42027; color: #fff; padding: 1.5mm 2.5mm; border-radius: 3px; display: flex; align-items: center; gap: 1mm; }
+          .pp-phone-icon { font-size: 11px; color: #d42027; background: #fff; border-radius: 50%; width: 4.5mm; height: 4.5mm; display: flex; align-items: center; justify-content: center; }
+          .pp-phone-nums { font-size: 9px; font-weight: bold; line-height: 1.3; }
+          .pp-sejak { background: #d42027; color: #fff; width: 11mm; height: 11mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+          .pp-sejak-lbl { font-size: 5px; font-weight: bold; }
+          .pp-sejak-yr { font-size: 9px; font-weight: bold; }
+          .pp-hrs-box { background: #f5c518; color: #000; padding: 1mm 2mm; width: 50mm; }
+          .pp-hrs-title { font-size: 10px; font-weight: bold; text-align: center; }
+          .pp-hrs-line { font-size: 6.5px; font-weight: bold; line-height: 1.3; }
+          .pp-mid { display: flex; border: 1px solid #1a4a7a; }
+          .pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; }
+          .pp-items-title { font-size: 8px; font-weight: bold; text-decoration: underline; margin-bottom: 1mm; }
+          .pp-items-area { min-height: 28mm; padding-left: 2mm; }
+          .pp-rcol { width: 50mm; min-width: 50mm; }
+          .pp-tkt-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; }
+          .pp-tkt-lbl { font-size: 8px; font-weight: bold; color: #000; }
+          .pp-tkt-space { min-height: 10mm; }
+          .pp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }
+          .pp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
+          .pp-rate-cell:first-child { border-right: 1px solid #1a4a7a; }
+          .pp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
+          .pp-rate-val { font-size: 10px; font-weight: bold; color: #1a4a7a; }
+          .pp-rate-big { font-size: 13px; }
+          .pp-kadar { padding: 1.5mm 2mm; }
+          .pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center; }
+          .pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; }
+          .pp-cust-title-row { display: flex; font-size: 8px; font-weight: bold; padding: 1mm 0; margin-top: 1mm; }
+          .pp-cust-title-left { flex: 1; text-decoration: underline; }
+          .pp-cust-title-divider { width: 1px; background: #1a4a7a; margin: 0 2mm; }
+          .pp-cust-title-right { width: 50mm; }
+          .pp-cust-box { border: 1px solid #d42027; padding: 2mm 3mm; min-height: 32mm; }
+          .pp-cust-row { display: flex; align-items: baseline; margin-bottom: 3mm; font-size: 10px; font-weight: bold; }
+          .pp-cust-row:last-child { margin-bottom: 0; }
+          .pp-cust-lbl { white-space: nowrap; min-width: 20mm; }
+          .pp-cust-lbl-s { white-space: nowrap; margin-left: 3mm; }
+          .pp-cust-sp { flex: 1; min-height: 5mm; }
+          .pp-cust-sp-s { width: 18mm; min-height: 5mm; }
+          .pp-amt-row { border: 1px solid #d42027; border-bottom: none; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 2mm; }
+          .pp-amt-lbl { font-size: 10px; font-weight: bold; }
+          .pp-bot { display: flex; border: 2px solid #d42027; }
+          .pp-pin-cell { flex: 1; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 1.5mm; border-right: 2px solid #d42027; }
+          .pp-pin-lbl { font-size: 9px; }
+          .pp-pin-rm { font-size: 12px; font-weight: bold; }
+          .pp-pin-sp { flex: 1; min-height: 6mm; }
+          .pp-pin-stars { font-size: 12px; font-weight: bold; }
+          .pp-dt-cell { width: 27mm; text-align: center; padding: 1.5mm; border-right: 2px solid #d42027; }
+          .pp-dt-cell:last-child { border-right: none; }
+          .pp-dt-lbl { font-size: 7px; font-weight: bold; }
+          .pp-dt-sp { min-height: 6mm; }
+          .pp-dt-yel { background: #f5c518; }
+          .pp-ftr { font-size: 6px; line-height: 1.4; margin-top: 1mm; display: flex; justify-content: space-between; align-items: flex-end; }
+          .pp-ftr-left { flex: 1; }
+          .pp-ftr-right { text-align: right; font-size: 5px; }
+          .pp-gm-box { display: inline-block; text-align: center; font-size: 6px; line-height: 1.2; min-width: 8mm; vertical-align: top; }
+          @page { size: 210mm 148mm; margin: 0; }
+          @media print {
+            body { background: #fff !important; padding: 0 !important; }
+            .ctrl { display: none !important; }
+            .preview-container { box-shadow: none !important; margin: 0 !important; }
+            .form-layer { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="ctrl">
+          <h2>🔀 Pre-Printed Overlay Test - ${pledgeNo}</h2>
+          <p>Check if data aligns with pre-printed form fields</p>
+          <p class="highlight">⚠️ Adjust CSS positions in controller if misaligned</p>
+          <div class="btn-row">
+            <button class="btn-form" onclick="showForm()">📄 Form Only</button>
+            <button class="btn-data" onclick="showData()">📝 Data Only</button>
+            <button class="btn-both" onclick="showBoth()">🔀 Both Layers</button>
+            <button class="btn-print" onclick="window.print()">🖨️ Print Data Only</button>
+            <button class="btn-close" onclick="window.close()">✕ Close</button>
+          </div>
+        </div>
+        <div class="preview-container">
+          <div class="form-layer semi" id="formLayer">
+            <div class="pp-front">
+              <div class="pp-hdr">
+                <div class="pp-hdr-left">
+                  <div class="pp-co-info">
+                    <div class="pp-co-name">PAJAK GADAI SDN BHD</div>
+                    <div class="pp-co-multi">新泰當 அடகு கடை</div>
+                    <div class="pp-co-addr">123 Jalan Utama, 55100 Kuala Lumpur.</div>
+                  </div>
+                </div>
+                <div class="pp-hdr-right">
+                  <div class="pp-top-row">
+                    <div class="pp-phone-box"><span class="pp-phone-icon">☎</span><div class="pp-phone-nums">03-12345678</div></div>
+                    <div class="pp-sejak"><span class="pp-sejak-lbl">SEJAK</span><span class="pp-sejak-yr">1966</span></div>
+                  </div>
+                  <div class="pp-hrs-box"><div class="pp-hrs-title">BUKA 7 HARI</div><div class="pp-hrs-line">ISNIN - AHAD : 8.30AM - 6.00PM</div></div>
+                </div>
+              </div>
+              <div class="pp-mid">
+                <div class="pp-items-sec"><div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div><div class="pp-items-area"></div></div>
+                <div class="pp-rcol">
+                  <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
+                  <div class="pp-rate-row">
+                    <div class="pp-rate-cell"><div class="pp-rate-lbl">CAJ PENGENDALIAN</div><div class="pp-rate-val">50 SEN</div></div>
+                    <div class="pp-rate-cell"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">6 BULAN</div></div>
+                  </div>
+                  <div class="pp-kadar"><div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div><div class="pp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div><div class="pp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div></div>
+                </div>
+              </div>
+              <div class="pp-cust-title-row"><span class="pp-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span><span class="pp-cust-title-divider"></span><span class="pp-cust-title-right">Catatan :</span></div>
+              <div class="pp-cust-box">
+                <div class="pp-cust-row"><span class="pp-cust-lbl">No. Kad :<br>Pengenalan</span><span class="pp-cust-sp"></span></div>
+                <div class="pp-cust-row"><span class="pp-cust-lbl">Nama :</span><span class="pp-cust-sp"></span></div>
+                <div class="pp-cust-row"><span class="pp-cust-lbl">Kerakyatan :</span><span class="pp-cust-sp-s"></span><span class="pp-cust-lbl-s">Tahun Lahir :</span><span class="pp-cust-sp-s"></span><span class="pp-cust-lbl-s">Jantina :</span><span class="pp-cust-sp-s"></span></div>
+                <div class="pp-cust-row"><span class="pp-cust-lbl">Alamat :</span><span class="pp-cust-sp"></span></div>
+              </div>
+              <div class="pp-amt-row"><span class="pp-amt-lbl">Amaun</span></div>
+              <div class="pp-bot">
+                <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
+                <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div>
+                <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div>
+              </div>
+              <div class="pp-ftr"><div class="pp-ftr-left"><div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti.</div></div><div class="pp-ftr-right">Berat : <div class="pp-gm-box">(gm)</div></div></div>
+            </div>
+          </div>
+          <div class="data-layer" id="dataLayer">${dataHtml}</div>
+        </div>
+        <script>
+          function showForm() {
+            document.getElementById('formLayer').classList.remove('hidden', 'semi');
+            document.getElementById('dataLayer').classList.add('hidden');
+          }
+          function showData() {
+            document.getElementById('formLayer').classList.add('hidden');
+            document.getElementById('dataLayer').classList.remove('hidden');
+          }
+          function showBoth() {
+            document.getElementById('formLayer').classList.remove('hidden');
+            document.getElementById('formLayer').classList.add('semi');
+            document.getElementById('dataLayer').classList.remove('hidden');
+          }
+          showBoth();
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
   const filteredPledges = pledges.filter((p) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -1591,6 +1872,37 @@ export default function PrintTestPage() {
                 <p className="text-xs text-emerald-500 mt-2">
                   📝 Blank forms with all labels, borders & styling - no
                   customer data
+                </p>
+              </div>
+
+              {/* Pre-Printed Data Overlay - NEW */}
+              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-orange-800">
+                      Pre-Printed Data Overlay
+                    </p>
+                    <p className="text-xs text-orange-600">
+                      Print data on carbonless forms
+                    </p>
+                  </div>
+                  <Badge className="bg-orange-500 text-white">Overlay</Badge>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={Layers}
+                  onClick={printPrePrintedOverlay}
+                  loading={printing && previewType === "Pre-Printed Overlay"}
+                  disabled={!selectedPledge || printing}
+                  fullWidth
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  Test Overlay Alignment
+                </Button>
+                <p className="text-xs text-orange-500 mt-2">
+                  🔀 Prints ONLY data to overlay on pre-printed forms. Selected:{" "}
+                  <strong>{selectedPledge?.pledge_no || "None"}</strong>
                 </p>
               </div>
             </div>
