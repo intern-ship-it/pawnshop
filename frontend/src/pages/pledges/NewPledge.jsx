@@ -1140,11 +1140,11 @@ export default function NewPledge() {
     let customerWindow = null;
     let barcodeWindow = null;
 
-    // 1. Dot Matrix - Office Copy
+    // 1. Dot Matrix - Office Copy (Data Overlay for Pre-Printed Forms)
     updateJobStatus("dotMatrixOffice", "running", "Printing office copy...");
     try {
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pledge-receipt/${pledgeId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed/pledge/${pledgeId}`,
         {
           method: "POST",
           headers: {
@@ -1152,29 +1152,40 @@ export default function NewPledge() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: "office" }),
         },
       );
 
       if (!response.ok) throw new Error("Failed to generate office copy");
       const data = await response.json();
 
-      if (data.success && data.data?.receipt_text) {
-        officeWindow = window.open("", "_blank", "width=600,height=800");
+      if (data.success && data.data?.front_html) {
+        officeWindow = window.open("", "_blank", "width=800,height=600");
         if (officeWindow) {
-          officeWindow.document.open();
-          officeWindow.document.write(
-            generateDotMatrixHTML(
-              data.data.receipt_text,
-              data.data.terms_text || "",
-              "office",
-            ),
-          );
+          officeWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Pledge ${pledgeId} - Office Copy</title>
+              <style>
+                @page { size: A5 landscape; margin: 0; }
+                body { margin: 0; padding: 0; }
+              </style>
+            </head>
+            <body>
+              ${data.data.front_html}
+              <script>
+                window.onload = function() {
+                  window.print();
+                };
+              </script>
+            </body>
+            </html>
+          `);
           officeWindow.document.close();
           updateJobStatus(
             "dotMatrixOffice",
             "success",
-            "Office copy ready (2 pages)",
+            "Data overlay ready (office)",
           );
         } else {
           updateJobStatus("dotMatrixOffice", "failed", "Popup blocked");
@@ -1197,7 +1208,7 @@ export default function NewPledge() {
     // Small delay between jobs
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // 2. Dot Matrix - Customer Copy
+    // 2. Dot Matrix - Customer Copy (Data Overlay for Pre-Printed Forms)
     updateJobStatus(
       "dotMatrixCustomer",
       "running",
@@ -1205,7 +1216,7 @@ export default function NewPledge() {
     );
     try {
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pledge-receipt/${pledgeId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed/pledge/${pledgeId}`,
         {
           method: "POST",
           headers: {
@@ -1213,29 +1224,40 @@ export default function NewPledge() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
       if (!response.ok) throw new Error("Failed to generate customer copy");
       const data = await response.json();
 
-      if (data.success && data.data?.receipt_text) {
-        customerWindow = window.open("", "_blank", "width=600,height=800");
+      if (data.success && data.data?.front_html) {
+        customerWindow = window.open("", "_blank", "width=800,height=600");
         if (customerWindow) {
-          customerWindow.document.open();
-          customerWindow.document.write(
-            generateDotMatrixHTML(
-              data.data.receipt_text,
-              data.data.terms_text || "",
-              "customer",
-            ),
-          );
+          customerWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Pledge ${pledgeId} - Customer Copy</title>
+              <style>
+                @page { size: A5 landscape; margin: 0; }
+                body { margin: 0; padding: 0; }
+              </style>
+            </head>
+            <body>
+              ${data.data.front_html}
+              <script>
+                window.onload = function() {
+                  window.print();
+                };
+              </script>
+            </body>
+            </html>
+          `);
           customerWindow.document.close();
           updateJobStatus(
             "dotMatrixCustomer",
             "success",
-            "Customer copy ready (2 pages)",
+            "Data overlay ready (customer)",
           );
         } else {
           updateJobStatus("dotMatrixCustomer", "failed", "Popup blocked");
