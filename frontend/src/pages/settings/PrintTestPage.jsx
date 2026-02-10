@@ -1171,6 +1171,178 @@ export default function PrintTestPage() {
     printWindow.focus();
   };
 
+  // Test Data Overlay - Preview data alignment on pre-printed form
+  const testDataOverlay = async () => {
+    if (!selectedPledge) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please select a pledge first",
+        }),
+      );
+      return;
+    }
+
+    setPrinting(true);
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      // Fetch BOTH blank form AND data overlay
+      const [formResponse, dataResponse] = await Promise.all([
+        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ count: 1, page: "front" }),
+        }),
+        fetch(
+          `${apiUrl}/print/dot-matrix/pre-printed/pledge/${selectedPledge.id}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          },
+        ),
+      ]);
+
+      const formData = await formResponse.json();
+      const dataData = await dataResponse.json();
+      const duration = Date.now() - startTime;
+
+      if (!formResponse.ok || !formData.success) {
+        throw new Error(formData.message || "Failed to load blank form");
+      }
+      if (!dataResponse.ok || !dataData.success) {
+        throw new Error(dataData.message || "Failed to generate overlay");
+      }
+
+      const formHtml = formData.data?.front_html || "";
+      const dataHtml = dataData.data?.front_html || "";
+
+      // Open preview with BOTH layers
+      const previewWindow = window.open("", "_blank", "width=1000,height=800");
+      if (!previewWindow) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Popup Blocked",
+            message: "Please allow popups",
+          }),
+        );
+        return;
+      }
+
+      previewWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Data Overlay Alignment Test - ${selectedPledge.pledge_no}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
+            h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 20px; }
+            h1 span { color: #4ade80; }
+            .controls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
+            .controls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; }
+            .btn-form { background: #3b82f6; color: white; }
+            .btn-data { background: #f59e0b; color: white; }
+            .btn-print { background: #ef4444; color: white; }
+            .btn-close { background: #6b7280; color: white; }
+            .container { position: relative; width: 210mm; height: 148mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+            .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.5; pointer-events: none; }
+            .form-layer.hidden { display: none; }
+            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+            .data-layer.hidden { display: none; }
+            .status { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 10px; }
+            .status span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
+            .status .on { background: #22c55e; color: white; }
+            .status .off { background: #ef4444; color: white; }
+            @media print {
+              body { background: white !important; padding: 0 !important; }
+              .controls, h1, .status { display: none !important; }
+              .container { box-shadow: none !important; }
+              .form-layer { display: none !important; }
+              .data-layer { position: relative !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>📊 <span>Data Overlay</span> Alignment Test</h1>
+          <div class="controls">
+            <button class="btn-form" onclick="toggleForm()">Toggle Form Background</button>
+            <button class="btn-data" onclick="toggleData()">Toggle Data Layer</button>
+            <button class="btn-print" onclick="window.print()">Print Data Only</button>
+            <button class="btn-close" onclick="window.close()">Close</button>
+          </div>
+          <div class="status">
+            Form: <span id="formStatus" class="on">ON</span>
+            Data: <span id="dataStatus" class="on">ON</span>
+          </div>
+          <div class="container">
+            <div id="formLayer" class="form-layer">${formHtml}</div>
+            <div id="dataLayer" class="data-layer">${dataHtml}</div>
+          </div>
+          <script>
+            let formVisible = true;
+            let dataVisible = true;
+            
+            function toggleForm() {
+              formVisible = !formVisible;
+              document.getElementById('formLayer').classList.toggle('hidden');
+              document.getElementById('formStatus').className = formVisible ? 'on' : 'off';
+              document.getElementById('formStatus').textContent = formVisible ? 'ON' : 'OFF';
+            }
+            
+            function toggleData() {
+              dataVisible = !dataVisible;
+              document.getElementById('dataLayer').classList.toggle('hidden');
+              document.getElementById('dataStatus').className = dataVisible ? 'on' : 'off';
+              document.getElementById('dataStatus').textContent = dataVisible ? 'ON' : 'OFF';
+            }
+          </script>
+        </body>
+        </html>
+      `);
+      previewWindow.document.close();
+
+      logResult(
+        "Data Overlay",
+        true,
+        `Alignment test for ${selectedPledge.pledge_no}`,
+        duration,
+      );
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `Overlay test ready (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Data Overlay", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   // Print Pre-Printed Data Overlay (prints ONLY data on pre-printed carbonless forms)
   const printPrePrintedOverlay = async () => {
     if (!selectedPledge) {
@@ -1872,6 +2044,36 @@ export default function PrintTestPage() {
                 <p className="text-xs text-emerald-500 mt-2">
                   📝 Blank forms with all labels, borders & styling - no
                   customer data
+                </p>
+              </div>
+
+              {/* Pre-Printed Data Overlay Test */}
+              <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-cyan-800">
+                      Data Overlay Test
+                    </p>
+                    <p className="text-xs text-cyan-600">
+                      Test data alignment on pre-printed form
+                    </p>
+                  </div>
+                  <Badge className="bg-cyan-500 text-white">Test</Badge>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Layers}
+                  onClick={() => testDataOverlay()}
+                  disabled={!selectedPledge}
+                  loading={printing && previewType === "Data Overlay"}
+                  fullWidth
+                  className="border-cyan-500 text-cyan-700 hover:bg-cyan-100"
+                >
+                  Preview Data Overlay
+                </Button>
+                <p className="text-xs text-cyan-500 mt-2">
+                  🔍 Toggle layers to check data positioning accuracy
                 </p>
               </div>
             </div>
