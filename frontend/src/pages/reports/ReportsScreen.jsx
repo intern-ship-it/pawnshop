@@ -146,8 +146,16 @@ export default function ReportsScreen() {
 
   // Initialize dates based on preset
   useEffect(() => {
+    // Helper to format date as YYYY-MM-DD in local timezone
+    const formatLocalDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    const today = formatLocalDate(now);
 
     switch (datePreset) {
       case "today":
@@ -157,13 +165,13 @@ export default function ReportsScreen() {
       case "yesterday":
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
-        setFromDate(yesterday.toISOString().split("T")[0]);
-        setToDate(yesterday.toISOString().split("T")[0]);
+        setFromDate(formatLocalDate(yesterday));
+        setToDate(formatLocalDate(yesterday));
         break;
       case "this_week":
         const weekStart = new Date(now);
         weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        setFromDate(weekStart.toISOString().split("T")[0]);
+        setFromDate(formatLocalDate(weekStart));
         setToDate(today);
         break;
       case "last_week":
@@ -171,12 +179,12 @@ export default function ReportsScreen() {
         lastWeekEnd.setDate(lastWeekEnd.getDate() - lastWeekEnd.getDay() - 1);
         const lastWeekStart = new Date(lastWeekEnd);
         lastWeekStart.setDate(lastWeekStart.getDate() - 6);
-        setFromDate(lastWeekStart.toISOString().split("T")[0]);
-        setToDate(lastWeekEnd.toISOString().split("T")[0]);
+        setFromDate(formatLocalDate(lastWeekStart));
+        setToDate(formatLocalDate(lastWeekEnd));
         break;
       case "this_month":
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        setFromDate(monthStart.toISOString().split("T")[0]);
+        setFromDate(formatLocalDate(monthStart));
         setToDate(today);
         break;
       case "last_month":
@@ -186,12 +194,12 @@ export default function ReportsScreen() {
           now.getMonth() - 1,
           1,
         );
-        setFromDate(lastMonthStart.toISOString().split("T")[0]);
-        setToDate(lastMonthEnd.toISOString().split("T")[0]);
+        setFromDate(formatLocalDate(lastMonthStart));
+        setToDate(formatLocalDate(lastMonthEnd));
         break;
       case "this_year":
         const yearStart = new Date(now.getFullYear(), 0, 1);
-        setFromDate(yearStart.toISOString().split("T")[0]);
+        setFromDate(formatLocalDate(yearStart));
         setToDate(today);
         break;
       case "custom":
@@ -216,33 +224,32 @@ export default function ReportsScreen() {
 
       switch (activeReport) {
         case "overview":
-          // Fetch multiple reports for overview
-          const [
-            pledges,
-            renewals,
-            redemptions,
-            outstanding,
-            overdue,
-            inventory,
-          ] = await Promise.all([
-            reportService.getPledgesReport(params),
-            reportService.getRenewalsReport(params),
-            reportService.getRedemptionsReport(params),
-            reportService.getOutstandingReport(),
-            reportService.getOverdueReport(),
-            reportService.getInventoryReport(),
-          ]);
-          response = {
-            success: true,
-            data: {
-              pledges: pledges.data,
-              renewals: renewals.data,
-              redemptions: redemptions.data,
-              outstanding: outstanding.data,
-              overdue: overdue.data,
-              inventory: inventory.data,
-            },
-          };
+          // Fetch multiple reports for overview - handle failures gracefully
+          try {
+            const results = await Promise.all([
+              reportService.getPledgesReport(params).catch(() => ({ success: false, data: null })),
+              reportService.getRenewalsReport(params).catch(() => ({ success: false, data: null })),
+              reportService.getRedemptionsReport(params).catch(() => ({ success: false, data: null })),
+              reportService.getOutstandingReport().catch(() => ({ success: false, data: null })),
+              reportService.getOverdueReport().catch(() => ({ success: false, data: null })),
+              reportService.getInventoryReport().catch(() => ({ success: false, data: null })),
+            ]);
+
+            response = {
+              success: true,
+              data: {
+                pledges: results[0]?.data || null,
+                renewals: results[1]?.data || null,
+                redemptions: results[2]?.data || null,
+                outstanding: results[3]?.data || null,
+                overdue: results[4]?.data || null,
+                inventory: results[5]?.data || null,
+              },
+            };
+          } catch (err) {
+            console.error("Overview fetch error:", err);
+            response = { success: false };
+          }
           break;
         case "pledges":
           response = await reportService.getPledgesReport(params);
@@ -758,16 +765,10 @@ function OverviewReport({ data }) {
               <div className="space-y-2">
                 {(Array.isArray(inventorySummary.by_purity)
                   ? inventorySummary.by_purity
-                  : Object.entries(inventorySummary.by_purity)
-                ).map(([purity, data], idx) => {
-                  const label = Array.isArray(inventorySummary.by_purity)
-                    ? data.purity || data.name
-                    : purity;
-                  const weight = Array.isArray(inventorySummary.by_purity)
-                    ? data.weight || data.total_weight || 0
-                    : typeof data === "object"
-                      ? data.weight || data.total_weight || 0
-                      : data;
+                  : Object.entries(inventorySummary.by_purity).map(([k, v]) => ({ name: k, ...v }))
+                ).map((item, idx) => {
+                  const label = item.purity || item.name || 'Unknown';
+                  const weight = item.weight || item.total_weight || 0;
                   return (
                     <div
                       key={label || idx}
@@ -1353,8 +1354,8 @@ function InventoryReport({ data }) {
   if (!data) return <EmptyState message="No inventory data available" />;
 
   const summary = data.summary || {};
-  const byPurity = data.by_purity || [];
-  const byCategory = data.by_category || [];
+  const byPurity = summary.by_purity || data.by_purity || [];
+  const byCategory = summary.by_category || data.by_category || [];
 
   // Helper to safely get numeric value (handles objects and primitives)
   const getValue = (val, key = null) => {
@@ -1410,9 +1411,9 @@ function InventoryReport({ data }) {
               (Array.isArray(byPurity)
                 ? byPurity
                 : Object.entries(byPurity).map(([k, v]) => ({
-                    purity: k,
-                    ...v,
-                  }))
+                  purity: k,
+                  ...v,
+                }))
               ).map((item, idx) => (
                 <div
                   key={item.purity || item.name || idx}
@@ -1451,9 +1452,9 @@ function InventoryReport({ data }) {
               (Array.isArray(byCategory)
                 ? byCategory
                 : Object.entries(byCategory).map(([k, v]) => ({
-                    category: k,
-                    ...v,
-                  }))
+                  category: k,
+                  ...v,
+                }))
               ).map((item, idx) => (
                 <div
                   key={item.category || item.name || idx}

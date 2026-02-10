@@ -93,28 +93,32 @@ export default function StockReconciliation() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      // Fetch past reconciliations
+      // 1. Check for active reconciliation specifically
+      const activeResponse = await reconciliationService.getReconciliations({
+        status: "in_progress",
+        per_page: 1,
+      });
+
+      if (activeResponse.success && activeResponse.data?.data?.length > 0) {
+        const inProgress = activeResponse.data.data[0];
+        setCurrentReconciliation(inProgress);
+        setReconciliationStartTime(new Date(inProgress.started_at));
+
+        // Fetch scanned items for this reconciliation
+        const detailResponse = await reconciliationService.getReconciliation(
+          inProgress.id,
+        );
+        if (detailResponse.success && detailResponse.data?.items) {
+          setScannedItems(detailResponse.data.items);
+        }
+      }
+
+      // 2. Fetch past reconciliations (history)
       const reconResponse = await reconciliationService.getReconciliations({
         per_page: 10,
       });
       if (reconResponse.success) {
         setPastReconciliations(reconResponse.data?.data || []);
-
-        // Check for in-progress reconciliation
-        const inProgress = reconResponse.data?.data?.find(
-          (r) => r.status === "in_progress",
-        );
-        if (inProgress) {
-          setCurrentReconciliation(inProgress);
-          setReconciliationStartTime(new Date(inProgress.started_at));
-          // Fetch scanned items for this reconciliation
-          const detailResponse = await reconciliationService.getReconciliation(
-            inProgress.id,
-          );
-          if (detailResponse.success && detailResponse.data?.items) {
-            setScannedItems(detailResponse.data.items);
-          }
-        }
       }
 
       // Fetch expected items (stored inventory)
@@ -154,25 +158,25 @@ export default function StockReconciliation() {
           const isOverdue = dueDate && dueDate < new Date();
 
           (pledge.items || []).forEach((item, idx) => {
+            // Extract string values from category/purity objects
+            const categoryName = typeof item.category === 'object'
+              ? (item.category?.name_en || item.category?.name || item.category?.code || 'Unknown')
+              : (item.category || 'Unknown');
+
+            const purityName = typeof item.purity === 'object'
+              ? (item.purity?.name_en || item.purity?.name || item.purity?.code || '')
+              : (item.purity || '');
+
             items.push({
               id: item.id || `${pledge.id}-${idx + 1}`,
               barcode: item.barcode || `PLG-${pledge.pledge_no}-${idx + 1}`,
               pledge_id: pledge.id,
               pledge_no: pledge.pledge_no,
-              category:
-                item.category?.name ||
-                item.category?.name_en ||
-                (typeof item.category === "string" ? item.category : "Unknown"),
-              description:
-                item.description ||
-                `${item.category?.name || item.category?.name_en || ""} - ${item.purity?.name || item.purity?.name_en || ""}`,
+              category: categoryName,  // Now a string
+              description: item.description || `${categoryName} - ${purityName}`,
               weight: item.weight,
-              purity:
-                item.purity?.name ||
-                item.purity?.name_en ||
-                (typeof item.purity === "string" ? item.purity : ""),
+              purity: purityName,  // Now a string
               storage_location:
-                // Build location from vault/box/slot relations
                 item.vault && item.box && item.slot
                   ? `${item.vault.code || item.vault.name} / ${item.box.box_number || item.box.name} / Slot ${item.slot.slot_number}`
                   : item.vault && item.box
@@ -224,17 +228,17 @@ export default function StockReconciliation() {
         missing:
           currentReconciliation.missing_items ||
           expectedItems.length -
-            scannedItems.filter((s) => s.status === "matched").length,
+          scannedItems.filter((s) => s.status === "matched").length,
         unexpected:
           currentReconciliation.unexpected_items ||
           scannedItems.filter((s) => s.status === "unexpected").length,
         progress:
           expectedItems.length > 0
             ? Math.round(
-                (scannedItems.filter((s) => s.status === "matched").length /
-                  expectedItems.length) *
-                  100,
-              )
+              (scannedItems.filter((s) => s.status === "matched").length /
+                expectedItems.length) *
+              100,
+            )
             : 0,
       };
     }
@@ -331,9 +335,8 @@ export default function StockReconciliation() {
           addToast({
             type: "info",
             title: "Reconciliation Started",
-            message: `Scanning ${
-              response.data.expected_items || expectedItems.length
-            } items`,
+            message: `Scanning ${response.data.expected_items || expectedItems.length
+              } items`,
           }),
         );
       } else {
@@ -526,9 +529,8 @@ export default function StockReconciliation() {
               message:
                 stats.missing === 0 && stats.unexpected === 0
                   ? "All items verified successfully"
-                  : `Completed with ${
-                      stats.missing + stats.unexpected
-                    } discrepancies`,
+                  : `Completed with ${stats.missing + stats.unexpected
+                  } discrepancies`,
             }),
           );
 

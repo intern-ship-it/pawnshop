@@ -26,12 +26,37 @@ class Reconciliation extends Model
         'started_by',
         'completed_by',
         'notes',
+        'expires_at',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'expires_at' => 'datetime',
     ];
+
+    const TIMEOUT_HOURS = 4; // Reconciliation expires after 4 hours
+
+    /**
+     * Scope to get only active (non-expired) in-progress reconciliations
+     */
+    public function scopeActiveInProgress($query)
+    {
+        return $query->where('status', 'in_progress')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            });
+    }
+
+    /**
+     * Scope to get expired reconciliations
+     */
+    public function scopeExpired($query)
+    {
+        return $query->where('status', 'in_progress')
+            ->where('expires_at', '<=', now());
+    }
 
     public function branch(): BelongsTo
     {

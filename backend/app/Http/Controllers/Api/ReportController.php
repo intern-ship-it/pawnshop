@@ -275,45 +275,57 @@ class ReportController extends Controller
      */
     public function inventory(Request $request): JsonResponse
     {
-        $branchId = $request->user()->branch_id;
-
-        $items = PledgeItem::whereHas('pledge', function ($q) use ($branchId) {
-            $q->where('branch_id', $branchId)->where('status', 'active');
+        // Get all stored items from active pledges (no branch filter for now)
+        $items = PledgeItem::whereHas('pledge', function ($q) {
+            $q->where('status', 'active');
         })
             ->where('status', 'stored')
             ->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
             ->get();
 
-        // Group by category
-        $byCategory = $items->groupBy('category.name_en')->map(function ($group) {
+        // Group by category - use callback to properly access relationship
+        $byCategory = $items->groupBy(function ($item) {
+            return $item->category->name_en ?? 'Unknown';
+        })->map(function ($group, $key) {
             return [
+                'name' => $key,
                 'count' => $group->count(),
                 'total_weight' => round($group->sum('net_weight'), 3),
                 'total_value' => round($group->sum('net_value'), 2),
             ];
-        });
+        })->values();
 
-        // Group by purity
-        $byPurity = $items->groupBy('purity.code')->map(function ($group) {
+        // Group by purity - use callback to properly access relationship
+        $byPurity = $items->groupBy(function ($item) {
+            return $item->purity->code ?? 'Unknown';
+        })->map(function ($group, $key) {
             return [
+                'name' => $key,
                 'count' => $group->count(),
                 'total_weight' => round($group->sum('net_weight'), 3),
                 'total_value' => round($group->sum('net_value'), 2),
             ];
-        });
+        })->values();
 
-        // Group by vault
-        $byVault = $items->groupBy('vault.name')->map(function ($group) {
+        // Group by vault - use callback to properly access relationship
+        $byVault = $items->groupBy(function ($item) {
+            return $item->vault->name ?? 'Unassigned';
+        })->map(function ($group, $key) {
             return [
+                'name' => $key,
                 'count' => $group->count(),
                 'total_weight' => round($group->sum('net_weight'), 3),
             ];
-        });
+        })->values();
+
+        // Count unique active pledges that have stored items
+        $activePledgesCount = $items->pluck('pledge_id')->unique()->count();
 
         $summary = [
             'total_items' => $items->count(),
             'total_weight' => round($items->sum('net_weight'), 3),
             'total_value' => round($items->sum('net_value'), 2),
+            'active_pledges' => $activePledgesCount,
             'by_category' => $byCategory,
             'by_purity' => $byPurity,
             'by_vault' => $byVault,
