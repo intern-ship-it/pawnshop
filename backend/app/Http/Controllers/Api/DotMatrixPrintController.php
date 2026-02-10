@@ -1198,6 +1198,275 @@ HTML;
      * FIXED: Added visible left/right margins
      */
 
+
+
+
+    //     private function generatePrePrintedFrontPage(array $settings): string
+//     {
+//         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.');
+//         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)');
+//         $chineseName = htmlspecialchars($settings['company_name_chinese'] ?? '新泰當');
+//         $tamilName = htmlspecialchars($settings['company_name_tamil'] ?? 'அடகு கடை');
+//         $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.');
+//         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480');
+//         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562');
+//         $estYear = htmlspecialchars($settings['established_year'] ?? '1966');
+//         $businessDays = htmlspecialchars($settings['business_days'] ?? 'ISNIN - AHAD');
+//         $businessHours = htmlspecialchars($settings['business_hours'] ?? '8.30AM - 6.00PM');
+//         $closedDays = htmlspecialchars($settings['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA');
+//         $handlingFee = htmlspecialchars($settings['handling_fee'] ?? '50 SEN');
+//         $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN');
+//         $interestNormal = htmlspecialchars($settings['interest_rate_normal'] ?? '1.5');
+//         $interestOverdue = htmlspecialchars($settings['interest_rate_overdue'] ?? '2.0');
+//         $logoUrl = $settings['logo_url'] ?? null;
+
+    //         $phoneHtml = $phone1;
+//         if ($phone2) {
+//             $phoneHtml .= '<br>' . $phone2;
+//         }
+
+    //         $logoHtml = '';
+//         if ($logoUrl) {
+//             $logoHtml = '<img src="' . htmlspecialchars($logoUrl) . '" class="pp-logo" alt="Logo">';
+//         }
+
+    //         return <<<'HTMLSTART'
+// <style>
+// .pp-front {
+//     width: 210mm; height: 148mm; 
+//     padding: 3mm 5mm;
+//     font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
+//     background: #fff !important; overflow: hidden; box-sizing: border-box;
+//     page-break-after: always; break-after: page;
+// }
+// .pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    // /* Header */
+// .pp-hdr { display: flex; align-items: flex-start; padding-bottom: 1.5mm; border-bottom: 1px solid #1a4a7a; }
+// .pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 2mm; }
+// .pp-logo { width: 12mm; height: 12mm; object-fit: contain; flex-shrink: 0; }
+// .pp-co-info { flex: 1; }
+// .pp-co-name { font-size: 26px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+// .pp-co-multi { font-size: 1.5rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
+// .pp-co-addr { font-size: 8px; color: #1a4a7a; margin-top: 0.5mm; }
+
+    // .pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 45mm; } /* REDUCED from 50mm */
+// .pp-top-row { display: flex; align-items: center; gap: 1.5mm; margin-bottom: 0.5mm; }
+// .pp-phone-box { background: #d42027; color: #fff; padding: 1.5mm 2.5mm; border-radius: 3px; display: flex; align-items: center; gap: 1mm; }
+// .pp-phone-icon { font-size: 11px; color: #d42027; background: #fff; border-radius: 50%; width: 4.5mm; height: 4.5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+// .pp-phone-nums { font-size: 9px; font-weight: bold; line-height: 1.3; }
+// .pp-sejak { background: #d42027; color: #fff; width: 11mm; height: 11mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }
+// .pp-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }
+// .pp-sejak-yr { font-size: 9px; font-weight: bold; line-height: 1; }
+// .pp-hrs-box { background: #f5c518; color: #000; padding: 1mm 2mm; width: 45mm; } /* REDUCED from 50mm */
+// .pp-hrs-title { font-size: 10px; font-weight: bold; text-align: center; }
+// .pp-hrs-line { font-size: 6.5px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
+
+    // /* Middle section - EXPANDED for more items space */
+// .pp-mid { display: flex; border: 1px solid #1a4a7a; }
+// .pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; }
+// .pp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
+// .pp-items-area { min-height: 35mm; padding-left: 2mm; } /* EXPANDED from 28mm to 35mm */
+
+    // .pp-rcol { width: 45mm; min-width: 45mm; } /* REDUCED from 50mm to 45mm */
+// .pp-tkt-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; }
+// .pp-tkt-lbl { font-size: 8px; font-weight: bold; color: #000; }
+// .pp-tkt-space { min-height: 10mm; } /* EXPANDED from 6mm to 10mm */
+// .pp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }
+// .pp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
+// .pp-rate-cell:first-child { border-right: 1px solid #1a4a7a; }
+// .pp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
+// .pp-rate-val { font-size: 10px; font-weight: bold; color: #1a4a7a; }
+// .pp-rate-big { font-size: 13px; }
+// .pp-kadar { padding: 1.5mm 2mm; }
+// .pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center; }
+// .pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; }
+
+    // /* Customer title row */
+// .pp-cust-title-row { 
+//     display: flex; 
+//     font-size: 8px; 
+//     font-weight: bold; 
+//     padding: 1mm 0; 
+//     margin-top: 1mm;
+// }
+// .pp-cust-title-left { flex: 1; }
+// .pp-cust-title-divider { width: 1px; background: #1a4a7a; margin: 0 2mm; }
+// .pp-cust-title-right { width: 45mm; } /* REDUCED from 50mm */
+
+    // /* Customer box - EXPANDED */
+// .pp-cust-box { border: 1px solid #d42027; padding: 2mm 3mm; min-height: 32mm; } /* EXPANDED from 20mm to 32mm */
+// .pp-cust-row { display: flex; align-items: baseline; margin-bottom: 3mm; font-size: 10px; font-weight: bold; } /* EXPANDED margin */
+// .pp-cust-row:last-child { margin-bottom: 0; }
+// .pp-cust-lbl { white-space: nowrap; min-width: 20mm; }
+// .pp-cust-lbl-s { white-space: nowrap; margin-left: 3mm; }
+// .pp-cust-sp { flex: 1; min-height: 5mm; }
+// .pp-cust-sp-s { width: 18mm; min-height: 5mm; }
+
+    // /* Amount */
+// .pp-amt-row { border: 1px solid #d42027; border-bottom: none; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 2mm; }
+// .pp-amt-lbl { font-size: 10px; font-weight: bold; }
+// .pp-amt-sp { flex: 1; min-height: 5mm; }
+// .pp-amt-sahaja { font-size: 10px; font-weight: bold; }
+
+    // /* Bottom */
+// .pp-bot { display: flex; border: 2px solid #d42027; }
+// .pp-pin-cell { flex: 1; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 1.5mm; border-right: 2px solid #d42027; }
+// .pp-pin-lbl { font-size: 9px; }
+// .pp-pin-rm { font-size: 12px; font-weight: bold; }
+// .pp-pin-sp { flex: 1; min-height: 6mm; }
+// .pp-pin-stars { font-size: 12px; font-weight: bold; }
+// .pp-dt-cell { width: 27mm; text-align: center; padding: 1.5mm; border-right: 2px solid #d42027; }
+// .pp-dt-cell:last-child { border-right: none; }
+// .pp-dt-lbl { font-size: 7px; font-weight: bold; }
+// .pp-dt-sp { min-height: 6mm; }
+// .pp-dt-yel { background: #f5c518; }
+
+    // /* Footer */
+// .pp-ftr { font-size: 6px; line-height: 1.4; margin-top: 1mm; display: flex; justify-content: space-between; align-items: flex-end; }
+// .pp-ftr-left { flex: 1; }
+// .pp-ftr-right { text-align: right; font-size: 5px; }
+// .pp-gm-box { display: inline-block; text-align: center; font-size: 6px; line-height: 1.2; min-width: 8mm; vertical-align: top; }
+
+    // @media print {
+//     .pp-front { page-break-after: always; break-after: page; }
+//     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+// }
+// </style>
+// HTMLSTART
+//             . <<<HTML
+// <div class="pp-front">
+//     <div class="pp-hdr">
+//         <div class="pp-hdr-left">
+//             {$logoHtml}
+//             <div class="pp-co-info">
+//                 <div class="pp-co-name">{$companyName}</div>
+//                 <div class="pp-co-multi">{$chineseName} {$tamilName}</div>
+//                 <div class="pp-co-addr">{$address}</div>
+//             </div>
+//         </div>
+//         <div class="pp-hdr-right">
+//             <div class="pp-top-row">
+//                 <div class="pp-phone-box">
+//                     <span class="pp-phone-icon">☎</span>
+//                     <div class="pp-phone-nums">{$phoneHtml}</div>
+//                 </div>
+//                 <div class="pp-sejak">
+//                     <span class="pp-sejak-lbl">SEJAK</span>
+//                     <span class="pp-sejak-yr">{$estYear}</span>
+//                 </div>
+//             </div>
+//             <div class="pp-hrs-box">
+//                 <div class="pp-hrs-title">BUKA 7 HARI</div>
+//                 <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+//                 <div class="pp-hrs-line">{$closedDays}</div>
+//             </div>
+//         </div>
+//     </div>
+
+    //     <div class="pp-mid">
+//         <div class="pp-items-sec">
+//             <div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div>
+//             <div class="pp-items-area"></div>
+//         </div>
+//         <div class="pp-rcol">
+//             <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
+//             <div class="pp-rate-row">
+//                 <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
+//             </div>
+//             <div class="pp-kadar">
+//                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
+//                 <div class="pp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
+//                 <div class="pp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
+//                 <div class="pp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+//             </div>
+//         </div>
+//     </div>
+
+    //     <div class="pp-cust-title-row">
+//         <span class="pp-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span>
+//         <span class="pp-cust-title-divider">|</span>
+//         <span class="pp-cust-title-right"></span>
+//     </div>
+
+    //     <div class="pp-cust-box">
+//         <!-- Row 1: IC | Name | Nationality -->
+//         <div class="pp-cust-row">
+//             <span class="pp-cust-lbl" style="min-width: 25mm;">No. Kad :<br>Pengenalan</span>
+//             <span class="pp-cust-sp" style="flex: 1;"></span>
+
+    //             <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Nama :</span>
+//             <span class="pp-cust-sp" style="flex: 2;"></span>
+
+    //             <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Kerakyatan :</span>
+//             <span class="pp-cust-sp" style="flex: 1;"></span>
+//         </div>
+
+    //         <!-- Row 2: Birth Year | Gender -->
+//         <div class="pp-cust-row">
+//             <span class="pp-cust-lbl" style="min-width: 25mm;">Tahun Lahir :</span>
+//             <span class="pp-cust-sp" style="flex: 1;"></span>
+
+    //             <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Jantina :</span>
+//             <span class="pp-cust-sp" style="flex: 2;"></span>
+//         </div>
+
+    //         <!-- Row 3: Address -->
+//         <div class="pp-cust-row">
+//             <span class="pp-cust-lbl" style="min-width: 20mm;">Alamat :</span>
+//             <span class="pp-cust-sp" style="flex: 1;"></span>
+//         </div>
+
+    //         <!-- Row 4: Catatan -->
+//         <div class="pp-cust-row">
+//             <span class="pp-cust-lbl" style="min-width: 20mm;">Catatan :</span>
+//             <span class="pp-cust-sp" style="flex: 1;"></span>
+//         </div>
+//     </div>
+
+    //     <div class="pp-amt-row"><span class="pp-amt-lbl">Amaun</span></div>
+
+    //     <div class="pp-bot">
+//         <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
+//         <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div>
+//         <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div>
+//     </div>
+
+    //     <div class="pp-ftr">
+//         <div class="pp-ftr-left">
+//             <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
+//             <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+//         </div>
+//         <div class="pp-ftr-right">
+//             <span style="font-size:5px;vertical-align:super;">Termasuk Emas, Batu<br>dan lain-lain</span> Berat :
+//             <div class="pp-gm-box">(gm)<br><br>L U</div>
+//         </div>
+//     </div>
+// </div>
+// HTML;
+//     }
+
+
+
+
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════════════
+     * REPLACE generatePrePrintedFrontPage() in DotMatrixPrintController.php
+     * 
+     * Changes: 3-column customer layout matching physical form
+     * 
+     * Row 1: No. Kad Pengenalan | Nama | Kerakyatan (3 columns)
+     * Row 2: Tahun Lahir | Jantina (2 columns)
+     * Row 3: Alamat (full width)
+     * Row 4: Catatan (full width)
+     * ═══════════════════════════════════════════════════════════════════════════════
+     */
+
+    /**
+     * FRONT PAGE — Pre-Printed Blank Form (A5 Landscape)
+     * UPDATED: 3-column customer layout matching physical form
+     */
     private function generatePrePrintedFrontPage(array $settings): string
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.');
@@ -1208,13 +1477,10 @@ HTML;
         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480');
         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562');
         $estYear = htmlspecialchars($settings['established_year'] ?? '1966');
-        $businessDays = htmlspecialchars($settings['business_days'] ?? 'ISNIN - AHAD');
-        $businessHours = htmlspecialchars($settings['business_hours'] ?? '8.30AM - 6.00PM');
-        $closedDays = htmlspecialchars($settings['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA');
-        $handlingFee = htmlspecialchars($settings['handling_fee'] ?? '50 SEN');
+        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday');
+        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM');
+        $closedDays = htmlspecialchars($settings['closed_days'] ?? '');
         $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN');
-        $interestNormal = htmlspecialchars($settings['interest_rate_normal'] ?? '1.5');
-        $interestOverdue = htmlspecialchars($settings['interest_rate_overdue'] ?? '2.0');
         $logoUrl = $settings['logo_url'] ?? null;
 
         $phoneHtml = $phone1;
@@ -1247,7 +1513,7 @@ HTML;
 .pp-co-multi { font-size: 1.5rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
 .pp-co-addr { font-size: 8px; color: #1a4a7a; margin-top: 0.5mm; }
 
-.pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 45mm; } /* REDUCED from 50mm */
+.pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 45mm; }
 .pp-top-row { display: flex; align-items: center; gap: 1.5mm; margin-bottom: 0.5mm; }
 .pp-phone-box { background: #d42027; color: #fff; padding: 1.5mm 2.5mm; border-radius: 3px; display: flex; align-items: center; gap: 1mm; }
 .pp-phone-icon { font-size: 11px; color: #d42027; background: #fff; border-radius: 50%; width: 4.5mm; height: 4.5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -1255,29 +1521,28 @@ HTML;
 .pp-sejak { background: #d42027; color: #fff; width: 11mm; height: 11mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }
 .pp-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }
 .pp-sejak-yr { font-size: 9px; font-weight: bold; line-height: 1; }
-.pp-hrs-box { background: #f5c518; color: #000; padding: 1mm 2mm; width: 45mm; } /* REDUCED from 50mm */
+.pp-hrs-box { background: #f5c518; color: #000; padding: 1mm 2mm; width: 45mm; }
 .pp-hrs-title { font-size: 10px; font-weight: bold; text-align: center; }
 .pp-hrs-line { font-size: 6.5px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
 
-/* Middle section - EXPANDED for more items space */
+/* Middle section */
 .pp-mid { display: flex; border: 1px solid #1a4a7a; }
 .pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; }
 .pp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
-.pp-items-area { min-height: 35mm; padding-left: 2mm; } /* EXPANDED from 28mm to 35mm */
+.pp-items-area { min-height: 32mm; padding-left: 2mm; }
 
-.pp-rcol { width: 45mm; min-width: 45mm; } /* REDUCED from 50mm to 45mm */
+.pp-rcol { width: 45mm; min-width: 45mm; }
 .pp-tkt-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; }
 .pp-tkt-lbl { font-size: 8px; font-weight: bold; color: #000; }
-.pp-tkt-space { min-height: 10mm; } /* EXPANDED from 6mm to 10mm */
+.pp-tkt-space { min-height: 10mm; }
 .pp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }
 .pp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
-.pp-rate-cell:first-child { border-right: 1px solid #1a4a7a; }
 .pp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
 .pp-rate-val { font-size: 10px; font-weight: bold; color: #1a4a7a; }
 .pp-rate-big { font-size: 13px; }
 .pp-kadar { padding: 1.5mm 2mm; }
-.pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center; }
-.pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; }
+.pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center !important; }
+.pp-kadar-ln { font-size: 8px; color: #1a4a7a; line-height: 1.5; text-align: left; }
 
 /* Customer title row */
 .pp-cust-title-row { 
@@ -1288,23 +1553,56 @@ HTML;
     margin-top: 1mm;
 }
 .pp-cust-title-left { flex: 1; }
-.pp-cust-title-divider { width: 1px; background: #1a4a7a; margin: 0 2mm; }
-.pp-cust-title-right { width: 45mm; } /* REDUCED from 50mm */
 
-/* Customer box - EXPANDED */
-.pp-cust-box { border: 1px solid #d42027; padding: 2mm 3mm; min-height: 32mm; } /* EXPANDED from 20mm to 32mm */
-.pp-cust-row { display: flex; align-items: baseline; margin-bottom: 3mm; font-size: 10px; font-weight: bold; } /* EXPANDED margin */
+/* ═══ CUSTOMER BOX - 3 COLUMN LAYOUT ═══ */
+.pp-cust-box { 
+    border: 1px solid #d42027; 
+    padding: 2mm 3mm; 
+    min-height: 24mm; 
+}
+
+.pp-cust-row { 
+    display: flex; 
+    align-items: baseline; 
+    margin-bottom: 2mm; 
+    font-size: 9px; 
+    font-weight: bold; 
+}
 .pp-cust-row:last-child { margin-bottom: 0; }
-.pp-cust-lbl { white-space: nowrap; min-width: 20mm; }
-.pp-cust-lbl-s { white-space: nowrap; margin-left: 3mm; }
-.pp-cust-sp { flex: 1; min-height: 5mm; }
-.pp-cust-sp-s { width: 18mm; min-height: 5mm; }
+
+/* 3-column container */
+.pp-cust-col {
+    display: flex;
+    align-items: baseline;
+    flex: 1;
+}
+
+/* Labels */
+.pp-cust-lbl { 
+    white-space: nowrap; 
+    min-width: 18mm;
+    flex-shrink: 0;
+    font-size: 8px;
+}
+
+/* Value spaces (dotted underline areas) */
+.pp-cust-val {
+    flex: 1;
+    min-height: 4mm;
+    margin-right: 3mm;
+}
+.pp-cust-col:last-child .pp-cust-val {
+    margin-right: 0;
+}
+
+/* Full width rows */
+.pp-cust-row.full-width .pp-cust-val {
+    margin-right: 0;
+}
 
 /* Amount */
 .pp-amt-row { border: 1px solid #d42027; border-bottom: none; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 2mm; }
 .pp-amt-lbl { font-size: 10px; font-weight: bold; }
-.pp-amt-sp { flex: 1; min-height: 5mm; }
-.pp-amt-sahaja { font-size: 10px; font-weight: bold; }
 
 /* Bottom */
 .pp-bot { display: flex; border: 2px solid #d42027; }
@@ -1356,7 +1654,6 @@ HTMLSTART
             <div class="pp-hrs-box">
                 <div class="pp-hrs-title">BUKA 7 HARI</div>
                 <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
-                <div class="pp-hrs-line">{$closedDays}</div>
             </div>
         </div>
     </div>
@@ -1382,42 +1679,48 @@ HTMLSTART
 
     <div class="pp-cust-title-row">
         <span class="pp-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span>
-        <span class="pp-cust-title-divider">|</span>
-        <span class="pp-cust-title-right"></span>
     </div>
 
+    <!-- ═══ CUSTOMER BOX - 3 COLUMN LAYOUT ═══ -->
     <div class="pp-cust-box">
-        <!-- Row 1: IC | Name | Nationality -->
+        <!-- ROW 1: No. Kad Pengenalan | Nama | Kerakyatan (3 columns) -->
         <div class="pp-cust-row">
-            <span class="pp-cust-lbl" style="min-width: 25mm;">No. Kad :<br>Pengenalan</span>
-            <span class="pp-cust-sp" style="flex: 1;"></span>
-            
-            <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Nama :</span>
-            <span class="pp-cust-sp" style="flex: 2;"></span>
-            
-            <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Kerakyatan :</span>
-            <span class="pp-cust-sp" style="flex: 1;"></span>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">No. Kad<br>Pengenalan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Nama :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Kerakyatan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
         </div>
 
-        <!-- Row 2: Birth Year | Gender -->
+        <!-- ROW 2: Tahun Lahir | Jantina (2 columns) -->
         <div class="pp-cust-row">
-            <span class="pp-cust-lbl" style="min-width: 25mm;">Tahun Lahir :</span>
-            <span class="pp-cust-sp" style="flex: 1;"></span>
-            
-            <span class="pp-cust-lbl-s" style="margin-left: 2mm;">Jantina :</span>
-            <span class="pp-cust-sp" style="flex: 2;"></span>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Tahun Lahir :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col" style="flex: 2;">
+                <span class="pp-cust-lbl">Jantina :</span>
+                <span class="pp-cust-val"></span>
+            </div>
         </div>
 
-        <!-- Row 3: Address -->
-        <div class="pp-cust-row">
-            <span class="pp-cust-lbl" style="min-width: 20mm;">Alamat :</span>
-            <span class="pp-cust-sp" style="flex: 1;"></span>
+        <!-- ROW 3: Alamat (full width) -->
+        <div class="pp-cust-row full-width">
+            <span class="pp-cust-lbl">Alamat :</span>
+            <span class="pp-cust-val"></span>
         </div>
         
-        <!-- Row 4: Catatan -->
-        <div class="pp-cust-row">
-            <span class="pp-cust-lbl" style="min-width: 20mm;">Catatan :</span>
-            <span class="pp-cust-sp" style="flex: 1;"></span>
+        <!-- ROW 4: Catatan (full width) -->
+        <div class="pp-cust-row full-width">
+            <span class="pp-cust-lbl">Catatan :</span>
+            <span class="pp-cust-val"></span>
         </div>
     </div>
 
@@ -1442,7 +1745,6 @@ HTMLSTART
 </div>
 HTML;
     }
-
 
 
 
