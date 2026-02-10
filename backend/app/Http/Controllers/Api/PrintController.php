@@ -128,7 +128,7 @@ class PrintController extends Controller
         }
 
         $generator = new BarcodeGeneratorPNG();
-        $barcode = base64_encode($generator->getBarcode($pledgeItem->barcode, $generator::TYPE_CODE_128));
+        $barcode = base64_encode($generator->getBarcode($pledgeItem->barcode, $generator::TYPE_CODE_128, 3, 80));
 
         return $this->success([
             'barcode' => $pledgeItem->barcode,
@@ -161,7 +161,7 @@ class PrintController extends Controller
                 'barcode' => $item->barcode,
                 'item_code' => $item->barcode,
                 'image' => 'data:image/png;base64,' . base64_encode(
-                    $generator->getBarcode($item->barcode, $generator::TYPE_CODE_128)
+                    $generator->getBarcode($item->barcode, $generator::TYPE_CODE_128, 3, 80)
                 ),
                 'pledge_no' => $pledge->pledge_no,
                 'category' => $item->category->name_en ?? 'Item',
@@ -308,7 +308,7 @@ class PrintController extends Controller
             $barcodes[] = [
                 'barcode' => $item->barcode,
                 'image' => 'data:image/png;base64,' . base64_encode(
-                    $generator->getBarcode($item->barcode, $generator::TYPE_CODE_128)
+                    $generator->getBarcode($item->barcode, $generator::TYPE_CODE_128, 3, 80)
                 ),
                 'pledge_no' => $item->pledge->pledge_no,
                 'category' => $item->category->name_en,

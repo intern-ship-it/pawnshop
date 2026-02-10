@@ -1737,8 +1737,8 @@ export default function NewPledge() {
           padding: 1mm 0;
         }
         .barcode-img { 
-          width: 44mm; 
-          height: 18mm; 
+          width: 46mm; 
+          height: 24mm; 
           object-fit: contain; 
         }
         .barcode-text { 
