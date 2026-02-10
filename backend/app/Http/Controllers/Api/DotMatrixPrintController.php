@@ -1256,7 +1256,7 @@ HTML;
     padding: 0;
     margin: 0;
     position: relative;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: 'Courier New', 'Courier', monospace;
     font-weight: bold;
     color: #000;
     background: transparent !important;
