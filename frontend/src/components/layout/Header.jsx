@@ -138,7 +138,11 @@ export default function Header() {
   // Fetch gold prices on mount and when settings change
   useEffect(() => {
     fetchGoldPrices();
-  }, [goldPriceSettings?.source, goldPriceSettings?.manualPrice]);
+  }, [
+    goldPriceSettings?.source,
+    goldPriceSettings?.manualPrice,
+    goldPriceSettings?.manualPrices,
+  ]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -169,18 +173,27 @@ export default function Header() {
       const source = settings?.source || "api";
 
       if (source === "manual") {
-        // Use manual prices from settings
-        const manualPrice = parseFloat(settings?.manualPrice) || 0;
-        if (manualPrice > 0) {
-          // Calculate prices for each purity based on manual 999 price
+        // Use manual prices from settings - support both new and old format
+        const manualPrices = settings?.manualPrices || {};
+        const fallbackManualPrice = parseFloat(settings?.manualPrice) || 0;
+
+        // Get 999 price (primary price)
+        const price999 =
+          parseFloat(manualPrices["999"]) || fallbackManualPrice || 0;
+
+        if (price999 > 0) {
+          // Use provided manual prices, or calculate from 999 if not set
           const calculatedPrices = {};
           purities.forEach((p) => {
-            calculatedPrices[p.code] = manualPrice * (p.percentage / 100);
+            // Use manual price if set, otherwise calculate from 999
+            calculatedPrices[p.code] =
+              parseFloat(manualPrices[p.code]) ||
+              price999 * (p.percentage / 100);
           });
 
           setGoldPrices({
             source: "manual",
-            price999: manualPrice,
+            price999: price999,
             carat: calculatedPrices,
             lastUpdated: settings?.lastUpdated || new Date().toISOString(),
             updatedBy: settings?.updatedBy || "Admin",

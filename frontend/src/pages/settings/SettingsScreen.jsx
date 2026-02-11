@@ -272,10 +272,27 @@ export default function SettingsScreen() {
       apiData.gold_price.forEach((s) => {
         goldPriceMap[s.key_name] = s.value;
       });
+
+      // Parse manualPrices if it exists (stored as JSON string)
+      let manualPrices = null;
+      if (goldPriceMap.manual_prices) {
+        try {
+          manualPrices =
+            typeof goldPriceMap.manual_prices === "string"
+              ? JSON.parse(goldPriceMap.manual_prices)
+              : goldPriceMap.manual_prices;
+        } catch (e) {
+          console.error("Failed to parse manual_prices:", e);
+        }
+      }
+
       result.goldPrice = {
         ...result.goldPrice,
         source: goldPriceMap.source || "api",
         manualPrice: parseFloat(goldPriceMap.manual_price) || 0,
+        manualPrices: manualPrices || {},
+        lastUpdated: goldPriceMap.last_updated || new Date().toISOString(),
+        updatedBy: goldPriceMap.updated_by || "Admin",
       };
     }
 
@@ -334,6 +351,21 @@ export default function SettingsScreen() {
           category: "gold_price",
           key_name: "manual_price",
           value: String(settings.goldPrice.manualPrice || 0),
+        },
+        {
+          category: "gold_price",
+          key_name: "manual_prices",
+          value: JSON.stringify(settings.goldPrice.manualPrices || {}),
+        },
+        {
+          category: "gold_price",
+          key_name: "last_updated",
+          value: settings.goldPrice.lastUpdated || new Date().toISOString(),
+        },
+        {
+          category: "gold_price",
+          key_name: "updated_by",
+          value: settings.goldPrice.updatedBy || "Admin",
         },
       );
     }
@@ -852,6 +884,25 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
     { code: "375", karat: "9K", percentage: 37.5 },
   ];
 
+  // Initialize manualPrices from manualPrice if needed (backward compatibility)
+  useEffect(() => {
+    if (!goldPrice.manualPrices && goldPrice.manualPrice) {
+      // Migrate old single price to new multi-purity format
+      updateSettings("goldPrice", {
+        ...goldPrice,
+        manualPrices: {
+          999: goldPrice.manualPrice,
+          // Auto-calculate other purities based on 999
+          916: goldPrice.manualPrice * 0.916,
+          875: goldPrice.manualPrice * 0.875,
+          750: goldPrice.manualPrice * 0.75,
+          585: goldPrice.manualPrice * 0.585,
+          375: goldPrice.manualPrice * 0.375,
+        },
+      });
+    }
+  }, []);
+
   // Fetch API prices when source is 'api'
   useEffect(() => {
     if (goldPrice.source === "api") {
@@ -956,7 +1007,7 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
   const displayPrice =
     goldPrice.source === "api" && apiPrices?.price999
       ? Number(apiPrices.price999) || 0
-      : Number(goldPrice.manualPrice) || 0;
+      : Number(goldPrice.manualPrices?.["999"] || goldPrice.manualPrice) || 0;
 
   // Get source indicator
   const getSourceBadge = () => {
@@ -1151,19 +1202,64 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
         </div>
       </div>
 
-      {/* Manual Price Input */}
+      {/* Manual Price Input - All Purities */}
       {goldPrice.source === "manual" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Input
-            label="Gold Price (RM/gram) - 999 Purity"
-            type="number"
-            step="0.01"
-            value={goldPrice.manualPrice}
-            onChange={(e) =>
-              handleChange("manualPrice", parseFloat(e.target.value) || 0)
-            }
-            leftIcon={DollarSign}
-          />
+        <div>
+          <h3 className="text-sm font-medium text-zinc-700 mb-3">
+            Set Prices by Purity (RM/gram)
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {purities.map((purity) => {
+              const currentPrice =
+                goldPrice.manualPrices?.[purity.code] ||
+                (purity.code === "999" ? goldPrice.manualPrice : 0) ||
+                0;
+              return (
+                <div key={purity.code} className="flex flex-col">
+                  <label className="text-xs text-zinc-500 mb-1.5 font-medium">
+                    {purity.karat} ({purity.code})
+                  </label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                      RM
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={currentPrice}
+                      onChange={(e) => {
+                        const newPrices = {
+                          ...goldPrice.manualPrices,
+                          [purity.code]: parseFloat(e.target.value) || 0,
+                        };
+                        // Also update manualPrice for 999 for backward compatibility
+                        if (purity.code === "999") {
+                          handleChange(
+                            "manualPrice",
+                            parseFloat(e.target.value) || 0,
+                          );
+                        }
+                        updateSettings("goldPrice", {
+                          ...goldPrice,
+                          manualPrices: newPrices,
+                          lastUpdated: new Date().toISOString(),
+                          updatedBy: "Admin",
+                        });
+                      }}
+                      style={{ MozAppearance: "textfield" }}
+                      className="w-full pl-10 pr-3 py-2.5 border border-zinc-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-zinc-500 mt-3">
+            💡 Set custom prices for each purity level. Leave at 0 to
+            auto-calculate from 999 purity.
+          </p>
         </div>
       )}
 
