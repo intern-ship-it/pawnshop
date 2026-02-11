@@ -247,7 +247,6 @@ export default function NewPledge() {
   const [loadingVaults, setLoadingVaults] = useState(false);
   const [loadingBoxes, setLoadingBoxes] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [loadingSlots, setLoadingSlots] = useState(false);
   const [storageError, setStorageError] = useState(null);
   const [storageBlocked, setStorageBlocked] = useState(false);
 
