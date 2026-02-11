@@ -110,7 +110,7 @@ export default function UserList() {
           type: "error",
           title: "Error",
           message: err.message || "Failed to load users",
-        })
+        }),
       );
     } finally {
       setIsLoading(false);
@@ -128,7 +128,7 @@ export default function UserList() {
     inactive: users.filter((u) => !u.is_active).length,
     byRole: roles.reduce((acc, role) => {
       acc[role.slug] = users.filter(
-        (u) => u.role?.slug === role.slug || u.role_id === role.id
+        (u) => u.role?.slug === role.slug || u.role_id === role.id,
       ).length;
       return acc;
     }, {}),
@@ -182,7 +182,7 @@ export default function UserList() {
             type: "success",
             title: "User Deleted",
             message: `${selectedUser.name} has been removed`,
-          })
+          }),
         );
         setShowDeleteModal(false);
         setSelectedUser(null);
@@ -196,7 +196,7 @@ export default function UserList() {
           type: "error",
           title: "Error",
           message: err.message || "Failed to delete user",
-        })
+        }),
       );
     } finally {
       setIsDeleting(false);
@@ -214,7 +214,7 @@ export default function UserList() {
           type: "error",
           title: "Error",
           message: "Password must be at least 8 characters",
-        })
+        }),
       );
       return;
     }
@@ -231,7 +231,7 @@ export default function UserList() {
             type: "success",
             title: "Password Reset",
             message: `Password for ${selectedUser.name} has been updated`,
-          })
+          }),
         );
         setShowResetModal(false);
         setSelectedUser(null);
@@ -246,7 +246,7 @@ export default function UserList() {
           type: "error",
           title: "Error",
           message: err.message || "Failed to reset password",
-        })
+        }),
       );
     } finally {
       setIsResetting(false);
@@ -262,7 +262,7 @@ export default function UserList() {
     try {
       if (user.role_id || user.role?.id) {
         const response = await roleService.getRolePermissions(
-          user.role_id || user.role?.id
+          user.role_id || user.role?.id,
         );
         if (response.success) {
           setUserPermissions(response.data || {});
@@ -462,7 +462,7 @@ export default function UserList() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase">
                   Status
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-zinc-500 uppercase">
+                <th className="px-6 py-4 text-center text-xs font-semibold text-zinc-500 uppercase">
                   Actions
                 </th>
               </tr>
@@ -497,7 +497,7 @@ export default function UserList() {
                           <div
                             className={cn(
                               "w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold",
-                              getAvatarColor(user.name)
+                              getAvatarColor(user.name),
                             )}
                           >
                             {user.name?.charAt(0) || "U"}
@@ -519,7 +519,7 @@ export default function UserList() {
                           className={cn(
                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
                             roleStyle.bg,
-                            roleStyle.text
+                            roleStyle.text,
                           )}
                         >
                           <span>{roleStyle.icon}</span>
@@ -549,7 +549,7 @@ export default function UserList() {
                           className={cn(
                             "inline-flex px-2.5 py-1 rounded-full text-xs font-medium",
                             statusStyle.bg,
-                            statusStyle.text
+                            statusStyle.text,
                           )}
                         >
                           {statusStyle.label}
