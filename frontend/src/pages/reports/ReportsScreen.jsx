@@ -149,8 +149,8 @@ export default function ReportsScreen() {
     // Helper to format date as YYYY-MM-DD in local timezone
     const formatLocalDate = (date) => {
       const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
       return `${year}-${month}-${day}`;
     };
 
@@ -227,12 +227,24 @@ export default function ReportsScreen() {
           // Fetch multiple reports for overview - handle failures gracefully
           try {
             const results = await Promise.all([
-              reportService.getPledgesReport(params).catch(() => ({ success: false, data: null })),
-              reportService.getRenewalsReport(params).catch(() => ({ success: false, data: null })),
-              reportService.getRedemptionsReport(params).catch(() => ({ success: false, data: null })),
-              reportService.getOutstandingReport().catch(() => ({ success: false, data: null })),
-              reportService.getOverdueReport().catch(() => ({ success: false, data: null })),
-              reportService.getInventoryReport().catch(() => ({ success: false, data: null })),
+              reportService
+                .getPledgesReport(params)
+                .catch(() => ({ success: false, data: null })),
+              reportService
+                .getRenewalsReport(params)
+                .catch(() => ({ success: false, data: null })),
+              reportService
+                .getRedemptionsReport(params)
+                .catch(() => ({ success: false, data: null })),
+              reportService
+                .getOutstandingReport()
+                .catch(() => ({ success: false, data: null })),
+              reportService
+                .getOverdueReport()
+                .catch(() => ({ success: false, data: null })),
+              reportService
+                .getInventoryReport()
+                .catch(() => ({ success: false, data: null })),
             ]);
 
             response = {
@@ -273,7 +285,7 @@ export default function ReportsScreen() {
           response = await reportService.getCustomersReport(params);
           break;
         case "transactions":
-          response = await reportService.getTransactionsReport(fromDate);
+          response = await reportService.getTransactionsReport(params);
           break;
         case "reprints":
           response = await reportService.getReprintsReport(params);
@@ -765,9 +777,11 @@ function OverviewReport({ data }) {
               <div className="space-y-2">
                 {(Array.isArray(inventorySummary.by_purity)
                   ? inventorySummary.by_purity
-                  : Object.entries(inventorySummary.by_purity).map(([k, v]) => ({ name: k, ...v }))
+                  : Object.entries(inventorySummary.by_purity).map(
+                      ([k, v]) => ({ name: k, ...v }),
+                    )
                 ).map((item, idx) => {
-                  const label = item.purity || item.name || 'Unknown';
+                  const label = item.purity || item.name || "Unknown";
                   const weight = item.weight || item.total_weight || 0;
                   return (
                     <div
@@ -1411,9 +1425,9 @@ function InventoryReport({ data }) {
               (Array.isArray(byPurity)
                 ? byPurity
                 : Object.entries(byPurity).map(([k, v]) => ({
-                  purity: k,
-                  ...v,
-                }))
+                    purity: k,
+                    ...v,
+                  }))
               ).map((item, idx) => (
                 <div
                   key={item.purity || item.name || idx}
@@ -1452,9 +1466,9 @@ function InventoryReport({ data }) {
               (Array.isArray(byCategory)
                 ? byCategory
                 : Object.entries(byCategory).map(([k, v]) => ({
-                  category: k,
-                  ...v,
-                }))
+                    category: k,
+                    ...v,
+                  }))
               ).map((item, idx) => (
                 <div
                   key={item.category || item.name || idx}

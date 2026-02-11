@@ -372,36 +372,40 @@ class ReportController extends Controller
     }
 
     /**
-     * Daily Transactions Report
+     * Transactions Report - Date Range Support
      */
     public function transactions(Request $request): JsonResponse
     {
         $branchId = $request->user()->branch_id;
-        $date = $request->get('date', Carbon::today()->toDateString());
+
+        // Support both single date and date range
+        $fromDate = $request->get('from_date', $request->get('date', Carbon::today()->toDateString()));
+        $toDate = $request->get('to_date', $fromDate);
 
         // Pledges
         $pledges = Pledge::where('branch_id', $branchId)
-            ->whereDate('pledge_date', $date)
+            ->whereBetween('pledge_date', [$fromDate, $toDate])
             ->with(['customer:id,name', 'payments', 'createdBy:id,name'])
             ->orderBy('created_at')
             ->get();
 
         // Renewals
         $renewals = Renewal::where('branch_id', $branchId)
-            ->whereDate('created_at', $date)
+            ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
             ->with(['pledge.customer:id,name', 'createdBy:id,name'])
             ->orderBy('created_at')
             ->get();
 
         // Redemptions
         $redemptions = Redemption::where('branch_id', $branchId)
-            ->whereDate('created_at', $date)
+            ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
             ->with(['pledge.customer:id,name', 'createdBy:id,name'])
             ->orderBy('created_at')
             ->get();
 
         return $this->success([
-            'date' => $date,
+            'from_date' => $fromDate,
+            'to_date' => $toDate,
             'pledges' => [
                 'items' => $pledges,
                 'count' => $pledges->count(),

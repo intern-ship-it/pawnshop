@@ -76,11 +76,10 @@ const reportService = {
 
   /**
    * Get daily transactions report
-   * @param {string} date - Report date (default today)
+   * @param {Object} params - from_date, to_date (or date for backward compatibility)
    * @returns {Promise}
    */
-  async getTransactionsReport(date = null) {
-    const params = date ? { date } : {}
+  async getTransactionsReport(params = {}) {
     return apiGet('/reports/transactions', params)
   },
 
@@ -115,11 +114,11 @@ const reportService = {
       const url = window.URL.createObjectURL(new Blob([response]))
       const link = document.createElement('a')
       link.href = url
-      
+
       // Generate filename
       const dateStr = new Date().toISOString().slice(0, 10);
       const filename = `${reportType}_report_${dateStr}.${format}`
-      
+
       link.setAttribute('download', filename)
       document.body.appendChild(link)
       link.click()
