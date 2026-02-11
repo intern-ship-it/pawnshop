@@ -1037,10 +1037,10 @@ export default function Header() {
                       <Settings className="w-4 h-4" />
                       Settings
                     </button>
-                    <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 hover:text-zinc-800 hover:bg-zinc-50 rounded-lg transition-colors">
+                    {/* <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 hover:text-zinc-800 hover:bg-zinc-50 rounded-lg transition-colors">
                       <HelpCircle className="w-4 h-4" />
                       Help & Support
-                    </button>
+                    </button> */}
                   </div>
 
                   {/* Logout */}
