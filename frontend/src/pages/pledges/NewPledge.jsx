@@ -30,6 +30,7 @@ import {
   Modal,
   TermsConsentPanel,
 } from "@/components/common";
+import StorageWarningBanner from "@/components/common/StorageWarningBanner";
 import {
   ArrowLeft,
   ArrowRight,
@@ -246,7 +247,9 @@ export default function NewPledge() {
   const [loadingVaults, setLoadingVaults] = useState(false);
   const [loadingBoxes, setLoadingBoxes] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [storageError, setStorageError] = useState(null);
+  const [storageBlocked, setStorageBlocked] = useState(false);
 
   // Step 6: Signature state (was Step 5)
   const [signature, setSignature] = useState(null);
@@ -2055,6 +2058,18 @@ export default function NewPledge() {
 
   // Navigation validation - UPDATED FOR 6 STEPS
   const validateStep = (step) => {
+    // Block progress if storage is full
+    if (storageBlocked) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Storage Full",
+          message: "Cannot create new pledge: No storage available.",
+        }),
+      );
+      return false;
+    }
+
     switch (step) {
       case 1:
         if (!customer) {
@@ -2625,6 +2640,9 @@ export default function NewPledge() {
         </Button>
       }
     >
+      {/* Storage Warning Banner */}
+      <StorageWarningBanner onStorageFull={setStorageBlocked} />
+
       {/* Progress Steps */}
       <div className="mb-8">
         <div className="flex items-center justify-between max-w-5xl mx-auto">

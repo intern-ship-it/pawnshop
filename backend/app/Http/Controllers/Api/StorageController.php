@@ -166,10 +166,10 @@ class StorageController extends Controller
 
         $boxes = $vault->boxes()
             ->withCount([
-                    'slots as occupied_slots' => function ($q) {
-                        $q->where('is_occupied', true);
-                    }
-                ])
+                'slots as occupied_slots' => function ($q) {
+                    $q->where('is_occupied', true);
+                }
+            ])
             ->orderBy('box_number')
             ->get();
 
@@ -413,4 +413,76 @@ class StorageController extends Controller
             'items' => $items->load(['pledge.customer:id,name', 'category', 'purity']),
         ]);
     }
+
+    /**
+     * Get storage capacity summary (for dashboard/notifications)
+     */
+    public function capacity(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        // Get total slots count
+        $totalSlots = Slot::whereHas('box.vault', function ($q) use ($branchId) {
+            $q->where('branch_id', $branchId)->where('is_active', true);
+        })
+            ->whereHas('box', function ($q) {
+                $q->where('is_active', true);
+            })
+            ->count();
+
+        // Get occupied slots count
+        $occupiedSlots = Slot::where('is_occupied', true)
+            ->whereHas('box.vault', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId)->where('is_active', true);
+            })
+            ->whereHas('box', function ($q) {
+                $q->where('is_active', true);
+            })
+            ->count();
+
+        // Calculate stats
+        $availableSlots = $totalSlots - $occupiedSlots;
+        $usagePercent = $totalSlots > 0 ? round(($occupiedSlots / $totalSlots) * 100, 1) : 0;
+        $availablePercent = 100 - $usagePercent;
+
+        // Determine status level
+        $status = 'healthy'; // > 30% available
+        if ($availablePercent <= 10) {
+            $status = 'critical'; // ≤ 10% available
+        } elseif ($availablePercent <= 20) {
+            $status = 'warning'; // ≤ 20% available
+        } elseif ($availablePercent <= 30) {
+            $status = 'low'; // ≤ 30% available
+        }
+
+        return $this->success([
+            'total_slots' => $totalSlots,
+            'occupied_slots' => $occupiedSlots,
+            'available_slots' => $availableSlots,
+            'usage_percent' => $usagePercent,
+            'available_percent' => $availablePercent,
+            'status' => $status,
+            'can_accept_pledge' => $availableSlots > 0,
+            'message' => $this->getCapacityMessage($availableSlots, $status),
+        ]);
+    }
+
+    /**
+     * Get capacity message based on status
+     */
+    private function getCapacityMessage(int $availableSlots, string $status): string
+    {
+        if ($availableSlots === 0) {
+            return 'Storage full! No slots available.';
+        } elseif ($status === 'critical') {
+            return "Only {$availableSlots} slots remaining. Urgently free up space!";
+        } elseif ($status === 'warning') {
+            return "{$availableSlots} slots remaining. Consider freeing up space soon.";
+        } elseif ($status === 'low') {
+            return "{$availableSlots} slots available. Monitor capacity.";
+        } else {
+            return "{$availableSlots} slots available.";
+        }
+    }
 }
+

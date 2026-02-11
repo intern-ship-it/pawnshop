@@ -8,6 +8,7 @@ import { formatCurrency } from "@/utils/formatters";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import goldPriceService from "@/services/goldPriceService";
 import notificationService from "@/services/notificationService";
+import StorageCapacityBadge from "@/components/common/StorageCapacityBadge";
 import GlobalSearch from "./GlobalSearch";
 import {
   Menu,
@@ -787,6 +788,7 @@ export default function Header() {
           </button>
 
           {/* Notifications */}
+          <StorageCapacityBadge className="hidden lg:flex" />
           <div className="relative">
             <button
               onClick={() => setNotificationOpen(!notificationOpen)}

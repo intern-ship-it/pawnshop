@@ -41,6 +41,7 @@ import GoldPriceCard from "@/components/dashboard/GoldPriceCard";
 import EnhancedStatsCard from "@/components/dashboard/EnhancedStatsCard";
 import EnhancedPaymentSplitCard from "@/components/dashboard/EnhancedPaymentSplitCard";
 import EnhancedSummaryCard from "@/components/dashboard/EnhancedSummaryCard";
+import StorageCapacityCard from "@/components/dashboard/StorageCapacityCard";
 
 // Payment Split Mini Bar Component
 const PaymentSplitBar = ({
@@ -426,6 +427,9 @@ export default function Dashboard() {
           delay={300}
         />
       </div>
+
+      {/* Storage Capacity Widget */}
+      <StorageCapacityCard />
 
       {/* Gold Prices + Due Reminders Row - DATA FROM API */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

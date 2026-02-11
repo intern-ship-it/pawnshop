@@ -245,6 +245,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/available-slots', [StorageController::class, 'availableSlots']);
             Route::get('/next-available-slot', [StorageController::class, 'nextAvailableSlot']);
             Route::get('/box-summary/{box}', [StorageController::class, 'boxSummary']);
+            Route::get('/capacity', [StorageController::class, 'capacity']);
         });
 
         // Manage permissions (create/update/delete)

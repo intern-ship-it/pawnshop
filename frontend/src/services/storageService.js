@@ -120,6 +120,14 @@ const storageService = {
     const params = vaultId ? { vault_id: vaultId } : {}
     return apiGet('/storage/next-available-slot', params)
   },
+
+  /**
+   * Get storage capacity summary
+   * @returns {Promise}
+   */
+  async getCapacity() {
+    return apiGet('/storage/capacity')
+  },
 }
 
 export default storageService
