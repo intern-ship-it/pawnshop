@@ -133,6 +133,7 @@ class ReportController extends Controller
     public function outstanding(Request $request): JsonResponse
     {
         $branchId = $request->user()->branch_id;
+        $today = Carbon::today();
 
         $pledges = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
@@ -140,14 +141,26 @@ class ReportController extends Controller
             ->orderBy('due_date')
             ->get();
 
-        // Calculate current interest for each
-        $pledges->each(function ($pledge) {
+        // Calculate current interest for each and categorize by due status
+        $activePledges = [];
+        $overduePledges = [];
+
+        $pledges->each(function ($pledge) use ($today, &$activePledges, &$overduePledges) {
             $pledge->current_interest = $pledge->current_interest_amount;
             $pledge->total_outstanding = $pledge->loan_amount + $pledge->current_interest;
+
+            // Categorize as active or overdue
+            if ($pledge->due_date < $today) {
+                $overduePledges[] = $pledge;
+            } else {
+                $activePledges[] = $pledge;
+            }
         });
 
         $summary = [
             'total_pledges' => $pledges->count(),
+            'active_count' => count($activePledges),
+            'overdue_count' => count($overduePledges),
             'total_principal' => $pledges->sum('loan_amount'),
             'total_interest' => $pledges->sum('current_interest'),
             'total_outstanding' => $pledges->sum('total_outstanding'),
