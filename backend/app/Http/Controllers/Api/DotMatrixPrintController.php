@@ -1493,7 +1493,7 @@ HTML;
 .pp-sejak { background: #d42027; color: #fff; width: 11mm; height: 11mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }
 .pp-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }
 .pp-sejak-yr { font-size: 9px; font-weight: bold; line-height: 1; }
-.pp-hrs-box { background: #f5c518; color: #000; padding: 1mm 2mm; width: 45mm; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 1mm 2mm; width: 45mm; text-align: center; }
 .pp-hrs-title { font-size: 10px; font-weight: bold; text-align: center; }
 .pp-hrs-line { font-size: 6.5px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
 
@@ -1999,7 +1999,8 @@ HTML;
             $frontHtml = $combinedHtml;
 
             // Back page is blank for data (redeemer info filled at redemption)
-            $backHtml = '';
+            // Generate back page (Terms & Conditions)
+            $backHtml = $this->generatePrePrintedBackPage($settings);
 
             // Record print
             $pledge->update([

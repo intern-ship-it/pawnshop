@@ -245,9 +245,8 @@ export default function PledgeDetail() {
   };
 
   const interest = calculateInterest();
-
-  // Handle print - downloads PDF from PrintController
-  const handlePrint = async (copyType = "customer") => {
+  // Handle print - Pre-Printed Form with Data (Document View)
+  const handlePrint = async () => {
     try {
       const token = getToken();
 
@@ -266,70 +265,7 @@ export default function PledgeDetail() {
         import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
       const response = await fetch(
-        `${apiUrl}/print/pledge-receipt/${pledge.id}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Accept: "application/pdf",
-          },
-          body: JSON.stringify({ copy_type: copyType }),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to generate receipt");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      window.open(url, "_blank");
-
-      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Receipt Generated",
-          message: "PDF opened in new tab",
-        }),
-      );
-    } catch (error) {
-      console.error("Print error:", error);
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Print Failed",
-          message: error.message || "Failed to generate receipt",
-        }),
-      );
-    }
-  };
-
-  // Handle Styled Print (Dot Receipt) - opens HTML print window
-  const handleStyledPrint = async (copyType = "customer") => {
-    try {
-      const token = getToken();
-
-      if (!token) {
-        dispatch(
-          addToast({
-            type: "error",
-            title: "Error",
-            message: "Please login again",
-          }),
-        );
-        return;
-      }
-
-      const apiUrl =
-        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
-
-      const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pledge-receipt/${pledge.id}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledge.id}`,
         {
           method: "POST",
           headers: {
@@ -337,7 +273,6 @@ export default function PledgeDetail() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: copyType }),
         },
       );
 
@@ -347,111 +282,159 @@ export default function PledgeDetail() {
         throw new Error(data.message || "Failed to generate receipt");
       }
 
-      const receiptHtml = data.data?.receipt_text || "";
-      const termsHtml = data.data?.terms_text || "";
+      const frontHtml = data.data?.front_html || "";
+      let backHtml = data.data?.back_html || "";
+      // Strip @page styles from backHtml to prevent overriding global margins
+      backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
 
-      // Open print window with styled receipt
-      const printWindow = window.open("", "_blank", "width=950,height=750");
-      if (!printWindow) {
+      const pledgeNo = data.data?.pledge_no || pledge.pledgeNo;
+
+      if (frontHtml) {
+        const printWindow = window.open("", "_blank");
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Pre-Printed Form - ${pledgeNo}</title>
+              <style>
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                }
+                
+                body {
+                  font-family: 'Courier New', Courier, monospace;
+                  background: #f5f5f5;
+                  padding: 20px;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  gap: 20px;
+                }
+                
+                .print-container {
+                  width: 210mm;
+                  max-width: 210mm;
+                  background: white;
+                  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                  margin: 0;
+                  padding: 0;
+                  overflow: hidden;
+                }
+                
+                .print-actions {
+                  width: 100%;
+                  max-width: 210mm;
+                  text-align: center;
+                  padding: 15px;
+                  background: #fff3cd;
+                  border: 1px solid #ffc107;
+                  border-radius: 4px;
+                }
+                
+                .print-btn {
+                  background: #28a745;
+                  color: white;
+                  border: none;
+                  padding: 10px 30px;
+                  font-size: 16px;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  margin: 0 5px;
+                }
+                
+                .print-btn:hover {
+                  background: #218838;
+                }
+                
+                .close-btn {
+                  background: #dc3545;
+                }
+                
+                .close-btn:hover {
+                  background: #c82333;
+                }
+                
+                @media print {
+                  body {
+                    background: white;
+                    padding: 0;
+                    display: block;
+                  }
+                  
+                  .print-container {
+                    box-shadow: none;
+                    margin: 0;
+                  }
+                  
+                  .print-actions {
+                    display: none;
+                  }
+                }
+                
+                @page {
+                  size: A5 landscape;
+                  margin: 0;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="print-actions">
+                <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+                  📄 Pre-Printed Form with Data - ${pledgeNo}
+                </p>
+                <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+                  This shows the data overlay on a pre-printed form template
+                </p>
+                <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+                <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+              </div>
+              
+              <div class="print-container">
+                ${frontHtml}
+              </div>
+
+              ${
+                backHtml
+                  ? `<div class="print-container" style="margin-top: 20px;">
+                      ${backHtml}
+                     </div>`
+                  : ""
+              }
+              
+              <script>
+                window.onload = function() { 
+                  document.querySelector('.print-btn').focus(); 
+                };
+              </script>
+            </body>
+            </html>
+          `);
+          printWindow.document.close();
+        } else {
+          throw new Error("Popup blocked. Please allow popups for this site.");
+        }
+
         dispatch(
           addToast({
-            type: "error",
-            title: "Popup Blocked",
-            message: "Please allow popups to print",
+            type: "success",
+            title: "Receipt Ready",
+            message: "Document view generated",
           }),
         );
-        return;
+      } else {
+        throw new Error("Invalid response format");
       }
-
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Resit Pajak Gadai - ${pledge.receiptNo}</title>
-          <style>
-            @page { size: A5 landscape; margin: 5mm; }
-            @media print {
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .print-controls { display: none !important; }
-              .page-break { page-break-before: always; }
-              .preview-container { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
-              .page-label { display: none !important; }
-            }
-            
-            body { margin: 0; padding: 0; background: #e5e7eb; font-family: Arial, sans-serif; }
-            
-            .print-controls {
-              background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
-              padding: 15px 20px; text-align: center; position: sticky; top: 0; z-index: 100;
-            }
-            .print-btn {
-              background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-              color: white; border: none; padding: 12px 25px; font-size: 14px;
-              cursor: pointer; border-radius: 8px; font-weight: bold; margin: 0 5px;
-            }
-            .print-btn:hover { transform: translateY(-1px); }
-            .print-btn.green { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
-            .close-btn {
-              background: #6b7280; color: white; border: none; padding: 12px 20px;
-              font-size: 14px; cursor: pointer; border-radius: 8px; margin-left: 10px;
-            }
-            .printer-note { font-size: 12px; color: #9ca3af; margin-top: 10px; }
-            
-            .preview-container {
-              max-width: 210mm; margin: 20px auto; background: white;
-              box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden;
-            }
-            .page-label {
-              background: linear-gradient(135deg, #1a4a7a 0%, #2563eb 100%);
-              color: white; padding: 8px 15px; font-size: 12px; font-weight: bold;
-            }
-            .page-label.terms { background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%); }
-          </style>
-        </head>
-        <body>
-          <div class="print-controls">
-            <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
-            <button class="print-btn green" onclick="window.print()">📄 Print Both Pages</button>
-            <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
-            <p class="printer-note">Pilih printer: <strong>Any Printer</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
-          </div>
-          
-          <div class="preview-container">
-            <div class="page-label">📄 HALAMAN 1: RESIT / PAGE 1: RECEIPT</div>
-            ${receiptHtml}
-          </div>
-          
-          ${
-            termsHtml
-              ? `
-          <div class="preview-container page-break" style="margin-top: 20px;">
-            <div class="page-label terms">📋 HALAMAN 2: TERMA & SYARAT / PAGE 2: TERMS</div>
-            ${termsHtml}
-          </div>
-          `
-              : ""
-          }
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Receipt Generated",
-          message: `Styled ${copyType} receipt opened`,
-        }),
-      );
     } catch (error) {
-      console.error("Styled print error:", error);
+      console.error("Print error:", error);
       dispatch(
         addToast({
           type: "error",
           title: "Print Failed",
-          message: error.message || "Failed to generate styled receipt",
+          message: error.message || "Failed to generate receipt",
         }),
       );
     }
@@ -573,30 +556,13 @@ export default function PledgeDetail() {
       }
       actions={
         <div className="flex items-center gap-2">
-          <div className="relative group">
-            <Button
-              variant="outline"
-              leftIcon={Printer}
-              onClick={() => handlePrint("customer")}
-            >
-              Print
-            </Button>
-            {/* Dropdown for print options */}
-            <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-zinc-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-              <button
-                className="w-full px-4 py-2.5 text-left text-sm hover:bg-amber-50 rounded-t-lg flex items-center gap-2"
-                onClick={() => handleStyledPrint("customer")}
-              >
-                <span>🧾</span> Customer Copy
-              </button>
-              <button
-                className="w-full px-4 py-2.5 text-left text-sm hover:bg-amber-50 rounded-b-lg flex items-center gap-2"
-                onClick={() => handleStyledPrint("office")}
-              >
-                <span>🧾</span> Office Copy
-              </button>
-            </div>
-          </div>
+          <Button
+            variant="outline"
+            leftIcon={Printer}
+            onClick={() => handlePrint()}
+          >
+            Print
+          </Button>
           <Button
             variant="outline"
             leftIcon={MessageSquare}
