@@ -728,7 +728,7 @@ export default function PrintTestPage() {
         .label { 
           width: 50mm; 
           height: 50mm;
-          padding: 2mm 3mm; 
+          padding: 4mm 3mm; 
           background: white; 
           display: flex; 
           flex-direction: column; 
