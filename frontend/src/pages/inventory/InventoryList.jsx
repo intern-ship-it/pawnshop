@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import StorageLocationSelector from "@/components/common/StorageLocationSelector";
 import RackMap from "./RackMap";
 import {
   Search,
@@ -128,7 +129,11 @@ export default function InventoryList() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [newLocation, setNewLocation] = useState("");
+  const [newLocation, setNewLocation] = useState({
+    vault_id: "",
+    box_id: "",
+    slot_id: "",
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -985,7 +990,12 @@ export default function InventoryList() {
   // Open location assignment modal
   const openLocationModal = (item) => {
     setEditingItem(item);
-    setNewLocation(formatLocation(item) || "");
+    // Initialize with existing location IDs if available
+    setNewLocation({
+      vault_id: item.vault?.id || item.vault_id || "",
+      box_id: item.box?.id || item.box_id || "",
+      slot_id: item.slot?.id || item.slot_id || "",
+    });
     setShowLocationModal(true);
   };
 
@@ -993,10 +1003,24 @@ export default function InventoryList() {
   const handleSaveLocation = async () => {
     if (!editingItem) return;
 
+    // Validate that all fields are filled
+    if (!newLocation.vault_id || !newLocation.box_id || !newLocation.slot_id) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Incomplete",
+          message: "Please select vault, box, and slot",
+        }),
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       const response = await inventoryService.updateLocation(editingItem.id, {
-        storage_location: newLocation,
+        vault_id: parseInt(newLocation.vault_id),
+        box_id: parseInt(newLocation.box_id),
+        slot_id: parseInt(newLocation.slot_id),
         reason: "Manual assignment from inventory list",
       });
 
@@ -1179,12 +1203,15 @@ export default function InventoryList() {
 
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
               <Scale className="w-5 h-5 text-amber-600" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs text-zinc-500">Total Weight</p>
-              <p className="text-xl font-bold text-amber-600">
+              <p
+                className="text-base sm:text-lg md:text-xl font-bold text-amber-600 truncate"
+                title={`${parseFloat(stats.totalWeight || 0).toFixed(1)}g`}
+              >
                 {parseFloat(stats.totalWeight || 0).toFixed(1)}g
               </p>
             </div>
@@ -1193,12 +1220,15 @@ export default function InventoryList() {
 
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
               <DollarSign className="w-5 h-5 text-purple-600" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs text-zinc-500">Total Value</p>
-              <p className="text-xl font-bold text-purple-600">
+              <p
+                className="text-base sm:text-lg md:text-xl font-bold text-purple-600 truncate"
+                title={formatCurrency(stats.totalValue || 0)}
+              >
                 {formatCurrency(stats.totalValue || 0)}
               </p>
             </div>
@@ -2051,11 +2081,10 @@ export default function InventoryList() {
                 </p>
               </div>
 
-              <Input
-                label="Storage Location"
-                placeholder="e.g., Vault A → Box 1 → Slot 5"
+              <StorageLocationSelector
                 value={newLocation}
-                onChange={(e) => setNewLocation(e.target.value)}
+                onChange={setNewLocation}
+                showAvailability={true}
               />
 
               <div className="flex gap-3 mt-6">
