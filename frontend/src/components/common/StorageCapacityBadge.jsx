@@ -84,7 +84,7 @@ export default function StorageCapacityBadge({ className }) {
 
   return (
     <button
-      onClick={() => navigate("/inventory")}
+      onClick={() => navigate("/settings?section=racks")}
       className={cn(
         "group flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 border",
         config.container,

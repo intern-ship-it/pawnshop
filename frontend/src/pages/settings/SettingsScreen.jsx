@@ -211,6 +211,16 @@ export default function SettingsScreen() {
     };
     loadSettingsFromApi();
   }, []);
+
+  // Handle section query parameter for direct navigation
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get("section");
+    if (section && tabs.some((tab) => tab.id === section)) {
+      setActiveTab(section);
+    }
+  }, []);
+
   // Update settings helper
   const updateSettings = (section, data) => {
     setSettings((prev) => ({

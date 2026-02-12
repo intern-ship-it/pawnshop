@@ -113,7 +113,7 @@ export default function StorageCapacityCard() {
         theme.bg,
         theme.border,
       )}
-      onClick={() => navigate("/inventory")}
+      onClick={() => navigate("/settings?section=racks")}
     >
       {/* Background Decor */}
       <div
@@ -239,7 +239,7 @@ export default function StorageCapacityCard() {
               theme.accent,
             )}
           >
-            Manage Inventory <ArrowRight className="w-4 h-4" />
+            Manage Storage <ArrowRight className="w-4 h-4" />
           </div>
         </div>
       </div>

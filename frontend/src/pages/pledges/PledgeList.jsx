@@ -141,7 +141,7 @@ export default function PledgeList() {
     fetchPledges();
   }, []);
 
-  // Handle print receipt
+  // Handle print pre-printed form with data
   const handlePrint = async (pledgeId, e) => {
     if (e) e.stopPropagation();
 
@@ -164,33 +164,147 @@ export default function PledgeList() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
       const response = await fetch(
-        `${apiUrl}/print/pledge-receipt/${pledgeId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledgeId}`,
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-            Accept: "application/pdf",
+            Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to generate receipt");
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate pre-printed form");
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      // Open print window with the data overlay HTML
+      const dataHtml = data.data.front_html;
+      const pledgeNo = data.data.pledge_no || "N/A";
+
+      // Create print window
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        throw new Error("Please allow popups to print");
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Pre-Printed Form - ${pledgeNo}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              background: #f5f5f5;
+              padding: 20px;
+            }
+            
+            .print-container {
+              max-width: 210mm;
+              margin: 0 auto;
+              background: white;
+              padding: 20px;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            }
+            
+            .print-actions {
+              text-align: center;
+              margin-bottom: 20px;
+              padding: 15px;
+              background: #fff3cd;
+              border: 1px solid #ffc107;
+              border-radius: 4px;
+            }
+            
+            .print-btn {
+              background: #28a745;
+              color: white;
+              border: none;
+              padding: 10px 30px;
+              font-size: 16px;
+              border-radius: 4px;
+              cursor: pointer;
+              margin: 0 5px;
+            }
+            
+            .print-btn:hover {
+              background: #218838;
+            }
+            
+            .close-btn {
+              background: #dc3545;
+            }
+            
+            .close-btn:hover {
+              background: #c82333;
+            }
+            
+            @media print {
+              body {
+                background: white;
+                padding: 0;
+              }
+              
+              .print-container {
+                max-width: none;
+                box-shadow: none;
+                padding: 0;
+              }
+              
+              .print-actions {
+                display: none;
+              }
+            }
+            
+            @page {
+              size: A5 landscape;
+              margin: 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-actions">
+            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+              📄 Pre-Printed Form with Data - ${pledgeNo}
+            </p>
+            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+              This shows the data overlay on a pre-printed form template
+            </p>
+            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+          </div>
+          
+          <div class="print-container">
+            ${dataHtml}
+          </div>
+          
+          <script>
+            window.onload = function() { 
+              document.querySelector('.print-btn').focus(); 
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
 
       dispatch(
         addToast({
           type: "success",
           title: "Success",
-          message: "Receipt generated successfully",
+          message: "Pre-printed form with data generated",
         }),
       );
     } catch (error) {
@@ -199,7 +313,7 @@ export default function PledgeList() {
         addToast({
           type: "error",
           title: "Error",
-          message: error.message || "Failed to print receipt",
+          message: error.message || "Failed to generate pre-printed form",
         }),
       );
     } finally {
@@ -354,11 +468,15 @@ export default function PledgeList() {
               <button class="print-btn" onclick="printFront()">
                 🖨️ Cetak DEPAN / Print FRONT
               </button>
-              ${termsHtml ? `
+              ${
+                termsHtml
+                  ? `
               <button class="print-btn secondary" onclick="toggleTerms()">
                 📋 Tunjuk Terma / Show Terms
               </button>
-              ` : ""}
+              `
+                  : ""
+              }
               <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
             </div>
             
@@ -380,7 +498,9 @@ export default function PledgeList() {
             ${receiptHtml}
           </div>
           
-          ${termsHtml ? `
+          ${
+            termsHtml
+              ? `
           <div class="preview-container hidden-for-print" id="backPage">
             <div class="page-label terms">
               <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT (Tersembunyi / Hidden)</span>
@@ -388,7 +508,9 @@ export default function PledgeList() {
             </div>
             ${termsHtml}
           </div>
-          ` : ""}
+          `
+              : ""
+          }
           
           <script>
             function printFront() {
@@ -526,8 +648,9 @@ export default function PledgeList() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `pledges-export-${new Date().toISOString().split("T")[0]
-      }.csv`;
+    link.download = `pledges-export-${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -582,8 +705,9 @@ export default function PledgeList() {
           addToast({
             type: "success",
             title: "Cancelled",
-            message: `Pledge ${cancellingPledge.pledgeNo || cancellingPledge.receiptNo
-              } has been cancelled`,
+            message: `Pledge ${
+              cancellingPledge.pledgeNo || cancellingPledge.receiptNo
+            } has been cancelled`,
           }),
         );
         setShowCancelModal(false);
@@ -1035,14 +1159,14 @@ export default function PledgeList() {
                             <Eye className="w-4 h-4" />
                           </Button>
 
-                          {/* Print Button (PDF) */}
+                          {/* Print Pre-Printed Form with Data */}
                           {canPrint && (
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               disabled={printingId === pledge.id}
                               onClick={(e) => handlePrint(pledge.id, e)}
-                              title="Print PDF Receipt"
+                              title="Print Pre-Printed Form with Data"
                             >
                               {printingId === pledge.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />

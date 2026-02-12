@@ -1930,6 +1930,101 @@ HTML;
         }
     }
 
+    /**
+     * Generate Pledge Receipt WITH Pre-Printed Form Template
+     * Returns the complete form (blank template + data filled in)
+     */
+    public function prePrintedPledgeReceiptWithForm(Request $request, Pledge $pledge): JsonResponse
+    {
+        try {
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            $pledge->load([
+                'customer',
+                'items.category',
+                'items.purity',
+                'branch',
+            ]);
+
+            $settings = $this->getCompanySettings($pledge->branch);
+
+            // Generate BOTH blank form template AND data overlay
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
+            $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
+
+            // Combine them - data overlay on top of blank form
+            $combinedHtml = <<<HTML
+<style>
+.pp-combined-container {
+    position: relative;
+    width: 210mm;
+    height: 148mm;
+    margin: 0;
+    padding: 0;
+}
+.pp-blank-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+.pp-data-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+}
+@media print {
+    .pp-combined-container { page-break-after: always; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+
+<div class="pp-combined-container">
+    <div class="pp-blank-layer">
+        {$blankFrontHtml}
+    </div>
+    <div class="pp-data-layer">
+        {$dataOverlayHtml}
+    </div>
+</div>
+HTML;
+
+            $frontHtml = $combinedHtml;
+
+            // Back page is blank for data (redeemer info filled at redemption)
+            $backHtml = '';
+
+            // Record print
+            $pledge->update([
+                'receipt_printed' => true,
+                'receipt_print_count' => ($pledge->receipt_print_count ?? 0) + 1,
+            ]);
+
+            return $this->success([
+                'front_html' => $frontHtml,
+                'back_html' => $backHtml,
+                'pledge_no' => $pledge->pledge_no,
+                'orientation' => 'landscape',
+                'format' => 'html',
+                'paper_size' => 'A5',
+                'type' => 'pre_printed_with_form',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Pre-Printed With Form Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
+    }
+
+
+
 
     /**
      * Generate Renewal Receipt for Pre-Printed Form
