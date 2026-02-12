@@ -266,7 +266,6 @@ export default function NewPledge() {
   // Auto-print status tracking
   const [printJobStatus, setPrintJobStatus] = useState({
     dotMatrixOffice: { status: "pending", message: "" },
-    dotMatrixCustomer: { status: "pending", message: "" },
     barcode: { status: "pending", message: "" },
     whatsapp: { status: "pending", message: "" },
   });
@@ -1139,11 +1138,10 @@ export default function NewPledge() {
     if (!token || !pledgeId) return;
 
     let officeWindow = null;
-    let customerWindow = null;
     let barcodeWindow = null;
 
-    // 1. Dot Matrix - Office Copy (Data Overlay for Pre-Printed Forms)
-    updateJobStatus("dotMatrixOffice", "running", "Printing office copy...");
+    // 1. Dot Matrix Receipt (Data Overlay for Pre-Printed Forms)
+    updateJobStatus("dotMatrixOffice", "running", "Printing receipt...");
     try {
       const response = await fetch(
         `${apiUrl}/print/dot-matrix/pre-printed/pledge/${pledgeId}`,
@@ -1157,7 +1155,7 @@ export default function NewPledge() {
         },
       );
 
-      if (!response.ok) throw new Error("Failed to generate office copy");
+      if (!response.ok) throw new Error("Failed to generate receipt");
       const data = await response.json();
 
       if (data.success && data.data?.front_html) {
@@ -1167,7 +1165,7 @@ export default function NewPledge() {
             <!DOCTYPE html>
             <html>
             <head>
-              <title>Pledge ${pledgeId} - Office Copy</title>
+              <title>Pledge ${pledgeId} - Receipt</title>
               <style>
                 @page { size: A5 landscape; margin: 0; }
                 body { margin: 0; padding: 0; }
@@ -1184,11 +1182,7 @@ export default function NewPledge() {
             </html>
           `);
           officeWindow.document.close();
-          updateJobStatus(
-            "dotMatrixOffice",
-            "success",
-            "Data overlay ready (office)",
-          );
+          updateJobStatus("dotMatrixOffice", "success", "Receipt ready");
         } else {
           updateJobStatus("dotMatrixOffice", "failed", "Popup blocked");
         }
@@ -1207,82 +1201,10 @@ export default function NewPledge() {
       );
     }
 
-    // Small delay between jobs
+    // Small delay before barcode printing
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // 2. Dot Matrix - Customer Copy (Data Overlay for Pre-Printed Forms)
-    updateJobStatus(
-      "dotMatrixCustomer",
-      "running",
-      "Printing customer copy...",
-    );
-    try {
-      const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed/pledge/${pledgeId}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (!response.ok) throw new Error("Failed to generate customer copy");
-      const data = await response.json();
-
-      if (data.success && data.data?.front_html) {
-        customerWindow = window.open("", "_blank", "width=800,height=600");
-        if (customerWindow) {
-          customerWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <title>Pledge ${pledgeId} - Customer Copy</title>
-              <style>
-                @page { size: A5 landscape; margin: 0; }
-                body { margin: 0; padding: 0; }
-              </style>
-            </head>
-            <body>
-              ${data.data.front_html}
-              <script>
-                window.onload = function() {
-                  window.print();
-                };
-              </script>
-            </body>
-            </html>
-          `);
-          customerWindow.document.close();
-          updateJobStatus(
-            "dotMatrixCustomer",
-            "success",
-            "Data overlay ready (customer)",
-          );
-        } else {
-          updateJobStatus("dotMatrixCustomer", "failed", "Popup blocked");
-        }
-      } else {
-        throw new Error("Invalid response");
-      }
-    } catch (error) {
-      console.error("Customer copy error:", error);
-      if (customerWindow && !customerWindow.closed) {
-        customerWindow.close();
-      }
-      updateJobStatus(
-        "dotMatrixCustomer",
-        "failed",
-        error.message || "Failed to print",
-      );
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // 3. Barcode Labels (Thermal Printer)
-    // 3. Barcode Label (Thermal Printer) - ONE barcode per pledge
+    // 2. Barcode Label (Thermal Printer) - ONE barcode per pledge
     updateJobStatus("barcode", "running", "Generating barcode label...");
     try {
       const response = await fetch(`${apiUrl}/print/barcodes/${pledgeId}`, {
@@ -1798,11 +1720,9 @@ export default function NewPledge() {
 
     try {
       switch (jobKey) {
-        case "dotMatrixOffice":
-        case "dotMatrixCustomer": {
-          const copyType = jobKey === "dotMatrixOffice" ? "office" : "customer";
+        case "dotMatrixOffice": {
           const response = await fetch(
-            `${apiUrl}/print/dot-matrix/pledge-receipt/${createdPledgeId}`,
+            `${apiUrl}/print/dot-matrix/pre-printed/pledge/${createdPledgeId}`,
             {
               method: "POST",
               headers: {
@@ -1810,31 +1730,39 @@ export default function NewPledge() {
                 "Content-Type": "application/json",
                 Accept: "application/json",
               },
-              body: JSON.stringify({ copy_type: copyType }),
             },
           );
           if (!response.ok) throw new Error("Failed");
           const data = await response.json();
-          if (data.success && data.data?.receipt_text) {
+          if (data.success && data.data?.front_html) {
             const printWindow = window.open(
               "",
               "_blank",
-              "width=600,height=800",
+              "width=800,height=600",
             );
             if (printWindow) {
-              printWindow.document.write(
-                generateDotMatrixHTML(
-                  data.data.receipt_text,
-                  data.data.terms_text || "",
-                  copyType,
-                ),
-              );
+              printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <title>Pledge ${createdPledgeId} - Receipt</title>
+                  <style>
+                    @page { size: A5 landscape; margin: 0; }
+                    body { margin: 0; padding: 0; }
+                  </style>
+                </head>
+                <body>
+                  ${data.data.front_html}
+                  <script>
+                    window.onload = function() {
+                      window.print();
+                    };
+                  </script>
+                </body>
+                </html>
+              `);
               printWindow.document.close();
-              updateJobStatus(
-                jobKey,
-                "success",
-                `${copyType === "office" ? "Office" : "Customer"} copy ready (2 pages)`,
-              );
+              updateJobStatus(jobKey, "success", "Receipt ready");
             } else {
               throw new Error("Popup blocked");
             }
