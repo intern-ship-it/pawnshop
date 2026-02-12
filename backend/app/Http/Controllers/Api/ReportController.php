@@ -81,6 +81,8 @@ class ReportController extends Controller
         $summary = [
             'total_renewals' => $renewals->count(),
             'total_interest' => $renewals->sum('interest_amount'),
+            'average_interest' => $renewals->count() > 0 ? $renewals->avg('interest_amount') : 0,
+            'total_payable' => $renewals->sum('total_payable'),
             'total_collected' => $renewals->sum('total_payable'),
             'cash_collected' => $renewals->sum('cash_amount'),
             'transfer_collected' => $renewals->sum('transfer_amount'),
@@ -150,7 +152,7 @@ class ReportController extends Controller
             $pledge->total_outstanding = $pledge->loan_amount + $pledge->current_interest;
 
             // Categorize as active or overdue
-            if ($pledge->due_date < $today) {
+            if ($pledge->due_date->lt($today)) {
                 $overduePledges[] = $pledge;
             } else {
                 $activePledges[] = $pledge;

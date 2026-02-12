@@ -145,7 +145,7 @@ export default function PledgeList() {
   const handlePrint = async (pledgeId, e) => {
     if (e) e.stopPropagation();
 
-    // Get token using the helper function (handles both localStorage and sessionStorage)
+    // Get token using the helper function
     const token = getToken();
     if (!token) {
       dispatch(
@@ -181,8 +181,11 @@ export default function PledgeList() {
         throw new Error(data.message || "Failed to generate pre-printed form");
       }
 
-      // Open print window with the data overlay HTML
-      const dataHtml = data.data.front_html;
+      const frontHtml = data.data.front_html || "";
+      let backHtml = data.data.back_html || "";
+      // Strip @page styles from backHtml to prevent overriding global margins
+      backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
+
       const pledgeNo = data.data.pledge_no || "N/A";
 
       // Create print window
@@ -208,19 +211,26 @@ export default function PledgeList() {
               font-family: 'Courier New', Courier, monospace;
               background: #f5f5f5;
               padding: 20px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 20px;
             }
             
             .print-container {
+              width: 210mm;
               max-width: 210mm;
-              margin: 0 auto;
               background: white;
-              padding: 20px;
               box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              margin: 0;
+              padding: 0;
+              overflow: hidden;
             }
             
             .print-actions {
+              width: 100%;
+              max-width: 210mm;
               text-align: center;
-              margin-bottom: 20px;
               padding: 15px;
               background: #fff3cd;
               border: 1px solid #ffc107;
@@ -254,12 +264,12 @@ export default function PledgeList() {
               body {
                 background: white;
                 padding: 0;
+                display: block;
               }
               
               .print-container {
-                max-width: none;
                 box-shadow: none;
-                padding: 0;
+                margin: 0;
               }
               
               .print-actions {
@@ -286,8 +296,16 @@ export default function PledgeList() {
           </div>
           
           <div class="print-container">
-            ${dataHtml}
+            ${frontHtml}
           </div>
+
+          ${
+            backHtml
+              ? `<div class="print-container" style="margin-top: 20px;">
+                  ${backHtml}
+                 </div>`
+              : ""
+          }
           
           <script>
             window.onload = function() { 

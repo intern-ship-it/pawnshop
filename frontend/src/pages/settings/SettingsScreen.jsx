@@ -65,6 +65,7 @@ const defaultSettings = {
     email: "info@dsara.com",
     receiptHeader: "PAJAK GADAI BERLESEN",
     receiptFooter: "Terima kasih atas sokongan anda",
+    establishedYear: "1966",
   },
   goldPrice: {
     source: "api", // 'api' or 'manual'
@@ -253,6 +254,9 @@ export default function SettingsScreen() {
           companyMap.receipt_header || defaultSettings.company.receiptHeader,
         receiptFooter:
           companyMap.receipt_footer || defaultSettings.company.receiptFooter,
+        establishedYear:
+          companyMap.established_year ||
+          defaultSettings.company.establishedYear,
       };
     }
 
@@ -345,6 +349,11 @@ export default function SettingsScreen() {
           category: "company",
           key_name: "receipt_footer",
           value: settings.company.receiptFooter,
+        },
+        {
+          category: "company",
+          key_name: "established_year",
+          value: settings.company.establishedYear,
         },
       );
     }
@@ -853,6 +862,12 @@ function CompanyTab({ settings, updateSettings }) {
           value={company.email}
           onChange={(e) => handleChange("email", e.target.value)}
           placeholder="info@company.com"
+        />
+        <Input
+          label="Established Year"
+          value={company.establishedYear}
+          onChange={(e) => handleChange("establishedYear", e.target.value)}
+          placeholder="YYYY"
         />
         <div className="md:col-span-2">
           <Input
