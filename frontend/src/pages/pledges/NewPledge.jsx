@@ -4811,68 +4811,6 @@ export default function NewPledge() {
                 )}
               </div>
 
-              {/* Customer Copy */}
-              <div
-                className={cn(
-                  "flex items-center justify-between p-3 rounded-lg border transition-all",
-                  printJobStatus.dotMatrixCustomer.status === "success" &&
-                    "bg-emerald-50 border-emerald-200",
-                  printJobStatus.dotMatrixCustomer.status === "failed" &&
-                    "bg-red-50 border-red-200",
-                  printJobStatus.dotMatrixCustomer.status === "running" &&
-                    "bg-blue-50 border-blue-200",
-                  printJobStatus.dotMatrixCustomer.status === "pending" &&
-                    "bg-zinc-50 border-zinc-200",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center",
-                      printJobStatus.dotMatrixCustomer.status === "success" &&
-                        "bg-emerald-100",
-                      printJobStatus.dotMatrixCustomer.status === "failed" &&
-                        "bg-red-100",
-                      printJobStatus.dotMatrixCustomer.status === "running" &&
-                        "bg-blue-100",
-                      printJobStatus.dotMatrixCustomer.status === "pending" &&
-                        "bg-zinc-200",
-                    )}
-                  >
-                    {printJobStatus.dotMatrixCustomer.status === "success" && (
-                      <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    )}
-                    {printJobStatus.dotMatrixCustomer.status === "failed" && (
-                      <X className="w-4 h-4 text-red-600" />
-                    )}
-                    {printJobStatus.dotMatrixCustomer.status === "running" && (
-                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                    )}
-                    {printJobStatus.dotMatrixCustomer.status === "pending" && (
-                      <Clock className="w-4 h-4 text-zinc-400" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm text-zinc-800">
-                      🖨️ Dot Matrix - Customer Copy
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {printJobStatus.dotMatrixCustomer.message || "Waiting..."}
-                    </p>
-                  </div>
-                </div>
-                {printJobStatus.dotMatrixCustomer.status === "failed" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    leftIcon={RefreshCw}
-                    onClick={() => retryPrintJob("dotMatrixCustomer")}
-                  >
-                    Retry
-                  </Button>
-                )}
-              </div>
-
               {/* Barcode Labels */}
               <div
                 className={cn(

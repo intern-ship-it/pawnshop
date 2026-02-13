@@ -21,12 +21,14 @@ export default function StorageWarningBanner({ onStorageFull }) {
   const fetchCapacity = async () => {
     try {
       const response = await storageService.getCapacity();
-      if (response.success) {
+      if (response.success && response.data) {
         setCapacity(response.data);
         // Notify parent if storage is full
-        if (onStorageFull && !response.data.can_accept_pledge) {
+        if (onStorageFull && response.data.can_accept_pledge === false) {
           onStorageFull(true);
         }
+      } else {
+        console.warn("Storage capacity response missing data:", response);
       }
     } catch (err) {
       console.error("Storage capacity error:", err);
@@ -37,11 +39,12 @@ export default function StorageWarningBanner({ onStorageFull }) {
 
   // Don't show if loading, healthy, or dismissed
   if (loading || !capacity) return null;
-  if (capacity.status === "healthy" && capacity.can_accept_pledge) return null;
-  if (dismissed && capacity.can_accept_pledge) return null;
+  if (capacity?.status === "healthy" && capacity?.can_accept_pledge)
+    return null;
+  if (dismissed && capacity?.can_accept_pledge) return null;
 
   const getStatusConfig = () => {
-    if (!capacity.can_accept_pledge) {
+    if (!capacity?.can_accept_pledge) {
       return {
         bg: "bg-red-100 border-red-300",
         text: "text-red-800",
@@ -52,7 +55,7 @@ export default function StorageWarningBanner({ onStorageFull }) {
       };
     }
 
-    switch (capacity.status) {
+    switch (capacity?.status) {
       case "critical":
         return {
           bg: "bg-red-50 border-red-200",
@@ -112,13 +115,15 @@ export default function StorageWarningBanner({ onStorageFull }) {
         {/* Content */}
         <div className="flex-1">
           <h3 className={cn("font-bold mb-1", config.text)}>{config.title}</h3>
-          <p className={cn("text-sm mb-3", config.text)}>{capacity.message}</p>
+          <p className={cn("text-sm mb-3", config.text)}>
+            {capacity?.message || "Storage capacity information unavailable"}
+          </p>
 
           {/* Stats */}
           <div className="flex items-center gap-6 text-sm mb-3">
             <div>
               <span className={cn("font-semibold", config.text)}>
-                {capacity.available_slots}
+                {capacity?.available_slots ?? 0}
               </span>
               <span className={cn("ml-1 opacity-75", config.text)}>
                 available
@@ -126,7 +131,7 @@ export default function StorageWarningBanner({ onStorageFull }) {
             </div>
             <div>
               <span className={cn("font-semibold", config.text)}>
-                {capacity.occupied_slots}
+                {capacity?.occupied_slots ?? 0}
               </span>
               <span className={cn("ml-1 opacity-75", config.text)}>
                 occupied
@@ -134,7 +139,7 @@ export default function StorageWarningBanner({ onStorageFull }) {
             </div>
             <div>
               <span className={cn("font-semibold", config.text)}>
-                {capacity.usage_percent.toFixed(1)}%
+                {capacity?.usage_percent?.toFixed(1) ?? "0.0"}%
               </span>
               <span className={cn("ml-1 opacity-75", config.text)}>full</span>
             </div>
@@ -148,7 +153,7 @@ export default function StorageWarningBanner({ onStorageFull }) {
               config.button,
             )}
           >
-            {capacity.can_accept_pledge
+            {capacity?.can_accept_pledge
               ? "View Storage & Free Up Space →"
               : "Free Up Storage Space to Continue →"}
           </button>
