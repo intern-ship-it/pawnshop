@@ -1216,7 +1216,26 @@ export default function PledgeDetail() {
                 </a>
                 <Button
                   variant="outline"
-                  onClick={() => window.open(selectedImage, "_blank")}
+                  onClick={() => {
+                    if (selectedImage.startsWith("data:")) {
+                      // Convert data URI to blob URL for new tab (browsers block data: URIs in window.open)
+                      const byteString = atob(selectedImage.split(",")[1]);
+                      const mimeType = selectedImage
+                        .split(",")[0]
+                        .split(":")[1]
+                        .split(";")[0];
+                      const ab = new ArrayBuffer(byteString.length);
+                      const ia = new Uint8Array(ab);
+                      for (let i = 0; i < byteString.length; i++) {
+                        ia[i] = byteString.charCodeAt(i);
+                      }
+                      const blob = new Blob([ab], { type: mimeType });
+                      const blobUrl = URL.createObjectURL(blob);
+                      window.open(blobUrl, "_blank");
+                    } else {
+                      window.open(selectedImage, "_blank");
+                    }
+                  }}
                   leftIcon={Eye}
                 >
                   Open Full Size
