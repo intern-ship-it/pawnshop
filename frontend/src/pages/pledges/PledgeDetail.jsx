@@ -949,13 +949,15 @@ export default function PledgeDetail() {
                               )}
                               onClick={() => {
                                 if (item.photo) {
-                                  // Handle photo URL - prefix with storage URL if needed
-                                  const photoUrl = item.photo.startsWith("http")
-                                    ? item.photo
-                                    : `${import.meta.env.VITE_API_URL?.replace(
-                                        "/api",
-                                        "",
-                                      )}/storage/${item.photo}`;
+                                  // Handle photo URL - use directly if http or data URI, else prefix with storage URL
+                                  const photoUrl =
+                                    item.photo.startsWith("http") ||
+                                    item.photo.startsWith("data:")
+                                      ? item.photo
+                                      : `${import.meta.env.VITE_API_URL?.replace(
+                                          "/api",
+                                          "",
+                                        )}/storage/${item.photo}`;
                                   setSelectedImage(photoUrl);
                                   setShowImageModal(true);
                                 }
@@ -965,7 +967,8 @@ export default function PledgeDetail() {
                                 <div className="relative">
                                   <img
                                     src={
-                                      item.photo.startsWith("http")
+                                      item.photo.startsWith("http") ||
+                                      item.photo.startsWith("data:")
                                         ? item.photo
                                         : `${import.meta.env.VITE_API_URL?.replace(
                                             "/api",
