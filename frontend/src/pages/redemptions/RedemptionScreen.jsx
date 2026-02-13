@@ -787,6 +787,7 @@ export default function RedemptionScreen() {
   };
 
   // Auto-print receipt
+  // Uses pre-printed data overlay (same as pledge/renewal auto-print)
   const handlePrintReceiptAuto = async (redemptionId) => {
     if (!redemptionId) return;
 
@@ -799,7 +800,7 @@ export default function RedemptionScreen() {
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/redemption-receipt/${redemptionId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed/redemption/${redemptionId}`,
         {
           method: "POST",
           headers: {
@@ -807,33 +808,45 @@ export default function RedemptionScreen() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
       if (!response.ok) return;
 
       const data = await response.json();
-      if (!data.success || !data.data?.receipt_text) return;
+      if (!data.success || !data.data?.front_html) return;
 
-      const printWindow = window.open("", "_blank", "width=600,height=800");
+      // Open print window with data overlay for pre-printed form
+      const printWindow = window.open("", "_blank", "width=800,height=600");
       if (!printWindow) return;
 
-      printWindow.document.write(
-        generateDotMatrixHTML(
-          data.data.receipt_text,
-          data.data.terms_text || "",
-          "customer",
-        ),
-      );
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Redemption ${redemptionId} - Receipt</title>
+          <style>
+            @page { size: A5 landscape; margin: 0; }
+            body { margin: 0; padding: 0; }
+          </style>
+        </head>
+        <body>
+          ${data.data.front_html}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+        </html>
+      `);
       printWindow.document.close();
-      printWindow.focus();
 
       dispatch(
         addToast({
           type: "success",
           title: "Receipt Ready",
-          message: "Receipt sent to printer automatically",
+          message: "Redemption receipt sent to printer automatically",
         }),
       );
     } catch (error) {
@@ -843,7 +856,7 @@ export default function RedemptionScreen() {
     }
   };
 
-  // Print redemption receipt (manual button)
+  // Print redemption receipt using pre-printed overlay (manual button)
   const handlePrintReceipt = async () => {
     const redemptionId = redemptionResult?.id || redemptionResult?.redemptionId;
 
@@ -876,8 +889,9 @@ export default function RedemptionScreen() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
+      // Use pre-printed overlay endpoint (data only for carbonless forms)
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/redemption-receipt/${redemptionId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed/redemption/${redemptionId}`,
         {
           method: "POST",
           headers: {
@@ -885,7 +899,6 @@ export default function RedemptionScreen() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
@@ -896,11 +909,12 @@ export default function RedemptionScreen() {
 
       const data = await response.json();
 
-      if (!data.success || !data.data?.receipt_text) {
+      if (!data.success || !data.data?.front_html) {
         throw new Error("Invalid response from server");
       }
 
-      const printWindow = window.open("", "_blank", "width=600,height=800");
+      // Open print window with data overlay for pre-printed form
+      const printWindow = window.open("", "_blank", "width=800,height=600");
 
       if (!printWindow) {
         dispatch(
@@ -913,13 +927,26 @@ export default function RedemptionScreen() {
         return;
       }
 
-      printWindow.document.write(
-        generateDotMatrixHTML(
-          data.data.receipt_text,
-          data.data.terms_text || "",
-          "customer",
-        ),
-      );
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Redemption ${redemptionId} - Receipt</title>
+          <style>
+            @page { size: A5 landscape; margin: 0; }
+            body { margin: 0; padding: 0; }
+          </style>
+        </head>
+        <body>
+          ${data.data.front_html}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+        </html>
+      `);
       printWindow.document.close();
       printWindow.focus();
 
@@ -927,7 +954,7 @@ export default function RedemptionScreen() {
         addToast({
           type: "success",
           title: "Receipt Ready",
-          message: "Customer copy sent to printer (2 pages)",
+          message: "Redemption receipt sent to printer",
         }),
       );
     } catch (error) {

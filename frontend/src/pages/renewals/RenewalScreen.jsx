@@ -649,6 +649,7 @@ export default function RenewalScreen() {
   };
 
   // Auto-print receipt (Issue 5 fix - called automatically)
+  // Uses pre-printed data overlay (same as pledge auto-print)
   const handlePrintReceiptAuto = async (renewalId) => {
     if (!renewalId) return;
 
@@ -661,7 +662,7 @@ export default function RenewalScreen() {
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/renewal-receipt/${renewalId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed/renewal/${renewalId}`,
         {
           method: "POST",
           headers: {
@@ -669,34 +670,45 @@ export default function RenewalScreen() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
       if (!response.ok) return;
 
       const data = await response.json();
-      if (!data.success || !data.data?.receipt_text) return;
+      if (!data.success || !data.data?.front_html) return;
 
-      // Open print window
-      const printWindow = window.open("", "_blank", "width=600,height=800");
+      // Open print window with data overlay for pre-printed form
+      const printWindow = window.open("", "_blank", "width=800,height=600");
       if (!printWindow) return;
 
-      printWindow.document.write(
-        generateDotMatrixHTML(
-          data.data.receipt_text,
-          data.data.terms_text || "",
-          "customer",
-        ),
-      );
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Renewal ${renewalId} - Receipt</title>
+          <style>
+            @page { size: A5 landscape; margin: 0; }
+            body { margin: 0; padding: 0; }
+          </style>
+        </head>
+        <body>
+          ${data.data.front_html}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+        </html>
+      `);
       printWindow.document.close();
-      printWindow.focus();
 
       dispatch(
         addToast({
           type: "success",
           title: "Receipt Ready",
-          message: "Receipt sent to printer automatically",
+          message: "Renewal receipt sent to printer automatically",
         }),
       );
     } catch (error) {
@@ -706,7 +718,7 @@ export default function RenewalScreen() {
     }
   };
 
-  // Print receipt using dot matrix printer (manual button)
+  // Print receipt using pre-printed overlay (manual button)
   const handlePrintReceipt = async () => {
     if (!renewalResult?.id) {
       dispatch(
@@ -737,9 +749,9 @@ export default function RenewalScreen() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-      // Use dot-matrix print endpoint (same approach as pledge)
+      // Use pre-printed overlay endpoint (data only for carbonless forms)
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/renewal-receipt/${renewalResult.id}`,
+        `${apiUrl}/print/dot-matrix/pre-printed/renewal/${renewalResult.id}`,
         {
           method: "POST",
           headers: {
@@ -747,7 +759,6 @@ export default function RenewalScreen() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ copy_type: "customer" }),
         },
       );
 
@@ -758,12 +769,12 @@ export default function RenewalScreen() {
 
       const data = await response.json();
 
-      if (!data.success || !data.data?.receipt_text) {
+      if (!data.success || !data.data?.front_html) {
         throw new Error("Invalid response from server");
       }
 
-      // Open print window with both pages (receipt + terms)
-      const printWindow = window.open("", "_blank", "width=600,height=800");
+      // Open print window with data overlay for pre-printed form
+      const printWindow = window.open("", "_blank", "width=800,height=600");
 
       if (!printWindow) {
         dispatch(
@@ -776,14 +787,26 @@ export default function RenewalScreen() {
         return;
       }
 
-      // Use helper function for 2-page document
-      printWindow.document.write(
-        generateDotMatrixHTML(
-          data.data.receipt_text,
-          data.data.terms_text || "",
-          "customer",
-        ),
-      );
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Renewal ${renewalResult.id} - Receipt</title>
+          <style>
+            @page { size: A5 landscape; margin: 0; }
+            body { margin: 0; padding: 0; }
+          </style>
+        </head>
+        <body>
+          ${data.data.front_html}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+        </html>
+      `);
       printWindow.document.close();
       printWindow.focus();
 
@@ -791,7 +814,7 @@ export default function RenewalScreen() {
         addToast({
           type: "success",
           title: "Receipt Ready",
-          message: "Customer copy sent to printer (2 pages)",
+          message: "Renewal receipt sent to printer",
         }),
       );
     } catch (error) {

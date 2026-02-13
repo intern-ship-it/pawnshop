@@ -8,99 +8,99 @@
 import api from './api';
 
 const dotMatrixPrintService = {
-    /**
-     * Print pledge receipt to dot matrix printer
-     * @param {number} pledgeId - Pledge ID
-     * @param {string} copyType - 'office', 'customer', or 'both'
-     * @returns {Promise}
-     */
-    async printPledgeReceipt(pledgeId, copyType = 'customer') {
-        try {
-            const response = await api.post(`/print/dot-matrix/pledge-receipt/${pledgeId}`, {
-                copy_type: copyType,
-            });
+  /**
+   * Print pledge receipt to dot matrix printer
+   * @param {number} pledgeId - Pledge ID
+   * @param {string} copyType - 'office', 'customer', or 'both'
+   * @returns {Promise}
+   */
+  async printPledgeReceipt(pledgeId, copyType = 'customer') {
+    try {
+      const response = await api.post(`/print/dot-matrix/pledge-receipt/${pledgeId}`, {
+        copy_type: copyType,
+      });
 
-            if (response.data.success) {
-                this.sendToPrinter(response.data.data.receipt_text, `Pledge-${response.data.data.pledge_no}`);
-                return { success: true, data: response.data.data };
-            }
+      if (response.data.success) {
+        this.sendToPrinter(response.data.data.receipt_text, `Pledge-${response.data.data.pledge_no}`);
+        return { success: true, data: response.data.data };
+      }
 
-            return { success: false, error: response.data.message || 'Failed to generate receipt' };
-        } catch (error) {
-            console.error('Dot matrix print error:', error);
-            return {
-                success: false,
-                error: error.response?.data?.message || error.message || 'Print failed'
-            };
-        }
-    },
+      return { success: false, error: response.data.message || 'Failed to generate receipt' };
+    } catch (error) {
+      console.error('Dot matrix print error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Print failed'
+      };
+    }
+  },
 
-    /**
-     * Print renewal receipt
-     * @param {number} renewalId - Renewal ID
-     * @returns {Promise}
-     */
-    async printRenewalReceipt(renewalId) {
-        try {
-            const response = await api.post(`/print/dot-matrix/renewal-receipt/${renewalId}`);
+  /**
+   * Print renewal receipt (pre-printed overlay)
+   * @param {number} renewalId - Renewal ID
+   * @returns {Promise}
+   */
+  async printRenewalReceipt(renewalId) {
+    try {
+      const response = await api.post(`/print/dot-matrix/pre-printed/renewal/${renewalId}`);
 
-            if (response.data.success) {
-                this.sendToPrinter(response.data.data.receipt_text, `Renewal-${response.data.data.renewal_no}`);
-                return { success: true, data: response.data.data };
-            }
+      if (response.data.success && response.data.data?.front_html) {
+        this.sendOverlayToPrinter(response.data.data.front_html, `Renewal-${response.data.data.renewal_no || renewalId}`);
+        return { success: true, data: response.data.data };
+      }
 
-            return { success: false, error: response.data.message || 'Failed to generate receipt' };
-        } catch (error) {
-            console.error('Dot matrix print error:', error);
-            return {
-                success: false,
-                error: error.response?.data?.message || error.message || 'Print failed'
-            };
-        }
-    },
+      return { success: false, error: response.data.message || 'Failed to generate receipt' };
+    } catch (error) {
+      console.error('Dot matrix print error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Print failed'
+      };
+    }
+  },
 
-    /**
-     * Print redemption receipt
-     * @param {number} redemptionId - Redemption ID
-     * @returns {Promise}
-     */
-    async printRedemptionReceipt(redemptionId) {
-        try {
-            const response = await api.post(`/print/dot-matrix/redemption-receipt/${redemptionId}`);
+  /**
+   * Print redemption receipt (pre-printed overlay)
+   * @param {number} redemptionId - Redemption ID
+   * @returns {Promise}
+   */
+  async printRedemptionReceipt(redemptionId) {
+    try {
+      const response = await api.post(`/print/dot-matrix/pre-printed/redemption/${redemptionId}`);
 
-            if (response.data.success) {
-                this.sendToPrinter(response.data.data.receipt_text, `Redemption-${response.data.data.redemption_no}`);
-                return { success: true, data: response.data.data };
-            }
+      if (response.data.success && response.data.data?.front_html) {
+        this.sendOverlayToPrinter(response.data.data.front_html, `Redemption-${response.data.data.redemption_no || redemptionId}`);
+        return { success: true, data: response.data.data };
+      }
 
-            return { success: false, error: response.data.message || 'Failed to generate receipt' };
-        } catch (error) {
-            console.error('Dot matrix print error:', error);
-            return {
-                success: false,
-                error: error.response?.data?.message || error.message || 'Print failed'
-            };
-        }
-    },
+      return { success: false, error: response.data.message || 'Failed to generate receipt' };
+    } catch (error) {
+      console.error('Dot matrix print error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Print failed'
+      };
+    }
+  },
 
-    /**
-     * Send plain text to printer via browser print dialog
-     * Opens a new window with monospace font, optimized for dot matrix
-     * 
-     * @param {string} text - Plain text receipt content
-     * @param {string} title - Document title
-     */
-    sendToPrinter(text, title = 'Receipt') {
-        const printWindow = window.open('', '_blank', 'width=450,height=600');
+  /**
+   * Send plain text to printer via browser print dialog
+   * Opens a new window with monospace font, optimized for dot matrix
+   * 
+   * @param {string} text - Plain text receipt content
+   * @param {string} title - Document title
+   */
+  sendToPrinter(text, title = 'Receipt') {
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
 
-        if (!printWindow) {
-            alert('Popup blocked! Please allow popups for printing.');
-            return;
-        }
+    if (!printWindow) {
+      alert('Popup blocked! Please allow popups for printing.');
+      return;
+    }
 
-        // A5 paper: 148mm x 210mm
-        // At 10 CPI (characters per inch), ~42 characters fit across A5 width
-        printWindow.document.write(`
+    // A5 paper: 148mm x 210mm
+    // At 10 CPI (characters per inch), ~42 characters fit across A5 width
+    printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -158,53 +158,92 @@ const dotMatrixPrintService = {
       </html>
     `);
 
-        printWindow.document.close();
-    },
+    printWindow.document.close();
+  },
 
-    /**
-     * Print multiple copies (office + customer)
-     * @param {number} pledgeId - Pledge ID
-     * @returns {Promise}
-     */
-    async printBothCopies(pledgeId) {
-        // First print office copy
-        const officeResult = await this.printPledgeReceipt(pledgeId, 'office');
-        if (!officeResult.success) {
-            return officeResult;
-        }
+  /**
+   * Send HTML overlay to printer (for pre-printed forms)
+   * Opens a new window with the overlay HTML, optimized for A5 landscape
+   * 
+   * @param {string} html - HTML overlay content
+   * @param {string} title - Document title
+   */
+  sendOverlayToPrinter(html, title = 'Receipt') {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
 
-        // Wait a bit then print customer copy
-        return new Promise((resolve) => {
-            setTimeout(async () => {
-                const customerResult = await this.printPledgeReceipt(pledgeId, 'customer');
-                resolve(customerResult);
-            }, 2000); // 2 second delay between prints
-        });
-    },
+    if (!printWindow) {
+      alert('Popup blocked! Please allow popups for printing.');
+      return;
+    }
 
-    /**
-     * Escape HTML special characters
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    },
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          @page { size: A5 landscape; margin: 0; }
+          body { margin: 0; padding: 0; }
+        </style>
+      </head>
+      <body>
+        ${html}
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `);
 
-    /**
-     * Preview receipt without printing (for testing)
-     * @param {string} text - Receipt text
-     * @param {string} title - Window title
-     */
-    preview(text, title = 'Receipt Preview') {
-        const previewWindow = window.open('', '_blank', 'width=500,height=700');
+    printWindow.document.close();
+  },
 
-        if (!previewWindow) {
-            alert('Popup blocked!');
-            return;
-        }
+  /**
+   * Print multiple copies (office + customer)
+   * @param {number} pledgeId - Pledge ID
+   * @returns {Promise}
+   */
+  async printBothCopies(pledgeId) {
+    // First print office copy
+    const officeResult = await this.printPledgeReceipt(pledgeId, 'office');
+    if (!officeResult.success) {
+      return officeResult;
+    }
 
-        previewWindow.document.write(`
+    // Wait a bit then print customer copy
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        const customerResult = await this.printPledgeReceipt(pledgeId, 'customer');
+        resolve(customerResult);
+      }, 2000); // 2 second delay between prints
+    });
+  },
+
+  /**
+   * Escape HTML special characters
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  },
+
+  /**
+   * Preview receipt without printing (for testing)
+   * @param {string} text - Receipt text
+   * @param {string} title - Window title
+   */
+  preview(text, title = 'Receipt Preview') {
+    const previewWindow = window.open('', '_blank', 'width=500,height=700');
+
+    if (!previewWindow) {
+      alert('Popup blocked!');
+      return;
+    }
+
+    previewWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -260,8 +299,8 @@ const dotMatrixPrintService = {
       </html>
     `);
 
-        previewWindow.document.close();
-    },
+    previewWindow.document.close();
+  },
 };
 
 export default dotMatrixPrintService;

@@ -1623,6 +1623,271 @@ export default function PrintTestPage() {
     printWindow.focus();
   };
 
+  // Test Renewal Document View - fetches latest renewal and shows data on form
+  const testRenewalDocument = async () => {
+    setPrinting(true);
+    setPreviewType("Renewal Document");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      // Step 1: Fetch latest renewals
+      const renewalsRes = await fetch(
+        `${apiUrl}/renewals?per_page=10&sort=-created_at`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        },
+      );
+      if (!renewalsRes.ok) throw new Error("Failed to fetch renewals");
+      const renewalsData = await renewalsRes.json();
+      const renewalsList = renewalsData.data?.data || renewalsData.data || [];
+
+      if (renewalsList.length === 0) {
+        throw new Error("No renewals found. Create a renewal first to test.");
+      }
+
+      const renewal = renewalsList[0];
+      const renewalId = renewal.id;
+
+      // Step 2: Call the pre-printed with-form renewal endpoint
+      const docRes = await fetch(
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/renewal/${renewalId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
+      );
+
+      const data = await docRes.json();
+      const duration = Date.now() - startTime;
+
+      if (!docRes.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate renewal document");
+      }
+
+      const frontHtml = data.data?.front_html || "";
+      const renewalNo =
+        data.data?.renewal_no || renewal.renewal_no || "Unknown";
+
+      logResult(
+        "Renewal Document",
+        true,
+        `Document for ${renewalNo}`,
+        duration,
+      );
+
+      // Open in document view window (same as pledge document view)
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) throw new Error("Popup blocked");
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Renewal Document - ${renewalNo}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Courier New', Courier, monospace; background: #f5f5f5; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+            .print-container { width: 210mm; max-width: 210mm; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin: 0; padding: 0; overflow: hidden; }
+            .print-actions { width: 100%; max-width: 210mm; text-align: center; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }
+            .print-btn { background: #28a745; color: white; border: none; padding: 10px 30px; font-size: 16px; border-radius: 4px; cursor: pointer; margin: 0 5px; }
+            .print-btn:hover { background: #218838; }
+            .close-btn { background: #dc3545; }
+            .close-btn:hover { background: #c82333; }
+            @media print {
+              body { background: white; padding: 0; display: block; }
+              .print-container { box-shadow: none; margin: 0; }
+              .print-actions { display: none; }
+            }
+            @page { size: A5 landscape; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div class="print-actions">
+            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+              📄 Renewal Document View - ${renewalNo}
+            </p>
+            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+              Data overlay on pre-printed form template (★ SAMBUNGAN banner)
+            </p>
+            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+          </div>
+          <div class="print-container">
+            ${frontHtml}
+          </div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `Renewal document ready (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Renewal Document", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Renewal Document Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Test Redemption Document View - fetches latest redemption and shows data on form
+  const testRedemptionDocument = async () => {
+    setPrinting(true);
+    setPreviewType("Redemption Document");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      // Step 1: Fetch latest redemptions
+      const redemptionsRes = await fetch(
+        `${apiUrl}/redemptions?per_page=10&sort=-created_at`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        },
+      );
+      if (!redemptionsRes.ok) throw new Error("Failed to fetch redemptions");
+      const redemptionsData = await redemptionsRes.json();
+      const redemptionsList =
+        redemptionsData.data?.data || redemptionsData.data || [];
+
+      if (redemptionsList.length === 0) {
+        throw new Error(
+          "No redemptions found. Create a redemption first to test.",
+        );
+      }
+
+      const redemption = redemptionsList[0];
+      const redemptionId = redemption.id;
+
+      // Step 2: Call the pre-printed with-form redemption endpoint
+      const docRes = await fetch(
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/redemption/${redemptionId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
+      );
+
+      const data = await docRes.json();
+      const duration = Date.now() - startTime;
+
+      if (!docRes.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to generate redemption document",
+        );
+      }
+
+      const frontHtml = data.data?.front_html || "";
+      const redemptionNo =
+        data.data?.redemption_no || redemption.redemption_no || "Unknown";
+
+      logResult(
+        "Redemption Document",
+        true,
+        `Document for ${redemptionNo}`,
+        duration,
+      );
+
+      // Open in document view window (same as pledge document view)
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) throw new Error("Popup blocked");
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Redemption Document - ${redemptionNo}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Courier New', Courier, monospace; background: #f5f5f5; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+            .print-container { width: 210mm; max-width: 210mm; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin: 0; padding: 0; overflow: hidden; }
+            .print-actions { width: 100%; max-width: 210mm; text-align: center; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }
+            .print-btn { background: #28a745; color: white; border: none; padding: 10px 30px; font-size: 16px; border-radius: 4px; cursor: pointer; margin: 0 5px; }
+            .print-btn:hover { background: #218838; }
+            .close-btn { background: #dc3545; }
+            .close-btn:hover { background: #c82333; }
+            @media print {
+              body { background: white; padding: 0; display: block; }
+              .print-container { box-shadow: none; margin: 0; }
+              .print-actions { display: none; }
+            }
+            @page { size: A5 landscape; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div class="print-actions">
+            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+              📄 Redemption Document View - ${redemptionNo}
+            </p>
+            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+              Data overlay on pre-printed form template (★ TEBUS banner)
+            </p>
+            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+          </div>
+          <div class="print-container">
+            ${frontHtml}
+          </div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `Redemption document ready (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Redemption Document", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Redemption Document Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const filteredPledges = pledges.filter((p) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -2074,6 +2339,66 @@ export default function PrintTestPage() {
                 </Button>
                 <p className="text-xs text-cyan-500 mt-2">
                   🔍 Toggle layers to check data positioning accuracy
+                </p>
+              </div>
+
+              {/* Renewal Document View Test */}
+              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-orange-800">
+                      Renewal Document
+                    </p>
+                    <p className="text-xs text-orange-600">
+                      Check renewal data on form
+                    </p>
+                  </div>
+                  <Badge className="bg-orange-500 text-white">Renewal</Badge>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Eye}
+                  onClick={testRenewalDocument}
+                  loading={printing && previewType === "Renewal Document"}
+                  disabled={printing}
+                  fullWidth
+                  className="border-orange-500 text-orange-700 hover:bg-orange-100"
+                >
+                  View Renewal on Form
+                </Button>
+                <p className="text-xs text-orange-500 mt-2">
+                  � Shows data on form template — check alignment
+                </p>
+              </div>
+
+              {/* Redemption Document View Test */}
+              <div className="p-3 bg-rose-50 rounded-lg border border-rose-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-rose-800">
+                      Redemption Document
+                    </p>
+                    <p className="text-xs text-rose-600">
+                      Check redemption data on form
+                    </p>
+                  </div>
+                  <Badge className="bg-rose-500 text-white">Redeem</Badge>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Eye}
+                  onClick={testRedemptionDocument}
+                  loading={printing && previewType === "Redemption Document"}
+                  disabled={printing}
+                  fullWidth
+                  className="border-rose-500 text-rose-700 hover:bg-rose-100"
+                >
+                  View Redemption on Form
+                </Button>
+                <p className="text-xs text-rose-500 mt-2">
+                  📄 Shows data on form template — check alignment
                 </p>
               </div>
             </div>
