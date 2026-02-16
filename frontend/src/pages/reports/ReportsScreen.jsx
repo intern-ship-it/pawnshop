@@ -1294,7 +1294,11 @@ function PaymentSplitReport({ data }) {
             {formatCurrency(summary.cash_total || 0)}
           </p>
           <p className="text-emerald-200 text-sm mt-1">
-            {summary.cash_percentage || 0}%
+            {(summary.cash_percentage ?? 0) > 0
+              ? `${summary.cash_percentage}%`
+              : summary.cash_total > 0
+                ? "< 0.01%"
+                : "0%"}
           </p>
         </Card>
 
@@ -1305,7 +1309,11 @@ function PaymentSplitReport({ data }) {
             {formatCurrency(summary.transfer_total || 0)}
           </p>
           <p className="text-blue-200 text-sm mt-1">
-            {summary.transfer_percentage || 0}%
+            {(summary.transfer_percentage ?? 0) > 0
+              ? `${summary.transfer_percentage}%`
+              : summary.transfer_total > 0
+                ? "< 0.01%"
+                : "0%"}
           </p>
         </Card>
 

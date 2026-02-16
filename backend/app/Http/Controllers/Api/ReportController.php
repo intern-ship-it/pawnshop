@@ -153,8 +153,12 @@ class ReportController extends Controller
 
             // Categorize as active or overdue
             if ($pledge->due_date->lt($today)) {
+                $pledge->days_overdue = $today->diffInDays($pledge->due_date);
+                $pledge->days_remaining = 0;
                 $overduePledges[] = $pledge;
             } else {
+                $pledge->days_overdue = 0;
+                $pledge->days_remaining = $today->diffInDays($pledge->due_date);
                 $activePledges[] = $pledge;
             }
         });
@@ -279,8 +283,8 @@ class ReportController extends Controller
                 'transfer_total' => $totalTransfer,
                 'total' => $grandTotal,
                 'transaction_count' => $totalCount,
-                'cash_percentage' => $grandTotal > 0 ? round(($totalCash / $grandTotal) * 100, 1) : 0,
-                'transfer_percentage' => $grandTotal > 0 ? round(($totalTransfer / $grandTotal) * 100, 1) : 0,
+                'cash_percentage' => ($totalCash + $totalTransfer) > 0 ? round(($totalCash / ($totalCash + $totalTransfer)) * 100, 2) : 0,
+                'transfer_percentage' => ($totalCash + $totalTransfer) > 0 ? round(($totalTransfer / ($totalCash + $totalTransfer)) * 100, 2) : 0,
             ],
         ]);
     }
@@ -490,38 +494,47 @@ class ReportController extends Controller
             return $this->error('Invalid report type', 400);
         }
 
-        // Get report data
-        $data = match ($reportType) {
-            'overview', 'pledges' => $this->pledges($request)->getData()->data,
-            'renewals' => $this->renewals($request)->getData()->data,
-            'redemptions' => $this->redemptions($request)->getData()->data,
-            'outstanding' => $this->outstanding($request)->getData()->data,
-            'payments' => $this->paymentSplit($request)->getData()->data,
-            'inventory' => $this->inventory($request)->getData()->data,
-            'customers' => $this->customers($request)->getData()->data,
-            'transactions' => $this->transactions($request)->getData()->data,
-            'reprints' => $this->reprints($request)->getData()->data,
-            default => null,
-        };
+        try {
+            // Get report data
+            $data = match ($reportType) {
+                'overview', 'pledges' => $this->pledges($request)->getData()->data,
+                'renewals' => $this->renewals($request)->getData()->data,
+                'redemptions' => $this->redemptions($request)->getData()->data,
+                'outstanding' => $this->outstanding($request)->getData()->data,
+                'payments' => $this->paymentSplit($request)->getData()->data,
+                'inventory' => $this->inventory($request)->getData()->data,
+                'customers' => $this->customers($request)->getData()->data,
+                'transactions' => $this->transactions($request)->getData()->data,
+                'reprints' => $this->reprints($request)->getData()->data,
+                default => null,
+            };
 
-        if (!$data) {
-            return $this->error('Failed to fetch report data', 500);
+            if (!$data) {
+                return $this->error('Failed to fetch report data', 500);
+            }
+
+            // Generate CSV
+            $csv = $this->generateCSV($reportType, $data);
+
+            // Return as downloadable file
+            $filename = $reportType . '_report_' . date('Y-m-d_His') . '.csv';
+
+            return response($csv, 200, [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Report export error: ' . $e->getMessage(), [
+                'report_type' => $reportType,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return $this->error('Export failed: ' . $e->getMessage(), 500);
         }
-
-        // Generate CSV
-        $csv = $this->generateCSV($reportType, $data);
-
-        // Return as downloadable file
-        $filename = $reportType . '_report_' . date('Y-m-d_His') . '.csv';
-
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ]);
     }
 
     /**
      * Generate CSV content from report data
+     * Note: $data comes from getData() so all collections are arrays/objects, not Laravel Collections
      */
     private function generateCSV(string $reportType, $data): string
     {
@@ -531,111 +544,124 @@ class ReportController extends Controller
             case 'overview':
             case 'pledges':
                 fputcsv($output, ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status']);
-                foreach ($data->pledges as $pledge) {
-                    fputcsv($output, [
-                        date('d/m/Y', strtotime($pledge->pledge_date)),
-                        $pledge->receipt_no,
-                        $pledge->pledge_no,
-                        $pledge->customer->name ?? '',
-                        "\t" . ($pledge->customer->ic_number ?? ''),
-                        is_array($pledge->items) ? count($pledge->items) : $pledge->items->count(),
-                        number_format($pledge->total_weight, 3),
-                        number_format($pledge->loan_amount, 2),
-                        $pledge->interest_rate . '%',
-                        date('d/m/Y', strtotime($pledge->due_date)),
-                        ucfirst($pledge->status),
-                    ]);
+                if (isset($data->pledges) && is_countable($data->pledges)) {
+                    foreach ($data->pledges as $pledge) {
+                        $items = $pledge->items ?? [];
+                        fputcsv($output, [
+                            date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
+                            $pledge->receipt_no ?? '',
+                            $pledge->pledge_no ?? '',
+                            $pledge->customer->name ?? '',
+                            "\t" . ($pledge->customer->ic_number ?? ''),
+                            is_countable($items) ? count($items) : 0,
+                            number_format($pledge->total_weight ?? 0, 3),
+                            number_format($pledge->loan_amount ?? 0, 2),
+                            ($pledge->interest_rate ?? 0) . '%',
+                            date('d/m/Y', strtotime($pledge->due_date ?? '')),
+                            ucfirst($pledge->status ?? ''),
+                        ]);
+                    }
                 }
                 break;
 
             case 'renewals':
                 fputcsv($output, ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Interest Amount', 'New Due Date', 'Payment Method', 'Status']);
-                foreach ($data->renewals as $renewal) {
-                    fputcsv($output, [
-                        date('d/m/Y H:i', strtotime($renewal->created_at)),
-                        $renewal->receipt_no,
-                        $renewal->pledge->pledge_no ?? '',
-                        $renewal->pledge->customer->name ?? '',
-                        number_format($renewal->interest_amount, 2),
-                        date('d/m/Y', strtotime($renewal->new_due_date)),
-                        $renewal->payment_method,
-                        'Completed',
-                    ]);
+                if (isset($data->renewals) && is_countable($data->renewals)) {
+                    foreach ($data->renewals as $renewal) {
+                        fputcsv($output, [
+                            date('d/m/Y H:i', strtotime($renewal->created_at ?? '')),
+                            $renewal->receipt_no ?? '',
+                            $renewal->pledge->pledge_no ?? '',
+                            $renewal->pledge->customer->name ?? '',
+                            number_format($renewal->interest_amount ?? 0, 2),
+                            date('d/m/Y', strtotime($renewal->new_due_date ?? '')),
+                            $renewal->payment_method ?? '',
+                            'Completed',
+                        ]);
+                    }
                 }
                 break;
 
             case 'redemptions':
                 fputcsv($output, ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method']);
-                foreach ($data->redemptions as $redemption) {
-                    fputcsv($output, [
-                        date('d/m/Y H:i', strtotime($redemption->created_at)),
-                        $redemption->receipt_no,
-                        $redemption->pledge->pledge_no ?? '',
-                        $redemption->pledge->customer->name ?? '',
-                        number_format($redemption->principal_amount, 2),
-                        number_format($redemption->interest_amount, 2),
-                        number_format($redemption->total_payable, 2),
-                        $redemption->payment_method,
-                    ]);
+                if (isset($data->redemptions) && is_countable($data->redemptions)) {
+                    foreach ($data->redemptions as $redemption) {
+                        fputcsv($output, [
+                            date('d/m/Y H:i', strtotime($redemption->created_at ?? '')),
+                            $redemption->receipt_no ?? '',
+                            $redemption->pledge->pledge_no ?? '',
+                            $redemption->pledge->customer->name ?? '',
+                            number_format($redemption->principal_amount ?? 0, 2),
+                            number_format($redemption->interest_amount ?? 0, 2),
+                            number_format($redemption->total_payable ?? 0, 2),
+                            $redemption->payment_method ?? '',
+                        ]);
+                    }
                 }
                 break;
 
             case 'outstanding':
                 fputcsv($output, ['Pledge No', 'Customer', 'IC Number', 'Loan Date', 'Due Date', 'Principal', 'Current Interest', 'Total Outstanding', 'Status']);
-                foreach ($data->pledges as $pledge) {
-                    fputcsv($output, [
-                        $pledge->pledge_no,
-                        $pledge->customer->name ?? '',
-                        "\t" . ($pledge->customer->ic_number ?? ''),
-                        date('d/m/Y', strtotime($pledge->pledge_date)),
-                        date('d/m/Y', strtotime($pledge->due_date)),
-                        number_format($pledge->loan_amount, 2),
-                        number_format($pledge->current_interest, 2),
-                        number_format($pledge->total_outstanding, 2),
-                        ucfirst($pledge->status),
-                    ]);
+                if (isset($data->pledges) && is_countable($data->pledges)) {
+                    foreach ($data->pledges as $pledge) {
+                        fputcsv($output, [
+                            $pledge->pledge_no ?? '',
+                            $pledge->customer->name ?? '',
+                            "\t" . ($pledge->customer->ic_number ?? ''),
+                            date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
+                            date('d/m/Y', strtotime($pledge->due_date ?? '')),
+                            number_format($pledge->loan_amount ?? 0, 2),
+                            number_format($pledge->current_interest ?? 0, 2),
+                            number_format($pledge->total_outstanding ?? 0, 2),
+                            ucfirst($pledge->status ?? ''),
+                        ]);
+                    }
                 }
                 break;
 
             case 'payments':
                 fputcsv($output, ['Transaction Type', 'Count', 'Total Amount', 'Cash', 'Transfer']);
-                fputcsv($output, ['Pledges', $data->pledges->count, number_format($data->pledges->total, 2), number_format($data->pledges->cash, 2), number_format($data->pledges->transfer, 2)]);
-                fputcsv($output, ['Renewals', $data->renewals->count, number_format($data->renewals->total, 2), number_format($data->renewals->cash, 2), number_format($data->renewals->transfer, 2)]);
-                fputcsv($output, ['Redemptions', $data->redemptions->count, number_format($data->redemptions->total, 2), number_format($data->redemptions->cash, 2), number_format($data->redemptions->transfer, 2)]);
-                fputcsv($output, ['TOTAL', '', number_format($data->summary->total, 2), number_format($data->summary->cash_total, 2), number_format($data->summary->transfer_total, 2)]);
+                fputcsv($output, ['Pledges', $data->pledges->count ?? 0, number_format($data->pledges->total ?? 0, 2), number_format($data->pledges->cash ?? 0, 2), number_format($data->pledges->transfer ?? 0, 2)]);
+                fputcsv($output, ['Renewals', $data->renewals->count ?? 0, number_format($data->renewals->total ?? 0, 2), number_format($data->renewals->cash ?? 0, 2), number_format($data->renewals->transfer ?? 0, 2)]);
+                fputcsv($output, ['Redemptions', $data->redemptions->count ?? 0, number_format($data->redemptions->total ?? 0, 2), number_format($data->redemptions->cash ?? 0, 2), number_format($data->redemptions->transfer ?? 0, 2)]);
+                fputcsv($output, ['TOTAL', '', number_format($data->summary->total ?? 0, 2), number_format($data->summary->cash_total ?? 0, 2), number_format($data->summary->transfer_total ?? 0, 2)]);
                 break;
 
             case 'inventory':
                 fputcsv($output, ['Pledge No', 'Customer', 'Category', 'Purity', 'Weight (g)', 'Value', 'Vault', 'Box', 'Slot', 'Status']);
-                foreach ($data->items as $item) {
-                    fputcsv($output, [
-                        $item->pledge->pledge_no ?? '',
-                        $item->pledge->customer->name ?? '',
-                        $item->category->name_en ?? '',
-                        $item->purity->code ?? '',
-                        number_format($item->net_weight, 3),
-                        number_format($item->net_value, 2),
-                        $item->vault->name ?? '',
-                        $item->box->code ?? '',
-                        $item->slot->code ?? '',
-                        ucfirst($item->status),
-                    ]);
+                if (isset($data->items) && is_countable($data->items)) {
+                    foreach ($data->items as $item) {
+                        fputcsv($output, [
+                            $item->pledge->pledge_no ?? '',
+                            $item->pledge->customer->name ?? '',
+                            $item->category->name_en ?? '',
+                            $item->purity->code ?? '',
+                            number_format($item->net_weight ?? 0, 3),
+                            number_format($item->net_value ?? 0, 2),
+                            $item->vault->name ?? '',
+                            $item->box->code ?? '',
+                            $item->slot->code ?? '',
+                            ucfirst($item->status ?? ''),
+                        ]);
+                    }
                 }
                 break;
 
             case 'customers':
                 fputcsv($output, ['Name', 'IC Number', 'Phone', 'Total Pledges', 'Active Pledges', 'Total Loan Amount', 'Blacklisted', 'Joined Date']);
-                foreach ($data->customers as $customer) {
-                    fputcsv($output, [
-                        $customer->name,
-                        "\t" . $customer->ic_number,
-                        "\t" . ($customer->phone ?? ''),
-                        $customer->pledges_count,
-                        $customer->active_pledges_count,
-                        number_format($customer->total_loan_amount ?? 0, 2),
-                        $customer->is_blacklisted ? 'Yes' : 'No',
-                        date('d/m/Y', strtotime($customer->created_at)),
-                    ]);
+                if (isset($data->customers) && is_countable($data->customers)) {
+                    foreach ($data->customers as $customer) {
+                        fputcsv($output, [
+                            $customer->name ?? '',
+                            "\t" . ($customer->ic_number ?? ''),
+                            "\t" . ($customer->phone ?? ''),
+                            $customer->pledges_count ?? 0,
+                            $customer->active_pledges_count ?? 0,
+                            number_format($customer->total_loan_amount ?? 0, 2),
+                            ($customer->is_blacklisted ?? false) ? 'Yes' : 'No',
+                            date('d/m/Y', strtotime($customer->created_at ?? '')),
+                        ]);
+                    }
                 }
                 break;
 
@@ -643,56 +669,61 @@ class ReportController extends Controller
                 fputcsv($output, ['Time', 'Type', 'Receipt No', 'Pledge No', 'Customer', 'Amount', 'Created By']);
 
                 // Pledges
-                foreach ($data->pledges->items as $pledge) {
+                $pledgeItems = $data->pledges->items ?? [];
+                foreach ($pledgeItems as $pledge) {
                     fputcsv($output, [
-                        date('H:i', strtotime($pledge->created_at)),
+                        date('H:i', strtotime($pledge->created_at ?? '')),
                         'New Pledge',
-                        $pledge->receipt_no,
-                        $pledge->pledge_no,
+                        $pledge->receipt_no ?? '',
+                        $pledge->pledge_no ?? '',
                         $pledge->customer->name ?? '',
-                        number_format($pledge->loan_amount, 2),
-                        $pledge->createdBy->name ?? '',
+                        number_format($pledge->loan_amount ?? 0, 2),
+                        $pledge->createdBy->name ?? ($pledge->created_by_name ?? ''),
                     ]);
                 }
 
                 // Renewals
-                foreach ($data->renewals->items as $renewal) {
+                $renewalItems = $data->renewals->items ?? [];
+                foreach ($renewalItems as $renewal) {
                     fputcsv($output, [
-                        date('H:i', strtotime($renewal->created_at)),
+                        date('H:i', strtotime($renewal->created_at ?? '')),
                         'Renewal',
-                        $renewal->receipt_no,
+                        $renewal->receipt_no ?? '',
                         $renewal->pledge->pledge_no ?? '',
                         $renewal->pledge->customer->name ?? '',
-                        number_format($renewal->total_payable, 2),
-                        $renewal->createdBy->name ?? '',
+                        number_format($renewal->total_payable ?? 0, 2),
+                        $renewal->createdBy->name ?? ($renewal->created_by_name ?? ''),
                     ]);
                 }
 
                 // Redemptions
-                foreach ($data->redemptions->items as $redemption) {
+                $redemptionItems = $data->redemptions->items ?? [];
+                foreach ($redemptionItems as $redemption) {
                     fputcsv($output, [
-                        date('H:i', strtotime($redemption->created_at)),
+                        date('H:i', strtotime($redemption->created_at ?? '')),
                         'Redemption',
-                        $redemption->receipt_no,
+                        $redemption->receipt_no ?? '',
                         $redemption->pledge->pledge_no ?? '',
                         $redemption->pledge->customer->name ?? '',
-                        number_format($redemption->total_payable, 2),
-                        $redemption->createdBy->name ?? '',
+                        number_format($redemption->total_payable ?? 0, 2),
+                        $redemption->createdBy->name ?? ($redemption->created_by_name ?? ''),
                     ]);
                 }
                 break;
 
             case 'reprints':
                 fputcsv($output, ['Date/Time', 'Receipt No', 'Pledge No', 'Charge Amount', 'Paid', 'Printed By']);
-                foreach ($data->reprints as $reprint) {
-                    fputcsv($output, [
-                        date('d/m/Y H:i', strtotime($reprint->printed_at)),
-                        $reprint->pledge->receipt_no ?? '',
-                        $reprint->pledge->pledge_no ?? '',
-                        number_format($reprint->charge_amount, 2),
-                        $reprint->charge_paid ? 'Yes' : 'No',
-                        $reprint->printedBy->name ?? '',
-                    ]);
+                if (isset($data->reprints) && is_countable($data->reprints)) {
+                    foreach ($data->reprints as $reprint) {
+                        fputcsv($output, [
+                            date('d/m/Y H:i', strtotime($reprint->printed_at ?? '')),
+                            $reprint->pledge->receipt_no ?? '',
+                            $reprint->pledge->pledge_no ?? '',
+                            number_format($reprint->charge_amount ?? 0, 2),
+                            ($reprint->charge_paid ?? false) ? 'Yes' : 'No',
+                            $reprint->printedBy->name ?? ($reprint->printed_by_name ?? ''),
+                        ]);
+                    }
                 }
                 break;
         }

@@ -2,7 +2,8 @@
  * Report Service - Report API calls
  */
 
-import { apiGet, apiPost } from './api'
+import api, { apiGet, apiPost, getToken } from './api'
+import axios from 'axios'
 
 const reportService = {
   /**
@@ -93,7 +94,8 @@ const reportService = {
   },
 
   /**
-   * Export report
+   * Export report as CSV download
+   * Uses raw axios to bypass response interceptor (which breaks blob handling)
    * @param {string} reportType - pledges, renewals, redemptions, etc.
    * @param {string} format - csv, pdf
    * @param {Object} params - Report filters
@@ -101,22 +103,41 @@ const reportService = {
    */
   async exportReport(reportType, format = 'csv', params = {}) {
     try {
-      // Use api instance directly to set responseType
-      const response = await import('./api').then(m => m.default.post('/reports/export', {
+      const token = getToken()
+      const baseURL = api.defaults.baseURL
+
+      // Use raw axios to bypass the response interceptor that strips response.data
+      // (which breaks blob responses since it tries to parse them as JSON)
+      const response = await axios.post(`${baseURL}/reports/export`, {
         report_type: reportType,
         format,
         ...params,
       }, {
-        responseType: 'blob'
-      }))
+        responseType: 'blob',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
 
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response]))
+      // Check if the response is actually an error (JSON error wrapped in blob)
+      const contentType = response.headers?.['content-type'] || ''
+      if (contentType.includes('application/json')) {
+        // Server returned JSON error instead of CSV - read the blob as text
+        const text = await response.data.text()
+        const errorData = JSON.parse(text)
+        throw new Error(errorData.message || 'Export failed')
+      }
+
+      // Create download link from blob
+      const blob = new Blob([response.data], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
 
       // Generate filename
-      const dateStr = new Date().toISOString().slice(0, 10);
+      const dateStr = new Date().toISOString().slice(0, 10)
       const filename = `${reportType}_report_${dateStr}.${format}`
 
       link.setAttribute('download', filename)
@@ -128,7 +149,23 @@ const reportService = {
       return { success: true }
     } catch (error) {
       console.error('Export error:', error)
-      throw error
+
+      // Try to extract error message from blob response
+      if (error.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const errorData = JSON.parse(text)
+          throw new Error(errorData.message || 'Failed to export report')
+        } catch (parseError) {
+          if (parseError.message && parseError.message !== 'Failed to export report') {
+            // parseError is from JSON.parse, throw original
+            throw new Error(error.response?.statusText || 'Failed to export report')
+          }
+          throw parseError
+        }
+      }
+
+      throw new Error(error?.message || 'Failed to export report')
     }
   },
 }

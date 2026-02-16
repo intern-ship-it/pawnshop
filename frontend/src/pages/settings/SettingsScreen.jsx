@@ -1252,7 +1252,8 @@ function GoldPriceTab({ settings, updateSettings, dispatch }) {
                       type="number"
                       step="0.01"
                       min="0"
-                      value={currentPrice}
+                      value={currentPrice === 0 ? "" : currentPrice}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => {
                         const newPrices = {
                           ...goldPrice.manualPrices,
