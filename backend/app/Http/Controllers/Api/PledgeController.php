@@ -35,7 +35,7 @@ class PledgeController extends Controller
         $branchId = $request->user()->branch_id;
 
         $query = Pledge::where('branch_id', $branchId)
-            ->with(['customer:id,name,ic_number,phone'])
+            ->with(['customer:id,name,ic_number,phone,country_code'])
             ->withCount('items');
 
         if ($request->boolean('with_items')) {

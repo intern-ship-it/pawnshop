@@ -194,16 +194,25 @@ export default function RackMap({ embedded = false }) {
   // Filter slots by search
   const filteredSlots = useMemo(() => {
     if (!searchQuery) return slots;
-    const query = searchQuery.toLowerCase();
-    return slots.filter(
-      (slot) =>
+    const query = searchQuery.trim().toLowerCase();
+    // If query is a short number (1-2 digits), match slot number exactly
+    const isSlotNumberSearch = /^\d{1,2}$/.test(query);
+
+    return slots.filter((slot) => {
+      if (isSlotNumberSearch) {
+        const slotNum = String(slot.slot_number).padStart(2, "0");
+        const paddedQuery = query.padStart(2, "0");
+        return slotNum === paddedQuery;
+      }
+      // For longer queries, search across all fields
+      const item = slot.current_item || slot.pledge_item;
+      return (
         slot.slot_number?.toString().includes(query) ||
-        slot.pledge_item?.pledge?.pledge_no?.toLowerCase().includes(query) ||
-        slot.pledge_item?.pledge?.customer?.name
-          ?.toLowerCase()
-          .includes(query) ||
-        slot.pledge_item?.barcode?.toLowerCase().includes(query),
-    );
+        item?.pledge?.pledge_no?.toLowerCase().includes(query) ||
+        item?.pledge?.customer?.name?.toLowerCase().includes(query) ||
+        item?.barcode?.toLowerCase().includes(query)
+      );
+    });
   }, [slots, searchQuery]);
 
   // Overall stats

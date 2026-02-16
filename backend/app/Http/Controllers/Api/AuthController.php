@@ -11,8 +11,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
+use App\Mail\ResetPasswordMail;
 
 class AuthController extends Controller
 {
@@ -371,18 +373,18 @@ class AuthController extends Controller
                 'created_at' => Carbon::now(),
             ]);
 
-            // TODO: Send email with reset link
-            // For now, we'll return the token in development
-            // In production, this should be sent via email only
-
-            // Mail::to($user->email)->send(new ResetPasswordMail($token, $user));
+            // Send password reset email
+            try {
+                Mail::to($user->email)->send(new ResetPasswordMail($token, $user));
+                \Log::info('Password reset email sent to: ' . $user->email);
+            } catch (\Exception $e) {
+                \Log::error('Failed to send password reset email to: ' . $user->email . ' - Error: ' . $e->getMessage());
+            }
         }
 
         return response()->json([
             'success' => true,
             'message' => 'If an account exists with this email, you will receive a password reset link shortly.',
-            // Remove this in production - only for development/testing
-            'token' => $user ? $token : null,
         ]);
     }
 

@@ -155,12 +155,20 @@ export default function CustomerList() {
 
   // Filter customers
   const filteredCustomers = customers.filter((customer) => {
-    // Search filter
+    // Search filter - combine country_code + phone for full number matching
+    const fullPhone =
+      `${customer.country_code || ""}${customer.phone || ""}`.replace(
+        /[\s+\-]/g,
+        "",
+      );
+    const searchNormalized = searchQuery.replace(/[\s+\-]/g, "");
     const matchesSearch =
       searchQuery === "" ||
       customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.ic_number?.includes(searchQuery) ||
       customer.phone?.includes(searchQuery) ||
+      fullPhone.includes(searchNormalized) ||
+      customer.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer.customer_no?.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Status filter

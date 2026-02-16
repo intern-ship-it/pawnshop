@@ -70,6 +70,7 @@ export default function RenewalScreen() {
 
   // Search input ref for barcode scanner
   const searchInputRef = useRef(null);
+  const debounceTimerRef = useRef(null);
 
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -240,6 +241,12 @@ export default function RenewalScreen() {
   // Issue 1 FIX: Search now uses dueList endpoint with search parameter
   // This allows IC number search to return all active pledges for that customer
   const handleSearch = async () => {
+    // Clear any pending debounce to avoid double-firing
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
     if (!searchQuery.trim()) {
       dispatch(
         addToast({
@@ -312,6 +319,66 @@ export default function RenewalScreen() {
       setIsSearching(false);
     }
   };
+
+  // Debounced search - auto-triggers 500ms after user stops typing
+  const debouncedSearch = useCallback((query) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    if (!query.trim()) return;
+    debounceTimerRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      setSearchResult(null);
+      setPledge(null);
+      setCalculation(null);
+
+      try {
+        const response = await renewalService.getDueList({
+          date_from: "2020-01-01",
+          date_to: "2099-12-31",
+          search: query.trim(),
+        });
+
+        const data = response.data?.data || response.data || [];
+        const pledges = Array.isArray(data) ? data : [];
+
+        if (pledges.length > 0) {
+          setDueList(pledges);
+          setSearchResult("found");
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Found",
+              message: `Found ${pledges.length} pledge(s) matching "${query}"`,
+            }),
+          );
+          if (pledges.length === 1) {
+            const item = pledges[0];
+            const pledgeData = transformPledgeData(item);
+            setPledge(pledgeData);
+            fetchCalculation(item.id, extensionMonths);
+          }
+        } else {
+          setSearchResult("not_found");
+          setDueList([]);
+        }
+      } catch (error) {
+        console.error("Debounced search error:", error);
+        setSearchResult("not_found");
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+  }, []);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   // Transform API pledge data to frontend format
   const transformPledgeData = (data) => ({
@@ -948,8 +1015,10 @@ export default function RenewalScreen() {
                   placeholder="Enter Pledge No, Receipt No, IC Number, or scan barcode..."
                   value={searchQuery}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                    const val = e.target.value;
+                    setSearchQuery(val);
                     setWasScanned(false);
+                    debouncedSearch(val);
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   leftIcon={isScanning ? ScanLine : Search}

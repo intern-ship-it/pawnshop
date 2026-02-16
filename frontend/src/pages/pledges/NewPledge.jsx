@@ -2124,6 +2124,18 @@ export default function NewPledge() {
       return;
     }
 
+    // Double-check storage status
+    if (storageBlocked) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Storage Full",
+          message: "Cannot create new pledge: Global storage is full.",
+        }),
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -4662,6 +4674,8 @@ export default function NewPledge() {
               variant="accent"
               rightIcon={ArrowRight}
               onClick={handleNext}
+              disabled={storageBlocked}
+              title={storageBlocked ? "Storage Full" : "Next Step"}
             >
               Next Step
             </Button>
@@ -4671,7 +4685,8 @@ export default function NewPledge() {
               leftIcon={Check}
               onClick={handleSubmit}
               loading={isSubmitting}
-              disabled={!agreedToTerms}
+              disabled={!agreedToTerms || storageBlocked}
+              title={storageBlocked ? "Storage Full" : "Create Pledge"}
             >
               Create Pledge
             </Button>

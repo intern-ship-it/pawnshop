@@ -71,6 +71,7 @@ export default function RedemptionScreen() {
 
   // Search input ref for barcode scanner
   const searchInputRef = useRef(null);
+  const debounceTimerRef = useRef(null);
 
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,6 +79,7 @@ export default function RedemptionScreen() {
   const [pledge, setPledge] = useState(null);
   const [searchResult, setSearchResult] = useState(null);
   const [wasScanned, setWasScanned] = useState(false);
+  const [pledgeList, setPledgeList] = useState([]); // List of pledges if multiple found
 
   // Calculation state (from API)
   const [calculation, setCalculation] = useState(null);
@@ -107,6 +109,7 @@ export default function RedemptionScreen() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [whatsAppSent, setWhatsAppSent] = useState(false);
 
   // Barcode scanner detection - auto-search when barcode is scanned
   const handleBarcodeScanned = useCallback(
@@ -267,7 +270,12 @@ export default function RedemptionScreen() {
     customerId: data.customer_id,
     customerName: data.customer?.name || "Unknown",
     customerIC: data.customer?.ic_number || "",
-    customerPhone: data.customer?.phone || "",
+    customerPhone:
+      data.customer?.country_code &&
+      data.customer?.phone &&
+      !data.customer.phone.startsWith("+")
+        ? `${data.customer.country_code} ${data.customer.phone}`
+        : data.customer?.phone || "",
     totalWeight: parseFloat(data.total_weight) || 0,
     grossValue: parseFloat(data.gross_value) || 0,
     totalDeduction: parseFloat(data.total_deduction) || 0,
@@ -305,6 +313,7 @@ export default function RedemptionScreen() {
     setPledge(null);
     setCalculation(null);
     setItems([]);
+    setPledgeList([]); // Clear previous list
 
     try {
       // Try direct search first
@@ -328,14 +337,42 @@ export default function RedemptionScreen() {
         }
       }
 
-      // If direct search fails, try searching by customer name/IC
+      // Helper to check if search term matches customer details
+      if (data) {
+        const isRedeemable =
+          data.status === "active" || data.status === "overdue";
+        const cleanSearch = searchTerm.replace(/[-\s]/g, "");
+        const cleanIC = data.customer?.ic_number?.replace(/[-\s]/g, "") || "";
+        const cleanPhone = data.customer?.phone?.replace(/[-\s]/g, "") || "";
+
+        // If we found an inactive pledge but the search term matches customer IC/Phone,
+        // discard this result and let the fallback search find potentially active pledges
+        // for this customer.
+        if (
+          !isRedeemable &&
+          (cleanSearch === cleanIC || cleanSearch === cleanPhone)
+        ) {
+          console.log(
+            "Inactive pledge found via IC/Phone match. Falling back to full search.",
+          );
+          data = null;
+        }
+        // Force list view if searching by IC/Phone even if we found a valid pledge
+        // This ensures users see ALL pledges for a customer, not just the single one returned by `getByReceipt`
+        else if (cleanSearch === cleanIC || cleanSearch === cleanPhone) {
+          console.log(
+            "Customer search detected (IC/Phone match). Forcing full search list.",
+          );
+          data = null;
+        }
+      }
+
+      // If specific ID search failed or we forced fallback, try generic search
       if (!data) {
         console.log(
-          `Direct search failed, trying customer name/IC search: ${searchTerm}`,
+          `Direct search failed/bypassed, trying generic search: ${searchTerm}`,
         );
         try {
-          // Note: API interceptor already unwraps response.data
-          // So 'response' here is already { success: true, data: [...], meta: {...} }
           const response = await pledgeService.getAll({
             search: searchTerm,
             per_page: 50,
@@ -356,19 +393,18 @@ export default function RedemptionScreen() {
 
             console.log(`Found ${redeemablePledges.length} redeemable pledges`);
 
-            if (redeemablePledges.length === 1) {
-              // Single result - auto-load it
-              data = redeemablePledges[0];
-            } else if (redeemablePledges.length > 1) {
-              // Multiple results - show the first one and notify user
-              data = redeemablePledges[0];
+            // ALWAYS show list if coming from generic search (unless array is empty)
+            if (redeemablePledges.length > 0) {
+              setPledgeList(redeemablePledges.map(transformPledgeData));
+              setSearchResult("list_found");
               dispatch(
                 addToast({
-                  type: "info",
-                  title: "Multiple Pledges Found",
-                  message: `Found ${redeemablePledges.length} pledges for "${searchTerm}". Showing the most recent one.`,
+                  type: "success",
+                  title: "Pledges Found",
+                  message: `Found ${redeemablePledges.length} pledges. Please select one.`,
                 }),
               );
+              return; // Stop here, let user select from list
             }
           }
         } catch (searchError) {
@@ -376,6 +412,7 @@ export default function RedemptionScreen() {
         }
       }
 
+      // Single specific result handling (e.g. by Receipt No or Pledge No directly)
       if (data) {
         const pledgeData = transformPledgeData(data);
 
@@ -402,6 +439,8 @@ export default function RedemptionScreen() {
           );
         }
       } else {
+        // If we didn't find specific data AND didn't find a list in the generic search block
+        // (because if generic search found list, it would have returned early)
         setSearchResult("not_found");
         dispatch(
           addToast({
@@ -428,6 +467,12 @@ export default function RedemptionScreen() {
 
   // Search for pledge (Issue 1 FIX: Now supports IC number search)
   const handleSearch = async () => {
+    // Clear any pending debounce to avoid double-firing
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
     if (!searchQuery.trim()) {
       dispatch(
         addToast({
@@ -442,6 +487,26 @@ export default function RedemptionScreen() {
 
     await handleSearchWithQuery(searchQuery);
   };
+
+  // Debounced search - auto-triggers 500ms after user stops typing
+  const debouncedSearch = useCallback((query) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    if (!query.trim()) return;
+    debounceTimerRef.current = setTimeout(() => {
+      handleSearchWithQuery(query);
+    }, 500);
+  }, []);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   // Process redemption via API
   const handleProcessRedemption = async () => {
@@ -989,6 +1054,7 @@ export default function RedemptionScreen() {
             message: "Redemption notification sent automatically",
           }),
         );
+        setWhatsAppSent(true);
       }
     } catch (error) {
       console.error("Auto-WhatsApp error:", error);
@@ -1022,6 +1088,7 @@ export default function RedemptionScreen() {
             message: "Redemption notification sent to customer",
           }),
         );
+        setWhatsAppSent(true);
       } else {
         throw new Error(response.message || "Failed to send WhatsApp");
       }
@@ -1095,8 +1162,10 @@ export default function RedemptionScreen() {
                   placeholder="Enter Pledge No, Receipt No, Customer Name, IC, or scan barcode..."
                   value={searchQuery}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                    const val = e.target.value;
+                    setSearchQuery(val);
                     setWasScanned(false);
+                    debouncedSearch(val);
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   leftIcon={isScanning ? ScanLine : Search}
@@ -1177,6 +1246,74 @@ export default function RedemptionScreen() {
             </AnimatePresence>
           </Card>
         </motion.div>
+
+        {/* List of Found Pledges (Multi-result / Customer Search) */}
+        <AnimatePresence>
+          {!pledge && pledgeList.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-zinc-800">
+                  Found {pledgeList.length} Pledges
+                </h3>
+                <span className="text-sm text-zinc-500">
+                  Select a pledge to redeem
+                </span>
+              </div>
+
+              {pledgeList.map((p) => (
+                <Card
+                  key={p.id}
+                  className="p-4 cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all group"
+                  onClick={() => {
+                    setPledge(p);
+                    setSearchResult("found");
+                    fetchCalculation(p.id);
+                  }}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">
+                        {p.customerName.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-zinc-800 group-hover:text-emerald-600 transition-colors">
+                          {p.customerName}
+                        </h4>
+                        <div className="flex items-center gap-2 text-sm text-zinc-500 mt-1">
+                          <span className="font-mono bg-zinc-100 px-1.5 py-0.5 rounded text-xs text-zinc-600">
+                            {p.pledgeNo}
+                          </span>
+                          <span>•</span>
+                          <span>{p.itemsCount} item(s)</span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-1">
+                          {p.customerIC} • {p.customerPhone}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-zinc-800">
+                        {formatCurrency(p.loanAmount)}
+                      </p>
+                      <Badge
+                        variant={p.status === "overdue" ? "error" : "success"}
+                        size="sm"
+                        className="mt-1"
+                      >
+                        {p.status === "overdue" ? "Overdue" : "Active"}
+                      </Badge>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Pledge Details */}
         <AnimatePresence>
@@ -1847,6 +1984,7 @@ export default function RedemptionScreen() {
           setRedemptionResult(null);
           setSearchQuery("");
           setPledge(null);
+          setPledgeList([]); // Clear pledge list
           setAmountReceived("");
           setCashAmount("");
           setTransferAmount("");
@@ -1861,6 +1999,7 @@ export default function RedemptionScreen() {
           setIsPartialRedemption(false); // Issue 2: Reset partial flag
           setSearchResult(null);
           setTermsAgreed(false);
+          setWhatsAppSent(false);
         }}
         title="Redemption Successful!"
         size="md"
@@ -1931,7 +2070,7 @@ export default function RedemptionScreen() {
           {/* Auto-trigger status */}
           <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
             <p>✓ Receipt sent to printer automatically</p>
-            {pledge?.customerPhone && <p>✓ WhatsApp notification sent</p>}
+            {whatsAppSent && <p>✓ WhatsApp notification sent</p>}
           </div>
 
           {/* Issue 2: Show partial vs full redemption status */}
@@ -2005,6 +2144,7 @@ export default function RedemptionScreen() {
                 setRedemptionResult(null);
                 setSearchQuery("");
                 setPledge(null);
+                setPledgeList([]); // Clear pledge list
                 setAmountReceived("");
                 setCashAmount("");
                 setTransferAmount("");
@@ -2014,6 +2154,11 @@ export default function RedemptionScreen() {
                 setVerifiedItems(false);
                 setCalculation(null);
                 setItems([]);
+                setAllItems([]);
+                setSelectedItemIds([]);
+                setIsPartialRedemption(false);
+                setSearchResult(null);
+                setWhatsAppSent(false);
               }}
             >
               New Redemption

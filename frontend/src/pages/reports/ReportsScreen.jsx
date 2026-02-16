@@ -367,9 +367,15 @@ export default function ReportsScreen() {
       actions={
         <div className="flex items-center gap-3">
           {/* Date Range Display */}
-          <div className="flex items-center gap-2 bg-zinc-100 px-3 py-2 rounded-lg">
-            <Calendar className="w-4 h-4 text-zinc-500" />
-            <span className="text-sm font-medium text-zinc-700">
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg">
+            <Calendar className="w-4 h-4 text-amber-600" />
+            <span
+              className="text-sm font-semibold text-amber-800"
+              style={{
+                fontFamily:
+                  "'JetBrains Mono', 'Fira Code', 'SF Mono', monospace",
+              }}
+            >
               {getDateRangeDisplay()}
             </span>
           </div>
@@ -1584,7 +1590,12 @@ function CustomersReport({ data }) {
                   <tr key={customer.id} className="hover:bg-zinc-50">
                     <td className="p-3 font-medium">{customer.name}</td>
                     <td className="p-3">{customer.ic_number}</td>
-                    <td className="p-3">{customer.phone}</td>
+                    <td className="p-3">
+                      {customer.country_code
+                        ? `${customer.country_code.startsWith("+") ? "" : "+"}${customer.country_code} `
+                        : ""}
+                      {customer.phone}
+                    </td>
                     <td className="p-3 text-center">
                       {customer.active_pledges_count || 0}
                     </td>

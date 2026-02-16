@@ -2116,7 +2116,7 @@ HTML;
 
         // Catatan for renewal - show renewal info (labels black, values blue)
         $renewalCount = $renewal->renewal_count ?? 1;
-        $catatan = "SAMBUNGAN #{$renewalCount}; Asal: <span class='ppo-val'>{$pledge->pledge_no}</span>; Faedah Dibayar: <span class='ppo-val'>RM " . $this->formatNumber($interestAmount) . "</span>";
+        $catatan = "SAMBUNGAN; Asal: <span class='ppo-val'>{$pledge->pledge_no}</span>; Faedah Dibayar: <span class='ppo-val'>RM " . $this->formatNumber($interestAmount) . "</span>";
 
         return <<<HTML
 <style>
@@ -2285,7 +2285,7 @@ HTML;
 
 <div class="ppo-page">
     <!-- TRANSACTION TYPE BANNER -->
-    <div class="ppo-type-banner">SAMBUNGAN / RENEWAL #{$renewalCount}</div>
+    <div class="ppo-type-banner">SAMBUNGAN / RENEWAL</div>
 
     <!-- TICKET NUMBER -->
     <div class="ppo-ticket">{$renewal->renewal_no}</div>
