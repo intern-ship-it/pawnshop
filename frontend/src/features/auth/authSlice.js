@@ -213,6 +213,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false
         state.passkeyVerified = false
         state.passkeyExpiry = null
+        state.error = null // Clear error to prevent it leaking to login page
       })
 
       // Fetch Current User
@@ -227,9 +228,10 @@ const authSlice = createSlice({
         state.branch = action.payload?.branch || null
         state.isAuthenticated = true
       })
-      .addCase(fetchCurrentUser.rejected, (state, action) => {
+      .addCase(fetchCurrentUser.rejected, (state) => {
         state.loading = false
-        state.error = action.payload
+        // Do NOT set state.error here - fetchCurrentUser is used for silent
+        // auto-login checks and should not display errors on the login page
       })
 
       // Verify Passkey
