@@ -14,6 +14,15 @@ use Illuminate\Support\Facades\Log;
 class UserController extends Controller
 {
     /**
+     * Check if current user can manage permissions
+     * Super Admin OR user with 'users.manage_permissions' permission
+     */
+    private function canManagePermissions(User $currentUser): bool
+    {
+        return $currentUser->isSuperAdmin() || $currentUser->hasPermission('users', 'manage_permissions');
+    }
+
+    /**
      * List users
      */
     public function index(Request $request): JsonResponse
@@ -23,7 +32,8 @@ class UserController extends Controller
         // Super admin sees all users, others see only their branch
         if ($user->isSuperAdmin()) {
             $query = User::with(['role', 'branch']);
-        } else {
+        }
+        else {
             $query = User::where('branch_id', $user->branch_id)
                 ->with(['role', 'branch']);
         }
@@ -56,6 +66,7 @@ class UserController extends Controller
             'email' => 'required|email|max:100|unique:users,email',
             'phone' => 'nullable|string|max:20',
             'password' => 'required|string|min:8',
+            'passkey' => 'nullable|string|size:6',
             'role_id' => 'required|exists:roles,id',
             'branch_id' => 'nullable|exists:branches,id',
             'is_active' => 'nullable|boolean',
@@ -69,11 +80,12 @@ class UserController extends Controller
         // Determine branch
         if ($request->user()->isSuperAdmin() && isset($validated['branch_id'])) {
             $branchId = $validated['branch_id'];
-        } else {
+        }
+        else {
             $branchId = $request->user()->branch_id;
         }
 
-        $user = User::create([
+        $userData = [
             'branch_id' => $branchId,
             'employee_id' => $validated['employee_id'],
             'username' => $validated['username'],
@@ -83,10 +95,17 @@ class UserController extends Controller
             'password' => Hash::make($validated['password']),
             'role_id' => $validated['role_id'],
             'is_active' => $validated['is_active'] ?? true,
-        ]);
+        ];
 
-        // Handle custom permissions
-        if (!empty($validated['custom_permissions'])) {
+        // Handle passkey if provided
+        if (!empty($validated['passkey'])) {
+            $userData['passkey'] = Hash::make($validated['passkey']);
+        }
+
+        $user = User::create($userData);
+
+        // Handle custom permissions - FIX: Check if user can manage permissions
+        if (!empty($validated['custom_permissions']) && $this->canManagePermissions($request->user())) {
             $this->syncCustomPermissions($user, $validated['custom_permissions']);
         }
 
@@ -112,7 +131,8 @@ class UserController extends Controller
                 'severity' => 'info',
                 'created_at' => now(),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Log::warning('Audit log failed: ' . $e->getMessage());
         }
 
@@ -152,6 +172,8 @@ class UserController extends Controller
                 'granted' => $customGranted,
                 'revoked' => $customRevoked,
             ],
+            // FIX: Include flag to tell frontend if current user can edit permissions
+            'can_manage_permissions' => $this->canManagePermissions($request->user()),
         ]);
     }
 
@@ -170,6 +192,7 @@ class UserController extends Controller
             'email' => 'sometimes|email|max:100|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:20',
             'password' => 'nullable|string|min:8',
+            'passkey' => 'nullable|string|size:6',
             'role_id' => 'sometimes|exists:roles,id',
             'branch_id' => 'nullable|exists:branches,id',
             'is_active' => 'nullable|boolean',
@@ -188,8 +211,17 @@ class UserController extends Controller
         // Handle password
         if (isset($validated['password']) && $validated['password']) {
             $validated['password'] = Hash::make($validated['password']);
-        } else {
+        }
+        else {
             unset($validated['password']);
+        }
+
+        // Handle passkey
+        if (isset($validated['passkey']) && $validated['passkey']) {
+            $validated['passkey'] = Hash::make($validated['passkey']);
+        }
+        else {
+            unset($validated['passkey']);
         }
 
         // Remove custom_permissions from validated (handle separately)
@@ -198,8 +230,8 @@ class UserController extends Controller
 
         $user->update($validated);
 
-        // Handle custom permissions
-        if ($customPermissions !== null) {
+        // FIX: Handle custom permissions - only if user can manage permissions
+        if ($customPermissions !== null && $this->canManagePermissions($request->user())) {
             $this->syncCustomPermissions($user, $customPermissions);
         }
 
@@ -221,7 +253,8 @@ class UserController extends Controller
                 'severity' => 'info',
                 'created_at' => now(),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Log::warning('Audit log failed: ' . $e->getMessage());
         }
 
@@ -271,7 +304,8 @@ class UserController extends Controller
                 'severity' => 'warning',
                 'created_at' => now(),
             ]);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Log::warning('Audit log failed: ' . $e->getMessage());
         }
 
@@ -320,15 +354,15 @@ class UserController extends Controller
                 $effective = ($fromRole || $isGranted) && !$isRevoked;
 
                 return [
-                    'id' => $permission->id,
-                    'action' => $permission->action,
-                    'name' => $permission->name,
-                    'description' => $permission->description,
-                    'requires_passkey' => $permission->requires_passkey,
-                    'from_role' => $fromRole,
-                    'custom_granted' => $isGranted,
-                    'custom_revoked' => $isRevoked,
-                    'is_enabled' => $effective,
+                'id' => $permission->id,
+                'action' => $permission->action,
+                'name' => $permission->name,
+                'description' => $permission->description,
+                'requires_passkey' => $permission->requires_passkey,
+                'from_role' => $fromRole,
+                'custom_granted' => $isGranted,
+                'custom_revoked' => $isRevoked,
+                'is_enabled' => $effective,
                 ];
             });
         }
@@ -341,8 +375,8 @@ class UserController extends Controller
      */
     public function updatePermissions(Request $request, User $user): JsonResponse
     {
-        // Only super admin can manage permissions
-        if (!$request->user()->isSuperAdmin()) {
+        // FIX: Allow super admin OR users with manage_permissions permission
+        if (!$this->canManagePermissions($request->user())) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -354,6 +388,27 @@ class UserController extends Controller
         ]);
 
         $this->syncCustomPermissions($user, $validated);
+
+        // Audit log - permissions updated
+        try {
+            AuditLog::create([
+                'branch_id' => $request->user()->branch_id,
+                'user_id' => $request->user()->id,
+                'action' => 'update_permissions',
+                'module' => 'user',
+                'description' => "Updated custom permissions for user {$user->name}",
+                'record_type' => 'User',
+                'record_id' => $user->id,
+                'new_values' => $validated,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'severity' => 'info',
+                'created_at' => now(),
+            ]);
+        }
+        catch (\Exception $e) {
+            Log::warning('Audit log failed: ' . $e->getMessage());
+        }
 
         return $this->success(null, 'Permissions updated successfully');
     }

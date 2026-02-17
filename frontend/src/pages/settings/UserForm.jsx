@@ -1,6 +1,9 @@
 /**
  * UserForm - Create/Edit User with Per-User Custom Permissions
  * Keeps old UI layout + adds permission checkboxes
+ *
+ * FIX: Custom Permissions visible to all users (read-only for those without manage_permissions)
+ * FIX: Users with 'users.manage_permissions' can also edit custom permissions (not just Super Admin)
  */
 
 import { useState, useEffect } from "react";
@@ -13,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select } from "@/components/common";
+import { usePermission } from "@/components/auth/PermissionGate";
 import {
   User,
   Mail,
@@ -28,6 +32,7 @@ import {
   Loader2,
   Hash,
   AlertTriangle,
+  Lock,
 } from "lucide-react";
 
 // Generate employee ID
@@ -51,6 +56,12 @@ export default function UserForm() {
   );
   const currentRoleSlug = currentUserRole?.slug || currentUserRole || "";
   const isSuperAdmin = currentRoleSlug === "super-admin";
+
+  // FIX: Check if user has manage_permissions permission
+  const hasManagePermissions = usePermission("users.manage_permissions");
+
+  // FIX: Can edit permissions if Super Admin OR has manage_permissions
+  const canEditPermissions = isSuperAdmin || hasManagePermissions;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -82,6 +93,12 @@ export default function UserForm() {
   const [customRevoked, setCustomRevoked] = useState([]); // Custom revoked IDs
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
+
+  // FIX: Track if backend says we can manage permissions (additional check)
+  const [backendCanManagePermissions, setBackendCanManagePermissions] = useState(false);
+
+  // FIX: Track if there are any custom overrides to show the section
+  const hasCustomOverrides = customGranted.length > 0 || customRevoked.length > 0;
 
   // Fetch initial data
   useEffect(() => {
@@ -138,6 +155,11 @@ export default function UserForm() {
               setCustomRevoked(
                 userResponse.data.custom_permissions.revoked || []
               );
+            }
+
+            // FIX: Check if backend says we can manage permissions
+            if (userResponse.data.can_manage_permissions !== undefined) {
+              setBackendCanManagePermissions(userResponse.data.can_manage_permissions);
             }
 
             // Fetch role permissions
@@ -213,9 +235,11 @@ export default function UserForm() {
   // Handle role change
   const handleRoleChange = (roleId) => {
     setFormData((prev) => ({ ...prev, role_id: roleId }));
-    // Clear custom permissions when role changes
-    setCustomGranted([]);
-    setCustomRevoked([]);
+    // Only clear custom permissions if user can edit them
+    if (canEditPermissions) {
+      setCustomGranted([]);
+      setCustomRevoked([]);
+    }
     fetchRolePermissions(roleId);
   };
 
@@ -229,6 +253,9 @@ export default function UserForm() {
 
   // Handle permission checkbox change
   const handlePermissionChange = (permissionId, checked) => {
+    // FIX: Only allow changes if user can edit permissions
+    if (!canEditPermissions) return;
+
     const isFromRole = rolePermissionIds.includes(permissionId);
 
     if (isFromRole) {
@@ -324,7 +351,7 @@ export default function UserForm() {
       newErrors.role_id = "Role is required";
     }
 
-    // ADD THIS - Passkey validation
+    // Passkey validation
     if (formData.passkey && formData.passkey.length !== 6) {
       newErrors.passkey = "Passkey must be exactly 6 digits";
     }
@@ -349,11 +376,15 @@ export default function UserForm() {
         phone: formData.phone || null,
         role_id: parseInt(formData.role_id),
         is_active: formData.is_active,
-        custom_permissions: {
+      };
+
+      // FIX: Only include custom_permissions if user can edit them
+      if (canEditPermissions) {
+        payload.custom_permissions = {
           granted: customGranted,
           revoked: customRevoked,
-        },
-      };
+        };
+      }
 
       // Only include branch_id if selected
       if (formData.branch_id) {
@@ -365,7 +396,7 @@ export default function UserForm() {
         payload.password = formData.password;
       }
 
-      // ADD THIS - Include passkey if provided
+      // Include passkey if provided
       if (formData.passkey) {
         payload.passkey = formData.passkey;
       }
@@ -689,7 +720,7 @@ export default function UserForm() {
               </div>
 
               {/* Passkey (6-digit PIN) */}
-              <div>
+              <div className="mt-6">
                 <Input
                   label="Passkey (6-digit PIN)"
                   type="password"
@@ -862,13 +893,21 @@ export default function UserForm() {
               </div>
             </Card>
 
-            {/* Custom Permissions - Only for Super Admin */}
-            {isSuperAdmin && formData.role_id && (
+            {/* ============================================================ */}
+            {/* FIX: Custom Permissions - Now visible to ALL users           */}
+            {/* Super Admin OR has manage_permissions: Can edit              */}
+            {/* Others: Read-only view (only if has custom overrides)        */}
+            {/* ============================================================ */}
+            {formData.role_id && (canEditPermissions || (isEdit && hasCustomOverrides)) && (
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-zinc-800 flex items-center gap-2">
                     <ShieldCheck className="w-5 h-5 text-amber-500" />
                     Custom Permissions
+                    {/* FIX: Show lock icon if read-only */}
+                    {!canEditPermissions && (
+                      <Lock className="w-4 h-4 text-zinc-400 ml-1" />
+                    )}
                   </h3>
                   <Button
                     type="button"
@@ -880,12 +919,25 @@ export default function UserForm() {
                   </Button>
                 </div>
 
-                <p className="text-sm text-zinc-500 mb-4">
-                  Override role permissions for this specific user.
-                  <span className="text-blue-500"> Blue</span> = Custom granted,
-                  <span className="text-red-500"> Red</span> = Revoked from
-                  role.
-                </p>
+                {/* FIX: Different message for read-only vs editable */}
+                {canEditPermissions ? (
+                  <p className="text-sm text-zinc-500 mb-4">
+                    Override role permissions for this specific user.
+                    <span className="text-blue-500"> Blue</span> = Custom granted,
+                    <span className="text-red-500"> Red</span> = Revoked from
+                    role.
+                  </p>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-amber-800 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>
+                        <strong>Read-only:</strong> Custom permissions were set by an administrator.
+                        Contact Super Admin or a user with "Manage Permissions" access to modify.
+                      </span>
+                    </p>
+                  </div>
+                )}
 
                 {showPermissions && (
                   <div className="space-y-6">
@@ -917,8 +969,11 @@ export default function UserForm() {
                                     <label
                                       key={permission.id}
                                       className={cn(
-                                        "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all",
-                                        "hover:bg-zinc-50",
+                                        "flex items-center gap-3 p-2 rounded-lg transition-all",
+                                        // FIX: Different styling for read-only
+                                        canEditPermissions
+                                          ? "cursor-pointer hover:bg-zinc-50"
+                                          : "cursor-default",
                                         isEnabled ? "bg-emerald-50/50" : ""
                                       )}
                                     >
@@ -931,7 +986,13 @@ export default function UserForm() {
                                             e.target.checked
                                           )
                                         }
-                                        className="w-4 h-4 text-amber-500 border-zinc-300 rounded focus:ring-amber-500"
+                                        // FIX: Disable checkbox for users without permission
+                                        disabled={!canEditPermissions}
+                                        className={cn(
+                                          "w-4 h-4 text-amber-500 border-zinc-300 rounded focus:ring-amber-500",
+                                          !canEditPermissions &&
+                                          "cursor-not-allowed opacity-60"
+                                        )}
                                       />
                                       <div className="flex-1 min-w-0">
                                         <p className="text-sm text-zinc-700 truncate">

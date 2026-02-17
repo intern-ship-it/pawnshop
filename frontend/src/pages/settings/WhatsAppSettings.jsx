@@ -33,6 +33,9 @@ import {
   Eye,
   RefreshCw,
   Zap,
+  ChevronUp,
+  ChevronDown,
+  Maximize2,
 } from "lucide-react";
 
 // Default message templates
@@ -229,6 +232,13 @@ export default function WhatsAppSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasExistingToken, setHasExistingToken] = useState(false);
 
+  // FIX: Add state for viewing full message
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+
+  // FIX: Add state for expanded messages (inline expansion)
+  const [expandedMessages, setExpandedMessages] = useState({});
+
   useEffect(() => {
     loadFromApi();
   }, []);
@@ -369,6 +379,22 @@ export default function WhatsAppSettings() {
       setIsSaving(false);
     }
   };
+
+
+  // FIX: Toggle message expansion inline
+  const toggleMessageExpansion = (msgId) => {
+    setExpandedMessages((prev) => ({
+      ...prev,
+      [msgId]: !prev[msgId],
+    }));
+  };
+
+  // FIX: Open message in modal
+  const openMessageModal = (msg) => {
+    setSelectedMessage(msg);
+    setShowMessageModal(true);
+  };
+
   const handleTestConnection = async () => {
     setConnectionStatus("checking");
     try {
@@ -890,7 +916,6 @@ export default function WhatsAppSettings() {
             </Card>
           </motion.div>
         )}
-
         {activeTab === "history" && (
           <motion.div
             key="history"
@@ -901,7 +926,17 @@ export default function WhatsAppSettings() {
             <Card className="overflow-hidden">
               <div className="p-4 border-b border-zinc-200 flex items-center justify-between">
                 <h3 className="font-semibold text-zinc-800">Message History</h3>
-                <Badge variant="info">{messageHistory.length} messages</Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={RefreshCw}
+                    onClick={loadFromApi}
+                  >
+                    Refresh
+                  </Button>
+                  <Badge variant="info">{messageHistory.length} messages</Badge>
+                </div>
               </div>
 
               {messageHistory.length === 0 ? (
@@ -910,43 +945,116 @@ export default function WhatsAppSettings() {
                   <p className="text-zinc-500">No messages sent yet</p>
                 </div>
               ) : (
-                <div className="divide-y divide-zinc-100 max-h-[500px] overflow-y-auto">
-                  {messageHistory.map((msg) => (
-                    <div key={msg.id} className="p-4 hover:bg-zinc-50">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-zinc-400" />
-                          <span className="font-medium">
-                            {msg.recipient_phone || msg.phone}
-                          </span>
-                          <Badge variant="secondary">
-                            {msg.template?.name || msg.template}
-                          </Badge>
+                <div className="divide-y divide-zinc-100 max-h-[600px] overflow-y-auto">
+                  {messageHistory.map((msg) => {
+                    const messageContent = msg.message_content || msg.message || "";
+                    const isExpanded = expandedMessages[msg.id];
+                    const isLongMessage = messageContent.length > 150;
+
+                    return (
+                      <div key={msg.id} className="p-4 hover:bg-zinc-50">
+                        {/* Header Row */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-zinc-400" />
+                            <span className="font-medium text-zinc-800">
+                              {msg.recipient_phone || msg.phone}
+                            </span>
+                            {msg.recipient_name && (
+                              <span className="text-sm text-zinc-500">
+                                ({msg.recipient_name})
+                              </span>
+                            )}
+                            <Badge variant="secondary" className="text-xs">
+                              {msg.template?.name || msg.template_key || msg.template || "Manual"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {msg.status === "sent" ? (
+                              <span className="flex items-center gap-1 text-xs text-green-600">
+                                <CheckCircle className="w-4 h-4" />
+                                Sent
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-xs text-red-600">
+                                <XCircle className="w-4 h-4" />
+                                Failed
+                              </span>
+                            )}
+                            <span className="text-xs text-zinc-400">
+                              {msg.created_at || msg.sent_at
+                                ? new Date(msg.created_at || msg.sent_at).toLocaleString("en-MY")
+                                : "N/A"}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {msg.status === "sent" ? (
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                          ) : (
-                            <XCircle className="w-4 h-4 text-red-500" />
+
+                        {/* Message Content - Expandable */}
+                        <div className="relative">
+                          <pre
+                            className={cn(
+                              "text-xs text-zinc-600 bg-zinc-100 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap transition-all",
+                              isExpanded ? "max-h-none" : "max-h-24"
+                            )}
+                          >
+                            {isExpanded || !isLongMessage
+                              ? messageContent
+                              : `${messageContent.slice(0, 150)}...`}
+                          </pre>
+
+                          {/* Expand/Collapse & View Full buttons */}
+                          {isLongMessage && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                onClick={() => toggleMessageExpansion(msg.id)}
+                                className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="w-3 h-3" />
+                                    Show Less
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-3 h-3" />
+                                    Show More
+                                  </>
+                                )}
+                              </button>
+                              <span className="text-zinc-300">|</span>
+                              <button
+                                onClick={() => openMessageModal(msg)}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                <Maximize2 className="w-3 h-3" />
+                                View Full
+                              </button>
+                            </div>
                           )}
-                          <span className="text-xs text-zinc-400">
-                            {msg.created_at || msg.sent_at
-                              ? new Date(
-                                  msg.created_at || msg.sent_at,
-                                ).toLocaleString("en-MY")
-                              : "N/A"}
-                          </span>
+
+                          {/* Short message - still show View Details option */}
+                          {!isLongMessage && messageContent && (
+                            <div className="mt-2">
+                              <button
+                                onClick={() => openMessageModal(msg)}
+                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View Details
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <pre className="text-xs text-zinc-500 bg-zinc-100 p-2 rounded overflow-x-auto whitespace-pre-wrap max-h-20">
-                        {(msg.message_content || msg.message || "").slice(
-                          0,
-                          200,
+
+                        {/* Error message if failed */}
+                        {msg.status === "failed" && msg.error_message && (
+                          <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-600">
+                            <strong>Error:</strong> {msg.error_message}
+                          </div>
                         )}
-                        ...
-                      </pre>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </Card>
@@ -1113,6 +1221,110 @@ export default function WhatsAppSettings() {
                   onClick={saveTemplate}
                 >
                   Save Template
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+      {/* View Full Message Modal */}
+      <Modal
+        isOpen={showMessageModal}
+        onClose={() => {
+          setShowMessageModal(false);
+          setSelectedMessage(null);
+        }}
+        title="Message Details"
+        size="lg"
+      >
+        <div className="p-5">
+          {selectedMessage && (
+            <div className="space-y-4">
+              {/* Message Info */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <label className="text-zinc-500">Recipient</label>
+                  <p className="font-medium text-zinc-800">
+                    {selectedMessage.recipient_phone || selectedMessage.phone}
+                    {selectedMessage.recipient_name && (
+                      <span className="text-zinc-500 font-normal ml-2">
+                        ({selectedMessage.recipient_name})
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-zinc-500">Status</label>
+                  <p className="font-medium">
+                    {selectedMessage.status === "sent" ? (
+                      <span className="text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" />
+                        Sent
+                      </span>
+                    ) : (
+                      <span className="text-red-600 flex items-center gap-1">
+                        <XCircle className="w-4 h-4" />
+                        Failed
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-zinc-500">Template</label>
+                  <p className="font-medium text-zinc-800">
+                    {selectedMessage.template?.name ||
+                      selectedMessage.template_key ||
+                      selectedMessage.template ||
+                      "Manual"}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-zinc-500">Sent At</label>
+                  <p className="font-medium text-zinc-800">
+                    {selectedMessage.created_at || selectedMessage.sent_at
+                      ? new Date(
+                        selectedMessage.created_at || selectedMessage.sent_at
+                      ).toLocaleString("en-MY")
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Full Message Content */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">
+                  Full Message
+                </label>
+                <pre className="text-sm text-zinc-700 bg-zinc-100 p-4 rounded-lg whitespace-pre-wrap max-h-96 overflow-y-auto border border-zinc-200">
+                  {selectedMessage.message_content ||
+                    selectedMessage.message ||
+                    "No message content"}
+                </pre>
+              </div>
+
+              {/* Error Message if any */}
+              {selectedMessage.status === "failed" && selectedMessage.error_message && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <label className="block text-sm font-medium text-red-700 mb-1">
+                    Error Details
+                  </label>
+                  <p className="text-sm text-red-600">
+                    {selectedMessage.error_message}
+                  </p>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <div className="pt-4 border-t border-zinc-200">
+                <Button
+                  variant="outline"
+                  fullWidth
+                  onClick={() => {
+                    setShowMessageModal(false);
+                    setSelectedMessage(null);
+                  }}
+                >
+                  Close
                 </Button>
               </div>
             </div>
