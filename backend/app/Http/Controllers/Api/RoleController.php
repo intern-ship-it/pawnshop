@@ -133,14 +133,14 @@ class RoleController extends Controller
         foreach ($permissions as $module => $modulePermissions) {
             $result[$module] = $modulePermissions->map(function ($permission) use ($enabledPermissions) {
                 return [
-                    'id' => $permission->id,
-                    'action' => $permission->action,
-                    'name' => $permission->name,
-                    'description' => $permission->description,
-                    'requires_passkey' => $permission->requires_passkey,
-                    'is_enabled' => in_array($permission->id, $enabledPermissions),
+                'id' => $permission->id,
+                'action' => $permission->action,
+                'name' => $permission->name,
+                'description' => $permission->description,
+                'requires_passkey' => $permission->requires_passkey,
+                'is_enabled' => in_array($permission->id, $enabledPermissions),
                 ];
-            });
+            })->values();
         }
 
         return $this->success($result);

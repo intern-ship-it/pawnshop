@@ -108,7 +108,7 @@ const hasToken = authService.isAuthenticated()
 const initialState = {
   user: storedUser,
   role: storedUser?.role || null,
-  permissions: storedUser?.permissions || {},
+  permissions: storedUser?.permissions || [],
   branch: storedUser?.branch || null,
   isAuthenticated: hasToken && !!storedUser,
   passkeyVerified: false,
@@ -132,7 +132,7 @@ const authSlice = createSlice({
     logoutSuccess: (state) => {
       state.user = null
       state.role = null
-      state.permissions = {}
+      state.permissions = []
       state.branch = null
       state.isAuthenticated = false
       state.passkeyVerified = false
@@ -142,7 +142,7 @@ const authSlice = createSlice({
     setUser: (state, action) => {
       state.user = action.payload
       state.role = action.payload?.role || null
-      state.permissions = action.payload?.permissions || {}
+      state.permissions = action.payload?.permissions || []
       state.branch = action.payload?.branch || null
       state.isAuthenticated = true
     },
@@ -158,7 +158,7 @@ const authSlice = createSlice({
         state.loading = false
         state.user = action.payload.user
         state.role = action.payload.user?.role || null
-        state.permissions = action.payload.user?.permissions || {}
+        state.permissions = action.payload.user?.permissions || []
         state.branch = action.payload.user?.branch || null
         state.isAuthenticated = true
         state.error = null
@@ -178,7 +178,7 @@ const authSlice = createSlice({
         state.loading = false
         state.user = action.payload.user
         state.role = action.payload.user?.role || null
-        state.permissions = action.payload.user?.permissions || {}
+        state.permissions = action.payload.user?.permissions || []
         state.branch = action.payload.user?.branch || null
         state.isAuthenticated = true
         state.error = null
@@ -197,7 +197,7 @@ const authSlice = createSlice({
         state.loading = false
         state.user = null
         state.role = null
-        state.permissions = {}
+        state.permissions = []
         state.branch = null
         state.isAuthenticated = false
         state.passkeyVerified = false
@@ -208,7 +208,7 @@ const authSlice = createSlice({
         state.loading = false
         state.user = null
         state.role = null
-        state.permissions = {}
+        state.permissions = []
         state.branch = null
         state.isAuthenticated = false
         state.passkeyVerified = false
@@ -224,7 +224,7 @@ const authSlice = createSlice({
         state.loading = false
         state.user = action.payload
         state.role = action.payload?.role || null
-        state.permissions = action.payload?.permissions || {}
+        state.permissions = action.payload?.permissions || []
         state.branch = action.payload?.branch || null
         state.isAuthenticated = true
       })

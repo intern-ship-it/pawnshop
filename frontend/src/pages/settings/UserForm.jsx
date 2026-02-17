@@ -382,9 +382,8 @@ export default function UserForm() {
           addToast({
             type: "success",
             title: isEdit ? "User Updated" : "User Created",
-            message: `${formData.name} has been ${
-              isEdit ? "updated" : "added"
-            }`,
+            message: `${formData.name} has been ${isEdit ? "updated" : "added"
+              }`,
           })
         );
         navigate("/settings/users");

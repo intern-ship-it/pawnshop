@@ -4,6 +4,7 @@ import { lazy, Suspense } from "react";
 
 // Layout
 import MainLayout from "@/components/layout/MainLayout";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 // Loading component
 const PageLoader = () => (
@@ -73,6 +74,15 @@ const withSuspense = (Component) => (
   </Suspense>
 );
 
+// Wrap component with Suspense + ProtectedRoute permission check
+const withPermission = (Component, permission) => (
+  <ProtectedRoute permission={permission}>
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  </ProtectedRoute>
+);
+
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 export const router = createBrowserRouter([
@@ -97,50 +107,50 @@ export const router = createBrowserRouter([
     errorElement: <ErrorBoundary />,
     children: [
       // Dashboard
-      { index: true, element: withSuspense(Dashboard) },
+      { index: true, element: withPermission(Dashboard, "dashboard.view") },
       {
         path: "profile",
         element: withSuspense(Profile),
       },
       // CUSTOMER ROUTES
-      { path: "customers", element: withSuspense(CustomerList) },
-      { path: "customers/new", element: withSuspense(CustomerCreate) },
-      { path: "customers/:id", element: withSuspense(CustomerDetail) },
-      { path: "customers/:id/edit", element: withSuspense(CustomerEdit) },
+      { path: "customers", element: withPermission(CustomerList, "customers.view") },
+      { path: "customers/new", element: withPermission(CustomerCreate, "customers.create") },
+      { path: "customers/:id", element: withPermission(CustomerDetail, "customers.view") },
+      { path: "customers/:id/edit", element: withPermission(CustomerEdit, "customers.edit") },
 
       // PLEDGE ROUTES
-      { path: "pledges", element: withSuspense(PledgeList) },
-      { path: "pledges/new", element: withSuspense(NewPledge) },
-      { path: "pledges/:id", element: withSuspense(PledgeDetail) },
+      { path: "pledges", element: withPermission(PledgeList, "pledges.view") },
+      { path: "pledges/new", element: withPermission(NewPledge, "pledges.create") },
+      { path: "pledges/:id", element: withPermission(PledgeDetail, "pledges.view") },
 
       // TRANSACTION ROUTES
-      { path: "renewals", element: withSuspense(RenewalScreen) },
-      { path: "redemptions", element: withSuspense(RedemptionScreen) },
+      { path: "renewals", element: withPermission(RenewalScreen, "renewals.view") },
+      { path: "redemptions", element: withPermission(RedemptionScreen, "redemptions.view") },
 
       // INVENTORY ROUTES
-      { path: "inventory", element: withSuspense(InventoryList) },
-      { path: "inventory/rack-map", element: withSuspense(RackMap) },
+      { path: "inventory", element: withPermission(InventoryList, "inventory.view") },
+      { path: "inventory/rack-map", element: withPermission(RackMap, "storage.view") },
       {
         path: "inventory/reconciliation",
-        element: withSuspense(StockReconciliation),
+        element: withPermission(StockReconciliation, "reconciliation.view"),
       },
 
       // AUCTION ROUTES
-      { path: "auctions", element: withSuspense(AuctionScreen) },
+      { path: "auctions", element: withPermission(AuctionScreen, "auctions.view") },
 
       // REPORT ROUTES
-      { path: "reports", element: withSuspense(ReportsScreen) },
-      { path: "reports/day-end", element: withSuspense(DayEndSummary) },
+      { path: "reports", element: withPermission(ReportsScreen, "reports.view") },
+      { path: "reports/day-end", element: withPermission(DayEndSummary, "dayend.view") },
 
       // SETTINGS ROUTES
-      { path: "settings", element: withSuspense(SettingsScreen) },
-      { path: "settings/users", element: withSuspense(UserList) },
-      { path: "settings/users/new", element: withSuspense(UserForm) },
-      { path: "settings/users/:id/edit", element: withSuspense(UserForm) },
-      { path: "settings/audit-log", element: withSuspense(AuditLogScreen) },
-      { path: "settings/whatsapp", element: withSuspense(WhatsAppSettings) },
-      { path: "settings/hardware", element: withSuspense(HardwareIntegration) },
-      { path: "settings/print-test", element: withSuspense(PrintTestPage) },
+      { path: "settings", element: withPermission(SettingsScreen, "settings.view") },
+      { path: "settings/users", element: withPermission(UserList, "users.view") },
+      { path: "settings/users/new", element: withPermission(UserForm, "users.create") },
+      { path: "settings/users/:id/edit", element: withPermission(UserForm, "users.edit") },
+      { path: "settings/audit-log", element: withPermission(AuditLogScreen, "audit.view") },
+      { path: "settings/whatsapp", element: withPermission(WhatsAppSettings, "whatsapp.view") },
+      { path: "settings/hardware", element: withPermission(HardwareIntegration, "settings.view") },
+      { path: "settings/print-test", element: withPermission(PrintTestPage, "settings.view") },
     ],
   },
 

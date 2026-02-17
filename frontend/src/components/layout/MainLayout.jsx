@@ -37,7 +37,6 @@ export default function MainLayout() {
   useEffect(() => {
     const verifyAuth = async () => {
       const hasToken = authService.isAuthenticated();
-      const storedUser = authService.getStoredUser();
 
       // No token at all - redirect to login
       if (!hasToken) {
@@ -46,17 +45,16 @@ export default function MainLayout() {
         return;
       }
 
-      // Already authenticated in Redux - no need to verify again
-      if (isAuthenticated && user) {
-        setIsVerifying(false);
-        return;
-      }
-
-      // We have a token, verify it with the backend
+      // Always fetch fresh user data from backend to get latest permissions
       try {
         const response = await dispatch(fetchCurrentUser()).unwrap();
         if (response) {
           // Token is valid - user is set by fetchCurrentUser.fulfilled in Redux
+          // Also update localStorage so next refresh has fresh data
+          const storage = localStorage.getItem("pawnsys_remember") === "true"
+            ? localStorage
+            : sessionStorage;
+          storage.setItem("pawnsys_user", JSON.stringify(response));
           setIsVerifying(false);
           return;
         }
@@ -72,7 +70,7 @@ export default function MainLayout() {
     };
 
     verifyAuth();
-  }, [dispatch, navigate, isAuthenticated, user]);
+  }, [dispatch, navigate]);
 
   // Fetch settings from API on startup (only once when authenticated)
   useEffect(() => {

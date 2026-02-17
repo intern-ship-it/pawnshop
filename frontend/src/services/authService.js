@@ -240,6 +240,11 @@ const authService = {
     const user = this.getStoredUser()
     if (!user?.permissions) return false
 
+    if (Array.isArray(user.permissions)) {
+      return user.permissions.includes(permission)
+    }
+
+    // Fallback for object format
     return Object.keys(user.permissions).includes(permission) ||
       Object.values(user.permissions).includes(permission)
   },
