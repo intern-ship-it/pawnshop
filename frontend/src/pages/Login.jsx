@@ -145,7 +145,7 @@ export default function Login() {
         // Dynamically construct API URL based on current environment
         const apiBaseUrl =
           window.location.hostname === "localhost" ||
-          window.location.hostname === "127.0.0.1"
+            window.location.hostname === "127.0.0.1"
             ? "http://localhost:8000"
             : window.location.origin;
         const logoUrl = `${apiBaseUrl}/api/settings/logo-image`;
@@ -444,8 +444,8 @@ export default function Login() {
             className="bg-white rounded-2xl shadow-xl p-8"
           >
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-zinc-800">Welcome Back</h2>
-              <p className="text-zinc-500 mt-1">Sign in to your account</p>
+              <h2 className="text-3xl font-bold text-zinc-800">Welcome Back</h2>
+              <p className="text-lg text-zinc-500 mt-2">Sign in to your account</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -453,7 +453,7 @@ export default function Login() {
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
-                  className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+                  className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-base"
                 >
                   {errors.form}
                 </motion.div>
@@ -461,7 +461,7 @@ export default function Login() {
 
               {/* Username */}
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                <label className="block text-base font-medium text-zinc-700 mb-2">
                   Username or Email <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -474,7 +474,7 @@ export default function Login() {
                     value={formData.username}
                     onChange={handleChange}
                     className={cn(
-                      "block w-full pl-10 pr-3 py-2.5 border rounded-lg",
+                      "block w-full pl-10 pr-3 py-3 border rounded-lg text-base",
                       "bg-white text-zinc-900 placeholder-zinc-400",
                       "focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500",
                       errors.username ? "border-red-300" : "border-zinc-300"
@@ -483,13 +483,13 @@ export default function Login() {
                   />
                 </div>
                 {errors.username && (
-                  <p className="mt-1 text-sm text-red-600">{errors.username}</p>
+                  <p className="mt-1.5 text-sm text-red-600">{errors.username}</p>
                 )}
               </div>
 
               {/* Password */}
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                <label className="block text-base font-medium text-zinc-700 mb-2">
                   Password <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -502,7 +502,7 @@ export default function Login() {
                     value={formData.password}
                     onChange={handleChange}
                     className={cn(
-                      "block w-full pl-10 pr-10 py-2.5 border rounded-lg",
+                      "block w-full pl-10 pr-10 py-3 border rounded-lg text-base",
                       "bg-white text-zinc-900 placeholder-zinc-400",
                       "focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500",
                       errors.password ? "border-red-300" : "border-zinc-300"
@@ -522,7 +522,7 @@ export default function Login() {
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                  <p className="mt-1.5 text-sm text-red-600">{errors.password}</p>
                 )}
               </div>
 
@@ -534,11 +534,11 @@ export default function Login() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded border-zinc-300 text-amber-600 focus:ring-amber-500"
                   />
-                  <span className="text-sm text-zinc-600">Remember me</span>
+                  <span className="text-base text-zinc-600">Remember me</span>
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+                  className="text-base text-amber-600 hover:text-amber-700 font-medium"
                 >
                   Forgot password?
                 </Link>
@@ -573,7 +573,7 @@ export default function Login() {
                         "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
                         "border-zinc-200 hover:border-amber-300 hover:bg-amber-50",
                         formData.username === account.username &&
-                          "border-amber-400 bg-amber-50"
+                        "border-amber-400 bg-amber-50"
                       )}
                     >
                       <span className="text-zinc-700">{account.role}</span>
@@ -588,7 +588,7 @@ export default function Login() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className="text-center text-xs text-zinc-500 mt-6"
+            className="text-center text-sm text-zinc-500 mt-6"
           >
             © {new Date().getFullYear()} {companyName}. KPKT Malaysia Compliant
             System.

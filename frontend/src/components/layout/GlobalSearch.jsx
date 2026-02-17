@@ -40,7 +40,7 @@ export default function GlobalSearch({ className }) {
     if (saved) {
       try {
         setRecentSearches(JSON.parse(saved).slice(0, 5));
-      } catch (e) {}
+      } catch (e) { }
     }
   }, []);
 
@@ -85,26 +85,26 @@ export default function GlobalSearch({ className }) {
         pledges:
           pledgesRes.status === "fulfilled"
             ? (
-                pledgesRes.value.data?.data ||
-                pledgesRes.value.data ||
-                []
-              ).slice(0, 3)
+              pledgesRes.value.data?.data ||
+              pledgesRes.value.data ||
+              []
+            ).slice(0, 3)
             : [],
         customers:
           customersRes.status === "fulfilled"
             ? (
-                customersRes.value.data?.data ||
-                customersRes.value.data ||
-                []
-              ).slice(0, 3)
+              customersRes.value.data?.data ||
+              customersRes.value.data ||
+              []
+            ).slice(0, 3)
             : [],
         inventory:
           inventoryRes.status === "fulfilled"
             ? (
-                inventoryRes.value.data?.data ||
-                inventoryRes.value.data ||
-                []
-              ).slice(0, 3)
+              inventoryRes.value.data?.data ||
+              inventoryRes.value.data ||
+              []
+            ).slice(0, 3)
             : [],
       });
     } catch (error) {
@@ -219,7 +219,7 @@ export default function GlobalSearch({ className }) {
 
       {/* Dropdown Results */}
       {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-zinc-200 overflow-hidden z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-zinc-200 overflow-hidden z-50 max-h-96 overflow-y-auto min-w-[420px]">
           {/* Recent Searches (when no query) */}
           {query.length < 2 && recentSearches.length > 0 && (
             <div className="p-2">
@@ -320,20 +320,21 @@ export default function GlobalSearch({ className }) {
                               isSelected ? "bg-amber-50" : "hover:bg-zinc-50",
                             )}
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-medium text-sm">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-medium text-sm flex-shrink-0">
                                 {customer.name?.charAt(0) || "?"}
                               </div>
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-zinc-800">
                                   {customer.name}
                                 </p>
                                 <p className="text-xs text-zinc-500">
-                                  {customer.ic_number} • {customer.phone}
+                                  {customer.ic_number}
+                                  {customer.phone ? ` • ${customer.country_code || ''}${customer.phone}` : ""}
                                 </p>
                               </div>
                             </div>
-                            <ArrowRight className="w-4 h-4 text-zinc-400" />
+                            <ArrowRight className="w-4 h-4 text-zinc-400 flex-shrink-0" />
                           </button>
                         );
                       })}
