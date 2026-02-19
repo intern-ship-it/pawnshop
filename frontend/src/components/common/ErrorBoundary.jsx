@@ -23,7 +23,7 @@ export default function ErrorBoundary() {
               New Version Available
             </h1>
             <p className="text-zinc-600 mb-6">
-              The application has been updated. Please refresh the page to load
+              The website has been updated. Please refresh the page to load
               the latest version.
             </p>
             <Button
