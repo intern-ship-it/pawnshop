@@ -230,7 +230,7 @@ export default function PrintTestPage() {
       <head>
         <title>Receipt - ${pledgeNo}</title>
         <style>
-          @page { size: 241mm 139.7mm; margin: 0; }
+          @page { size: A5; margin: 0; }
           @media print {
             .no-print { display: none !important; }
             .page-break { page-break-after: always; break-after: page; }
@@ -277,7 +277,7 @@ export default function PrintTestPage() {
         <meta charset="UTF-8">
         <title>Resit Pajak Gadai - ${pledgeNo}</title>
         <style>
-          @page { size: 241mm 139.7mm; margin: 0; }
+          @page { size: A5; margin: 0; }
           @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .print-controls { display: none !important; }
@@ -330,7 +330,7 @@ export default function PrintTestPage() {
           .printer-note strong { color: #fbbf24; }
           
           .preview-container {
-            max-width: 241mm; margin: 15px auto; background: white;
+            max-width: 210mm; margin: 15px auto; background: white;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden;
           }
           .preview-container.hidden-for-print { display: none; }
@@ -370,7 +370,7 @@ export default function PrintTestPage() {
           </div>
           
           <p class="printer-note">
-            Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>241mm × 139.7mm</strong> | Salinan: <strong>${copyLabel}</strong>
+            Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>A5 Landscape</strong> | Salinan: <strong>${copyLabel}</strong>
           </p>
         </div>
         
@@ -448,9 +448,9 @@ export default function PrintTestPage() {
       <head>
         <title>${title}</title>
         <style>
-          @page { size: 241mm 139.7mm; margin: 0; }
-          @media print { html, body { width: 241mm; height: 139.7mm; margin: 0; padding: 0; } .print-controls { display: none !important; } }
-          @media screen { body { max-width: 241mm; margin: 20px auto; padding: 20px; background: #f0f0f0; } .receipt-container { background: white; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border: 1px solid #ccc; } }
+          @page { size: A5; margin: 0; }
+          @media print { html, body { width: 210mm; height: 148mm; margin: 0; padding: 0; } .print-controls { display: none !important; } }
+          @media screen { body { max-width: 210mm; margin: 20px auto; padding: 20px; background: #f0f0f0; } .receipt-container { background: white; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border: 1px solid #ccc; } }
           body { font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.3; }
           .receipt-container { white-space: pre; font-size: 11px; }
           .print-controls { text-align: center; padding: 15px; margin-bottom: 15px; background: #1f2937; border-radius: 8px; }
@@ -463,7 +463,7 @@ export default function PrintTestPage() {
         <div class="print-controls">
           <button class="print-btn" onclick="window.print()">🖨️ Cetak / Print</button>
           <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
-          <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>241mm × 139.7mm</strong></p>
+          <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
         </div>
         <div class="receipt-container">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
       </body>
@@ -870,7 +870,7 @@ export default function PrintTestPage() {
         <meta charset="UTF-8">
         <title>Bulk Terms & Conditions - ${count} Pages</title>
         <style>
-          @page { size: 241mm 139.7mm; margin: 0; }
+          @page { size: A5; margin: 0; }
           @media print {
             body { margin: 0; padding: 0; }
             .print-controls, .preview-label { display: none !important; }
@@ -1454,7 +1454,7 @@ export default function PrintTestPage() {
           .btn-close { background: #6b7280; color: #fff; }
           .ctrl button:hover { transform: translateY(-2px); }
           .preview-container {
-            position: relative; width: 241mm; height: 139.7mm; margin: 20px auto;
+            position: relative; width: 210mm; margin: 20px auto;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5); background: #fff;
           }
           .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
@@ -1462,7 +1462,7 @@ export default function PrintTestPage() {
           .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
           .hidden { display: none !important; }
           /* Pre-printed form styles */
-          .pp-front { width: 241mm; height: 139.7mm; padding: 3mm 5mm; font-family: Arial, sans-serif; color: #1a4a7a; background: #fff !important; overflow: hidden; box-sizing: border-box; }
+          .pp-front { width: 210mm; padding: 3mm 5mm; font-family: Arial, sans-serif; color: #1a4a7a; background: #fff !important; overflow: hidden; box-sizing: border-box; }
           .pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
           .pp-hdr { display: flex; align-items: flex-start; padding-bottom: 1.5mm; border-bottom: 1px solid #1a4a7a; }
           .pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 2mm; }
@@ -1526,12 +1526,13 @@ export default function PrintTestPage() {
           .pp-ftr-left { flex: 1; }
           .pp-ftr-right { text-align: right; font-size: 5px; }
           .pp-gm-box { display: inline-block; text-align: center; font-size: 6px; line-height: 1.2; min-width: 8mm; vertical-align: top; }
-          @page { size: 241mm 139.7mm; margin: 0; }
+          @page { size: 210mm 135mm; margin: 0; }
           @media print {
-            body { background: #fff !important; padding: 0 !important; }
+            html, body { width: 210mm; height: 135mm; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
             .ctrl { display: none !important; }
-            .preview-container { box-shadow: none !important; margin: 0 !important; }
+            .preview-container { width: 210mm !important; height: 135mm !important; margin: 0 !important; box-shadow: none !important; overflow: hidden !important; }
             .form-layer { display: none !important; }
+            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 135mm; }
           }
         </style>
       </head>
@@ -1704,7 +1705,7 @@ export default function PrintTestPage() {
               .print-container { box-shadow: none; margin: 0; }
               .print-actions { display: none; }
             }
-            @page { size: A5 landscape; margin: 0; }
+            @page { size: A5; margin: 0; }
           </style>
         </head>
         <body>
@@ -1839,7 +1840,7 @@ export default function PrintTestPage() {
               .print-container { box-shadow: none; margin: 0; }
               .print-actions { display: none; }
             }
-            @page { size: A5 landscape; margin: 0; }
+            @page { size: A5; margin: 0; }
           </style>
         </head>
         <body>

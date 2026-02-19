@@ -324,8 +324,8 @@ class DotMatrixPrintController extends Controller
     </div>
 </div>
 <style>
-@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
-.receipt{width:202mm;height:140mm;padding:4mm;font-family:Arial,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;border:2px solid #1a4a7a}
+@page{size:A5;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.receipt{width:210mm;height:148mm;padding:4mm;font-family:Arial,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;border:2px solid #1a4a7a}
 .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a4a7a;padding-bottom:3mm;margin-bottom:3mm}
 .header-left{display:flex;gap:3mm;align-items:flex-start}
 .logo{height:14mm;width:auto;max-width:18mm;object-fit:contain}
@@ -550,8 +550,8 @@ HTML;
     </div>
 </div>
 <style>
-@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
-.receipt{width:202mm;height:140mm;padding:4mm;font-family:Arial,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;border:2px solid #1a4a7a}
+@page{size:A5;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.receipt{width:210mm;height:148mm;padding:4mm;font-family:Arial,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;border:2px solid #1a4a7a}
 .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a4a7a;padding-bottom:3mm;margin-bottom:3mm}
 .header-left{display:flex;gap:3mm;align-items:flex-start}
 .logo{height:14mm;width:auto;max-width:18mm;object-fit:contain}
@@ -760,8 +760,8 @@ HTML;
     </div>
 </div>
 <style>
-@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
-.receipt{width:202mm;height:136mm;padding:2.5mm;border:2px solid #1a4a7a;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;overflow:hidden}
+@page{size:A5;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.receipt{width:210mm;height:148mm;padding:2.5mm;border:2px solid #1a4a7a;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#1a4a7a;line-height:1.3;background:#fff;overflow:hidden}
 .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5mm;border-bottom:2px solid #1a4a7a;padding-bottom:1.5mm}
 .header-left{display:flex;align-items:flex-start;gap:3mm;flex:1}
 .logo{height:14mm;width:auto;max-width:18mm;object-fit:contain}
@@ -885,8 +885,8 @@ FALLBACK;
     </div>
 </div>
 <style>
-@page{size:A5 landscape;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
-.terms-page{width:202mm;height:136mm;padding:2.5mm;display:flex;gap:3mm;font-family:Arial,sans-serif;font-size:9px;color:#1a4a7a;background:#fff;overflow:hidden}
+@page{size:A5;margin:3mm}*{margin:0;padding:0;box-sizing:border-box}
+.terms-page{width:210mm;height:148mm;padding:2.5mm;display:flex;gap:3mm;font-family:Arial,sans-serif;font-size:9px;color:#1a4a7a;background:#fff;overflow:hidden}
 .terms-section{flex:1.4}
 .redeemer-section{flex:0.6;min-width:52mm;border:2px solid #1a4a7a;padding:2mm}
 .terms-title{font-size:13px;font-weight:bold;text-align:center;margin-bottom:2.5mm;text-decoration:underline}
@@ -1249,10 +1249,11 @@ HTML;
 
         return <<<HTML
 <style>
+@page { size: 210mm 135mm; margin: 0; }
 /* ═══ DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM ═══ */
 .ppo-page {
     width: 210mm;
-    height: 148mm;
+    height: 135mm;
     padding: 0;
     margin: 0;
     position: relative;
@@ -1468,7 +1469,8 @@ HTML;
         return <<<'HTMLSTART'
 <style>
 .pp-front {
-    width: 210mm; height: 148mm; 
+    width: 210mm;
+    height: 148mm; 
     padding: 3mm 5mm;
     font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
     background: #fff !important; overflow: hidden; box-sizing: border-box;
@@ -1774,7 +1776,8 @@ HTML;
 <style>
 /* ═══ BACK PAGE STYLES - MATCHES PHYSICAL FORM ═══ */
 .pp-back {
-    width: 210mm; height: 148mm; 
+    width: 210mm;
+    height: 148mm; 
     padding: 3mm 5mm;
     display: flex;
     font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
@@ -2120,10 +2123,11 @@ HTML;
 
         return <<<HTML
 <style>
+@page { size: 210mm 135mm; margin: 0; }
 /* ═══ DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM ═══ */
 .ppo-page {
     width: 210mm;
-    height: 148mm;
+    height: 135mm;
     padding: 0;
     margin: 0;
     position: relative;
@@ -2420,10 +2424,11 @@ HTML;
 
         return <<<HTML
 <style>
+@page { size: 210mm 135mm; margin: 0; }
 /* ═══ DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM ═══ */
 .ppo-page {
     width: 210mm;
-    height: 148mm;
+    height: 135mm;
     padding: 0;
     margin: 0;
     position: relative;
