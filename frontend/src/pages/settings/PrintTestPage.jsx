@@ -45,6 +45,8 @@ export default function PrintTestPage() {
   const [bulkTermsCount, setBulkTermsCount] = useState(10);
   const [prePrintedCount, setPrePrintedCount] = useState(5);
   const [prePrintedPage, setPrePrintedPage] = useState("both");
+  const [prePrintedA4Count, setPrePrintedA4Count] = useState(5);
+  const [prePrintedA4Page, setPrePrintedA4Page] = useState("both");
 
   useEffect(() => {
     fetchPledges();
@@ -1167,6 +1169,214 @@ export default function PrintTestPage() {
     printWindow.focus();
   };
 
+  // Print Pre-Printed Form A4 (Blank Template)
+  const printPrePrintedFormA4 = async () => {
+    setPrinting(true);
+    setPreviewType("Pre-Printed Form A4");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pre-printed-form-a4`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            count: prePrintedA4Count,
+            page: prePrintedA4Page,
+          }),
+        },
+      );
+
+      const data = await response.json();
+      const duration = Date.now() - startTime;
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate A4 pre-printed form");
+      }
+
+      const frontHtml = data.data?.front_html || "";
+      const backHtml = data.data?.back_html || "";
+      const count = data.data?.count || prePrintedA4Count;
+      const page = data.data?.page || prePrintedA4Page;
+
+      logResult(
+        "Pre-Printed Form A4",
+        true,
+        `${count} page(s) - ${page}`,
+        duration,
+      );
+
+      // Open print window with A4 pre-printed form
+      openPrePrintedFormWindowA4(frontHtml, backHtml, count, page);
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `${count} A4 pre-printed form(s) ready (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Pre-Printed Form A4", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Open A4 pre-printed form print window
+  const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page) => {
+    const printWindow = window.open("", "_blank", "width=1050,height=900");
+    if (!printWindow) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Popup Blocked",
+          message: "Please allow popups",
+        }),
+      );
+      return;
+    }
+
+    const hasFront = frontHtml && frontHtml.length > 0;
+    const hasBack = backHtml && backHtml.length > 0;
+    const pageLabel =
+      page === "front"
+        ? "FRONT Only"
+        : page === "back"
+          ? "BACK Only"
+          : "FRONT + BACK";
+
+    const frontPages = hasFront ? count : 0;
+    const backPages = hasBack ? count : 0;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="ms">
+      <head>
+        <meta charset="UTF-8">
+        <title>Pre-Printed Form A4 - ${count} sets (${pageLabel})</title>
+        <style>
+          /* Control Panel Styles */
+          body { background: #c8c8c8; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+          .ctrl {
+            text-align: center; padding: 16px 20px; background: #1a1a2e; margin-bottom: 20px;
+            border-radius: 10px; position: sticky; top: 0; z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+          }
+          .ctrl h2 { color: #f59e0b; margin: 0 0 8px 0; font-size: 18px; }
+          .ctrl p { color: #9ca3af; margin: 4px 0; font-size: 13px; }
+          .ctrl .highlight { color: #fbbf24; font-weight: bold; }
+          
+          .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+          .ctrl button {
+            padding: 12px 24px; font-size: 14px; cursor: pointer; border: none;
+            border-radius: 8px; font-weight: bold; transition: all 0.2s;
+          }
+          .ctrl .pr { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #000; }
+          .ctrl .pr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245,158,11,0.4); }
+          .ctrl .front-btn { background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); color: #fff; }
+          .ctrl .back-btn { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: #fff; }
+          .ctrl .cl { background: #4b5563; color: #fff; }
+          
+          .plabel {
+            text-align: center; font-size: 12px; color: #374151;
+            margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
+          }
+          .pw {
+            max-width: 241.3mm; margin: 0 auto 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            border-radius: 4px; overflow: hidden;
+          }
+
+          /* Print Styles - 9.5in x 11in */
+          @page { size: 241.3mm 279.4mm; margin: 0; }
+          @media print {
+            body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+            .ctrl, .plabel { display: none !important; }
+            .pw { box-shadow: none !important; max-width: none !important; margin: 0 !important; border-radius: 0 !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="ctrl">
+          <h2>📝 Pre-Printed Blank Form (9½" × 11") / Borang Kosong Pra-Cetak</h2>
+          <p><span class="highlight">${count} set(s)</span> — ${pageLabel}</p>
+          <p>Print these blank forms on 9½" × 11" paper for future use</p>
+          
+          <div class="btn-row">
+            ${hasFront && hasBack ? `<button class="pr" onclick="printAll()">🖨️ Print All (${frontPages + backPages} pages)</button>` : ""}
+            ${hasFront ? `<button class="front-btn" onclick="printFront()">📄 Print FRONT (${frontPages} pages)</button>` : ""}
+            ${hasBack ? `<button class="back-btn" onclick="printBack()">📋 Print BACK (${backPages} pages)</button>` : ""}
+            <button class="cl" onclick="window.close()">✕ Close</button>
+          </div>
+        </div>
+
+        ${hasFront
+        ? `
+        <div class="plabel">📄 PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
+        <div class="pw" id="frontSection">${frontHtml}</div>
+        `
+        : ""
+      }
+        
+        ${hasBack
+        ? `
+        <div class="plabel" id="backLabel">📋 PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
+        <div class="pw" id="backSection">${backHtml}</div>
+        `
+        : ""
+      }
+
+        <script>
+          function printAll() {
+            document.querySelectorAll('#frontSection, #backSection').forEach(el => { if(el) el.style.display = 'block'; });
+            window.print();
+          }
+          function printFront() {
+            const front = document.getElementById('frontSection');
+            const back = document.getElementById('backSection');
+            const backLbl = document.getElementById('backLabel');
+            if(front) front.style.display = 'block';
+            if(back) back.style.display = 'none';
+            if(backLbl) backLbl.style.display = 'none';
+            window.print();
+            if(back) back.style.display = 'block';
+            if(backLbl) backLbl.style.display = 'block';
+          }
+          function printBack() {
+            const front = document.getElementById('frontSection');
+            const back = document.getElementById('backSection');
+            if(front) front.style.display = 'none';
+            if(back) back.style.display = 'block';
+            window.print();
+            if(front) front.style.display = 'block';
+          }
+          window.onload = function() {
+            const btn = document.querySelector('.pr') || document.querySelector('.front-btn') || document.querySelector('.back-btn');
+            if(btn) btn.focus();
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
   // Test Data Overlay - Preview data alignment on pre-printed form
   const testDataOverlay = async () => {
     if (!selectedPledge) {
@@ -1526,13 +1736,13 @@ export default function PrintTestPage() {
           .pp-ftr-left { flex: 1; }
           .pp-ftr-right { text-align: right; font-size: 5px; }
           .pp-gm-box { display: inline-block; text-align: center; font-size: 6px; line-height: 1.2; min-width: 8mm; vertical-align: top; }
-          @page { size: 210mm 135mm; margin: 0; }
+          @page { size: 210mm 74mm; margin: 0; }
           @media print {
-            html, body { width: 210mm; height: 135mm; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
+            html, body { width: 210mm; height: 74mm; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
             .ctrl { display: none !important; }
-            .preview-container { width: 210mm !important; height: 135mm !important; margin: 0 !important; box-shadow: none !important; overflow: hidden !important; }
+            .preview-container { width: 210mm !important; height: 74mm !important; margin: 0 !important; box-shadow: none !important; overflow: hidden !important; }
             .form-layer { display: none !important; }
-            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 135mm; }
+            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 74mm; }
           }
         </style>
       </head>
@@ -2257,10 +2467,10 @@ export default function PrintTestPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium text-emerald-800">
-                      Pre-Printed Blank Form
+                      Pre-Printed Blank Form A5
                     </p>
                     <p className="text-xs text-emerald-600">
-                      Full blank form template
+                      A5 blank form template
                     </p>
                   </div>
                   <Badge className="bg-emerald-500 text-white">New</Badge>
@@ -2305,6 +2515,63 @@ export default function PrintTestPage() {
                 </Button>
                 <p className="text-xs text-emerald-500 mt-2">
                   📝 Blank forms with all labels, borders & styling - no
+                  customer data
+                </p>
+              </div>
+
+              {/* Pre-Printed Form A4 - NEW */}
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-300">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-amber-800">
+                      Pre-Printed Blank Form A4
+                    </p>
+                    <p className="text-xs text-amber-600">
+                      A4 blank form template
+                    </p>
+                  </div>
+                  <Badge className="bg-amber-500 text-white">A4</Badge>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={prePrintedA4Count}
+                    onChange={(e) =>
+                      setPrePrintedA4Count(
+                        Math.min(
+                          50,
+                          Math.max(1, parseInt(e.target.value) || 5),
+                        ),
+                      )
+                    }
+                    className="w-16 text-center"
+                  />
+                  <select
+                    value={prePrintedA4Page}
+                    onChange={(e) => setPrePrintedA4Page(e.target.value)}
+                    className="flex-1 px-2 py-1 text-sm border border-amber-300 rounded-lg bg-white text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  >
+                    <option value="both">Front + Back</option>
+                    <option value="front">Front Only</option>
+                    <option value="back">Back Only</option>
+                  </select>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={FileText}
+                  onClick={printPrePrintedFormA4}
+                  loading={printing && previewType === "Pre-Printed Form A4"}
+                  disabled={printing}
+                  fullWidth
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  Print {prePrintedA4Count} A4 Blank Form(s)
+                </Button>
+                <p className="text-xs text-amber-500 mt-2">
+                  📄 A4 blank forms with all labels, borders & styling - no
                   customer data
                 </p>
               </div>

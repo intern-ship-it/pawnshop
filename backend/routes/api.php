@@ -569,6 +569,8 @@ Route::middleware('auth:sanctum')->group(function () {
                         ->middleware('check.permission:pledges,print');
                     Route::post('/pre-printed-form', [DotMatrixPrintController::class , 'prePrintedForm'])
                         ->middleware('check.permission:pledges,print');
+                    Route::post('/pre-printed-form-a4', [DotMatrixPrintController::class , 'prePrintedFormA4'])
+                        ->middleware('check.permission:pledges,print');
 
                     // Pre-Printed Form Data Overlay (for carbonless forms)
                     // These print ONLY the data to overlay on pre-printed paper
@@ -615,4 +617,5 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/passkey-logs', [AuditController::class , 'passkeyLogs']);
             Route::get('/activity-summary', [AuditController::class , 'activitySummary']);
         }
-        );    });
+        );
+    });
