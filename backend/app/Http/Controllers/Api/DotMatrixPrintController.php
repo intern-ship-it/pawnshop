@@ -1434,7 +1434,7 @@ HTML;
         }
 
         $html = '<style>';
-        $html .= '.pp4-back { width: 241.3mm; height: 279.4mm; padding: 6mm 10mm; display: flex; font-family: Arial, Helvetica, sans-serif; color: #1a4a7a; background: #fff !important; overflow: hidden; box-sizing: border-box; page-break-after: always; break-after: page; }';
+        $html .= '.pp4-back { width: 279.4mm; height: 241.3mm; padding: 6mm 10mm; display: flex; font-family: Arial, Helvetica, sans-serif; color: #1a4a7a; background: #fff !important; overflow: hidden; box-sizing: border-box; page-break-after: always; break-after: page; }';
         $html .= '.pp4-back * { box-sizing: border-box; margin: 0; padding: 0; }';
         $html .= '.pp4-terms-col { flex: 1; padding-right: 6mm; display: flex; flex-direction: column; height: 100%; }';
         $html .= '.pp4-terms-h { font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 5mm; }';

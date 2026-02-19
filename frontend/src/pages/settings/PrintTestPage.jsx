@@ -1297,13 +1297,13 @@ export default function PrintTestPage() {
             margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
           }
           .pw {
-            max-width: 241.3mm; margin: 0 auto 25px;
+            max-width: 279.4mm; margin: 0 auto 25px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.25);
             border-radius: 4px; overflow: hidden;
           }
 
-          /* Print Styles - 9.5in x 11in */
-          @page { size: 241.3mm 279.4mm; margin: 0; }
+          /* Print Styles - 9.5in x 11in Landscape */
+          @page { size: 279.4mm 241.3mm; margin: 0; }
           @media print {
             body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
             .ctrl, .plabel { display: none !important; }
