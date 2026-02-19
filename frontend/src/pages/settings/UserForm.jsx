@@ -351,10 +351,10 @@ export default function UserForm() {
       newErrors.role_id = "Role is required";
     }
 
-    // Passkey validation
-    if (formData.passkey && formData.passkey.length !== 6) {
-      newErrors.passkey = "Passkey must be exactly 6 digits";
-    }
+    // Passkey validation (disabled - feature not yet integrated)
+    // if (formData.passkey && formData.passkey.length !== 6) {
+    //   newErrors.passkey = "Passkey must be exactly 6 digits";
+    // }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -396,10 +396,10 @@ export default function UserForm() {
         payload.password = formData.password;
       }
 
-      // Include passkey if provided
-      if (formData.passkey) {
-        payload.passkey = formData.passkey;
-      }
+      // Include passkey if provided (disabled - feature not yet integrated)
+      // if (formData.passkey) {
+      //   payload.passkey = formData.passkey;
+      // }
 
       let response;
       if (isEdit) {
@@ -719,7 +719,7 @@ export default function UserForm() {
                 </div>
               </div>
 
-              {/* Passkey (6-digit PIN) */}
+              {/* Passkey (6-digit PIN) - Disabled: feature not yet integrated
               <div className="mt-6">
                 <Input
                   label="Passkey (6-digit PIN)"
@@ -737,6 +737,7 @@ export default function UserForm() {
                   helperText="Used for sensitive actions (override, reprint, etc.)"
                 />
               </div>
+              */}
             </Card>
 
             {/* Role & Assignment */}
