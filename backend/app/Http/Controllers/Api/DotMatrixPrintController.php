@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers\Api;
 
@@ -1299,12 +1299,12 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     
     // FORCE LANDSCAPE: Explicit dimensions (width > height)
     // This tells the browser to use landscape orientation
-    $html .= '@page { size: 297mm 210mm; margin: 0; }';
+    $html .= '@page { size: 297mm 210mm; margin: 0mm 0mm 0mm 5mm; }';
     
     // Print media styles
     $html .= '@media print { ';
     $html .= '  html, body { ';
-    $html .= '    width: 297mm !important; ';
+    $html .= '    width: 292mm !important; ';
     $html .= '    height: 210mm !important; ';
     $html .= '    margin: 0 !important; ';
     $html .= '    padding: 0 !important; ';
@@ -1313,20 +1313,20 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     $html .= '    print-color-adjust: exact !important; ';
     $html .= '  }';
     $html .= '  .pp4-front { ';
-    $html .= '    width: 297mm !important; ';
+    $html .= '    width: 292mm !important; ';
     $html .= '    height: 210mm !important; ';
     $html .= '    page-break-after: always; ';
-    $html .= '    margin: 0 auto !important; ';  // ← ADD THIS LINE
+    $html .= '    margin: 0 !important; ';
     $html .= '    break-after: page; ';
     $html .= '    page-break-inside: avoid; ';
     $html .= '  }';
     $html .= '}';
     
-    // Main container - LANDSCAPE: 297mm (width) × 210mm (height)
+    // Main container - LANDSCAPE: 292mm width (5mm left @page margin)
     $html .= '.pp4-front { ';
-    $html .= '  width: 297mm; ';
+    $html .= '  width: 292mm; ';
     $html .= '  height: 210mm; ';
-    $html .= '  padding: 6mm 8mm; ';
+    $html .= '  padding: 6mm 8mm 6mm 10mm; ';
     $html .= '  margin: 0 auto; '; 
     $html .= '  font-family: Arial, Helvetica, sans-serif; ';
     $html .= '  color: #1a4a7a; ';
@@ -1563,12 +1563,12 @@ private function generatePrePrintedBackPageA4(array $settings): string
     $html = '<style>';
     
     // Page setup - A4 LANDSCAPE with explicit dimensions
-    $html .= '@page { size: 297mm 210mm; margin: 0; }';
+    $html .= '@page { size: 297mm 210mm; margin: 0mm 0mm 0mm 5mm; }';
     
     // Print media styles
     $html .= '@media print { ';
     $html .= '  html, body { ';
-    $html .= '    width: 297mm !important; ';
+    $html .= '    width: 292mm !important; ';
     $html .= '    height: 210mm !important; ';
     $html .= '    margin: 0 !important; ';
     $html .= '    padding: 0 !important; ';
@@ -1577,20 +1577,20 @@ private function generatePrePrintedBackPageA4(array $settings): string
     $html .= '    print-color-adjust: exact !important; ';
     $html .= '  }';
     $html .= '  .pp4-back { ';
-    $html .= '    width: 297mm !important; ';
+    $html .= '    width: 292mm !important; ';
     $html .= '    height: 210mm !important; ';
-    $html .= '    margin: 0 auto !important; ';
+    $html .= '    margin: 0 !important; ';
     $html .= '    page-break-after: always; ';
     $html .= '    break-after: page; ';
     $html .= '    page-break-inside: avoid; ';
     $html .= '  }';
     $html .= '}';
     
-    // Main container
+    // Main container - 292mm width (5mm left @page margin)
     $html .= '.pp4-back { ';
-    $html .= '  width: 297mm; ';
+    $html .= '  width: 292mm; ';
     $html .= '  height: 210mm; ';
-    $html .= '  padding: 6mm 8mm; ';
+    $html .= '  padding: 6mm 8mm 6mm 10mm; ';
     $html .= '  margin: 0 auto; ';
     $html .= '  display: flex; ';
     $html .= '  font-family: Arial, Helvetica, sans-serif; ';
