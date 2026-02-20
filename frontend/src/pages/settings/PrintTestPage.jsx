@@ -1310,7 +1310,7 @@ export default function PrintTestPage() {
           margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
         }
         .pw {
-          width: 292mm; max-width: 297mm; margin: 0 auto 25px;
+          width: 297mm; max-width: 297mm; margin: 0 auto 25px;
           box-shadow: 0 4px 20px rgba(0,0,0,0.25);
           border-radius: 4px; overflow: hidden; background: #fff;
         }
@@ -1318,11 +1318,11 @@ export default function PrintTestPage() {
         /* Print Styles - A4 LANDSCAPE */
         @page { 
           size: 297mm 210mm;
-          margin: 0mm 0mm 0mm 5mm; 
+          margin: 0; 
         }
         @media print {
           html, body { 
-            width: 292mm !important; 
+            width: 297mm !important; 
             height: 210mm !important; 
             margin: 0 !important; 
             padding: 0 !important;
