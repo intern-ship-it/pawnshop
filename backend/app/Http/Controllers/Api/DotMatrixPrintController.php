@@ -1345,8 +1345,8 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     $html .= '.pp4-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 4mm; }';
     $html .= '.pp4-logo { width: 18mm; height: 18mm; object-fit: contain; flex-shrink: 0; }';
     $html .= '.pp4-co-info { flex: 1; }';
-    $html .= '.pp4-co-name { font-size: 24px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }';
-    $html .= '.pp4-co-multi { font-size: 18px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }';
+    $html .= '.pp4-co-name { font-size: 36px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }';
+    $html .= '.pp4-co-multi { font-size: 25px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }';
     $html .= '.pp4-co-addr { font-size: 10px; color: #1a4a7a; margin-top: 1mm; }';
     $html .= '.pp4-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 65mm; }';
     $html .= '.pp4-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }';
@@ -1356,7 +1356,7 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     $html .= '.pp4-sejak { background: #d42027; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }';
     $html .= '.pp4-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }';
     $html .= '.pp4-sejak-yr { font-size: 10px; font-weight: bold; line-height: 1; }';
-    $html .= '.pp4-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 3mm; width: 65mm; text-align: center; }';
+    $html .= '.pp4-hrs-box { background: #f5c518; color: #000; padding: 3.5mm 3mm; width: 65mm; text-align: center; }';
     $html .= '.pp4-hrs-title { font-size: 11px; font-weight: bold; }';
     $html .= '.pp4-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.2; color: #1a4a7a; }';
     
@@ -1398,7 +1398,7 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     $html .= '.pp4-bot { display: flex; border: 1px solid #d42027; flex-shrink: 0; }';
     $html .= '.pp4-pin-cell { flex: 1; padding: 2mm 4mm; display: flex; align-items: baseline; gap: 2mm; border-right: 1px solid #d42027; }';
     $html .= '.pp4-pin-lbl { font-size: 11px; }';
-    $html .= '.pp4-pin-rm { font-size: 16px; font-weight: bold; }';
+    $html .= '.pp4-pin-rm { font-size: 24px; font-weight: bold; }';
     $html .= '.pp4-pin-sp { flex: 1; min-height: 6mm; }';
     $html .= '.pp4-pin-stars { font-size: 16px; font-weight: bold; }';
     $html .= '.pp4-dt-cell { width: 38mm; text-align: center; padding: 2mm; border-right: 1px solid #d42027; }';
@@ -1509,6 +1509,12 @@ private function generatePrePrintedFrontPageA4(array $settings): string
  * Paper: A4 Landscape = 297mm (width) × 210mm (height)
  * For laser printers like RICOH Aficio
  */
+/**
+ * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+ * Paper: A4 Landscape = 297mm (width) × 210mm (height)
+ * FIXED: Matches physical form layout with signature box at bottom right
+ */
+
 private function generatePrePrintedBackPageA4(array $settings): string
 {
     $termsItems = [];
@@ -1556,8 +1562,8 @@ private function generatePrePrintedBackPageA4(array $settings): string
     // A4 LANDSCAPE = 297mm (width) × 210mm (height)
     $html = '<style>';
     
-    // Page setup - A4 LANDSCAPE
-    $html .= '@page { size: A4 landscape; margin: 0; }';
+    // Page setup - A4 LANDSCAPE with explicit dimensions
+    $html .= '@page { size: 297mm 210mm; margin: 0; }';
     
     // Print media styles
     $html .= '@media print { ';
@@ -1571,17 +1577,21 @@ private function generatePrePrintedBackPageA4(array $settings): string
     $html .= '    print-color-adjust: exact !important; ';
     $html .= '  }';
     $html .= '  .pp4-back { ';
+    $html .= '    width: 297mm !important; ';
+    $html .= '    height: 210mm !important; ';
+    $html .= '    margin: 0 auto !important; ';
     $html .= '    page-break-after: always; ';
     $html .= '    break-after: page; ';
     $html .= '    page-break-inside: avoid; ';
     $html .= '  }';
     $html .= '}';
     
-    // Main container - A4 LANDSCAPE dimensions
+    // Main container
     $html .= '.pp4-back { ';
     $html .= '  width: 297mm; ';
     $html .= '  height: 210mm; ';
-    $html .= '  padding: 8mm 10mm; ';
+    $html .= '  padding: 6mm 8mm; ';
+    $html .= '  margin: 0 auto; ';
     $html .= '  display: flex; ';
     $html .= '  font-family: Arial, Helvetica, sans-serif; ';
     $html .= '  color: #1a4a7a; ';
@@ -1596,58 +1606,69 @@ private function generatePrePrintedBackPageA4(array $settings): string
     // Terms column - Left side
     $html .= '.pp4-terms-col { ';
     $html .= '  flex: 1; ';
-    $html .= '  padding-right: 8mm; ';
+    $html .= '  padding-right: 6mm; ';
     $html .= '  display: flex; ';
     $html .= '  flex-direction: column; ';
     $html .= '  height: 100%; ';
     $html .= '  overflow: hidden; ';
     $html .= '}';
-    $html .= '.pp4-terms-h { font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 6mm; text-decoration: underline; }';
-    $html .= '.pp4-terms-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }';
-    $html .= '.pp4-tm { font-size: 12px; line-height: 1.5; margin-bottom: 5mm; text-align: justify; }';
+    $html .= '.pp4-terms-h { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 4mm; text-decoration: underline; flex-shrink: 0; }';
+    $html .= '.pp4-terms-content { flex: 1; overflow: hidden; }';
+    $html .= '.pp4-tm { font-size: 9px; line-height: 1.4; margin-bottom: 3mm; text-align: justify; }';
     $html .= '.pp4-notice { ';
     $html .= '  border: 2px solid #1a4a7a; ';
-    $html .= '  padding: 6mm 12mm; ';
-    $html .= '  margin-top: 6mm; ';
+    $html .= '  padding: 4mm 8mm; ';
+    $html .= '  margin-top: auto; ';
     $html .= '  text-align: center; ';
-    $html .= '  font-size: 16px; ';
+    $html .= '  font-size: 12px; ';
     $html .= '  font-weight: bold; ';
-    $html .= '  line-height: 1.4; ';
+    $html .= '  line-height: 1.3; ';
     $html .= '  flex-shrink: 0; ';
     $html .= '}';
     
-    // Redeemer column - Right side
+    // Redeemer column - Right side with border
     $html .= '.pp4-red-col { ';
-    $html .= '  width: 85mm; ';
-    $html .= '  min-width: 85mm; ';
-    $html .= '  border-left: 2px solid #1a4a7a; ';
-    $html .= '  padding: 0 0 0 8mm; ';
+    $html .= '  width: 72mm; ';
+    $html .= '  min-width: 72mm; ';
+    $html .= '  border: 1px solid #1a4a7a; ';
+    $html .= '  padding: 3mm 4mm; ';
     $html .= '  display: flex; ';
     $html .= '  flex-direction: column; ';
     $html .= '  height: 100%; ';
     $html .= '}';
-    $html .= '.pp4-red-h { font-size: 16px; font-weight: bold; text-align: center; padding-bottom: 5mm; margin-bottom: 5mm; border-bottom: 1px solid #1a4a7a; }';
-    $html .= '.pp4-rr { margin-bottom: 10mm; }';
-    $html .= '.pp4-rl { font-size: 12px; font-weight: bold; display: block; margin-bottom: 2mm; }';
-    $html .= '.pp4-rb { min-height: 12mm; border-bottom: 1px solid #1a4a7a; }';
-    $html .= '.pp4-ri { display: flex; gap: 6mm; }';
+    $html .= '.pp4-red-h { font-size: 11px; font-weight: bold; text-align: right; padding-bottom: 2mm; margin-bottom: 2mm; border-bottom: 1px solid #1a4a7a; flex-shrink: 0; }';
+    
+    // Fields - compact
+    $html .= '.pp4-rr { margin-bottom: 4mm; flex-shrink: 0; }';
+    $html .= '.pp4-rl { font-size: 9px; font-weight: bold; display: block; margin-bottom: 1mm; }';
+    $html .= '.pp4-rb { min-height: 6mm; border-bottom: 1px solid #1a4a7a; }';
+    $html .= '.pp4-ri { display: flex; gap: 3mm; }';
     $html .= '.pp4-rh { flex: 1; }';
     
-    // Alamat
-    $html .= '.pp4-alamat { display: flex; flex-direction: column; flex: 1; }';
-    $html .= '.pp4-colons { font-size: 12px; line-height: 2.4; margin-top: 2mm; }';
+    // Alamat section
+    $html .= '.pp4-alamat { flex: 1; display: flex; flex-direction: column; }';
+    $html .= '.pp4-addr-lines { flex: 1; }';
+    $html .= '.pp4-addr-line { border-bottom: 1px solid #1a4a7a; min-height: 5mm; margin-bottom: 2mm; }';
     
-    // Signature section
-    $html .= '.pp4-sig-section { margin-top: auto; padding-top: 6mm; }';
+    // Signature box - bottom right corner
+    $html .= '.pp4-sig-section { ';
+    $html .= '  margin-top: auto; ';
+    $html .= '  padding-top: 3mm; ';
+    $html .= '  flex-shrink: 0; ';
+    $html .= '  display: flex; ';
+    $html .= '  justify-content: flex-end; ';
+    $html .= '}';
     $html .= '.pp4-sig-b { ';
     $html .= '  border: 1px solid #1a4a7a; ';
-    $html .= '  height: 35mm; ';
+    $html .= '  width: 30mm; ';
+    $html .= '  height: 22mm; ';
     $html .= '  display: flex; ';
-    $html .= '  align-items: flex-end; ';
-    $html .= '  justify-content: center; ';
-    $html .= '  padding: 4mm; ';
+    $html .= '  flex-direction: column; ';
+    $html .= '  align-items: center; ';
+    $html .= '  justify-content: flex-end; ';
+    $html .= '  padding: 2mm; ';
     $html .= '}';
-    $html .= '.pp4-sig-l { font-size: 12px; font-weight: bold; text-align: center; color: #666; }';
+    $html .= '.pp4-sig-l { font-size: 7px; text-align: center; color: #1a4a7a; }';
     
     $html .= '</style>';
 
@@ -1661,30 +1682,44 @@ private function generatePrePrintedBackPageA4(array $settings): string
     $html .= '<div class="pp4-notice">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>';
     $html .= '</div>';
 
-    // Redeemer Column (Right)
+    // Redeemer Column (Right) - with border box
     $html .= '<div class="pp4-red-col">';
     $html .= '<div class="pp4-red-h">Butir-butir Penebus</div>';
+    
     $html .= '<div class="pp4-rr"><span class="pp4-rl">No. K/P:</span><div class="pp4-rb"></div></div>';
     $html .= '<div class="pp4-rr"><span class="pp4-rl">Nama :</span><div class="pp4-rb"></div></div>';
     $html .= '<div class="pp4-rr"><span class="pp4-rl">Kerakyatan :</span><div class="pp4-rb"></div></div>';
+    
     $html .= '<div class="pp4-rr">';
     $html .= '  <div class="pp4-ri">';
     $html .= '    <div class="pp4-rh"><span class="pp4-rl">Tahun Lahir :</span><div class="pp4-rb"></div></div>';
     $html .= '    <div class="pp4-rh"><span class="pp4-rl">Umur :</span><div class="pp4-rb"></div></div>';
     $html .= '  </div>';
     $html .= '</div>';
+    
     $html .= '<div class="pp4-rr"><span class="pp4-rl">Jantina :</span><div class="pp4-rb"></div></div>';
     $html .= '<div class="pp4-rr"><span class="pp4-rl">H/P No:</span><div class="pp4-rb"></div></div>';
+    
+    // Alamat with multiple lines
     $html .= '<div class="pp4-rr pp4-alamat">';
     $html .= '  <span class="pp4-rl">Alamat:</span>';
-    $html .= '  <div class="pp4-colons">: ___________________________________<br>: ___________________________________<br>: ___________________________________</div>';
-    $html .= '</div>';
-    $html .= '<div class="pp4-sig-section">';
-    $html .= '  <div class="pp4-sig-b"><span class="pp4-sig-l">Cap Jari / Tandatangan</span></div>';
-    $html .= '</div>';
+    $html .= '  <div class="pp4-addr-lines">';
+    $html .= '    <div class="pp4-addr-line"></div>';
+    $html .= '    <div class="pp4-addr-line"></div>';
+    $html .= '    <div class="pp4-addr-line"></div>';
+    $html .= '  </div>';
     $html .= '</div>';
     
+    // Signature Box - Bottom Right Corner
+    $html .= '<div class="pp4-sig-section">';
+    $html .= '  <div class="pp4-sig-b">';
+    $html .= '    <span class="pp4-sig-l">Cap Jari /<br>Tandatangan</span>';
+    $html .= '  </div>';
     $html .= '</div>';
+    
+    $html .= '</div>';  // End redeemer column
+    
+    $html .= '</div>';  // End main container
 
     return $html;
 }
