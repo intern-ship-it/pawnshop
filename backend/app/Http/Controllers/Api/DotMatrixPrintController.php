@@ -1191,6 +1191,11 @@ HTML;
  * Paper size: 9.5in × 11in (241.3mm × 279.4mm) - printed in LANDSCAPE
  * Actual print area: 279.4mm × 241.3mm
  */
+/**
+ * Generate Pre-Printed Form (A4 LANDSCAPE)
+ * Paper size: A4 Landscape = 297mm × 210mm
+ * For laser printers like RICOH Aficio
+ */
 public function prePrintedFormA4(Request $request): JsonResponse
 {
     try {
@@ -1228,21 +1233,42 @@ public function prePrintedFormA4(Request $request): JsonResponse
             'count' => $count,
             'page' => $page,
             'format' => 'html',
-            'paper_size' => '9.5in x 11in (279.4mm x 241.3mm landscape)',
+            'paper_size' => 'A4 Landscape (297mm x 210mm)',
             'orientation' => 'landscape',
         ]);
 
     } catch (\Exception $e) {
-        \Log::error('Pre-Printed Form 9.5x11 Error: ' . $e->getMessage());
+        \Log::error('Pre-Printed Form A4 Error: ' . $e->getMessage());
         return $this->error('Print error: ' . $e->getMessage(), 500);
     }
 }
 
 /**
- * FRONT PAGE - Pre-Printed Blank Form (9½" × 11" LANDSCAPE)
- * Paper: 241.3mm × 279.4mm (portrait dimensions)
- * Print: 279.4mm × 241.3mm (landscape - rotated)
- * FIXED: Content fits within 241.3mm height
+ * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+ * Paper: A4 Landscape = 297mm (width) × 210mm (height)
+ * For laser printers like RICOH Aficio
+ */
+
+
+
+
+
+/**
+ * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+ * Paper: A4 Landscape = 297mm (width) × 210mm (height)
+ * For laser printers like RICOH Aficio
+ */
+/**
+ * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+ * Paper: A4 Landscape = 297mm (width) × 210mm (height)
+ * For laser printers like RICOH Aficio
+ * FIXED: Proper landscape orientation + footer visible
+ */
+
+/**
+ * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+ * FORCED LANDSCAPE: width 297mm > height 210mm
+ * For laser printers like RICOH Aficio
  */
 private function generatePrePrintedFrontPageA4(array $settings): string
 {
@@ -1269,20 +1295,17 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     if ($chineseName) $multiName .= $chineseName . ' ';
     if ($tamilName) $multiName .= $tamilName;
 
-    // 9½" × 11" LANDSCAPE = 279.4mm (width) × 241.3mm (height)
-    // Content must fit within 241.3mm height with margins
-    // Usable height: ~229mm (241.3 - 12mm margins)
-    
     $html = '<style>';
     
-    // Page setup - LANDSCAPE with explicit dimensions
-    $html .= '@page { size: 279.4mm 241.3mm; margin: 0; }';
+    // FORCE LANDSCAPE: Explicit dimensions (width > height)
+    // This tells the browser to use landscape orientation
+    $html .= '@page { size: 297mm 210mm; margin: 0; }';
     
     // Print media styles
     $html .= '@media print { ';
     $html .= '  html, body { ';
-    $html .= '    width: 279.4mm !important; ';
-    $html .= '    height: 241.3mm !important; ';
+    $html .= '    width: 297mm !important; ';
+    $html .= '    height: 210mm !important; ';
     $html .= '    margin: 0 !important; ';
     $html .= '    padding: 0 !important; ';
     $html .= '    overflow: hidden !important; ';
@@ -1290,99 +1313,118 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     $html .= '    print-color-adjust: exact !important; ';
     $html .= '  }';
     $html .= '  .pp4-front { ';
+    $html .= '    width: 297mm !important; ';
+    $html .= '    height: 210mm !important; ';
     $html .= '    page-break-after: always; ';
+    $html .= '    margin: 0 auto !important; ';  // ← ADD THIS LINE
     $html .= '    break-after: page; ';
     $html .= '    page-break-inside: avoid; ';
     $html .= '  }';
     $html .= '}';
     
-    // Main container - FIXED HEIGHT to fit on page
+    // Main container - LANDSCAPE: 297mm (width) × 210mm (height)
     $html .= '.pp4-front { ';
-    $html .= '  width: 279.4mm; ';
-    $html .= '  height: 241.3mm; ';  // Exact page height
-    $html .= '  padding: 5mm 6mm; ';  // Reduced padding
+    $html .= '  width: 297mm; ';
+    $html .= '  height: 210mm; ';
+    $html .= '  padding: 6mm 8mm; ';
+    $html .= '  margin: 0 auto; '; 
     $html .= '  font-family: Arial, Helvetica, sans-serif; ';
     $html .= '  color: #1a4a7a; ';
     $html .= '  background: #fff !important; ';
-    $html .= '  overflow: hidden; ';  // Prevent overflow
+    $html .= '  overflow: hidden; ';
     $html .= '  box-sizing: border-box; ';
     $html .= '  page-break-after: always; ';
     $html .= '  break-after: page; ';
+    $html .= '  display: flex; ';
+    $html .= '  flex-direction: column; ';
     $html .= '}';
     $html .= '.pp4-front * { box-sizing: border-box; margin: 0; padding: 0; }';
     
     // Header - Compact
-    $html .= '.pp4-hdr { display: flex; align-items: flex-start; padding-bottom: 2mm; border-bottom: 1.5px solid #1a4a7a; }';
-    $html .= '.pp4-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 3mm; }';
-    $html .= '.pp4-logo { width: 16mm; height: 16mm; object-fit: contain; flex-shrink: 0; }';
+    $html .= '.pp4-hdr { display: flex; align-items: flex-start; padding-bottom: 3mm; flex-shrink: 0; }';
+    $html .= '.pp4-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 4mm; }';
+    $html .= '.pp4-logo { width: 18mm; height: 18mm; object-fit: contain; flex-shrink: 0; }';
     $html .= '.pp4-co-info { flex: 1; }';
-    $html .= '.pp4-co-name { font-size: 22px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }';
-    $html .= '.pp4-co-multi { font-size: 16px; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }';
-    $html .= '.pp4-co-addr { font-size: 9px; color: #1a4a7a; margin-top: 1mm; }';
-    $html .= '.pp4-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 55mm; }';
+    $html .= '.pp4-co-name { font-size: 24px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }';
+    $html .= '.pp4-co-multi { font-size: 18px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }';
+    $html .= '.pp4-co-addr { font-size: 10px; color: #1a4a7a; margin-top: 1mm; }';
+    $html .= '.pp4-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 65mm; }';
     $html .= '.pp4-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }';
-    $html .= '.pp4-phone-box { background: #d42027; color: #fff; padding: 1.5mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 1.5mm; }';
-    $html .= '.pp4-phone-icon { font-size: 10px; color: #d42027; background: #fff; border-radius: 50%; width: 5mm; height: 5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }';
-    $html .= '.pp4-phone-nums { font-size: 9px; font-weight: bold; line-height: 1.2; }';
-    $html .= '.pp4-sejak { background: #d42027; color: #fff; width: 12mm; height: 12mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }';
+    $html .= '.pp4-phone-box { background: #d42027; color: #fff; padding: 1.5mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 2mm; }';
+    $html .= '.pp4-phone-icon { font-size: 12px; color: #d42027; background: #fff; border-radius: 50%; width: 5mm; height: 5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }';
+    $html .= '.pp4-phone-nums { font-size: 10px; font-weight: bold; line-height: 1.2; }';
+    $html .= '.pp4-sejak { background: #d42027; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }';
     $html .= '.pp4-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }';
-    $html .= '.pp4-sejak-yr { font-size: 9px; font-weight: bold; line-height: 1; }';
-    $html .= '.pp4-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 3mm; width: 55mm; text-align: center; }';
-    $html .= '.pp4-hrs-title { font-size: 10px; font-weight: bold; }';
-    $html .= '.pp4-hrs-line { font-size: 7px; font-weight: bold; line-height: 1.2; color: #1a4a7a; }';
+    $html .= '.pp4-sejak-yr { font-size: 10px; font-weight: bold; line-height: 1; }';
+    $html .= '.pp4-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 3mm; width: 65mm; text-align: center; }';
+    $html .= '.pp4-hrs-title { font-size: 11px; font-weight: bold; }';
+    $html .= '.pp4-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.2; color: #1a4a7a; }';
     
-    // Middle section - Items and Right column
-    $html .= '.pp4-mid { display: flex; border: 1.5px solid #1a4a7a; margin-top: 2mm; }';
-    $html .= '.pp4-items-sec { flex: 1; padding: 3mm 4mm; border-right: 1.5px solid #1a4a7a; }';
-    $html .= '.pp4-items-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; }';
-    $html .= '.pp4-items-area { min-height: 50mm; max-height: 55mm; padding-left: 3mm; overflow: hidden; }';  // Limited height
-    $html .= '.pp4-rcol { width: 55mm; min-width: 55mm; }';
-    $html .= '.pp4-tkt-box { background: #f5c518; padding: 2mm; border-bottom: 1.5px solid #1a4a7a; }';
-    $html .= '.pp4-tkt-lbl { font-size: 9px; font-weight: bold; color: #000; }';
+    // Middle section
+    $html .= '.pp4-mid { display: flex; border: 1px solid #1a4a7a; margin-top: 2mm; flex-shrink: 0; }';
+    $html .= '.pp4-items-sec { flex: 1; padding: 2mm 4mm; border-right: 1px solid #1a4a7a; }';
+    $html .= '.pp4-items-title { font-size: 11px; font-weight: bold; margin-bottom: 1mm; }';
+    $html .= '.pp4-items-area { min-height: 35mm; max-height: 42mm; padding-left: 3mm; overflow: hidden; }';
+    $html .= '.pp4-rcol { width: 65mm; min-width: 65mm; }';
+    $html .= '.pp4-tkt-box { background: #f5c518; padding: 2mm; border-bottom: 1px solid #1a4a7a; }';
+    $html .= '.pp4-tkt-lbl { font-size: 10px; font-weight: bold; color: #000; }';
     $html .= '.pp4-tkt-space { min-height: 12mm; }';
-    $html .= '.pp4-rate-row { display: flex; border-bottom: 1.5px solid #1a4a7a; }';
+    $html .= '.pp4-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }';
     $html .= '.pp4-rate-cell { flex: 1; padding: 2mm; text-align: center; }';
-    $html .= '.pp4-rate-lbl { font-size: 7px; font-weight: bold; color: #1a4a7a; }';
-    $html .= '.pp4-rate-val { font-size: 12px; font-weight: bold; color: #1a4a7a; }';
-    $html .= '.pp4-rate-big { font-size: 14px; }';
+    $html .= '.pp4-rate-lbl { font-size: 8px; font-weight: bold; color: #1a4a7a; }';
+    $html .= '.pp4-rate-val { font-size: 13px; font-weight: bold; color: #1a4a7a; }';
+    $html .= '.pp4-rate-big { font-size: 16px; }';
     $html .= '.pp4-kadar { padding: 2mm 3mm; }';
-    $html .= '.pp4-kadar-title { font-size: 8px; font-weight: bold; color: #1a4a7a; text-align: center !important; margin-bottom: 1mm; }';
-    $html .= '.pp4-kadar-ln { font-size: 7px; color: #1a4a7a; line-height: 1.5; text-align: left; }';
+    $html .= '.pp4-kadar-title { font-size: 9px; font-weight: bold; color: #1a4a7a; text-align: center !important; margin-bottom: 1mm; }';
+    $html .= '.pp4-kadar-ln { font-size: 8px; color: #1a4a7a; line-height: 1.5; text-align: left; }';
     
-    // Customer section - Compact
-    $html .= '.pp4-cust-title-row { display: flex; font-size: 10px; font-weight: bold; padding: 2mm 0; margin-top: 2mm; }';
+    // Customer section
+    $html .= '.pp4-cust-title-row { display: flex; font-size: 11px; font-weight: bold; padding: 1.5mm 0; margin-top: 1.5mm; flex-shrink: 0; }';
     $html .= '.pp4-cust-title-left { flex: 1; }';
-    $html .= '.pp4-cust-box { border: 1.5px solid #d42027; padding: 3mm 4mm; min-height: 38mm; }';  // Reduced height
-    $html .= '.pp4-cust-row { display: flex; align-items: baseline; margin-bottom: 4mm; font-size: 10px; font-weight: bold; }';
+    $html .= '.pp4-cust-box { border: 1px solid #d42027; padding: 2mm 4mm; flex-shrink: 0; }';
+    $html .= '.pp4-cust-row { display: flex; align-items: baseline; margin-bottom: 2.5mm; font-size: 11px; font-weight: bold; }';
     $html .= '.pp4-cust-row:last-child { margin-bottom: 0; }';
     $html .= '.pp4-cust-col { display: flex; align-items: baseline; flex: 1; }';
-    $html .= '.pp4-cust-lbl { white-space: nowrap; min-width: 22mm; flex-shrink: 0; font-size: 9px; }';
-    $html .= '.pp4-cust-val { flex: 1; min-height: 5mm; margin-right: 4mm; border-bottom: 0.5px dotted #999; }';
+    $html .= '.pp4-cust-lbl { white-space: nowrap; min-width: 25mm; flex-shrink: 0; font-size: 10px; }';
+    $html .= '.pp4-cust-val { flex: 1; min-height: 5mm; margin-right: 4mm; }';
     $html .= '.pp4-cust-col:last-child .pp4-cust-val { margin-right: 0; }';
     $html .= '.pp4-cust-row.full-width .pp4-cust-val { margin-right: 0; }';
     
-    // Amount section - Compact
-    $html .= '.pp4-amt-row { border: 1.5px solid #d42027; border-bottom: none; padding: 2mm 4mm; display: flex; align-items: baseline; gap: 3mm; }';
-    $html .= '.pp4-amt-lbl { font-size: 10px; font-weight: bold; }';
+    // Amount section
+    $html .= '.pp4-amt-row { border: 1px solid #d42027; border-bottom: none; padding: 1.5mm 4mm; display: flex; align-items: baseline; gap: 3mm; flex-shrink: 0; }';
+    $html .= '.pp4-amt-lbl { font-size: 11px; font-weight: bold; }';
     
     // Bottom row
-    $html .= '.pp4-bot { display: flex; border: 1.5px solid #d42027; }';
-    $html .= '.pp4-pin-cell { flex: 1; padding: 2mm 4mm; display: flex; align-items: baseline; gap: 2mm; border-right: 2px solid #d42027; }';
-    $html .= '.pp4-pin-lbl { font-size: 10px; }';
-    $html .= '.pp4-pin-rm { font-size: 14px; font-weight: bold; }';
-    $html .= '.pp4-pin-sp { flex: 1; min-height: 6mm; border-bottom: 0.5px dotted #999; }';
-    $html .= '.pp4-pin-stars { font-size: 14px; font-weight: bold; }';
-    $html .= '.pp4-dt-cell { width: 32mm; text-align: center; padding: 2mm; border-right: 2px solid #d42027; }';
+    $html .= '.pp4-bot { display: flex; border: 1px solid #d42027; flex-shrink: 0; }';
+    $html .= '.pp4-pin-cell { flex: 1; padding: 2mm 4mm; display: flex; align-items: baseline; gap: 2mm; border-right: 1px solid #d42027; }';
+    $html .= '.pp4-pin-lbl { font-size: 11px; }';
+    $html .= '.pp4-pin-rm { font-size: 16px; font-weight: bold; }';
+    $html .= '.pp4-pin-sp { flex: 1; min-height: 6mm; }';
+    $html .= '.pp4-pin-stars { font-size: 16px; font-weight: bold; }';
+    $html .= '.pp4-dt-cell { width: 38mm; text-align: center; padding: 2mm; border-right: 1px solid #d42027; }';
     $html .= '.pp4-dt-cell:last-child { border-right: none; }';
-    $html .= '.pp4-dt-lbl { font-size: 7px; font-weight: bold; }';
+    $html .= '.pp4-dt-lbl { font-size: 8px; font-weight: bold; }';
     $html .= '.pp4-dt-sp { min-height: 6mm; }';
     $html .= '.pp4-dt-yel { background: #f5c518; }';
     
-    // Footer - Compact
-    $html .= '.pp4-ftr { font-size: 7px; line-height: 1.4; margin-top: 2mm; display: flex; justify-content: space-between; align-items: flex-end; }';
+    // Footer - MUST BE VISIBLE
+    $html .= '.pp4-ftr { ';
+    $html .= '  font-size: 8px; ';
+    $html .= '  line-height: 1.4; ';
+    $html .= '  margin-top: 3mm; ';
+    $html .= '  padding-top: 2mm; ';
+    $html .= '  display: flex; ';
+    $html .= '  justify-content: space-between; ';
+    $html .= '  align-items: flex-end; ';
+    $html .= '  flex-shrink: 0; ';
+    $html .= '}';
     $html .= '.pp4-ftr-left { flex: 1; }';
-    $html .= '.pp4-ftr-right { text-align: right; font-size: 7px; }';
-    $html .= '.pp4-gm-box { display: inline-block; text-align: center; font-size: 7px; line-height: 1.1; min-width: 10mm; vertical-align: top; }';
+    $html .= '.pp4-ftr-right { display: flex; align-items: flex-end; gap: 2mm; text-align: right; }';
+    $html .= '.pp4-ftr-label { font-size: 7px; line-height: 1.2; text-align: right; }';
+    $html .= '.pp4-ftr-berat { font-size: 9px; font-weight: bold; }';
+    $html .= '.pp4-gm-box { border: 1px solid #1a4a7a; width: 18mm; height: 12mm; display: inline-flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 1mm; text-align: center; }';
+    $html .= '.pp4-gm-label { font-size: 7px; }';
+    $html .= '.pp4-gm-lu { font-size: 9px; font-weight: bold; }';
     
     $html .= '</style>';
 
@@ -1446,26 +1488,26 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     $html .= '</div>';
 
     // Footer
-    $html .= '<div class="pp4-ftr"><div class="pp4-ftr-left">';
+    $html .= '<div class="pp4-ftr">';
+    $html .= '<div class="pp4-ftr-left">';
     $html .= '<div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>';
     $html .= '<div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>';
-    $html .= '</div><div class="pp4-ftr-right"><span style="font-size:6px;vertical-align:super;">Termasuk Emas, Batu<br>dan lain-lain</span> Berat : <div class="pp4-gm-box">(gm)<br><br>L U</div></div></div>';
+    $html .= '</div>';
+    $html .= '<div class="pp4-ftr-right">';
+    $html .= '<div class="pp4-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>';
+    $html .= '<div class="pp4-ftr-berat">Berat :</div>';
+    $html .= '<div class="pp4-gm-box"><span class="pp4-gm-label">(gm)</span><span class="pp4-gm-lu">L U</span></div>';
+    $html .= '</div>';
+    $html .= '</div>';
 
     $html .= '</div>';
 
     return $html;
 }
-
 /**
- * BACK PAGE - Pre-Printed Blank Form (9½" × 11" LANDSCAPE)
- * Paper: 241.3mm × 279.4mm (portrait dimensions)
- * Print: 279.4mm × 241.3mm (landscape - rotated)
- * FIXED: Content fits within 241.3mm height
- */
-
-/**
- * BACK PAGE - Pre-Printed Blank Form (9½" × 11" LANDSCAPE)
- * FIXED: Larger fonts to fill space, removed barcode area
+ * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+ * Paper: A4 Landscape = 297mm (width) × 210mm (height)
+ * For laser printers like RICOH Aficio
  */
 private function generatePrePrintedBackPageA4(array $settings): string
 {
@@ -1511,16 +1553,17 @@ private function generatePrePrintedBackPageA4(array $settings): string
         $termsHtml .= '<div class="pp4-tm"><b>' . $num . '.</b> ' . $content . '</div>';
     }
 
+    // A4 LANDSCAPE = 297mm (width) × 210mm (height)
     $html = '<style>';
     
-    // Page setup
-    $html .= '@page { size: 279.4mm 241.3mm; margin: 0; }';
+    // Page setup - A4 LANDSCAPE
+    $html .= '@page { size: A4 landscape; margin: 0; }';
     
     // Print media styles
     $html .= '@media print { ';
     $html .= '  html, body { ';
-    $html .= '    width: 279.4mm !important; ';
-    $html .= '    height: 241.3mm !important; ';
+    $html .= '    width: 297mm !important; ';
+    $html .= '    height: 210mm !important; ';
     $html .= '    margin: 0 !important; ';
     $html .= '    padding: 0 !important; ';
     $html .= '    overflow: hidden !important; ';
@@ -1534,11 +1577,11 @@ private function generatePrePrintedBackPageA4(array $settings): string
     $html .= '  }';
     $html .= '}';
     
-    // Main container
+    // Main container - A4 LANDSCAPE dimensions
     $html .= '.pp4-back { ';
-    $html .= '  width: 279.4mm; ';
-    $html .= '  height: 241.3mm; ';
-    $html .= '  padding: 5mm 6mm; ';
+    $html .= '  width: 297mm; ';
+    $html .= '  height: 210mm; ';
+    $html .= '  padding: 8mm 10mm; ';
     $html .= '  display: flex; ';
     $html .= '  font-family: Arial, Helvetica, sans-serif; ';
     $html .= '  color: #1a4a7a; ';
@@ -1553,21 +1596,21 @@ private function generatePrePrintedBackPageA4(array $settings): string
     // Terms column - Left side
     $html .= '.pp4-terms-col { ';
     $html .= '  flex: 1; ';
-    $html .= '  padding-right: 6mm; ';
+    $html .= '  padding-right: 8mm; ';
     $html .= '  display: flex; ';
     $html .= '  flex-direction: column; ';
     $html .= '  height: 100%; ';
     $html .= '  overflow: hidden; ';
     $html .= '}';
-    $html .= '.pp4-terms-h { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5mm; text-decoration: underline; }';  // INCREASED from 14px
+    $html .= '.pp4-terms-h { font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 6mm; text-decoration: underline; }';
     $html .= '.pp4-terms-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }';
-    $html .= '.pp4-tm { font-size: 11px; line-height: 1.5; margin-bottom: 4mm; text-align: justify; }';  // INCREASED from 8px
+    $html .= '.pp4-tm { font-size: 12px; line-height: 1.5; margin-bottom: 5mm; text-align: justify; }';
     $html .= '.pp4-notice { ';
     $html .= '  border: 2px solid #1a4a7a; ';
-    $html .= '  padding: 5mm 10mm; ';  // INCREASED padding
-    $html .= '  margin-top: 5mm; ';
+    $html .= '  padding: 6mm 12mm; ';
+    $html .= '  margin-top: 6mm; ';
     $html .= '  text-align: center; ';
-    $html .= '  font-size: 14px; ';  // INCREASED from 11px
+    $html .= '  font-size: 16px; ';
     $html .= '  font-weight: bold; ';
     $html .= '  line-height: 1.4; ';
     $html .= '  flex-shrink: 0; ';
@@ -1575,36 +1618,36 @@ private function generatePrePrintedBackPageA4(array $settings): string
     
     // Redeemer column - Right side
     $html .= '.pp4-red-col { ';
-    $html .= '  width: 75mm; ';  // INCREASED from 70mm
-    $html .= '  min-width: 75mm; ';
-    $html .= '  border-left: 1.5px solid #1a4a7a; ';
-    $html .= '  padding: 0 0 0 5mm; ';
+    $html .= '  width: 85mm; ';
+    $html .= '  min-width: 85mm; ';
+    $html .= '  border-left: 2px solid #1a4a7a; ';
+    $html .= '  padding: 0 0 0 8mm; ';
     $html .= '  display: flex; ';
     $html .= '  flex-direction: column; ';
     $html .= '  height: 100%; ';
     $html .= '}';
-    $html .= '.pp4-red-h { font-size: 14px; font-weight: bold; text-align: center; padding-bottom: 4mm; margin-bottom: 4mm; border-bottom: 1px solid #1a4a7a; }';  // INCREASED from 11px
-    $html .= '.pp4-rr { margin-bottom: 8mm; }';  // INCREASED from 5mm
-    $html .= '.pp4-rl { font-size: 11px; font-weight: bold; display: block; margin-bottom: 2mm; }';  // INCREASED from 9px
-    $html .= '.pp4-rb { min-height: 10mm; border-bottom: 1px solid #1a4a7a; }';  // INCREASED from 7mm
-    $html .= '.pp4-ri { display: flex; gap: 5mm; }';
+    $html .= '.pp4-red-h { font-size: 16px; font-weight: bold; text-align: center; padding-bottom: 5mm; margin-bottom: 5mm; border-bottom: 1px solid #1a4a7a; }';
+    $html .= '.pp4-rr { margin-bottom: 10mm; }';
+    $html .= '.pp4-rl { font-size: 12px; font-weight: bold; display: block; margin-bottom: 2mm; }';
+    $html .= '.pp4-rb { min-height: 12mm; border-bottom: 1px solid #1a4a7a; }';
+    $html .= '.pp4-ri { display: flex; gap: 6mm; }';
     $html .= '.pp4-rh { flex: 1; }';
     
     // Alamat
     $html .= '.pp4-alamat { display: flex; flex-direction: column; flex: 1; }';
-    $html .= '.pp4-colons { font-size: 11px; line-height: 2.2; margin-top: 2mm; }';  // INCREASED from 9px
+    $html .= '.pp4-colons { font-size: 12px; line-height: 2.4; margin-top: 2mm; }';
     
     // Signature section
-    $html .= '.pp4-sig-section { margin-top: auto; padding-top: 5mm; }';
+    $html .= '.pp4-sig-section { margin-top: auto; padding-top: 6mm; }';
     $html .= '.pp4-sig-b { ';
     $html .= '  border: 1px solid #1a4a7a; ';
-    $html .= '  height: 30mm; ';  // INCREASED from 22mm
+    $html .= '  height: 35mm; ';
     $html .= '  display: flex; ';
     $html .= '  align-items: flex-end; ';
     $html .= '  justify-content: center; ';
-    $html .= '  padding: 3mm; ';
+    $html .= '  padding: 4mm; ';
     $html .= '}';
-    $html .= '.pp4-sig-l { font-size: 10px; font-weight: bold; text-align: center; color: #666; }';  // INCREASED from 8px
+    $html .= '.pp4-sig-l { font-size: 12px; font-weight: bold; text-align: center; color: #666; }';
     
     $html .= '</style>';
 
@@ -1636,7 +1679,6 @@ private function generatePrePrintedBackPageA4(array $settings): string
     $html .= '  <span class="pp4-rl">Alamat:</span>';
     $html .= '  <div class="pp4-colons">: ___________________________________<br>: ___________________________________<br>: ___________________________________</div>';
     $html .= '</div>';
-    // REMOVED: Barcode area
     $html .= '<div class="pp4-sig-section">';
     $html .= '  <div class="pp4-sig-b"><span class="pp4-sig-l">Cap Jari / Tandatangan</span></div>';
     $html .= '</div>';

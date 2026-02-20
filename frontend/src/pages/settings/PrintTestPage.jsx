@@ -1237,7 +1237,7 @@ export default function PrintTestPage() {
     }
   };
 
-  // Open A4 pre-printed form print window - UPDATED FOR 9.5" x 11" LANDSCAPE
+  // Open A4 pre-printed form print window
   const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page) => {
     const printWindow = window.open("", "_blank", "width=1100,height=900");
     if (!printWindow) {
@@ -1268,56 +1268,69 @@ export default function PrintTestPage() {
     <html lang="ms">
     <head>
       <meta charset="UTF-8">
-      <title>Pre-Printed Form 9½×11 - ${count} sets (${pageLabel})</title>
+      <title>Pre-Printed Form A4 LANDSCAPE - ${count} sets (${pageLabel})</title>
       <style>
         /* Control Panel Styles */
-        body { background: #c8c8c8; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        body { background: #1f2937; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
         .ctrl {
-          text-align: center; padding: 16px 20px; background: #1a1a2e; margin-bottom: 20px;
-          border-radius: 10px; position: sticky; top: 0; z-index: 100;
+          text-align: center; padding: 16px 20px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); 
+          margin-bottom: 20px; border-radius: 10px; position: sticky; top: 0; z-index: 100;
           box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
-        .ctrl h2 { color: #f59e0b; margin: 0 0 8px 0; font-size: 18px; }
-        .ctrl p { color: #9ca3af; margin: 4px 0; font-size: 13px; }
+        .ctrl h2 { color: #fff; margin: 0 0 8px 0; font-size: 18px; }
+        .ctrl p { color: rgba(255,255,255,0.8); margin: 4px 0; font-size: 13px; }
         .ctrl .highlight { color: #fbbf24; font-weight: bold; }
+        .ctrl .warning { 
+          background: #fbbf24; color: #000; padding: 8px 15px; border-radius: 6px; 
+          margin: 10px 0; font-weight: bold; font-size: 14px;
+        }
         
         .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
         .ctrl button {
           padding: 12px 24px; font-size: 14px; cursor: pointer; border: none;
           border-radius: 8px; font-weight: bold; transition: all 0.2s;
         }
-        .ctrl .pr { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #000; }
-        .ctrl .pr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245,158,11,0.4); }
+        .ctrl .pr { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; }
+        .ctrl .pr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
         .ctrl .front-btn { background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); color: #fff; }
         .ctrl .back-btn { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: #fff; }
         .ctrl .cl { background: #4b5563; color: #fff; }
         
+        .instructions {
+          background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; margin-top: 15px;
+          text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;
+        }
+        .instructions h4 { color: #fbbf24; margin: 0 0 8px 0; font-size: 14px; }
+        .instructions ol { color: #e5e7eb; margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.6; }
+        .instructions li { margin-bottom: 4px; }
+        .instructions strong { color: #4ade80; }
+        
         .plabel {
-          text-align: center; font-size: 12px; color: #374151;
+          text-align: center; font-size: 12px; color: #9ca3af;
           margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
         }
         .pw {
-          max-width: 279.4mm; margin: 0 auto 25px;
+          width: 297mm; max-width: 297mm; margin: 0 auto 25px;
           box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-          border-radius: 4px; overflow: hidden;
+          border-radius: 4px; overflow: hidden; background: #fff;
         }
 
-        /* Print Styles - 9.5" x 11" LANDSCAPE */
+        /* Print Styles - A4 LANDSCAPE */
         @page { 
-          size: 279.4mm 241.3mm;  /* 11" x 9.5" LANDSCAPE */
+          size: 297mm 210mm;
           margin: 0; 
         }
         @media print {
           html, body { 
-            width: 279.4mm !important; 
-            height: 241.3mm !important; 
+            width: 297mm !important; 
+            height: 210mm !important; 
             margin: 0 !important; 
             padding: 0 !important;
             background: #fff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .ctrl, .plabel { display: none !important; }
+          .ctrl, .plabel, .instructions { display: none !important; }
           .pw { 
             box-shadow: none !important; 
             max-width: none !important; 
@@ -1329,16 +1342,29 @@ export default function PrintTestPage() {
     </head>
     <body>
       <div class="ctrl">
-        <h2>📝 Pre-Printed Blank Form (9½" × 11" LANDSCAPE)</h2>
+        <h2>📄 Pre-Printed Blank Form (A4 LANDSCAPE)</h2>
         <p><span class="highlight">${count} set(s)</span> — ${pageLabel}</p>
-        <p>Paper: 9.5" × 11" (241.3mm × 279.4mm) | Orientation: LANDSCAPE</p>
-        <p style="color: #fbbf24; margin-top: 8px;">⚠️ Make sure printer is set to: <strong>9½×11</strong> or <strong>Custom (279.4mm × 241.3mm)</strong></p>
+        
+        <div class="warning">
+          ⚠️ IMPORTANT: Select <strong>LANDSCAPE</strong> orientation in print dialog!
+        </div>
         
         <div class="btn-row">
           ${hasFront && hasBack ? `<button class="pr" onclick="printAll()">🖨️ Print All (${frontPages + backPages} pages)</button>` : ""}
           ${hasFront ? `<button class="front-btn" onclick="printFront()">📄 Print FRONT (${frontPages} pages)</button>` : ""}
           ${hasBack ? `<button class="back-btn" onclick="printBack()">📋 Print BACK (${backPages} pages)</button>` : ""}
           <button class="cl" onclick="window.close()">✕ Close</button>
+        </div>
+        
+        <div class="instructions">
+          <h4>📋 Print Settings:</h4>
+          <ol>
+            <li>Paper size: <strong>A4</strong></li>
+            <li>Orientation: <strong>LANDSCAPE</strong> ← Very Important!</li>
+            <li>Margins: <strong>None</strong></li>
+            <li>Scale: <strong>100%</strong> (not "Fit to page")</li>
+            <li>Background graphics: <strong>ON</strong> (for colors)</li>
+          </ol>
         </div>
       </div>
 
