@@ -1186,303 +1186,466 @@ HTML;
         }
     }
 
-    /**
-     * Generate Pre-Printed Form A4 (Blank Template)
-     * Paper size: 9.5in x 11in (241.3mm x 279.4mm)
-     */
-    public function prePrintedFormA4(Request $request): JsonResponse
-    {
-        try {
-            $validated = $request->validate([
-                'count' => 'sometimes|integer|min:1|max:50',
-                'page' => 'sometimes|in:front,back,both',
-            ]);
+/**
+ * Generate Pre-Printed Form (9½" × 11" LANDSCAPE)
+ * Paper size: 9.5in × 11in (241.3mm × 279.4mm) - printed in LANDSCAPE
+ * Actual print area: 279.4mm × 241.3mm
+ */
+public function prePrintedFormA4(Request $request): JsonResponse
+{
+    try {
+        $validated = $request->validate([
+            'count' => 'sometimes|integer|min:1|max:50',
+            'page' => 'sometimes|in:front,back,both',
+        ]);
 
-            $count = $validated['count'] ?? 1;
-            $page = $validated['page'] ?? 'both';
+        $count = $validated['count'] ?? 1;
+        $page = $validated['page'] ?? 'both';
 
-            $branch = $request->user()->branch;
-            $settings = $this->getCompanySettings($branch);
+        $branch = $request->user()->branch;
+        $settings = $this->getCompanySettings($branch);
 
-            $frontHtml = '';
-            $backHtml = '';
+        $frontHtml = '';
+        $backHtml = '';
 
-            if ($page === 'front' || $page === 'both') {
-                $frontHtml = $this->generatePrePrintedFrontPageA4($settings);
-            }
-            if ($page === 'back' || $page === 'both') {
-                $backHtml = $this->generatePrePrintedBackPageA4($settings);
-            }
-
-            $bulkFrontHtml = '';
-            $bulkBackHtml = '';
-            for ($i = 0; $i < $count; $i++) {
-                if ($frontHtml) $bulkFrontHtml .= $frontHtml;
-                if ($backHtml) $bulkBackHtml .= $backHtml;
-            }
-
-            return $this->success([
-                'front_html' => $bulkFrontHtml,
-                'back_html' => $bulkBackHtml,
-                'count' => $count,
-                'page' => $page,
-                'format' => 'html',
-                'paper_size' => '9.5in x 11in',
-                'orientation' => 'portrait',
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Pre-Printed Form A4 Error: ' . $e->getMessage());
-            return $this->error('Print error: ' . $e->getMessage(), 500);
+        if ($page === 'front' || $page === 'both') {
+            $frontHtml = $this->generatePrePrintedFrontPageA4($settings);
         }
+        if ($page === 'back' || $page === 'both') {
+            $backHtml = $this->generatePrePrintedBackPageA4($settings);
+        }
+
+        $bulkFrontHtml = '';
+        $bulkBackHtml = '';
+        for ($i = 0; $i < $count; $i++) {
+            if ($frontHtml) $bulkFrontHtml .= $frontHtml;
+            if ($backHtml) $bulkBackHtml .= $backHtml;
+        }
+
+        return $this->success([
+            'front_html' => $bulkFrontHtml,
+            'back_html' => $bulkBackHtml,
+            'count' => $count,
+            'page' => $page,
+            'format' => 'html',
+            'paper_size' => '9.5in x 11in (279.4mm x 241.3mm landscape)',
+            'orientation' => 'landscape',
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Pre-Printed Form 9.5x11 Error: ' . $e->getMessage());
+        return $this->error('Print error: ' . $e->getMessage(), 500);
+    }
+}
+
+/**
+ * FRONT PAGE - Pre-Printed Blank Form (9½" × 11" LANDSCAPE)
+ * Paper: 241.3mm × 279.4mm (portrait dimensions)
+ * Print: 279.4mm × 241.3mm (landscape - rotated)
+ * FIXED: Content fits within 241.3mm height
+ */
+private function generatePrePrintedFrontPageA4(array $settings): string
+{
+    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.');
+    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)');
+    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?? '');
+    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?? '');
+    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.');
+    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480');
+    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562');
+    $estYear = htmlspecialchars($settings['established_year'] ?? '1966');
+    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday');
+    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM');
+    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN');
+    $logoUrl = $settings['logo_url'] ?? null;
+
+    $phoneHtml = $phone1;
+    if ($phone2) { $phoneHtml .= '<br>' . $phone2; }
+
+    $logoHtml = '';
+    if ($logoUrl) { $logoHtml = '<img src="' . htmlspecialchars($logoUrl) . '" class="pp4-logo" alt="Logo">'; }
+
+    $multiName = '';
+    if ($chineseName) $multiName .= $chineseName . ' ';
+    if ($tamilName) $multiName .= $tamilName;
+
+    // 9½" × 11" LANDSCAPE = 279.4mm (width) × 241.3mm (height)
+    // Content must fit within 241.3mm height with margins
+    // Usable height: ~229mm (241.3 - 12mm margins)
+    
+    $html = '<style>';
+    
+    // Page setup - LANDSCAPE with explicit dimensions
+    $html .= '@page { size: 279.4mm 241.3mm; margin: 0; }';
+    
+    // Print media styles
+    $html .= '@media print { ';
+    $html .= '  html, body { ';
+    $html .= '    width: 279.4mm !important; ';
+    $html .= '    height: 241.3mm !important; ';
+    $html .= '    margin: 0 !important; ';
+    $html .= '    padding: 0 !important; ';
+    $html .= '    overflow: hidden !important; ';
+    $html .= '    -webkit-print-color-adjust: exact !important; ';
+    $html .= '    print-color-adjust: exact !important; ';
+    $html .= '  }';
+    $html .= '  .pp4-front { ';
+    $html .= '    page-break-after: always; ';
+    $html .= '    break-after: page; ';
+    $html .= '    page-break-inside: avoid; ';
+    $html .= '  }';
+    $html .= '}';
+    
+    // Main container - FIXED HEIGHT to fit on page
+    $html .= '.pp4-front { ';
+    $html .= '  width: 279.4mm; ';
+    $html .= '  height: 241.3mm; ';  // Exact page height
+    $html .= '  padding: 5mm 6mm; ';  // Reduced padding
+    $html .= '  font-family: Arial, Helvetica, sans-serif; ';
+    $html .= '  color: #1a4a7a; ';
+    $html .= '  background: #fff !important; ';
+    $html .= '  overflow: hidden; ';  // Prevent overflow
+    $html .= '  box-sizing: border-box; ';
+    $html .= '  page-break-after: always; ';
+    $html .= '  break-after: page; ';
+    $html .= '}';
+    $html .= '.pp4-front * { box-sizing: border-box; margin: 0; padding: 0; }';
+    
+    // Header - Compact
+    $html .= '.pp4-hdr { display: flex; align-items: flex-start; padding-bottom: 2mm; border-bottom: 1.5px solid #1a4a7a; }';
+    $html .= '.pp4-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 3mm; }';
+    $html .= '.pp4-logo { width: 16mm; height: 16mm; object-fit: contain; flex-shrink: 0; }';
+    $html .= '.pp4-co-info { flex: 1; }';
+    $html .= '.pp4-co-name { font-size: 22px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }';
+    $html .= '.pp4-co-multi { font-size: 16px; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }';
+    $html .= '.pp4-co-addr { font-size: 9px; color: #1a4a7a; margin-top: 1mm; }';
+    $html .= '.pp4-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 55mm; }';
+    $html .= '.pp4-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }';
+    $html .= '.pp4-phone-box { background: #d42027; color: #fff; padding: 1.5mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 1.5mm; }';
+    $html .= '.pp4-phone-icon { font-size: 10px; color: #d42027; background: #fff; border-radius: 50%; width: 5mm; height: 5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }';
+    $html .= '.pp4-phone-nums { font-size: 9px; font-weight: bold; line-height: 1.2; }';
+    $html .= '.pp4-sejak { background: #d42027; color: #fff; width: 12mm; height: 12mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }';
+    $html .= '.pp4-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }';
+    $html .= '.pp4-sejak-yr { font-size: 9px; font-weight: bold; line-height: 1; }';
+    $html .= '.pp4-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 3mm; width: 55mm; text-align: center; }';
+    $html .= '.pp4-hrs-title { font-size: 10px; font-weight: bold; }';
+    $html .= '.pp4-hrs-line { font-size: 7px; font-weight: bold; line-height: 1.2; color: #1a4a7a; }';
+    
+    // Middle section - Items and Right column
+    $html .= '.pp4-mid { display: flex; border: 1.5px solid #1a4a7a; margin-top: 2mm; }';
+    $html .= '.pp4-items-sec { flex: 1; padding: 3mm 4mm; border-right: 1.5px solid #1a4a7a; }';
+    $html .= '.pp4-items-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; }';
+    $html .= '.pp4-items-area { min-height: 50mm; max-height: 55mm; padding-left: 3mm; overflow: hidden; }';  // Limited height
+    $html .= '.pp4-rcol { width: 55mm; min-width: 55mm; }';
+    $html .= '.pp4-tkt-box { background: #f5c518; padding: 2mm; border-bottom: 1.5px solid #1a4a7a; }';
+    $html .= '.pp4-tkt-lbl { font-size: 9px; font-weight: bold; color: #000; }';
+    $html .= '.pp4-tkt-space { min-height: 12mm; }';
+    $html .= '.pp4-rate-row { display: flex; border-bottom: 1.5px solid #1a4a7a; }';
+    $html .= '.pp4-rate-cell { flex: 1; padding: 2mm; text-align: center; }';
+    $html .= '.pp4-rate-lbl { font-size: 7px; font-weight: bold; color: #1a4a7a; }';
+    $html .= '.pp4-rate-val { font-size: 12px; font-weight: bold; color: #1a4a7a; }';
+    $html .= '.pp4-rate-big { font-size: 14px; }';
+    $html .= '.pp4-kadar { padding: 2mm 3mm; }';
+    $html .= '.pp4-kadar-title { font-size: 8px; font-weight: bold; color: #1a4a7a; text-align: center !important; margin-bottom: 1mm; }';
+    $html .= '.pp4-kadar-ln { font-size: 7px; color: #1a4a7a; line-height: 1.5; text-align: left; }';
+    
+    // Customer section - Compact
+    $html .= '.pp4-cust-title-row { display: flex; font-size: 10px; font-weight: bold; padding: 2mm 0; margin-top: 2mm; }';
+    $html .= '.pp4-cust-title-left { flex: 1; }';
+    $html .= '.pp4-cust-box { border: 1.5px solid #d42027; padding: 3mm 4mm; min-height: 38mm; }';  // Reduced height
+    $html .= '.pp4-cust-row { display: flex; align-items: baseline; margin-bottom: 4mm; font-size: 10px; font-weight: bold; }';
+    $html .= '.pp4-cust-row:last-child { margin-bottom: 0; }';
+    $html .= '.pp4-cust-col { display: flex; align-items: baseline; flex: 1; }';
+    $html .= '.pp4-cust-lbl { white-space: nowrap; min-width: 22mm; flex-shrink: 0; font-size: 9px; }';
+    $html .= '.pp4-cust-val { flex: 1; min-height: 5mm; margin-right: 4mm; border-bottom: 0.5px dotted #999; }';
+    $html .= '.pp4-cust-col:last-child .pp4-cust-val { margin-right: 0; }';
+    $html .= '.pp4-cust-row.full-width .pp4-cust-val { margin-right: 0; }';
+    
+    // Amount section - Compact
+    $html .= '.pp4-amt-row { border: 1.5px solid #d42027; border-bottom: none; padding: 2mm 4mm; display: flex; align-items: baseline; gap: 3mm; }';
+    $html .= '.pp4-amt-lbl { font-size: 10px; font-weight: bold; }';
+    
+    // Bottom row
+    $html .= '.pp4-bot { display: flex; border: 1.5px solid #d42027; }';
+    $html .= '.pp4-pin-cell { flex: 1; padding: 2mm 4mm; display: flex; align-items: baseline; gap: 2mm; border-right: 2px solid #d42027; }';
+    $html .= '.pp4-pin-lbl { font-size: 10px; }';
+    $html .= '.pp4-pin-rm { font-size: 14px; font-weight: bold; }';
+    $html .= '.pp4-pin-sp { flex: 1; min-height: 6mm; border-bottom: 0.5px dotted #999; }';
+    $html .= '.pp4-pin-stars { font-size: 14px; font-weight: bold; }';
+    $html .= '.pp4-dt-cell { width: 32mm; text-align: center; padding: 2mm; border-right: 2px solid #d42027; }';
+    $html .= '.pp4-dt-cell:last-child { border-right: none; }';
+    $html .= '.pp4-dt-lbl { font-size: 7px; font-weight: bold; }';
+    $html .= '.pp4-dt-sp { min-height: 6mm; }';
+    $html .= '.pp4-dt-yel { background: #f5c518; }';
+    
+    // Footer - Compact
+    $html .= '.pp4-ftr { font-size: 7px; line-height: 1.4; margin-top: 2mm; display: flex; justify-content: space-between; align-items: flex-end; }';
+    $html .= '.pp4-ftr-left { flex: 1; }';
+    $html .= '.pp4-ftr-right { text-align: right; font-size: 7px; }';
+    $html .= '.pp4-gm-box { display: inline-block; text-align: center; font-size: 7px; line-height: 1.1; min-width: 10mm; vertical-align: top; }';
+    
+    $html .= '</style>';
+
+    // HTML Content
+    $html .= '<div class="pp4-front">';
+    
+    // Header
+    $html .= '<div class="pp4-hdr">';
+    $html .= '<div class="pp4-hdr-left">';
+    $html .= $logoHtml;
+    $html .= '<div class="pp4-co-info">';
+    $html .= '<div class="pp4-co-name">' . $companyName . '</div>';
+    if ($multiName) { $html .= '<div class="pp4-co-multi">' . $multiName . '</div>'; }
+    $html .= '<div class="pp4-co-addr">' . $address . '</div>';
+    $html .= '</div></div>';
+    $html .= '<div class="pp4-hdr-right">';
+    $html .= '<div class="pp4-top-row">';
+    $html .= '<div class="pp4-phone-box"><span class="pp4-phone-icon">&#9742;</span><div class="pp4-phone-nums">' . $phoneHtml . '</div></div>';
+    $html .= '<div class="pp4-sejak"><span class="pp4-sejak-lbl">SEJAK</span><span class="pp4-sejak-yr">' . $estYear . '</span></div>';
+    $html .= '</div>';
+    $html .= '<div class="pp4-hrs-box"><div class="pp4-hrs-title">BUKA 7 HARI</div><div class="pp4-hrs-line">' . $businessDays . ' : ' . $businessHours . '</div></div>';
+    $html .= '</div></div>';
+
+    // Middle section
+    $html .= '<div class="pp4-mid">';
+    $html .= '<div class="pp4-items-sec"><div class="pp4-items-title">Perihal terperinci artikel yang digadai:-</div><div class="pp4-items-area"></div></div>';
+    $html .= '<div class="pp4-rcol">';
+    $html .= '<div class="pp4-tkt-box"><div class="pp4-tkt-lbl">NO. TIKET:</div><div class="pp4-tkt-space"></div></div>';
+    $html .= '<div class="pp4-rate-row"><div class="pp4-rate-cell" style="flex:1;"><div class="pp4-rate-lbl">TEMPOH TAMAT</div><div class="pp4-rate-val pp4-rate-big">' . $redemptionPeriod . '</div></div></div>';
+    $html .= '<div class="pp4-kadar"><div class="pp4-kadar-title">KADAR KEUNTUNGAN BULANAN</div>';
+    $html .= '<div class="pp4-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>';
+    $html .= '<div class="pp4-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>';
+    $html .= '<div class="pp4-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div></div>';
+    $html .= '</div></div>';
+
+    // Customer section
+    $html .= '<div class="pp4-cust-title-row"><span class="pp4-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span></div>';
+
+    $html .= '<div class="pp4-cust-box">';
+    $html .= '<div class="pp4-cust-row">';
+    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">No. Kad<br>Pengenalan :</span><span class="pp4-cust-val"></span></div>';
+    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">Nama :</span><span class="pp4-cust-val"></span></div>';
+    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">Kerakyatan :</span><span class="pp4-cust-val"></span></div>';
+    $html .= '</div>';
+    $html .= '<div class="pp4-cust-row">';
+    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">Tahun Lahir :</span><span class="pp4-cust-val"></span></div>';
+    $html .= '<div class="pp4-cust-col" style="flex:2;"><span class="pp4-cust-lbl">Jantina :</span><span class="pp4-cust-val"></span></div>';
+    $html .= '</div>';
+    $html .= '<div class="pp4-cust-row full-width"><span class="pp4-cust-lbl">Alamat :</span><span class="pp4-cust-val"></span></div>';
+    $html .= '<div class="pp4-cust-row full-width"><span class="pp4-cust-lbl">Catatan :</span><span class="pp4-cust-val"></span></div>';
+    $html .= '</div>';
+
+    // Amount row
+    $html .= '<div class="pp4-amt-row"><span class="pp4-amt-lbl">Amaun</span></div>';
+    
+    // Bottom row
+    $html .= '<div class="pp4-bot">';
+    $html .= '<div class="pp4-pin-cell"><span class="pp4-pin-lbl">Pinjaman</span><span class="pp4-pin-rm">RM</span><span class="pp4-pin-sp"></span><span class="pp4-pin-stars">***</span></div>';
+    $html .= '<div class="pp4-dt-cell"><div class="pp4-dt-lbl">Tarikh Dipajak</div><div class="pp4-dt-sp"></div></div>';
+    $html .= '<div class="pp4-dt-cell pp4-dt-yel"><div class="pp4-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp4-dt-sp"></div></div>';
+    $html .= '</div>';
+
+    // Footer
+    $html .= '<div class="pp4-ftr"><div class="pp4-ftr-left">';
+    $html .= '<div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>';
+    $html .= '<div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>';
+    $html .= '</div><div class="pp4-ftr-right"><span style="font-size:6px;vertical-align:super;">Termasuk Emas, Batu<br>dan lain-lain</span> Berat : <div class="pp4-gm-box">(gm)<br><br>L U</div></div></div>';
+
+    $html .= '</div>';
+
+    return $html;
+}
+
+/**
+ * BACK PAGE - Pre-Printed Blank Form (9½" × 11" LANDSCAPE)
+ * Paper: 241.3mm × 279.4mm (portrait dimensions)
+ * Print: 279.4mm × 241.3mm (landscape - rotated)
+ * FIXED: Content fits within 241.3mm height
+ */
+
+/**
+ * BACK PAGE - Pre-Printed Blank Form (9½" × 11" LANDSCAPE)
+ * FIXED: Larger fonts to fill space, removed barcode area
+ */
+private function generatePrePrintedBackPageA4(array $settings): string
+{
+    $termsItems = [];
+    try {
+        $dbTerms = TermsCondition::where('is_active', true)
+            ->where('activity_type', 'pledge')
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        if ($dbTerms->count() > 0) {
+            foreach ($dbTerms as $term) {
+                $content = $term->content_ms ?? $term->content_en ?? '';
+                $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
+                $termsItems[] = $content;
+            }
+        }
+    } catch (\Exception $e) {
+        // fallback
     }
 
-    /**
-     * FRONT PAGE - Pre-Printed Blank Form (9.5in x 11in / 241.3mm x 279.4mm)
-     */
-    private function generatePrePrintedFrontPageA4(array $settings): string
-    {
-        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.');
-        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?? '');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?? '');
-        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.');
-        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480');
-        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562');
-        $estYear = htmlspecialchars($settings['established_year'] ?? '1966');
-        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday');
-        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM');
-        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN');
-        $logoUrl = $settings['logo_url'] ?? null;
-
-        $phoneHtml = $phone1;
-        if ($phone2) { $phoneHtml .= '<br>' . $phone2; }
-
-        $logoHtml = '';
-        if ($logoUrl) { $logoHtml = '<img src="' . htmlspecialchars($logoUrl) . '" class="pp4-logo" alt="Logo">'; }
-
-        $multiName = '';
-        if ($chineseName) $multiName .= $chineseName . ' ';
-        if ($tamilName) $multiName .= $tamilName;
-
-        $html = '<style>';
-        $html .= '.pp4-front { width: 241.3mm; height: 279.4mm; padding: 6mm 10mm; font-family: Arial, Helvetica, sans-serif; color: #1a4a7a; background: #fff !important; overflow: hidden; box-sizing: border-box; page-break-after: always; break-after: page; }';
-        $html .= '.pp4-front * { box-sizing: border-box; margin: 0; padding: 0; }';
-        $html .= '.pp4-hdr { display: flex; align-items: flex-start; padding-bottom: 3mm; border-bottom: 2px solid #1a4a7a; }';
-        $html .= '.pp4-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 4mm; }';
-        $html .= '.pp4-logo { width: 20mm; height: 20mm; object-fit: contain; flex-shrink: 0; }';
-        $html .= '.pp4-co-info { flex: 1; }';
-        $html .= '.pp4-co-name { font-size: 34px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }';
-        $html .= '.pp4-co-multi { font-size: 28px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }';
-        $html .= '.pp4-co-addr { font-size: 15px; color: #1a4a7a; margin-top: 1mm; }';
-        $html .= '.pp4-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 60mm; }';
-        $html .= '.pp4-top-row { display: flex; align-items: center; gap: 3mm; margin-bottom: 1mm; }';
-        $html .= '.pp4-phone-box { background: #d42027; color: #fff; padding: 2mm 4mm; border-radius: 4px; display: flex; align-items: center; gap: 2mm; }';
-        $html .= '.pp4-phone-icon { font-size: 14px; color: #d42027; background: #fff; border-radius: 50%; width: 6mm; height: 6mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }';
-        $html .= '.pp4-phone-nums { font-size: 12px; font-weight: bold; line-height: 1.3; }';
-        $html .= '.pp4-sejak { background: #d42027; color: #fff; width: 16mm; height: 16mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 2px solid #b01a20; }';
-        $html .= '.pp4-sejak-lbl { font-size: 7px; font-weight: bold; line-height: 1; }';
-        $html .= '.pp4-sejak-yr { font-size: 12px; font-weight: bold; line-height: 1; }';
-        $html .= '.pp4-hrs-box { background: #f5c518; color: #000; padding: 2mm 4mm; width: 60mm; text-align: center; }';
-        $html .= '.pp4-hrs-title { font-size: 13px; font-weight: bold; text-align: center; }';
-        $html .= '.pp4-hrs-line { font-size: 9px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }';
-        $html .= '.pp4-mid { display: flex; border: 2px solid #1a4a7a; margin-top: 3mm; }';
-        $html .= '.pp4-items-sec { flex: 1; padding: 4mm 5mm; border-right: 2px solid #1a4a7a; }';
-        $html .= '.pp4-items-title { font-size: 15px; font-weight: bold; margin-bottom: 3mm; }';
-        $html .= '.pp4-items-area { min-height: 80mm; padding-left: 4mm; }';
-        $html .= '.pp4-rcol { width: 60mm; min-width: 60mm; }';
-        $html .= '.pp4-tkt-box { background: #f5c518; padding: 3mm; border-bottom: 2px solid #1a4a7a; }';
-        $html .= '.pp4-tkt-lbl { font-size: 11px; font-weight: bold; color: #000; }';
-        $html .= '.pp4-tkt-space { min-height: 18mm; }';
-        $html .= '.pp4-rate-row { display: flex; border-bottom: 2px solid #1a4a7a; }';
-        $html .= '.pp4-rate-cell { flex: 1; padding: 3mm; text-align: center; }';
-        $html .= '.pp4-rate-lbl { font-size: 9px; font-weight: bold; color: #1a4a7a; }';
-        $html .= '.pp4-rate-val { font-size: 15px; font-weight: bold; color: #1a4a7a; }';
-        $html .= '.pp4-rate-big { font-size: 18px; }';
-        $html .= '.pp4-kadar { padding: 4mm; }';
-        $html .= '.pp4-kadar-title { font-size: 14px; font-weight: bold; color: #1a4a7a; text-align: center !important; }';
-        $html .= '.pp4-kadar-ln { font-size: 14px; color: #1a4a7a; line-height: 1.7; text-align: left; }';
-        $html .= '.pp4-cust-title-row { display: flex; font-size: 14px; font-weight: bold; padding: 3mm 0; margin-top: 2mm; }';
-        $html .= '.pp4-cust-title-left { flex: 1; }';
-        $html .= '.pp4-cust-box { border: 2px solid #d42027; padding: 4mm 5mm; min-height: 50mm; }';
-        $html .= '.pp4-cust-row { display: flex; align-items: baseline; margin-bottom: 5mm; font-size: 15px; font-weight: bold; }';
-        $html .= '.pp4-cust-row:last-child { margin-bottom: 0; }';
-        $html .= '.pp4-cust-col { display: flex; align-items: baseline; flex: 1; }';
-        $html .= '.pp4-cust-lbl { white-space: nowrap; min-width: 28mm; flex-shrink: 0; font-size: 14px; }';
-        $html .= '.pp4-cust-val { flex: 1; min-height: 7mm; margin-right: 5mm; }';
-        $html .= '.pp4-cust-col:last-child .pp4-cust-val { margin-right: 0; }';
-        $html .= '.pp4-cust-row.full-width .pp4-cust-val { margin-right: 0; }';
-        $html .= '.pp4-amt-row { border: 2px solid #d42027; border-bottom: none; padding: 3mm 5mm; display: flex; align-items: baseline; gap: 4mm; }';
-        $html .= '.pp4-amt-lbl { font-size: 14px; font-weight: bold; }';
-        $html .= '.pp4-bot { display: flex; border: 2px solid #d42027; }';
-        $html .= '.pp4-pin-cell { flex: 1; padding: 3mm 5mm; display: flex; align-items: baseline; gap: 3mm; border-right: 3px solid #d42027; }';
-        $html .= '.pp4-pin-lbl { font-size: 15px; }';
-        $html .= '.pp4-pin-rm { font-size: 22px; font-weight: bold; }';
-        $html .= '.pp4-pin-sp { flex: 1; min-height: 9mm; }';
-        $html .= '.pp4-pin-stars { font-size: 22px; font-weight: bold; }';
-        $html .= '.pp4-dt-cell { width: 36mm; text-align: center; padding: 3mm; border-right: 3px solid #d42027; }';
-        $html .= '.pp4-dt-cell:last-child { border-right: none; }';
-        $html .= '.pp4-dt-lbl { font-size: 10px; font-weight: bold; }';
-        $html .= '.pp4-dt-sp { min-height: 9mm; }';
-        $html .= '.pp4-dt-yel { background: #f5c518; }';
-        $html .= '.pp4-ftr { font-size: 12px; line-height: 1.5; margin-top: 3mm; display: flex; justify-content: space-between; align-items: flex-end; }';
-        $html .= '.pp4-ftr-left { flex: 1; }';
-        $html .= '.pp4-ftr-right { text-align: right; font-size: 10px; }';
-        $html .= '.pp4-gm-box { display: inline-block; text-align: center; font-size: 11px; line-height: 1.2; min-width: 12mm; vertical-align: top; }';
-        $html .= '@media print { .pp4-front { page-break-after: always; break-after: page; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }';
-        $html .= '</style>';
-
-        $html .= '<div class="pp4-front">';
-        $html .= '<div class="pp4-hdr">';
-        $html .= '<div class="pp4-hdr-left">';
-        $html .= $logoHtml;
-        $html .= '<div class="pp4-co-info">';
-        $html .= '<div class="pp4-co-name">' . $companyName . '</div>';
-        if ($multiName) { $html .= '<div class="pp4-co-multi">' . $multiName . '</div>'; }
-        $html .= '<div class="pp4-co-addr">' . $address . '</div>';
-        $html .= '</div></div>';
-        $html .= '<div class="pp4-hdr-right">';
-        $html .= '<div class="pp4-top-row">';
-        $html .= '<div class="pp4-phone-box"><span class="pp4-phone-icon">&#9742;</span><div class="pp4-phone-nums">' . $phoneHtml . '</div></div>';
-        $html .= '<div class="pp4-sejak"><span class="pp4-sejak-lbl">SEJAK</span><span class="pp4-sejak-yr">' . $estYear . '</span></div>';
-        $html .= '</div>';
-        $html .= '<div class="pp4-hrs-box"><div class="pp4-hrs-title">BUKA 7 HARI</div><div class="pp4-hrs-line">' . $businessDays . ' : ' . $businessHours . '</div></div>';
-        $html .= '</div></div>';
-
-        $html .= '<div class="pp4-mid">';
-        $html .= '<div class="pp4-items-sec"><div class="pp4-items-title">Perihal terperinci artikel yang digadai:-</div><div class="pp4-items-area"></div></div>';
-        $html .= '<div class="pp4-rcol">';
-        $html .= '<div class="pp4-tkt-box"><div class="pp4-tkt-lbl">NO. TIKET:</div><div class="pp4-tkt-space"></div></div>';
-        $html .= '<div class="pp4-rate-row"><div class="pp4-rate-cell" style="flex:1;"><div class="pp4-rate-lbl">TEMPOH TAMAT</div><div class="pp4-rate-val pp4-rate-big">' . $redemptionPeriod . '</div></div></div>';
-        $html .= '<div class="pp4-kadar"><div class="pp4-kadar-title">KADAR KEUNTUNGAN BULANAN</div>';
-        $html .= '<div class="pp4-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>';
-        $html .= '<div class="pp4-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>';
-        $html .= '<div class="pp4-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div></div>';
-        $html .= '</div></div>';
-
-        $html .= '<div class="pp4-cust-title-row"><span class="pp4-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span></div>';
-
-        $html .= '<div class="pp4-cust-box">';
-        $html .= '<div class="pp4-cust-row"><div class="pp4-cust-col"><span class="pp4-cust-lbl">No. Kad<br>Pengenalan :</span><span class="pp4-cust-val"></span></div><div class="pp4-cust-col"><span class="pp4-cust-lbl">Nama :</span><span class="pp4-cust-val"></span></div><div class="pp4-cust-col"><span class="pp4-cust-lbl">Kerakyatan :</span><span class="pp4-cust-val"></span></div></div>';
-        $html .= '<div class="pp4-cust-row"><div class="pp4-cust-col"><span class="pp4-cust-lbl">Tahun Lahir :</span><span class="pp4-cust-val"></span></div><div class="pp4-cust-col" style="flex:2;"><span class="pp4-cust-lbl">Jantina :</span><span class="pp4-cust-val"></span></div></div>';
-        $html .= '<div class="pp4-cust-row full-width"><span class="pp4-cust-lbl">Alamat :</span><span class="pp4-cust-val"></span></div>';
-        $html .= '<div class="pp4-cust-row full-width"><span class="pp4-cust-lbl">Catatan :</span><span class="pp4-cust-val"></span></div>';
-        $html .= '</div>';
-
-        $html .= '<div class="pp4-amt-row"><span class="pp4-amt-lbl">Amaun</span></div>';
-        $html .= '<div class="pp4-bot">';
-        $html .= '<div class="pp4-pin-cell"><span class="pp4-pin-lbl">Pinjaman</span><span class="pp4-pin-rm">RM</span><span class="pp4-pin-sp"></span><span class="pp4-pin-stars">***</span></div>';
-        $html .= '<div class="pp4-dt-cell"><div class="pp4-dt-lbl">Tarikh Dipajak</div><div class="pp4-dt-sp"></div></div>';
-        $html .= '<div class="pp4-dt-cell pp4-dt-yel"><div class="pp4-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp4-dt-sp"></div></div>';
-        $html .= '</div>';
-
-        $html .= '<div class="pp4-ftr"><div class="pp4-ftr-left">';
-        $html .= '<div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>';
-        $html .= '<div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>';
-        $html .= '</div><div class="pp4-ftr-right"><span style="font-size:8px;vertical-align:super;">Termasuk Emas, Batu<br>dan lain-lain</span> Berat : <div class="pp4-gm-box">(gm)<br><br>L U</div></div></div>';
-
-        $html .= '</div>';
-
-        return $html;
+    if (empty($termsItems)) {
+        $termsItems = [
+            'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
+            'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
+            'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
+            'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.',
+            'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.',
+            'Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
+            'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
+            'Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.',
+            'Sila maklumkan kami jika sekiranya anda menukarkan alamat.',
+            'Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.',
+            'Barang-barang curian tidak diterima.',
+            'Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.',
+        ];
     }
 
-    /**
-     * BACK PAGE - Pre-Printed Blank Form (9.5in x 11in / 241.3mm x 279.4mm)
-     */
-    private function generatePrePrintedBackPageA4(array $settings): string
-    {
-        $termsItems = [];
-        try {
-            $dbTerms = TermsCondition::where('is_active', true)
-                ->where('activity_type', 'pledge')
-                ->orderBy('sort_order', 'asc')
-                ->orderBy('id', 'asc')
-                ->get();
-
-            if ($dbTerms->count() > 0) {
-                foreach ($dbTerms as $term) {
-                    $content = $term->content_ms ?? $term->content_en ?? '';
-                    $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
-                    $termsItems[] = $content;
-                }
-            }
-        } catch (\Exception $e) {
-            // fallback
-        }
-
-        if (empty($termsItems)) {
-            $termsItems = [
-                'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian.',
-                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan.',
-                'Jika mana-mana sandaran hilang atau musnah, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
-                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian.',
-                'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan.',
-                'Apa-apa pertanyaan boleh dialamatkan kepada Pendaftar Pemegang Pajak Gadai.',
-                'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu akan dilelong.',
-                'Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai adalah tanggungjawab pejabat pos.',
-                'Sila maklumkan kami sekiranya anda menukarkan alamat.',
-                'Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus sebelum Cuti Am.',
-                'Barang-barang curian tidak diterima.',
-                'Data peribadi anda akan digunakan <u>hanya bagi tujuan internal sahaja</u>.',
-            ];
-        }
-
-        $termsHtml = '';
-        foreach ($termsItems as $idx => $content) {
-            $num = $idx + 1;
-            $termsHtml .= '<div class="pp4-tm"><b>' . $num . '.</b> ' . $content . '</div>';
-        }
-
-        $html = '<style>';
-        $html .= '.pp4-back { width: 279.4mm; height: 241.3mm; padding: 6mm 10mm; display: flex; font-family: Arial, Helvetica, sans-serif; color: #1a4a7a; background: #fff !important; overflow: hidden; box-sizing: border-box; page-break-after: always; break-after: page; }';
-        $html .= '.pp4-back * { box-sizing: border-box; margin: 0; padding: 0; }';
-        $html .= '.pp4-terms-col { flex: 1; padding-right: 6mm; display: flex; flex-direction: column; height: 100%; }';
-        $html .= '.pp4-terms-h { font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 5mm; }';
-        $html .= '.pp4-terms-content { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }';
-        $html .= '.pp4-tm { font-size: 12px; line-height: 1.5; margin-bottom: 4mm; text-align: justify; }';
-        $html .= '.pp4-notice { border: 3px solid #1a4a7a; padding: 5mm 10mm; margin-top: 5mm; text-align: center; font-size: 15px; font-weight: bold; line-height: 1.4; }';
-        $html .= '.pp4-red-col { width: 75mm; min-width: 75mm; border-left: 2px solid #1a4a7a; padding: 0 0 0 6mm; display: flex; flex-direction: column; height: 100%; }';
-        $html .= '.pp4-red-h { font-size: 14px; font-weight: bold; text-align: right; padding-bottom: 4mm; margin-bottom: 4mm; }';
-        $html .= '.pp4-rr { margin-bottom: 6mm; }';
-        $html .= '.pp4-rl { font-size: 11px; font-weight: bold; display: block; }';
-        $html .= '.pp4-rb { min-height: 9mm; border-bottom: 1px solid #1a4a7a; margin-top: 2mm; }';
-        $html .= '.pp4-ri { display: flex; gap: 4mm; }';
-        $html .= '.pp4-rh { flex: 1; }';
-        $html .= '.pp4-alamat { display: flex; flex-direction: column; }';
-        $html .= '.pp4-colons { font-size: 12px; line-height: 2; margin-top: 2mm; flex: 1; }';
-        $html .= '.pp4-barcode-area { height: 20mm; margin-bottom: 6mm; display: flex; align-items: center; justify-content: center; }';
-        $html .= '.pp4-sig-section { margin-top: auto; padding-top: 4mm; border-top: 1px solid #1a4a7a; }';
-        $html .= '.pp4-sig-b { border: 1px solid #1a4a7a; height: 28mm; display: flex; align-items: flex-end; justify-content: flex-end; padding: 3mm 4mm; }';
-        $html .= '.pp4-sig-l { font-size: 11px; font-weight: bold; text-align: right; }';
-        $html .= '@media print { .pp4-back { page-break-after: always; break-after: page; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }';
-        $html .= '</style>';
-
-        $html .= '<div class="pp4-back">';
-        $html .= '<div class="pp4-terms-col">';
-        $html .= '<div class="pp4-terms-h">TERMA DAN SYARAT</div>';
-        $html .= '<div class="pp4-terms-content">' . $termsHtml . '</div>';
-        $html .= '<div class="pp4-notice">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>';
-        $html .= '</div>';
-
-        $html .= '<div class="pp4-red-col">';
-        $html .= '<div class="pp4-red-h">Butir-butir Penebus</div>';
-        $html .= '<div class="pp4-rr"><span class="pp4-rl">No. K/P:</span><div class="pp4-rb"></div></div>';
-        $html .= '<div class="pp4-rr"><span class="pp4-rl">Nama :</span><div class="pp4-rb"></div></div>';
-        $html .= '<div class="pp4-rr"><span class="pp4-rl">Kerakyatan :</span><div class="pp4-rb"></div></div>';
-        $html .= '<div class="pp4-rr"><div class="pp4-ri"><div class="pp4-rh"><span class="pp4-rl">Tahun Lahir :</span><div class="pp4-rb"></div></div><div class="pp4-rh"><span class="pp4-rl">Umur :</span><div class="pp4-rb"></div></div></div></div>';
-        $html .= '<div class="pp4-rr"><span class="pp4-rl">Jantina :</span><div class="pp4-rb"></div></div>';
-        $html .= '<div class="pp4-rr"><span class="pp4-rl">H/P No:</span><div class="pp4-rb"></div></div>';
-        $html .= '<div class="pp4-rr pp4-alamat"><span class="pp4-rl">Alamat:</span><div class="pp4-colons">:<br>:<br>:<br>:</div></div>';
-        $html .= '<div class="pp4-barcode-area"></div>';
-        $html .= '<div class="pp4-sig-section"><div class="pp4-sig-b"><span class="pp4-sig-l">Cap Jari /<br>Tandatangan</span></div></div>';
-        $html .= '</div></div>';
-
-        return $html;
+    $termsHtml = '';
+    foreach ($termsItems as $idx => $content) {
+        $num = $idx + 1;
+        $termsHtml .= '<div class="pp4-tm"><b>' . $num . '.</b> ' . $content . '</div>';
     }
 
+    $html = '<style>';
+    
+    // Page setup
+    $html .= '@page { size: 279.4mm 241.3mm; margin: 0; }';
+    
+    // Print media styles
+    $html .= '@media print { ';
+    $html .= '  html, body { ';
+    $html .= '    width: 279.4mm !important; ';
+    $html .= '    height: 241.3mm !important; ';
+    $html .= '    margin: 0 !important; ';
+    $html .= '    padding: 0 !important; ';
+    $html .= '    overflow: hidden !important; ';
+    $html .= '    -webkit-print-color-adjust: exact !important; ';
+    $html .= '    print-color-adjust: exact !important; ';
+    $html .= '  }';
+    $html .= '  .pp4-back { ';
+    $html .= '    page-break-after: always; ';
+    $html .= '    break-after: page; ';
+    $html .= '    page-break-inside: avoid; ';
+    $html .= '  }';
+    $html .= '}';
+    
+    // Main container
+    $html .= '.pp4-back { ';
+    $html .= '  width: 279.4mm; ';
+    $html .= '  height: 241.3mm; ';
+    $html .= '  padding: 5mm 6mm; ';
+    $html .= '  display: flex; ';
+    $html .= '  font-family: Arial, Helvetica, sans-serif; ';
+    $html .= '  color: #1a4a7a; ';
+    $html .= '  background: #fff !important; ';
+    $html .= '  overflow: hidden; ';
+    $html .= '  box-sizing: border-box; ';
+    $html .= '  page-break-after: always; ';
+    $html .= '  break-after: page; ';
+    $html .= '}';
+    $html .= '.pp4-back * { box-sizing: border-box; margin: 0; padding: 0; }';
+    
+    // Terms column - Left side
+    $html .= '.pp4-terms-col { ';
+    $html .= '  flex: 1; ';
+    $html .= '  padding-right: 6mm; ';
+    $html .= '  display: flex; ';
+    $html .= '  flex-direction: column; ';
+    $html .= '  height: 100%; ';
+    $html .= '  overflow: hidden; ';
+    $html .= '}';
+    $html .= '.pp4-terms-h { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5mm; text-decoration: underline; }';  // INCREASED from 14px
+    $html .= '.pp4-terms-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }';
+    $html .= '.pp4-tm { font-size: 11px; line-height: 1.5; margin-bottom: 4mm; text-align: justify; }';  // INCREASED from 8px
+    $html .= '.pp4-notice { ';
+    $html .= '  border: 2px solid #1a4a7a; ';
+    $html .= '  padding: 5mm 10mm; ';  // INCREASED padding
+    $html .= '  margin-top: 5mm; ';
+    $html .= '  text-align: center; ';
+    $html .= '  font-size: 14px; ';  // INCREASED from 11px
+    $html .= '  font-weight: bold; ';
+    $html .= '  line-height: 1.4; ';
+    $html .= '  flex-shrink: 0; ';
+    $html .= '}';
+    
+    // Redeemer column - Right side
+    $html .= '.pp4-red-col { ';
+    $html .= '  width: 75mm; ';  // INCREASED from 70mm
+    $html .= '  min-width: 75mm; ';
+    $html .= '  border-left: 1.5px solid #1a4a7a; ';
+    $html .= '  padding: 0 0 0 5mm; ';
+    $html .= '  display: flex; ';
+    $html .= '  flex-direction: column; ';
+    $html .= '  height: 100%; ';
+    $html .= '}';
+    $html .= '.pp4-red-h { font-size: 14px; font-weight: bold; text-align: center; padding-bottom: 4mm; margin-bottom: 4mm; border-bottom: 1px solid #1a4a7a; }';  // INCREASED from 11px
+    $html .= '.pp4-rr { margin-bottom: 8mm; }';  // INCREASED from 5mm
+    $html .= '.pp4-rl { font-size: 11px; font-weight: bold; display: block; margin-bottom: 2mm; }';  // INCREASED from 9px
+    $html .= '.pp4-rb { min-height: 10mm; border-bottom: 1px solid #1a4a7a; }';  // INCREASED from 7mm
+    $html .= '.pp4-ri { display: flex; gap: 5mm; }';
+    $html .= '.pp4-rh { flex: 1; }';
+    
+    // Alamat
+    $html .= '.pp4-alamat { display: flex; flex-direction: column; flex: 1; }';
+    $html .= '.pp4-colons { font-size: 11px; line-height: 2.2; margin-top: 2mm; }';  // INCREASED from 9px
+    
+    // Signature section
+    $html .= '.pp4-sig-section { margin-top: auto; padding-top: 5mm; }';
+    $html .= '.pp4-sig-b { ';
+    $html .= '  border: 1px solid #1a4a7a; ';
+    $html .= '  height: 30mm; ';  // INCREASED from 22mm
+    $html .= '  display: flex; ';
+    $html .= '  align-items: flex-end; ';
+    $html .= '  justify-content: center; ';
+    $html .= '  padding: 3mm; ';
+    $html .= '}';
+    $html .= '.pp4-sig-l { font-size: 10px; font-weight: bold; text-align: center; color: #666; }';  // INCREASED from 8px
+    
+    $html .= '</style>';
 
+    // HTML Content
+    $html .= '<div class="pp4-back">';
+    
+    // Terms Column (Left)
+    $html .= '<div class="pp4-terms-col">';
+    $html .= '<div class="pp4-terms-h">TERMA DAN SYARAT</div>';
+    $html .= '<div class="pp4-terms-content">' . $termsHtml . '</div>';
+    $html .= '<div class="pp4-notice">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>';
+    $html .= '</div>';
 
+    // Redeemer Column (Right)
+    $html .= '<div class="pp4-red-col">';
+    $html .= '<div class="pp4-red-h">Butir-butir Penebus</div>';
+    $html .= '<div class="pp4-rr"><span class="pp4-rl">No. K/P:</span><div class="pp4-rb"></div></div>';
+    $html .= '<div class="pp4-rr"><span class="pp4-rl">Nama :</span><div class="pp4-rb"></div></div>';
+    $html .= '<div class="pp4-rr"><span class="pp4-rl">Kerakyatan :</span><div class="pp4-rb"></div></div>';
+    $html .= '<div class="pp4-rr">';
+    $html .= '  <div class="pp4-ri">';
+    $html .= '    <div class="pp4-rh"><span class="pp4-rl">Tahun Lahir :</span><div class="pp4-rb"></div></div>';
+    $html .= '    <div class="pp4-rh"><span class="pp4-rl">Umur :</span><div class="pp4-rb"></div></div>';
+    $html .= '  </div>';
+    $html .= '</div>';
+    $html .= '<div class="pp4-rr"><span class="pp4-rl">Jantina :</span><div class="pp4-rb"></div></div>';
+    $html .= '<div class="pp4-rr"><span class="pp4-rl">H/P No:</span><div class="pp4-rb"></div></div>';
+    $html .= '<div class="pp4-rr pp4-alamat">';
+    $html .= '  <span class="pp4-rl">Alamat:</span>';
+    $html .= '  <div class="pp4-colons">: ___________________________________<br>: ___________________________________<br>: ___________________________________</div>';
+    $html .= '</div>';
+    // REMOVED: Barcode area
+    $html .= '<div class="pp4-sig-section">';
+    $html .= '  <div class="pp4-sig-b"><span class="pp4-sig-l">Cap Jari / Tandatangan</span></div>';
+    $html .= '</div>';
+    $html .= '</div>';
+    
+    $html .= '</div>';
 
+    return $html;
+}
 
 
     /**
@@ -1539,11 +1702,11 @@ HTML;
 
         return <<<HTML
 <style>
-@page { size: 135mm 210mm; margin: 0; }
+@page { size: 210mm 148mm; margin: 0; }
 /* ═══ DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM ═══ */
 .ppo-page {
     width: 210mm;
-    height: 44mm;
+    height: 148mm;
     padding: 0;
     margin: 0;
     position: relative;
@@ -2413,11 +2576,11 @@ HTML;
 
         return <<<HTML
 <style>
-@page { size: 135mm 210mm; margin: 0; }
+@page { size: 210mm 148mm; margin: 0; }
 /* ═══ DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM ═══ */
 .ppo-page {
     width: 210mm;
-    height: 135mm;
+    height: 148mm;
     padding: 0;
     margin: 0;
     position: relative;
@@ -2714,11 +2877,11 @@ HTML;
 
         return <<<HTML
 <style>
-@page { size: 135mm 210mm; margin: 0; }
+@page { size: 210mm 148mm; margin: 0; }
 /* ═══ DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM ═══ */
 .ppo-page {
     width: 210mm;
-    height: 135mm;
+    height: 148mm;
     padding: 0;
     margin: 0;
     position: relative;

@@ -1237,9 +1237,9 @@ export default function PrintTestPage() {
     }
   };
 
-  // Open A4 pre-printed form print window
+  // Open A4 pre-printed form print window - UPDATED FOR 9.5" x 11" LANDSCAPE
   const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page) => {
-    const printWindow = window.open("", "_blank", "width=1050,height=900");
+    const printWindow = window.open("", "_blank", "width=1100,height=900");
     if (!printWindow) {
       dispatch(
         addToast({
@@ -1264,119 +1264,135 @@ export default function PrintTestPage() {
     const backPages = hasBack ? count : 0;
 
     printWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="ms">
-      <head>
-        <meta charset="UTF-8">
-        <title>Pre-Printed Form A4 - ${count} sets (${pageLabel})</title>
-        <style>
-          /* Control Panel Styles */
-          body { background: #c8c8c8; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-          .ctrl {
-            text-align: center; padding: 16px 20px; background: #1a1a2e; margin-bottom: 20px;
-            border-radius: 10px; position: sticky; top: 0; z-index: 100;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-          }
-          .ctrl h2 { color: #f59e0b; margin: 0 0 8px 0; font-size: 18px; }
-          .ctrl p { color: #9ca3af; margin: 4px 0; font-size: 13px; }
-          .ctrl .highlight { color: #fbbf24; font-weight: bold; }
-          
-          .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
-          .ctrl button {
-            padding: 12px 24px; font-size: 14px; cursor: pointer; border: none;
-            border-radius: 8px; font-weight: bold; transition: all 0.2s;
-          }
-          .ctrl .pr { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #000; }
-          .ctrl .pr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245,158,11,0.4); }
-          .ctrl .front-btn { background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); color: #fff; }
-          .ctrl .back-btn { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: #fff; }
-          .ctrl .cl { background: #4b5563; color: #fff; }
-          
-          .plabel {
-            text-align: center; font-size: 12px; color: #374151;
-            margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
-          }
-          .pw {
-            max-width: 279.4mm; margin: 0 auto 25px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-            border-radius: 4px; overflow: hidden;
-          }
-
-          /* Print Styles - 9.5in x 11in Landscape */
-          @page { size: 279.4mm 241.3mm; margin: 0; }
-          @media print {
-            body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
-            .ctrl, .plabel { display: none !important; }
-            .pw { box-shadow: none !important; max-width: none !important; margin: 0 !important; border-radius: 0 !important; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="ctrl">
-          <h2>📝 Pre-Printed Blank Form (9½" × 11") / Borang Kosong Pra-Cetak</h2>
-          <p><span class="highlight">${count} set(s)</span> — ${pageLabel}</p>
-          <p>Print these blank forms on 9½" × 11" paper for future use</p>
-          
-          <div class="btn-row">
-            ${hasFront && hasBack ? `<button class="pr" onclick="printAll()">🖨️ Print All (${frontPages + backPages} pages)</button>` : ""}
-            ${hasFront ? `<button class="front-btn" onclick="printFront()">📄 Print FRONT (${frontPages} pages)</button>` : ""}
-            ${hasBack ? `<button class="back-btn" onclick="printBack()">📋 Print BACK (${backPages} pages)</button>` : ""}
-            <button class="cl" onclick="window.close()">✕ Close</button>
-          </div>
-        </div>
-
-        ${hasFront
-        ? `
-        <div class="plabel">📄 PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
-        <div class="pw" id="frontSection">${frontHtml}</div>
-        `
-        : ""
-      }
+    <!DOCTYPE html>
+    <html lang="ms">
+    <head>
+      <meta charset="UTF-8">
+      <title>Pre-Printed Form 9½×11 - ${count} sets (${pageLabel})</title>
+      <style>
+        /* Control Panel Styles */
+        body { background: #c8c8c8; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        .ctrl {
+          text-align: center; padding: 16px 20px; background: #1a1a2e; margin-bottom: 20px;
+          border-radius: 10px; position: sticky; top: 0; z-index: 100;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .ctrl h2 { color: #f59e0b; margin: 0 0 8px 0; font-size: 18px; }
+        .ctrl p { color: #9ca3af; margin: 4px 0; font-size: 13px; }
+        .ctrl .highlight { color: #fbbf24; font-weight: bold; }
         
-        ${hasBack
+        .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .ctrl button {
+          padding: 12px 24px; font-size: 14px; cursor: pointer; border: none;
+          border-radius: 8px; font-weight: bold; transition: all 0.2s;
+        }
+        .ctrl .pr { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #000; }
+        .ctrl .pr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245,158,11,0.4); }
+        .ctrl .front-btn { background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); color: #fff; }
+        .ctrl .back-btn { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: #fff; }
+        .ctrl .cl { background: #4b5563; color: #fff; }
+        
+        .plabel {
+          text-align: center; font-size: 12px; color: #374151;
+          margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
+        }
+        .pw {
+          max-width: 279.4mm; margin: 0 auto 25px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+          border-radius: 4px; overflow: hidden;
+        }
+
+        /* Print Styles - 9.5" x 11" LANDSCAPE */
+        @page { 
+          size: 279.4mm 241.3mm;  /* 11" x 9.5" LANDSCAPE */
+          margin: 0; 
+        }
+        @media print {
+          html, body { 
+            width: 279.4mm !important; 
+            height: 241.3mm !important; 
+            margin: 0 !important; 
+            padding: 0 !important;
+            background: #fff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .ctrl, .plabel { display: none !important; }
+          .pw { 
+            box-shadow: none !important; 
+            max-width: none !important; 
+            margin: 0 !important; 
+            border-radius: 0 !important; 
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="ctrl">
+        <h2>📝 Pre-Printed Blank Form (9½" × 11" LANDSCAPE)</h2>
+        <p><span class="highlight">${count} set(s)</span> — ${pageLabel}</p>
+        <p>Paper: 9.5" × 11" (241.3mm × 279.4mm) | Orientation: LANDSCAPE</p>
+        <p style="color: #fbbf24; margin-top: 8px;">⚠️ Make sure printer is set to: <strong>9½×11</strong> or <strong>Custom (279.4mm × 241.3mm)</strong></p>
+        
+        <div class="btn-row">
+          ${hasFront && hasBack ? `<button class="pr" onclick="printAll()">🖨️ Print All (${frontPages + backPages} pages)</button>` : ""}
+          ${hasFront ? `<button class="front-btn" onclick="printFront()">📄 Print FRONT (${frontPages} pages)</button>` : ""}
+          ${hasBack ? `<button class="back-btn" onclick="printBack()">📋 Print BACK (${backPages} pages)</button>` : ""}
+          <button class="cl" onclick="window.close()">✕ Close</button>
+        </div>
+      </div>
+
+      ${hasFront
         ? `
-        <div class="plabel" id="backLabel">📋 PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
-        <div class="pw" id="backSection">${backHtml}</div>
-        `
+      <div class="plabel">📄 PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
+      <div class="pw" id="frontSection">${frontHtml}</div>
+      `
+        : ""
+      }
+      
+      ${hasBack
+        ? `
+      <div class="plabel" id="backLabel">📋 PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
+      <div class="pw" id="backSection">${backHtml}</div>
+      `
         : ""
       }
 
-        <script>
-          function printAll() {
-            document.querySelectorAll('#frontSection, #backSection').forEach(el => { if(el) el.style.display = 'block'; });
-            window.print();
-          }
-          function printFront() {
-            const front = document.getElementById('frontSection');
-            const back = document.getElementById('backSection');
-            const backLbl = document.getElementById('backLabel');
-            if(front) front.style.display = 'block';
-            if(back) back.style.display = 'none';
-            if(backLbl) backLbl.style.display = 'none';
-            window.print();
-            if(back) back.style.display = 'block';
-            if(backLbl) backLbl.style.display = 'block';
-          }
-          function printBack() {
-            const front = document.getElementById('frontSection');
-            const back = document.getElementById('backSection');
-            if(front) front.style.display = 'none';
-            if(back) back.style.display = 'block';
-            window.print();
-            if(front) front.style.display = 'block';
-          }
-          window.onload = function() {
-            const btn = document.querySelector('.pr') || document.querySelector('.front-btn') || document.querySelector('.back-btn');
-            if(btn) btn.focus();
-          };
-        </script>
-      </body>
-      </html>
-    `);
+      <script>
+        function printAll() {
+          document.querySelectorAll('#frontSection, #backSection').forEach(el => { if(el) el.style.display = 'block'; });
+          window.print();
+        }
+        function printFront() {
+          const front = document.getElementById('frontSection');
+          const back = document.getElementById('backSection');
+          const backLbl = document.getElementById('backLabel');
+          if(front) front.style.display = 'block';
+          if(back) back.style.display = 'none';
+          if(backLbl) backLbl.style.display = 'none';
+          window.print();
+          if(back) back.style.display = 'block';
+          if(backLbl) backLbl.style.display = 'block';
+        }
+        function printBack() {
+          const front = document.getElementById('frontSection');
+          const back = document.getElementById('backSection');
+          if(front) front.style.display = 'none';
+          if(back) back.style.display = 'block';
+          window.print();
+          if(front) front.style.display = 'block';
+        }
+        window.onload = function() {
+          const btn = document.querySelector('.pr') || document.querySelector('.front-btn') || document.querySelector('.back-btn');
+          if(btn) btn.focus();
+        };
+      </script>
+    </body>
+    </html>
+  `);
     printWindow.document.close();
     printWindow.focus();
   };
-
   // Test Data Overlay - Preview data alignment on pre-printed form
   const testDataOverlay = async () => {
     if (!selectedPledge) {
