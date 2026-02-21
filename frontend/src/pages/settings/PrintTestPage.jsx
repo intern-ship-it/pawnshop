@@ -1258,6 +1258,7 @@ export default function PrintTestPage() {
           body: JSON.stringify({
             count: prePrintedA4Count,
             page: prePrintedA4Page,
+            orientation: orientation,
           }),
         },
       );

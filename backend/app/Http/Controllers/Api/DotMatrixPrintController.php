@@ -1202,10 +1202,12 @@ public function prePrintedFormA4(Request $request): JsonResponse
         $validated = $request->validate([
             'count' => 'sometimes|integer|min:1|max:50',
             'page' => 'sometimes|in:front,back,both',
+            'orientation' => 'sometimes|in:landscape,portrait',
         ]);
 
         $count = $validated['count'] ?? 1;
         $page = $validated['page'] ?? 'both';
+        $orientation = $validated['orientation'] ?? 'landscape';
 
         $branch = $request->user()->branch;
         $settings = $this->getCompanySettings($branch);
@@ -1214,10 +1216,19 @@ public function prePrintedFormA4(Request $request): JsonResponse
         $backHtml = '';
 
         if ($page === 'front' || $page === 'both') {
-            $frontHtml = $this->generatePrePrintedFrontPageA4($settings);
+            if ($orientation === 'portrait') {
+                $frontHtml = $this->generatePrePrintedFrontPageA4Portrait($settings);
+            } else {
+                $frontHtml = $this->generatePrePrintedFrontPageA4($settings);
+            }
         }
+
         if ($page === 'back' || $page === 'both') {
-            $backHtml = $this->generatePrePrintedBackPageA4($settings);
+            if ($orientation === 'portrait') {
+                $backHtml = $this->generatePrePrintedBackPageA4Portrait($settings);
+            } else {
+                $backHtml = $this->generatePrePrintedBackPageA4($settings);
+            }
         }
 
         $bulkFrontHtml = '';
@@ -1233,8 +1244,10 @@ public function prePrintedFormA4(Request $request): JsonResponse
             'count' => $count,
             'page' => $page,
             'format' => 'html',
-            'paper_size' => 'A4 Landscape (297mm x 210mm)',
-            'orientation' => 'landscape',
+            'paper_size' => ($orientation === 'portrait') 
+                ? 'A4 Portrait (210mm x 297mm)' 
+                : 'A4 Landscape (297mm x 210mm)',
+            'orientation' => $orientation,
         ]);
 
     } catch (\Exception $e) {
@@ -3204,6 +3217,262 @@ HTML;
             return $this->error('Print error: ' . $e->getMessage(), 500);
         }
     }
+
+
+    /**
+ * FRONT PAGE - Pre-Printed Blank Form (A4 PORTRAIT)
+ * Paper: A4 Portrait = 210mm (width) × 297mm (height)
+ * For DOT MATRIX printers with tractor-feed paper
+ */
+private function generatePrePrintedFrontPageA4Portrait(array $settings): string
+{
+    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $logoUrl = $settings['logo_url'] ?? null;
+
+    $phoneHtml = $phone1;
+    if ($phone2) { $phoneHtml .= ' / ' . $phone2; }
+
+    $logoHtml = '';
+    if ($logoUrl) { 
+        $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="ppp-logo" alt="Logo">'; 
+    }
+
+    $multiName = '';
+    if ($chineseName) $multiName .= $chineseName . ' ';
+    if ($tamilName) $multiName .= $tamilName;
+
+    return <<<HTML
+<style>
+@page { size: 210mm 297mm; margin: 0; }
+@media print {
+    html, body { 
+        width: 210mm !important; 
+        margin: 0 !important; 
+        padding: 0 !important; 
+    }
+    .ppp-front { 
+        width: 100% !important;
+        max-width: 210mm !important;
+        margin: 0 !important; 
+        padding: 5mm 3mm !important;
+        page-break-after: always;
+    }
+}
+.ppp-front {
+    width: 100%; 
+    max-width: 210mm;
+    padding: 5mm 3mm;
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif; 
+    color: #1a4a7a;
+    background: #fff !important; 
+    box-sizing: border-box;
+}
+.ppp-front * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* HEADER */
+.ppp-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 3mm; border-bottom: 2px solid #1a4a7a; margin-bottom: 4mm; }
+.ppp-header-left { display: flex; align-items: flex-start; gap: 3mm; flex: 1; }
+.ppp-logo { width: 18mm; height: 18mm; object-fit: contain; }
+.ppp-company-info { flex: 1; }
+.ppp-company-name { font-size: 18px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+.ppp-company-multi { font-size: 14px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }
+.ppp-company-addr { font-size: 9px; color: #1a4a7a; margin-top: 1mm; }
+.ppp-header-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 55mm; }
+.ppp-phone-sejak { display: flex; align-items: center; gap: 2mm; margin-bottom: 2mm; }
+.ppp-phone-box { background: #d42027; color: #fff; padding: 2mm 3mm; border-radius: 3px; font-size: 10px; font-weight: bold; }
+.ppp-sejak { background: #d42027; color: #fff; width: 12mm; height: 12mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ppp-sejak-lbl { font-size: 5px; font-weight: bold; }
+.ppp-sejak-yr { font-size: 9px; font-weight: bold; }
+.ppp-hours-box { background: #f5c518; color: #000; padding: 2mm 3mm; text-align: center; min-width: 50mm; }
+.ppp-hours-title { font-size: 10px; font-weight: bold; }
+.ppp-hours-line { font-size: 8px; font-weight: bold; color: #1a4a7a; }
+
+/* TICKET & RATES */
+.ppp-ticket-rates { display: flex; gap: 3mm; margin-bottom: 4mm; width: 100%; }
+.ppp-ticket-box {
+    background: #f5c518;
+    padding: 3mm;
+    flex: 1;  /* Changed from flex: 0 0 70mm */
+    min-width: 70mm;
+}
+.ppp-ticket-lbl { font-size: 10px; font-weight: bold; color: #000; }
+.ppp-ticket-space { min-height: 12mm; border: 1px dashed #1a4a7a; margin-top: 2mm; background: #fff; }
+.ppp-rates-box {
+    flex: 1;
+    border: 1px solid #1a4a7a;
+    padding: 2mm;
+}
+.ppp-rate-row { display: flex; justify-content: center; border-bottom: 1px solid #1a4a7a; margin-bottom: 2mm; padding-bottom: 2mm; }
+.ppp-rate-cell { text-align: center; }
+.ppp-rate-lbl { font-size: 8px; font-weight: bold; color: #1a4a7a; }
+.ppp-rate-val { font-size: 14px; font-weight: bold; color: #1a4a7a; }
+.ppp-kadar-title { font-size: 9px; font-weight: bold; color: #1a4a7a; text-align: center; margin-bottom: 1mm; }
+.ppp-kadar-ln { font-size: 8px; color: #1a4a7a; line-height: 1.5; }
+
+/* ITEMS */
+.ppp-items-section { border: 1px solid #1a4a7a; padding: 3mm; margin-bottom: 4mm;width: 100%; }
+.ppp-items-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; color: #1a4a7a; }
+.ppp-items-area { min-height: 35mm; padding: 2mm; border: 1px dashed #ccc; }
+
+/* CUSTOMER */
+.ppp-customer-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; color: #1a4a7a; }
+.ppp-customer-box { border: 1px solid #d42027; padding: 3mm; margin-bottom: 4mm;width: 100%; }
+.ppp-cust-row {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 3mm;
+    font-size: 10px;
+    gap: 3mm;
+    width: 100%;  /* ADD THIS */
+}
+.ppp-cust-row:last-child { margin-bottom: 0; }
+.ppp-cust-col { display: flex; align-items: baseline; flex: 1; min-width: 0; }
+.ppp-cust-lbl { white-space: nowrap; min-width: 28mm; flex-shrink: 0; font-size: 9px; font-weight: bold; }
+.ppp-cust-val { flex: 1; min-height: 5mm; border-bottom: 1px dotted #1a4a7a; margin-right: 0; }
+.ppp-cust-row.full-width { flex-wrap: nowrap; }
+.ppp-cust-row.full-width .ppp-cust-col { flex: 1; }
+
+/* AMOUNT */
+.ppp-amount-section { border: 1px solid #d42027; margin-bottom: 4mm;width: 100%; }
+.ppp-amount-words { padding: 2mm 3mm; font-size: 10px; font-weight: bold; border-bottom: 1px solid #d42027; }
+.ppp-amount-row {
+    display: flex;
+    width: 100%;  /* ADD THIS */
+}
+.ppp-loan-cell {
+    flex: 1;
+    padding: 3mm;
+    display: flex;
+    align-items: baseline;
+    gap: 2mm;
+    border-right: 1px solid #d42027;
+    min-width: 0;  /* ADD THIS - allows flex shrink */
+}
+.ppp-loan-lbl { font-size: 10px; }
+.ppp-loan-rm { font-size: 18px; font-weight: bold; }
+.ppp-loan-space { flex: 1; min-height: 8mm; border-bottom: 1px dotted #1a4a7a; }
+.ppp-loan-stars { font-size: 14px; font-weight: bold; }
+.ppp-date-cell { width: 40mm; text-align: center; padding: 2mm; border-right: 1px solid #d42027; }
+.ppp-date-cell:last-child { border-right: none; }
+.ppp-date-lbl { font-size: 8px; font-weight: bold; }
+.ppp-date-space { min-height: 8mm; }
+.ppp-date-yel { background: #f5c518; }
+
+/* FOOTER */
+.ppp-footer { font-size: 8px; line-height: 1.4; padding-top: 2mm; display: flex; justify-content: space-between; align-items: flex-end; }
+.ppp-footer-left { flex: 1; }
+.ppp-footer-right { display: flex; align-items: flex-end; gap: 2mm; text-align: right; }
+.ppp-footer-label { font-size: 7px; line-height: 1.2; }
+.ppp-footer-berat { font-size: 10px; font-weight: bold; }
+.ppp-gm-box { border: 1px solid #1a4a7a; width: 16mm; height: 12mm; display: inline-flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 1mm; }
+.ppp-gm-label { font-size: 7px; }
+.ppp-gm-lu { font-size: 9px; font-weight: bold; }
+</style>
+
+<div class="ppp-front">
+    <div class="ppp-header">
+        <div class="ppp-header-left">
+            {$logoHtml}
+            <div class="ppp-company-info">
+                <div class="ppp-company-name">{$companyName}</div>
+                <div class="ppp-company-multi">{$multiName}</div>
+                <div class="ppp-company-addr">{$address}</div>
+            </div>
+        </div>
+        <div class="ppp-header-right">
+            <div class="ppp-phone-sejak">
+                <div class="ppp-phone-box">☎ {$phoneHtml}</div>
+                <div class="ppp-sejak"><span class="ppp-sejak-lbl">SEJAK</span><span class="ppp-sejak-yr">{$estYear}</span></div>
+            </div>
+            <div class="ppp-hours-box">
+                <div class="ppp-hours-title">BUKA 7 HARI</div>
+                <div class="ppp-hours-line">{$businessDays} : {$businessHours}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ppp-ticket-rates">
+        <div class="ppp-ticket-box">
+            <div class="ppp-ticket-lbl">NO. TIKET:</div>
+            <div class="ppp-ticket-space"></div>
+        </div>
+        <div class="ppp-rates-box">
+            <div class="ppp-rate-row">
+                <div class="ppp-rate-cell">
+                    <div class="ppp-rate-lbl">TEMPOH TAMAT</div>
+                    <div class="ppp-rate-val">{$redemptionPeriod}</div>
+                </div>
+            </div>
+            <div class="ppp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
+            <div class="ppp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
+            <div class="ppp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
+            <div class="ppp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+        </div>
+    </div>
+
+    <div class="ppp-items-section">
+        <div class="ppp-items-title">Perihal terperinci artikel yang digadai:-</div>
+        <div class="ppp-items-area"></div>
+    </div>
+
+    <div class="ppp-customer-title">Butir-butir terperinci mengenai pemajak gadai:-</div>
+    <div class="ppp-customer-box">
+        <div class="ppp-cust-row">
+            <div class="ppp-cust-col"><span class="ppp-cust-lbl">No. Kad Pengenalan :</span><span class="ppp-cust-val"></span></div>
+            <div class="ppp-cust-col"><span class="ppp-cust-lbl">Nama :</span><span class="ppp-cust-val"></span></div>
+        </div>
+        <div class="ppp-cust-row">
+            <div class="ppp-cust-col"><span class="ppp-cust-lbl">Kerakyatan :</span><span class="ppp-cust-val"></span></div>
+            <div class="ppp-cust-col"><span class="ppp-cust-lbl">Tahun Lahir :</span><span class="ppp-cust-val"></span></div>
+            <div class="ppp-cust-col"><span class="ppp-cust-lbl">Jantina :</span><span class="ppp-cust-val"></span></div>
+        </div>
+        <div class="ppp-cust-row full-width">
+            <div class="ppp-cust-col"><span class="ppp-cust-lbl">Alamat :</span><span class="ppp-cust-val"></span></div>
+        </div>
+        <div class="ppp-cust-row full-width">
+            <div class="ppp-cust-col"><span class="ppp-cust-lbl">Catatan :</span><span class="ppp-cust-val"></span></div>
+        </div>
+    </div>
+
+    <div class="ppp-amount-section">
+        <div class="ppp-amount-words">Amaun :</div>
+        <div class="ppp-amount-row">
+            <div class="ppp-loan-cell">
+                <span class="ppp-loan-lbl">Pinjaman</span>
+                <span class="ppp-loan-rm">RM</span>
+                <span class="ppp-loan-space"></span>
+                <span class="ppp-loan-stars">***</span>
+            </div>
+            <div class="ppp-date-cell"><div class="ppp-date-lbl">Tarikh Dipajak</div><div class="ppp-date-space"></div></div>
+            <div class="ppp-date-cell ppp-date-yel"><div class="ppp-date-lbl">Tarikh Cukup Tempoh</div><div class="ppp-date-space"></div></div>
+        </div>
+    </div>
+
+    <div class="ppp-footer">
+        <div class="ppp-footer-left">
+            <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+        </div>
+        <div class="ppp-footer-right">
+            <div class="ppp-footer-label">Termasuk Emas, Batu<br>dan lain-lain</div>
+            <div class="ppp-footer-berat">Berat :</div>
+            <div class="ppp-gm-box"><span class="ppp-gm-label">(gm)</span><span class="ppp-gm-lu">L U</span></div>
+        </div>
+    </div>
+</div>
+HTML;
+}
 
     /**
      * Generate Redemption Data Overlay
