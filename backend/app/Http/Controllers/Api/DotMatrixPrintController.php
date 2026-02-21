@@ -213,7 +213,7 @@ class DotMatrixPrintController extends Controller
         // Logo HTML
         $logoHtml = '';
         if (!empty($settings['logo_url'])) {
-            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url']) . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
+            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url'], ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
         }
 
         // Interest breakdown
@@ -463,7 +463,7 @@ HTML;
         // Logo HTML
         $logoHtml = '';
         if (!empty($settings['logo_url'])) {
-            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url']) . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
+            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url'], ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
         }
 
         // Build items list
@@ -635,8 +635,8 @@ HTML;
 
         return [
             'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
-            'company_name_chinese' => $settingsMap['name_chinese'] ?? 'æ–°æ³°ç•¶',
-            'company_name_tamil' => $settingsMap['name_tamil'] ?? 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ',
+            'company_name_chinese' => $settingsMap['name_chinese'] ?? '',
+            'company_name_tamil' => $settingsMap['name_tamil'] ?? '',
             'registration_no' => $settingsMap['registration_no'] ?? '',
             'license_no' => $settingsMap['license_no'] ?? $branch->license_no ?? '',
             'established_year' => $settingsMap['established_year'] ?? '1966',
@@ -694,13 +694,13 @@ HTML;
         // Logo HTML - only show if exists in settings
         $logoHtml = '';
         if (!empty($settings['logo_url'])) {
-            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url']) . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
+            $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url'], ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
         }
 
         // Established badge - only show if year exists
         $estHtml = '';
         if (!empty($settings['established_year'])) {
-            $estHtml = '<div class="established">SEJAK<br>' . htmlspecialchars($settings['established_year']) . '</div>';
+            $estHtml = '<div class="established">SEJAK<br>' . htmlspecialchars($settings['established_year'], ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</div>';
         }
 
         return <<<HTML
@@ -1270,240 +1270,537 @@ public function prePrintedFormA4(Request $request): JsonResponse
  * FORCED LANDSCAPE: width 297mm > height 210mm
  * For laser printers like RICOH Aficio
  */
+/**
+ * FRONT PAGE - Pre-Printed Blank Form (UNIVERSAL)
+ * Supports: A4 Portrait, A4 Landscape, A5 Portrait, A5 Landscape
+ * Auto-scales, no cutoff, no extra paper waste
+ */
 private function generatePrePrintedFrontPageA4(array $settings): string
 {
-    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.');
-    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)');
-    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?? '');
-    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?? '');
-    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.');
-    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480');
-    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562');
-    $estYear = htmlspecialchars($settings['established_year'] ?? '1966');
-    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday');
-    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM');
-    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN');
+    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $logoUrl = $settings['logo_url'] ?? null;
 
     $phoneHtml = $phone1;
     if ($phone2) { $phoneHtml .= '<br>' . $phone2; }
 
     $logoHtml = '';
-    if ($logoUrl) { $logoHtml = '<img src="' . htmlspecialchars($logoUrl) . '" class="pp4-logo" alt="Logo">'; }
+    if ($logoUrl) { $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">'; }
 
     $multiName = '';
     if ($chineseName) $multiName .= $chineseName . ' ';
     if ($tamilName) $multiName .= $tamilName;
 
-    $html = '<style>';
-    
-    // FORCE LANDSCAPE: Explicit dimensions (width > height)
-    // This tells the browser to use landscape orientation
-    $html .= '@page { size: 297mm 210mm; margin: 0; }';
-    
-    // Print media styles
-    $html .= '@media print { ';
-    $html .= '  html, body { ';
-    $html .= '    width: 297mm !important; ';
-    $html .= '    height: 210mm !important; ';
-    $html .= '    margin: 0 !important; ';
-    $html .= '    padding: 0 !important; ';
-    $html .= '    overflow: hidden !important; ';
-    $html .= '    -webkit-print-color-adjust: exact !important; ';
-    $html .= '    print-color-adjust: exact !important; ';
-    $html .= '  }';
-    $html .= '  .pp4-front { ';
-    $html .= '    width: 297mm !important; ';
-    $html .= '    height: 210mm !important; ';
-    $html .= '    page-break-after: always; ';
-    $html .= '    margin: 0 !important; ';
-    $html .= '    break-after: page; ';
-    $html .= '    page-break-inside: avoid; ';
-    $html .= '  }';
-    $html .= '}';
-    
-    // Main container - A4 LANDSCAPE with 18mm left padding to prevent cutoff
-    $html .= '.pp4-front { ';
-    $html .= '  width: 297mm; ';
-    $html .= '  height: 210mm; ';
-    $html .= '  padding: 6mm 6mm 6mm 18mm; ';
-    $html .= '  margin: 0 auto; '; 
-    $html .= '  font-family: Arial, Helvetica, sans-serif; ';
-    $html .= '  color: #1a4a7a; ';
-    $html .= '  background: #fff !important; ';
-    $html .= '  overflow: hidden; ';
-    $html .= '  box-sizing: border-box; ';
-    $html .= '  page-break-after: always; ';
-    $html .= '  break-after: page; ';
-    $html .= '  display: flex; ';
-    $html .= '  flex-direction: column; ';
-    $html .= '}';
-    $html .= '.pp4-front * { box-sizing: border-box; margin: 0; padding: 0; }';
-    
-    // Header - Compact
-    $html .= '.pp4-hdr { display: flex; align-items: flex-start; padding-bottom: 3mm; flex-shrink: 0; }';
-    $html .= '.pp4-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 4mm; }';
-    $html .= '.pp4-logo { width: 18mm; height: 18mm; object-fit: contain; flex-shrink: 0; }';
-    $html .= '.pp4-co-info { flex: 1; }';
-    $html .= '.pp4-co-name { font-size: 36px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }';
-    $html .= '.pp4-co-multi { font-size: 25px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }';
-    $html .= '.pp4-co-addr { font-size: 10px; color: #1a4a7a; margin-top: 1mm; }';
-    $html .= '.pp4-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 65mm; }';
-    $html .= '.pp4-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }';
-    $html .= '.pp4-phone-box { background: #d42027; color: #fff; padding: 1.5mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 2mm; }';
-    $html .= '.pp4-phone-icon { font-size: 12px; color: #d42027; background: #fff; border-radius: 50%; width: 5mm; height: 5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }';
-    $html .= '.pp4-phone-nums { font-size: 10px; font-weight: bold; line-height: 1.2; }';
-    $html .= '.pp4-sejak { background: #d42027; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }';
-    $html .= '.pp4-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }';
-    $html .= '.pp4-sejak-yr { font-size: 10px; font-weight: bold; line-height: 1; }';
-    $html .= '.pp4-hrs-box { background: #f5c518; color: #000; padding: 3.5mm 3mm; width: 65mm; text-align: center; }';
-    $html .= '.pp4-hrs-title { font-size: 11px; font-weight: bold; }';
-    $html .= '.pp4-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.2; color: #1a4a7a; }';
-    
-    // Middle section
-    $html .= '.pp4-mid { display: flex; border: 1px solid #1a4a7a; margin-top: 2mm; flex-shrink: 0; }';
-    $html .= '.pp4-items-sec { flex: 1; padding: 2mm 4mm; border-right: 1px solid #1a4a7a; }';
-    $html .= '.pp4-items-title { font-size: 11px; font-weight: bold; margin-bottom: 1mm; }';
-    $html .= '.pp4-items-area { min-height: 35mm; max-height: 42mm; padding-left: 3mm; overflow: hidden; }';
-    $html .= '.pp4-rcol { width: 65mm; min-width: 65mm; }';
-    $html .= '.pp4-tkt-box { background: #f5c518; padding: 2mm; border-bottom: 1px solid #1a4a7a; }';
-    $html .= '.pp4-tkt-lbl { font-size: 10px; font-weight: bold; color: #000; }';
-    $html .= '.pp4-tkt-space { min-height: 12mm; }';
-    $html .= '.pp4-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }';
-    $html .= '.pp4-rate-cell { flex: 1; padding: 2mm; text-align: center; }';
-    $html .= '.pp4-rate-lbl { font-size: 8px; font-weight: bold; color: #1a4a7a; }';
-    $html .= '.pp4-rate-val { font-size: 13px; font-weight: bold; color: #1a4a7a; }';
-    $html .= '.pp4-rate-big { font-size: 16px; }';
-    $html .= '.pp4-kadar { padding: 2mm 3mm; }';
-    $html .= '.pp4-kadar-title { font-size: 9px; font-weight: bold; color: #1a4a7a; text-align: center !important; margin-bottom: 1mm; }';
-    $html .= '.pp4-kadar-ln { font-size: 8px; color: #1a4a7a; line-height: 1.5; text-align: left; }';
-    
-    // Customer section
-    $html .= '.pp4-cust-title-row { display: flex; font-size: 11px; font-weight: bold; padding: 1.5mm 0; margin-top: 1.5mm; flex-shrink: 0; }';
-    $html .= '.pp4-cust-title-left { flex: 1; }';
-    $html .= '.pp4-cust-box { border: 1px solid #d42027; padding: 2mm 4mm; flex-shrink: 0; }';
-    $html .= '.pp4-cust-row { display: flex; align-items: baseline; margin-bottom: 2.5mm; font-size: 11px; font-weight: bold; }';
-    $html .= '.pp4-cust-row:last-child { margin-bottom: 0; }';
-    $html .= '.pp4-cust-col { display: flex; align-items: baseline; flex: 1; }';
-    $html .= '.pp4-cust-lbl { white-space: nowrap; min-width: 25mm; flex-shrink: 0; font-size: 10px; }';
-    $html .= '.pp4-cust-val { flex: 1; min-height: 5mm; margin-right: 4mm; }';
-    $html .= '.pp4-cust-col:last-child .pp4-cust-val { margin-right: 0; }';
-    $html .= '.pp4-cust-row.full-width .pp4-cust-val { margin-right: 0; }';
-    
-    // Amount section
-    $html .= '.pp4-amt-row { border: 1px solid #d42027; border-bottom: none; padding: 1.5mm 4mm; display: flex; align-items: baseline; gap: 3mm; flex-shrink: 0; }';
-    $html .= '.pp4-amt-lbl { font-size: 11px; font-weight: bold; }';
-    
-    // Bottom row
-    $html .= '.pp4-bot { display: flex; border: 1px solid #d42027; flex-shrink: 0; }';
-    $html .= '.pp4-pin-cell { flex: 1; padding: 2mm 4mm; display: flex; align-items: baseline; gap: 2mm; border-right: 1px solid #d42027; }';
-    $html .= '.pp4-pin-lbl { font-size: 11px; }';
-    $html .= '.pp4-pin-rm { font-size: 24px; font-weight: bold; }';
-    $html .= '.pp4-pin-sp { flex: 1; min-height: 6mm; }';
-    $html .= '.pp4-pin-stars { font-size: 16px; font-weight: bold; }';
-    $html .= '.pp4-dt-cell { width: 38mm; text-align: center; padding: 2mm; border-right: 1px solid #d42027; }';
-    $html .= '.pp4-dt-cell:last-child { border-right: none; }';
-    $html .= '.pp4-dt-lbl { font-size: 8px; font-weight: bold; }';
-    $html .= '.pp4-dt-sp { min-height: 6mm; }';
-    $html .= '.pp4-dt-yel { background: #f5c518; }';
-    
-    // Footer - MUST BE VISIBLE
-    $html .= '.pp4-ftr { ';
-    $html .= '  font-size: 8px; ';
-    $html .= '  line-height: 1.4; ';
-    $html .= '  margin-top: 3mm; ';
-    $html .= '  padding-top: 2mm; ';
-    $html .= '  display: flex; ';
-    $html .= '  justify-content: space-between; ';
-    $html .= '  align-items: flex-end; ';
-    $html .= '  flex-shrink: 0; ';
-    $html .= '}';
-    $html .= '.pp4-ftr-left { flex: 1; }';
-    $html .= '.pp4-ftr-right { display: flex; align-items: flex-end; gap: 2mm; text-align: right; }';
-    $html .= '.pp4-ftr-label { font-size: 7px; line-height: 1.2; text-align: right; }';
-    $html .= '.pp4-ftr-berat { font-size: 9px; font-weight: bold; }';
-    $html .= '.pp4-gm-box { border: 1px solid #1a4a7a; width: 18mm; height: 12mm; display: inline-flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 1mm; text-align: center; }';
-    $html .= '.pp4-gm-label { font-size: 7px; }';
-    $html .= '.pp4-gm-lu { font-size: 9px; font-weight: bold; }';
-    
-    $html .= '</style>';
+    return <<<HTML
+<style>
+/* ══════════════════════════════════════════════════════════════
+   UNIVERSAL PRE-PRINTED FORM - A4/A5, Portrait/Landscape
+   ══════════════════════════════════════════════════════════════ */
 
-    // HTML Content
-    $html .= '<div class="pp4-front">';
-    
-    // Header
-    $html .= '<div class="pp4-hdr">';
-    $html .= '<div class="pp4-hdr-left">';
-    $html .= $logoHtml;
-    $html .= '<div class="pp4-co-info">';
-    $html .= '<div class="pp4-co-name">' . $companyName . '</div>';
-    if ($multiName) { $html .= '<div class="pp4-co-multi">' . $multiName . '</div>'; }
-    $html .= '<div class="pp4-co-addr">' . $address . '</div>';
-    $html .= '</div></div>';
-    $html .= '<div class="pp4-hdr-right">';
-    $html .= '<div class="pp4-top-row">';
-    $html .= '<div class="pp4-phone-box"><span class="pp4-phone-icon">&#9742;</span><div class="pp4-phone-nums">' . $phoneHtml . '</div></div>';
-    $html .= '<div class="pp4-sejak"><span class="pp4-sejak-lbl">SEJAK</span><span class="pp4-sejak-yr">' . $estYear . '</span></div>';
-    $html .= '</div>';
-    $html .= '<div class="pp4-hrs-box"><div class="pp4-hrs-title">BUKA 7 HARI</div><div class="pp4-hrs-line">' . $businessDays . ' : ' . $businessHours . '</div></div>';
-    $html .= '</div></div>';
-
-    // Middle section
-    $html .= '<div class="pp4-mid">';
-    $html .= '<div class="pp4-items-sec"><div class="pp4-items-title">Perihal terperinci artikel yang digadai:-</div><div class="pp4-items-area"></div></div>';
-    $html .= '<div class="pp4-rcol">';
-    $html .= '<div class="pp4-tkt-box"><div class="pp4-tkt-lbl">NO. TIKET:</div><div class="pp4-tkt-space"></div></div>';
-    $html .= '<div class="pp4-rate-row"><div class="pp4-rate-cell" style="flex:1;"><div class="pp4-rate-lbl">TEMPOH TAMAT</div><div class="pp4-rate-val pp4-rate-big">' . $redemptionPeriod . '</div></div></div>';
-    $html .= '<div class="pp4-kadar"><div class="pp4-kadar-title">KADAR KEUNTUNGAN BULANAN</div>';
-    $html .= '<div class="pp4-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>';
-    $html .= '<div class="pp4-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>';
-    $html .= '<div class="pp4-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div></div>';
-    $html .= '</div></div>';
-
-    // Customer section
-    $html .= '<div class="pp4-cust-title-row"><span class="pp4-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span></div>';
-
-    $html .= '<div class="pp4-cust-box">';
-    $html .= '<div class="pp4-cust-row">';
-    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">No. Kad<br>Pengenalan :</span><span class="pp4-cust-val"></span></div>';
-    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">Nama :</span><span class="pp4-cust-val"></span></div>';
-    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">Kerakyatan :</span><span class="pp4-cust-val"></span></div>';
-    $html .= '</div>';
-    $html .= '<div class="pp4-cust-row">';
-    $html .= '<div class="pp4-cust-col"><span class="pp4-cust-lbl">Tahun Lahir :</span><span class="pp4-cust-val"></span></div>';
-    $html .= '<div class="pp4-cust-col" style="flex:2;"><span class="pp4-cust-lbl">Jantina :</span><span class="pp4-cust-val"></span></div>';
-    $html .= '</div>';
-    $html .= '<div class="pp4-cust-row full-width"><span class="pp4-cust-lbl">Alamat :</span><span class="pp4-cust-val"></span></div>';
-    $html .= '<div class="pp4-cust-row full-width"><span class="pp4-cust-lbl">Catatan :</span><span class="pp4-cust-val"></span></div>';
-    $html .= '</div>';
-
-    // Amount row
-    $html .= '<div class="pp4-amt-row"><span class="pp4-amt-lbl">Amaun</span></div>';
-    
-    // Bottom row
-    $html .= '<div class="pp4-bot">';
-    $html .= '<div class="pp4-pin-cell"><span class="pp4-pin-lbl">Pinjaman</span><span class="pp4-pin-rm">RM</span><span class="pp4-pin-sp"></span><span class="pp4-pin-stars">***</span></div>';
-    $html .= '<div class="pp4-dt-cell"><div class="pp4-dt-lbl">Tarikh Dipajak</div><div class="pp4-dt-sp"></div></div>';
-    $html .= '<div class="pp4-dt-cell pp4-dt-yel"><div class="pp4-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp4-dt-sp"></div></div>';
-    $html .= '</div>';
-
-    // Footer
-    $html .= '<div class="pp4-ftr">';
-    $html .= '<div class="pp4-ftr-left">';
-    $html .= '<div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>';
-    $html .= '<div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>';
-    $html .= '</div>';
-    $html .= '<div class="pp4-ftr-right">';
-    $html .= '<div class="pp4-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>';
-    $html .= '<div class="pp4-ftr-berat">Berat :</div>';
-    $html .= '<div class="pp4-gm-box"><span class="pp4-gm-label">(gm)</span><span class="pp4-gm-lu">L U</span></div>';
-    $html .= '</div>';
-    $html .= '</div>';
-
-    $html .= '</div>';
-
-    return $html;
+/* Let browser/printer decide - supports ALL paper sizes */
+@page { 
+    margin: 5mm; 
 }
+
+/* Print styles */
+@media print {
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .pp-form {
+        width: 100% !important;
+        height: auto !important;
+        page-break-after: always;
+        page-break-inside: avoid;
+        margin: 0 !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN CONTAINER - Responsive to any paper size
+   ══════════════════════════════════════════════════════════════ */
+.pp-form {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    padding: 4mm;
+    margin: 0 auto;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #1a4a7a;
+    background: #fff !important;
+    box-sizing: border-box;
+}
+.pp-form * { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HEADER - Flexible layout
+   ══════════════════════════════════════════════════════════════ */
+.pp-hdr {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding-bottom: 2mm;
+    gap: 3mm;
+    flex-wrap: wrap;
+}
+.pp-hdr-left {
+    flex: 1;
+    min-width: 150px;
+    display: flex;
+    align-items: flex-start;
+    gap: 3mm;
+}
+.pp-logo {
+    width: 15mm;
+    height: 15mm;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+.pp-co-info { flex: 1; }
+.pp-co-name {
+    font-size: clamp(16px, 5vw, 32px);
+    font-weight: bold;
+    color: #1a4a7a;
+    line-height: 1.1;
+}
+.pp-co-multi {
+    font-size: clamp(12px, 3.5vw, 22px);
+    font-weight: bold;
+    color: #1a4a7a;
+    margin-top: 1mm;
+}
+.pp-co-addr {
+    font-size: clamp(7px, 1.8vw, 10px);
+    color: #1a4a7a;
+    margin-top: 1mm;
+}
+
+.pp-hdr-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 50mm;
+    flex-shrink: 0;
+}
+.pp-top-row {
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+    margin-bottom: 1mm;
+}
+.pp-phone-box {
+    background: #d42027;
+    color: #fff;
+    padding: 1.5mm 2.5mm;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    gap: 1.5mm;
+}
+.pp-phone-icon {
+    font-size: 10px;
+    color: #d42027;
+    background: #fff;
+    border-radius: 50%;
+    width: 4mm;
+    height: 4mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.pp-phone-nums {
+    font-size: clamp(8px, 1.5vw, 10px);
+    font-weight: bold;
+    line-height: 1.2;
+}
+.pp-sejak {
+    background: #d42027;
+    color: #fff;
+    width: 11mm;
+    height: 11mm;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border: 1.5px solid #b01a20;
+    flex-shrink: 0;
+}
+.pp-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }
+.pp-sejak-yr { font-size: 9px; font-weight: bold; line-height: 1; }
+.pp-hrs-box {
+    background: #f5c518;
+    color: #000;
+    padding: 2mm;
+    min-width: 50mm;
+    text-align: center;
+}
+.pp-hrs-title { font-size: clamp(8px, 1.5vw, 11px); font-weight: bold; }
+.pp-hrs-line { font-size: clamp(6px, 1.2vw, 8px); font-weight: bold; line-height: 1.2; color: #1a4a7a; }
+
+/* ══════════════════════════════════════════════════════════════
+   MIDDLE SECTION - Items & Ticket
+   ══════════════════════════════════════════════════════════════ */
+.pp-mid {
+    display: flex;
+    border: 1px solid #1a4a7a;
+    margin-top: 2mm;
+    flex-wrap: wrap;
+}
+.pp-items-sec {
+    flex: 1;
+    min-width: 55%;
+    padding: 2mm 3mm;
+    border-right: 1px solid #1a4a7a;
+}
+.pp-items-title {
+    font-size: clamp(8px, 1.5vw, 11px);
+    font-weight: bold;
+    margin-bottom: 1mm;
+}
+.pp-items-area {
+    min-height: 25mm;
+    padding-left: 2mm;
+}
+
+.pp-rcol {
+    min-width: 50mm;
+    max-width: 70mm;
+    flex-shrink: 0;
+}
+.pp-tkt-box {
+    background: #f5c518;
+    padding: 2mm;
+    border-bottom: 1px solid #1a4a7a;
+}
+.pp-tkt-lbl {
+    font-size: clamp(8px, 1.4vw, 10px);
+    font-weight: bold;
+    color: #000;
+}
+.pp-tkt-space { min-height: 10mm; }
+.pp-rate-row {
+    display: flex;
+    border-bottom: 1px solid #1a4a7a;
+}
+.pp-rate-cell {
+    flex: 1;
+    padding: 1.5mm;
+    text-align: center;
+}
+.pp-rate-lbl {
+    font-size: clamp(6px, 1vw, 8px);
+    font-weight: bold;
+    color: #1a4a7a;
+}
+.pp-rate-val {
+    font-size: clamp(10px, 2vw, 14px);
+    font-weight: bold;
+    color: #1a4a7a;
+}
+.pp-kadar { padding: 1.5mm 2mm; }
+.pp-kadar-title {
+    font-size: clamp(7px, 1.2vw, 9px);
+    font-weight: bold;
+    color: #1a4a7a;
+    text-align: center;
+    margin-bottom: 1mm;
+}
+.pp-kadar-ln {
+    font-size: clamp(6px, 1.1vw, 8px);
+    color: #1a4a7a;
+    line-height: 1.4;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CUSTOMER SECTION
+   ══════════════════════════════════════════════════════════════ */
+.pp-cust-title-row {
+    display: flex;
+    font-size: clamp(8px, 1.5vw, 11px);
+    font-weight: bold;
+    padding: 1.5mm 0;
+    margin-top: 1.5mm;
+}
+.pp-cust-box {
+    border: 1px solid #d42027;
+    padding: 2mm 3mm;
+}
+.pp-cust-row {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 2mm;
+    font-size: clamp(8px, 1.4vw, 10px);
+    font-weight: bold;
+    flex-wrap: wrap;
+    gap: 2mm;
+}
+.pp-cust-row:last-child { margin-bottom: 0; }
+.pp-cust-col {
+    display: flex;
+    align-items: baseline;
+    flex: 1;
+    min-width: 80px;
+}
+.pp-cust-lbl {
+    white-space: nowrap;
+    min-width: 20mm;
+    flex-shrink: 0;
+    font-size: clamp(7px, 1.2vw, 9px);
+}
+.pp-cust-val {
+    flex: 1;
+    min-height: 4mm;
+    border-bottom: 1px dotted #1a4a7a;
+    margin-right: 2mm;
+}
+.pp-cust-col:last-child .pp-cust-val { margin-right: 0; }
+.pp-cust-row.full-width { flex-wrap: nowrap; }
+.pp-cust-row.full-width .pp-cust-col { min-width: auto; }
+.pp-cust-row.full-width .pp-cust-val { margin-right: 0; }
+
+/* ══════════════════════════════════════════════════════════════
+   AMOUNT & BOTTOM SECTION
+   ══════════════════════════════════════════════════════════════ */
+.pp-amt-row {
+    border: 1px solid #d42027;
+    border-bottom: none;
+    padding: 1.5mm 3mm;
+    display: flex;
+    align-items: baseline;
+    gap: 2mm;
+}
+.pp-amt-lbl {
+    font-size: clamp(9px, 1.5vw, 11px);
+    font-weight: bold;
+}
+
+.pp-bot {
+    display: flex;
+    border: 1px solid #d42027;
+    flex-wrap: wrap;
+}
+.pp-pin-cell {
+    flex: 1;
+    min-width: 100px;
+    padding: 2mm 3mm;
+    display: flex;
+    align-items: baseline;
+    gap: 2mm;
+    border-right: 1px solid #d42027;
+}
+.pp-pin-lbl { font-size: clamp(8px, 1.3vw, 10px); }
+.pp-pin-rm { font-size: clamp(16px, 3vw, 22px); font-weight: bold; }
+.pp-pin-sp { flex: 1; min-height: 5mm; border-bottom: 1px dotted #1a4a7a; }
+.pp-pin-stars { font-size: clamp(12px, 2vw, 16px); font-weight: bold; }
+
+.pp-dt-cell {
+    min-width: 30mm;
+    text-align: center;
+    padding: 1.5mm;
+    border-right: 1px solid #d42027;
+}
+.pp-dt-cell:last-child { border-right: none; }
+.pp-dt-lbl { font-size: clamp(6px, 1vw, 8px); font-weight: bold; }
+.pp-dt-sp { min-height: 5mm; }
+.pp-dt-yel { background: #f5c518; }
+
+/* ══════════════════════════════════════════════════════════════
+   FOOTER
+   ══════════════════════════════════════════════════════════════ */
+.pp-ftr {
+    font-size: clamp(6px, 1vw, 8px);
+    line-height: 1.3;
+    margin-top: 2mm;
+    padding-top: 1.5mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 2mm;
+}
+.pp-ftr-left { flex: 1; min-width: 150px; }
+.pp-ftr-right {
+    display: flex;
+    align-items: flex-end;
+    gap: 2mm;
+    text-align: right;
+}
+.pp-ftr-label { font-size: clamp(5px, 0.9vw, 7px); line-height: 1.2; }
+.pp-ftr-berat { font-size: clamp(7px, 1.1vw, 9px); font-weight: bold; }
+.pp-gm-box {
+    border: 1px solid #1a4a7a;
+    width: 15mm;
+    height: 10mm;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1mm;
+    text-align: center;
+}
+.pp-gm-label { font-size: 6px; }
+.pp-gm-lu { font-size: 8px; font-weight: bold; }
+</style>
+
+<div class="pp-form">
+    <!-- HEADER -->
+    <div class="pp-hdr">
+        <div class="pp-hdr-left">
+            {$logoHtml}
+            <div class="pp-co-info">
+                <div class="pp-co-name">{$companyName}</div>
+                <div class="pp-co-multi">{$multiName}</div>
+                <div class="pp-co-addr">{$address}</div>
+            </div>
+        </div>
+        <div class="pp-hdr-right">
+            <div class="pp-top-row">
+                <div class="pp-phone-box">
+                    <span class="pp-phone-icon">&#9742;</span>
+                    <div class="pp-phone-nums">{$phoneHtml}</div>
+                </div>
+                <div class="pp-sejak">
+                    <span class="pp-sejak-lbl">SEJAK</span>
+                    <span class="pp-sejak-yr">{$estYear}</span>
+                </div>
+            </div>
+            <div class="pp-hrs-box">
+                <div class="pp-hrs-title">BUKA 7 HARI</div>
+                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MIDDLE SECTION -->
+    <div class="pp-mid">
+        <div class="pp-items-sec">
+            <div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div>
+            <div class="pp-items-area"></div>
+        </div>
+        <div class="pp-rcol">
+            <div class="pp-tkt-box">
+                <div class="pp-tkt-lbl">NO. TIKET:</div>
+                <div class="pp-tkt-space"></div>
+            </div>
+            <div class="pp-rate-row">
+                <div class="pp-rate-cell">
+                    <div class="pp-rate-lbl">TEMPOH TAMAT</div>
+                    <div class="pp-rate-val">{$redemptionPeriod}</div>
+                </div>
+            </div>
+            <div class="pp-kadar">
+                <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
+                <div class="pp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
+                <div class="pp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
+                <div class="pp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOMER SECTION -->
+    <div class="pp-cust-title-row">
+        <span>Butir-butir terperinci mengenai pemajak gadai:-</span>
+    </div>
+
+    <div class="pp-cust-box">
+        <div class="pp-cust-row">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">No. Kad Pengenalan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Nama :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Kerakyatan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+        <div class="pp-cust-row">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Tahun Lahir :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col" style="flex:2;">
+                <span class="pp-cust-lbl">Jantina :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+        <div class="pp-cust-row full-width">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Alamat :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+        <div class="pp-cust-row full-width">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Catatan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- AMOUNT SECTION -->
+    <div class="pp-amt-row">
+        <span class="pp-amt-lbl">Amaun</span>
+    </div>
+
+    <div class="pp-bot">
+        <div class="pp-pin-cell">
+            <span class="pp-pin-lbl">Pinjaman</span>
+            <span class="pp-pin-rm">RM</span>
+            <span class="pp-pin-sp"></span>
+            <span class="pp-pin-stars">***</span>
+        </div>
+        <div class="pp-dt-cell">
+            <div class="pp-dt-lbl">Tarikh Dipajak</div>
+            <div class="pp-dt-sp"></div>
+        </div>
+        <div class="pp-dt-cell pp-dt-yel">
+            <div class="pp-dt-lbl">Tarikh Cukup Tempoh</div>
+            <div class="pp-dt-sp"></div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="pp-ftr">
+        <div class="pp-ftr-left">
+            <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+        </div>
+        <div class="pp-ftr-right">
+            <div class="pp-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>
+            <div class="pp-ftr-berat">Berat :</div>
+            <div class="pp-gm-box">
+                <span class="pp-gm-label">(gm)</span>
+                <span class="pp-gm-lu">L U</span>
+            </div>
+        </div>
+    </div>
+</div>
+HTML;
+}
+
 /**
  * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
  * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
@@ -1563,7 +1860,7 @@ private function generatePrePrintedBackPageA4(array $settings): string
     $html = '<style>';
     
     // Page setup - A4 LANDSCAPE with explicit dimensions
-    $html .= '@page { size: 297mm 210mm; margin: 0; }';
+    $html .= '@page { size: A4; margin: 5mm; }';
     
     // Print media styles
     $html .= '@media print { ';
@@ -1972,18 +2269,18 @@ HTML;
      */
     private function generatePrePrintedFrontPage(array $settings): string
     {
-        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.');
-        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?? 'æ–°æ³°ç•¶');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?? 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ');
-        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.');
-        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480');
-        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562');
-        $estYear = htmlspecialchars($settings['established_year'] ?? '1966');
-        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday');
-        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM');
-        $closedDays = htmlspecialchars($settings['closed_days'] ?? '');
-        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN');
+        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $closedDays = htmlspecialchars($settings['closed_days'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $logoUrl = $settings['logo_url'] ?? null;
 
         $phoneHtml = $phone1;
@@ -1993,7 +2290,7 @@ HTML;
 
         $logoHtml = '';
         if ($logoUrl) {
-            $logoHtml = '<img src="' . htmlspecialchars($logoUrl) . '" class="pp-logo" alt="Logo">';
+            $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
         }
 
         return <<<'HTMLSTART'

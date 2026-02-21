@@ -1170,7 +1170,76 @@ export default function PrintTestPage() {
   };
 
   // Print Pre-Printed Form A4 (Blank Template)
-  const printPrePrintedFormA4 = async () => {
+  // const printPrePrintedFormA4 = async () => {
+  //   setPrinting(true);
+  //   setPreviewType("Pre-Printed Form A4");
+  //   const startTime = Date.now();
+
+  //   try {
+  //     const token = getToken();
+  //     const response = await fetch(
+  //       `${apiUrl}/print/dot-matrix/pre-printed-form-a4`,
+  //       {
+  //         method: "POST",
+  //         headers: {
+  //           Authorization: `Bearer ${token}`,
+  //           "Content-Type": "application/json",
+  //           Accept: "application/json",
+  //         },
+  //         body: JSON.stringify({
+  //           count: prePrintedA4Count,
+  //           page: prePrintedA4Page,
+  //         }),
+  //       },
+  //     );
+
+  //     const data = await response.json();
+  //     const duration = Date.now() - startTime;
+
+  //     if (!response.ok || !data.success) {
+  //       throw new Error(data.message || "Failed to generate A4 pre-printed form");
+  //     }
+
+  //     const frontHtml = data.data?.front_html || "";
+  //     const backHtml = data.data?.back_html || "";
+  //     const count = data.data?.count || prePrintedA4Count;
+  //     const page = data.data?.page || prePrintedA4Page;
+
+  //     logResult(
+  //       "Pre-Printed Form A4",
+  //       true,
+  //       `${count} page(s) - ${page}`,
+  //       duration,
+  //     );
+
+  //     // Open print window with A4 pre-printed form
+  //     openPrePrintedFormWindowA4(frontHtml, backHtml, count, page);
+
+  //     dispatch(
+  //       addToast({
+  //         type: "success",
+  //         title: "Success",
+  //         message: `${count} A4 pre-printed form(s) ready (${duration}ms)`,
+  //       }),
+  //     );
+  //   } catch (error) {
+  //     const duration = Date.now() - startTime;
+  //     logResult("Pre-Printed Form A4", false, error.message, duration);
+  //     dispatch(
+  //       addToast({
+  //         type: "error",
+  //         title: "Print Error",
+  //         message: error.message,
+  //       }),
+  //     );
+  //   } finally {
+  //     setPrinting(false);
+  //   }
+  // };
+
+
+  // Print Pre-Printed Form A4 (Blank Template)
+  const printPrePrintedFormA4 = async (orientation = "landscape") => {
     setPrinting(true);
     setPreviewType("Pre-Printed Form A4");
     const startTime = Date.now();
@@ -1208,18 +1277,18 @@ export default function PrintTestPage() {
       logResult(
         "Pre-Printed Form A4",
         true,
-        `${count} page(s) - ${page}`,
+        `${count} page(s) - ${page} - ${orientation}`,
         duration,
       );
 
-      // Open print window with A4 pre-printed form
-      openPrePrintedFormWindowA4(frontHtml, backHtml, count, page);
+      // Open print window with A4 pre-printed form AND orientation
+      openPrePrintedFormWindowA4(frontHtml, backHtml, count, page, orientation);
 
       dispatch(
         addToast({
           type: "success",
           title: "Success",
-          message: `${count} A4 pre-printed form(s) ready (${duration}ms)`,
+          message: `${count} A4 form(s) ready - ${orientation} (${duration}ms)`,
         }),
       );
     } catch (error) {
@@ -1238,7 +1307,150 @@ export default function PrintTestPage() {
   };
 
   // Open A4 pre-printed form print window
-  const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page) => {
+  //   const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page) => {
+  //     const printWindow = window.open("", "_blank", "width=1100,height=900");
+  //     if (!printWindow) {
+  //       dispatch(
+  //         addToast({
+  //           type: "error",
+  //           title: "Popup Blocked",
+  //           message: "Please allow popups",
+  //         }),
+  //       );
+  //       return;
+  //     }
+
+  //     const hasFront = frontHtml && frontHtml.length > 0;
+  //     const hasBack = backHtml && backHtml.length > 0;
+  //     const pageLabel =
+  //       page === "front"
+  //         ? "FRONT Only"
+  //         : page === "back"
+  //           ? "BACK Only"
+  //           : "FRONT + BACK";
+
+  //     const frontPages = hasFront ? count : 0;
+  //     const backPages = hasBack ? count : 0;
+
+  //     printWindow.document.write(`
+  //     <!DOCTYPE html>
+  //     <html lang="ms">
+  //     <head>
+  //       <meta charset="UTF-8">
+  //       <title>Pre-Printed Form A4 LANDSCAPE - ${count} sets (${pageLabel})</title>
+  //   <style>
+  //   /* Print Bar Styles */
+  //   body { background: #1f2937; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+  //   .print-bar {
+  //     text-align: center; padding: 14px 20px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); 
+  //     margin-bottom: 20px; border-radius: 10px; position: sticky; top: 0; z-index: 100;
+  //     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  //   }
+  //   .print-bar button {
+  //     padding: 14px 32px; font-size: 15px; cursor: pointer; border: none;
+  //     border-radius: 8px; font-weight: bold; transition: all 0.2s;
+  //     background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff;
+  //   }
+  //   .print-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+  //   .print-bar .info { color: #fbbf24; font-size: 12px; margin-top: 10px; }
+
+  //   .plabel {
+  //     text-align: center; font-size: 12px; color: #9ca3af;
+  //     margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
+  //   }
+  //   .pw {
+  //     width: 100%; max-width: 297mm; margin: 0 auto 25px;
+  //     box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  //     border-radius: 4px; overflow: hidden; background: #fff;
+  //   }
+
+  //   /* Print Styles */
+  //   @page { 
+  //     size: auto;
+  //     margin: 0; 
+  //   }
+
+  //   @media print {
+  //     html, body { 
+  //       margin: 0 !important; 
+  //       padding: 0 !important;
+  //       background: #fff !important;
+  //       -webkit-print-color-adjust: exact !important;
+  //       print-color-adjust: exact !important;
+  //     }
+  //     .print-bar, .plabel { display: none !important; }
+  //     .pw { 
+  //       box-shadow: none !important; 
+  //       border-radius: 0 !important;
+  //       background: #fff !important;
+  //       page-break-inside: avoid !important;
+  //     }
+  //   }
+
+  //   /* Portrait - scale the wrapper, not the content */
+  //   @media print and (orientation: portrait) {
+  //     .pw {
+  //       width: 297mm !important;
+  //       max-width: none !important;
+  //       margin: 0 !important;
+  //       padding: 0 !important;
+  //       transform: scale(0.707);
+  //       transform-origin: top left;
+  //     }
+  //     .print-content {
+  //       width: 100% !important;
+  //     }
+  //   }
+
+  //   /* Landscape - full size */
+  //   @media print and (orientation: landscape) {
+  //     .pw {
+  //       width: 297mm !important;
+  //       max-width: none !important;
+  //       margin: 0 !important;
+  //       padding: 0 !important;
+  //       transform: none;
+  //     }
+  //     .print-content {
+  //       width: 100% !important;
+  //     }
+  //   }
+  // </style>
+  //     </head>
+  //     <body>
+  //       <div class="print-bar">
+  //         <button onclick="window.print()">🖨️ Print</button>
+  //       </div>
+
+  //       ${hasFront ? `
+  // <div class="plabel">📄 PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
+  // <div class="pw" id="frontSection">
+  //   <div class="print-content">${frontHtml}</div>
+  // </div>
+  // ` : ""}
+
+  // ${hasBack ? `
+  // <div class="plabel" id="backLabel">📋 PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
+  // <div class="pw" id="backSection">
+  //   <div class="print-content">${backHtml}</div>
+  // </div>
+  // ` : ""}
+
+  //       <script>
+  //         window.onload = function() {
+  //           const btn = document.querySelector('.print-bar button');
+  //           if(btn) btn.focus();
+  //         };
+  //       </script>
+  //     </body>
+  //     </html>
+  //   `);
+  //     printWindow.document.close();
+  //     printWindow.focus();
+  //   };
+
+  // Open A4 pre-printed form print window
+  const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page, orientation = "landscape") => {
     const printWindow = window.open("", "_blank", "width=1100,height=900");
     if (!printWindow) {
       dispatch(
@@ -1263,162 +1475,130 @@ export default function PrintTestPage() {
     const frontPages = hasFront ? count : 0;
     const backPages = hasBack ? count : 0;
 
+    const isPortrait = orientation === "portrait";
+    const orientationLabel = isPortrait ? "Portrait (Save Paper)" : "Landscape (A4)";
+    const pageSize = isPortrait ? "210mm 155mm" : "297mm 210mm";
+    const previewMaxWidth = isPortrait ? "210mm" : "297mm";
+
     printWindow.document.write(`
-    <!DOCTYPE html>
-    <html lang="ms">
-    <head>
-      <meta charset="UTF-8">
-      <title>Pre-Printed Form A4 LANDSCAPE - ${count} sets (${pageLabel})</title>
-      <style>
-        /* Control Panel Styles */
-        body { background: #1f2937; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-        .ctrl {
-          text-align: center; padding: 16px 20px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); 
-          margin-bottom: 20px; border-radius: 10px; position: sticky; top: 0; z-index: 100;
-          box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .ctrl h2 { color: #fff; margin: 0 0 8px 0; font-size: 18px; }
-        .ctrl p { color: rgba(255,255,255,0.8); margin: 4px 0; font-size: 13px; }
-        .ctrl .highlight { color: #fbbf24; font-weight: bold; }
-        .ctrl .warning { 
-          background: #fbbf24; color: #000; padding: 8px 15px; border-radius: 6px; 
-          margin: 10px 0; font-weight: bold; font-size: 14px;
-        }
-        
-        .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
-        .ctrl button {
-          padding: 12px 24px; font-size: 14px; cursor: pointer; border: none;
-          border-radius: 8px; font-weight: bold; transition: all 0.2s;
-        }
-        .ctrl .pr { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; }
-        .ctrl .pr:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
-        .ctrl .front-btn { background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); color: #fff; }
-        .ctrl .back-btn { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: #fff; }
-        .ctrl .cl { background: #4b5563; color: #fff; }
-        
-        .instructions {
-          background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; margin-top: 15px;
-          text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;
-        }
-        .instructions h4 { color: #fbbf24; margin: 0 0 8px 0; font-size: 14px; }
-        .instructions ol { color: #e5e7eb; margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.6; }
-        .instructions li { margin-bottom: 4px; }
-        .instructions strong { color: #4ade80; }
-        
-        .plabel {
-          text-align: center; font-size: 12px; color: #9ca3af;
-          margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
-        }
-        .pw {
-          width: 297mm; max-width: 297mm; margin: 0 auto 25px;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-          border-radius: 4px; overflow: hidden; background: #fff;
-        }
-
-        /* Print Styles - A4 LANDSCAPE */
-        @page { 
-          size: 297mm 210mm;
-          margin: 0; 
-        }
-        @media print {
-          html, body { 
-            width: 297mm !important; 
-            height: 210mm !important; 
-            margin: 0 !important; 
-            padding: 0 !important;
-            background: #fff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .ctrl, .plabel, .instructions { display: none !important; }
-          .pw { 
-            box-shadow: none !important; 
-            max-width: none !important; 
-            margin: 0 !important; 
-            border-radius: 0 !important; 
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="ctrl">
-        <h2>📄 Pre-Printed Blank Form (A4 LANDSCAPE)</h2>
-        <p><span class="highlight">${count} set(s)</span> — ${pageLabel}</p>
-        
-        <div class="warning">
-          ⚠️ IMPORTANT: Select <strong>LANDSCAPE</strong> orientation in print dialog!
-        </div>
-        
-        <div class="btn-row">
-          ${hasFront && hasBack ? `<button class="pr" onclick="printAll()">🖨️ Print All (${frontPages + backPages} pages)</button>` : ""}
-          ${hasFront ? `<button class="front-btn" onclick="printFront()">📄 Print FRONT (${frontPages} pages)</button>` : ""}
-          ${hasBack ? `<button class="back-btn" onclick="printBack()">📋 Print BACK (${backPages} pages)</button>` : ""}
-          <button class="cl" onclick="window.close()">✕ Close</button>
-        </div>
-        
-        <div class="instructions">
-          <h4>📋 Print Settings:</h4>
-          <ol>
-            <li>Paper size: <strong>A4</strong></li>
-            <li>Orientation: <strong>LANDSCAPE</strong> ← Very Important!</li>
-            <li>Margins: <strong>Default / Minimum</strong> (not None — printer needs some margin)</li>
-            <li>Scale: <strong>100%</strong> (not "Fit to page")</li>
-            <li>Background graphics: <strong>ON</strong> (for colors)</li>
-          </ol>
-        </div>
-      </div>
-
-      ${hasFront
-        ? `
-      <div class="plabel">📄 PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
-      <div class="pw" id="frontSection">${frontHtml}</div>
-      `
-        : ""
+  <!DOCTYPE html>
+  <html lang="ms">
+  <head>
+    <meta charset="UTF-8">
+    <title>Pre-Printed Form A4 ${orientation.toUpperCase()} - ${count} sets (${pageLabel})</title>
+    <style>
+      /* Print Bar Styles */
+      body { background: #1f2937; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+      .print-bar {
+        text-align: center; padding: 14px 20px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); 
+        margin-bottom: 20px; border-radius: 10px; position: sticky; top: 0; z-index: 100;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      }
+      .print-bar button {
+        padding: 14px 32px; font-size: 15px; cursor: pointer; border: none;
+        border-radius: 8px; font-weight: bold; transition: all 0.2s;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff;
+      }
+      .print-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+      .print-bar .info { color: #fbbf24; font-size: 12px; margin-top: 10px; }
+      .print-bar .orientation-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        margin-left: 10px;
+        ${isPortrait
+        ? "background: #10b981; color: #fff;"
+        : "background: #3b82f6; color: #fff;"}
       }
       
-      ${hasBack
-        ? `
-      <div class="plabel" id="backLabel">📋 PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
-      <div class="pw" id="backSection">${backHtml}</div>
-      `
-        : ""
+      .plabel {
+        text-align: center; font-size: 12px; color: #9ca3af;
+        margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
+      }
+      .pw {
+        width: 100%; max-width: ${previewMaxWidth}; margin: 0 auto 25px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+        border-radius: 4px; overflow: hidden; background: #fff;
       }
 
-      <script>
-        function printAll() {
-          document.querySelectorAll('#frontSection, #backSection').forEach(el => { if(el) el.style.display = 'block'; });
-          window.print();
+      /* Print Styles - Fixed orientation */
+      @page { 
+        size: ${pageSize};
+        margin: 0; 
+      }
+      
+      @media print {
+        html, body { 
+          margin: 0 !important; 
+          padding: 0 !important;
+          background: #fff !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
-        function printFront() {
-          const front = document.getElementById('frontSection');
-          const back = document.getElementById('backSection');
-          const backLbl = document.getElementById('backLabel');
-          if(front) front.style.display = 'block';
-          if(back) back.style.display = 'none';
-          if(backLbl) backLbl.style.display = 'none';
-          window.print();
-          if(back) back.style.display = 'block';
-          if(backLbl) backLbl.style.display = 'block';
+        .print-bar, .plabel { display: none !important; }
+        .pw { 
+          box-shadow: none !important; 
+          border-radius: 0 !important;
+          background: #fff !important;
+          page-break-inside: avoid !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          ${isPortrait ? `
+            width: 297mm !important;
+            transform: scale(0.707);
+            transform-origin: top left;
+          ` : `
+            width: 297mm !important;
+            transform: none;
+          `}
         }
-        function printBack() {
-          const front = document.getElementById('frontSection');
-          const back = document.getElementById('backSection');
-          if(front) front.style.display = 'none';
-          if(back) back.style.display = 'block';
-          window.print();
-          if(front) front.style.display = 'block';
+        .print-content {
+          width: 100% !important;
         }
-        window.onload = function() {
-          const btn = document.querySelector('.pr') || document.querySelector('.front-btn') || document.querySelector('.back-btn');
-          if(btn) btn.focus();
-        };
-      </script>
-    </body>
-    </html>
-  `);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="print-bar">
+      <button onclick="window.print()">🖨️ Print ${count} Form(s)</button>
+      <span class="orientation-badge">${isPortrait ? "📄 Portrait - Paper Saver" : "📐 Landscape - Full A4"}</span>
+      <div class="info">
+        ${isPortrait
+        ? "✂️ Custom size: 210mm × 155mm (saves ~45% paper)"
+        : "📄 Full A4: 297mm × 210mm"}
+      </div>
+    </div>
+
+    ${hasFront ? `
+    <div class="plabel">📄 PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
+    <div class="pw" id="frontSection">
+      <div class="print-content">${frontHtml}</div>
+    </div>
+    ` : ""}
+
+    ${hasBack ? `
+    <div class="plabel" id="backLabel">📋 PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
+    <div class="pw" id="backSection">
+      <div class="print-content">${backHtml}</div>
+    </div>
+    ` : ""}
+
+    <script>
+      window.onload = function() {
+        const btn = document.querySelector('.print-bar button');
+        if(btn) btn.focus();
+      };
+    </script>
+  </body>
+  </html>
+`);
     printWindow.document.close();
     printWindow.focus();
   };
+
   // Test Data Overlay - Preview data alignment on pre-printed form
   const testDataOverlay = async () => {
     if (!selectedPledge) {
@@ -2562,6 +2742,7 @@ export default function PrintTestPage() {
               </div>
 
               {/* Pre-Printed Form A4 - NEW */}
+              {/* Pre-Printed Form A4 - TWO BUTTONS */}
               <div className="p-3 bg-amber-50 rounded-lg border border-amber-300">
                 <div className="flex items-center justify-between mb-2">
                   <div>
@@ -2569,7 +2750,7 @@ export default function PrintTestPage() {
                       Pre-Printed Blank Form A4
                     </p>
                     <p className="text-xs text-amber-600">
-                      A4 blank form template
+                      Choose orientation below
                     </p>
                   </div>
                   <Badge className="bg-amber-500 text-white">A4</Badge>
@@ -2582,10 +2763,7 @@ export default function PrintTestPage() {
                     value={prePrintedA4Count}
                     onChange={(e) =>
                       setPrePrintedA4Count(
-                        Math.min(
-                          50,
-                          Math.max(1, parseInt(e.target.value) || 5),
-                        ),
+                        Math.min(50, Math.max(1, parseInt(e.target.value) || 5))
                       )
                     }
                     className="w-16 text-center"
@@ -2600,21 +2778,35 @@ export default function PrintTestPage() {
                     <option value="back">Back Only</option>
                   </select>
                 </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={FileText}
-                  onClick={printPrePrintedFormA4}
-                  loading={printing && previewType === "Pre-Printed Form A4"}
-                  disabled={printing}
-                  fullWidth
-                  className="bg-amber-600 hover:bg-amber-700"
-                >
-                  Print {prePrintedA4Count} A4 Blank Form(s)
-                </Button>
+
+                {/* Two Print Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={FileText}
+                    onClick={() => printPrePrintedFormA4("landscape")}
+                    loading={printing && previewType === "Pre-Printed Form A4"}
+                    disabled={printing}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    📐 Landscape
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={FileText}
+                    onClick={() => printPrePrintedFormA4("portrait")}
+                    loading={printing && previewType === "Pre-Printed Form A4"}
+                    disabled={printing}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    📄 Portrait
+                  </Button>
+                </div>
+
                 <p className="text-xs text-amber-500 mt-2">
-                  📄 A4 blank forms with all labels, borders & styling - no
-                  customer data
+                  📐 Landscape = Full A4 | 📄 Portrait = Saves ~45% paper
                 </p>
               </div>
 
