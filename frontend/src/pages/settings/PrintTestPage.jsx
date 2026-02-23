@@ -1478,7 +1478,7 @@ export default function PrintTestPage() {
 
     const isPortrait = orientation === "portrait";
     const orientationLabel = isPortrait ? "Portrait (Save Paper)" : "Landscape (A4)";
-    const pageSize = isPortrait ? "210mm 155mm" : "297mm 210mm";
+    const pageSize = isPortrait ? "portrait" : "297mm 210mm";
     const previewMaxWidth = isPortrait ? "210mm" : "297mm";
 
     printWindow.document.write(`

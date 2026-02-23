@@ -3251,145 +3251,8 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
     if ($chineseName) $multiName .= $chineseName . ' ';
     if ($tamilName) $multiName .= $tamilName;
 
-    return <<<HTML
-<style>
-@page { size: 210mm 297mm; margin: 0; }
-@media print {
-    html, body { 
-        width: 210mm !important; 
-        margin: 0 !important; 
-        padding: 0 !important; 
-    }
-    .ppp-front { 
-        width: 100% !important;
-        max-width: 195mm !important;
-        margin: 0 !important; 
-        padding: 4mm 5mm !important;
-        page-break-after: always;
-    }
-}
-.ppp-front {
-    width: 100%; 
-    max-width: 195mm;
-    padding: 4mm 5mm;
-    margin: 0;
-    font-family: Arial, Helvetica, sans-serif; 
-    color: #1a4a7a;
-    background: #fff !important; 
-    box-sizing: border-box;
-}
-.ppp-front * { box-sizing: border-box; margin: 0; padding: 0; }
-
-/* HEADER */
-.ppp-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 1mm; margin-bottom: 0; }
-.ppp-header-left { display: flex; align-items: flex-start; gap: 3mm; flex: 1; }
-.ppp-logo { width: 18mm; height: 18mm; object-fit: contain; }
-.ppp-company-info { flex: 1; }
-.ppp-company-name { font-size: 26px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
-.ppp-company-multi { font-size: 18px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }
-.ppp-company-addr { font-size: 11px; color: #1a4a7a; margin-top: 1mm; }
-.ppp-header-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 55mm; }
-.ppp-phone-sejak { display: flex; align-items: center; gap: 2mm; margin-bottom: 2mm; }
-.ppp-phone-box { background: #d42027; color: #fff; padding: 2mm 3mm; border-radius: 3px; font-size: 10px; font-weight: bold; }
-.ppp-sejak { background: #d42027; color: #fff; width: 12mm; height: 12mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.ppp-sejak-lbl { font-size: 5px; font-weight: bold; }
-.ppp-sejak-yr { font-size: 9px; font-weight: bold; }
-.ppp-hours-box { background: #f5c518; color: #000; padding: 2mm 3mm; text-align: center; min-width: 50mm; }
-.ppp-hours-title { font-size: 10px; font-weight: bold; }
-.ppp-hours-line { font-size: 8px; font-weight: bold; color: #1a4a7a; }
-
-/* MIDDLE SECTION - Items & Ticket side-by-side */
-.ppp-mid {
-    display: flex;
-    border: 1px solid #1a4a7a;
-    margin-bottom: 4mm;
-    width: 100%;
-}
-.ppp-items-sec {
-    flex: 1;
-    min-width: 55%;
-    padding: 3mm;
-    border-right: 1px solid #1a4a7a;
-}
-.ppp-items-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; color: #1a4a7a; }
-.ppp-items-area { min-height: 40mm; padding: 2mm; }
-
-.ppp-rcol {
-    min-width: 55mm;
-    max-width: 75mm;
-    flex-shrink: 0;
-}
-.ppp-ticket-box {
-    background: #f5c518;
-    padding: 3mm;
-    border-bottom: 1px solid #1a4a7a;
-}
-.ppp-ticket-lbl { font-size: 10px; font-weight: bold; color: #000; }
-.ppp-ticket-space { min-height: 12mm; }
-.ppp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }
-.ppp-rate-cell { flex: 1; padding: 2mm; text-align: center; }
-.ppp-rate-lbl { font-size: 8px; font-weight: bold; color: #1a4a7a; }
-.ppp-rate-val { font-size: 14px; font-weight: bold; color: #1a4a7a; }
-.ppp-kadar { padding: 2mm; }
-.ppp-kadar-title { font-size: 9px; font-weight: bold; color: #1a4a7a; text-align: center; margin-bottom: 1mm; }
-.ppp-kadar-ln { font-size: 8px; color: #1a4a7a; line-height: 1.5; }
-
-/* CUSTOMER */
-.ppp-customer-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; color: #1a4a7a; }
-.ppp-customer-box { border: 1px solid #d42027; padding: 3mm; margin-bottom: 4mm;width: 100%; }
-.ppp-cust-row {
-    display: flex;
-    align-items: baseline;
-    margin-bottom: 3mm;
-    font-size: 10px;
-    gap: 3mm;
-    width: 100%;  /* ADD THIS */
-}
-.ppp-cust-row:last-child { margin-bottom: 0; }
-.ppp-cust-col { display: flex; align-items: baseline; flex: 1; min-width: 0; }
-.ppp-cust-lbl { white-space: nowrap; min-width: 28mm; flex-shrink: 0; font-size: 9px; font-weight: bold; }
-.ppp-cust-val { flex: 1; min-height: 5mm; margin-right: 0; }
-.ppp-cust-row.full-width { flex-wrap: nowrap; }
-.ppp-cust-row.full-width .ppp-cust-col { flex: 1; }
-
-/* AMOUNT */
-.ppp-amount-section { border: 1px solid #d42027; margin-bottom: 4mm;width: 100%; }
-.ppp-amount-words { padding: 2mm 3mm; font-size: 10px; font-weight: bold; border-bottom: 1px solid #d42027; }
-.ppp-amount-row {
-    display: flex;
-    width: 100%;  /* ADD THIS */
-}
-.ppp-loan-cell {
-    flex: 1;
-    padding: 3mm;
-    display: flex;
-    align-items: baseline;
-    gap: 2mm;
-    border-right: 1px solid #d42027;
-    min-width: 0;  /* ADD THIS - allows flex shrink */
-}
-.ppp-loan-lbl { font-size: 10px; }
-.ppp-loan-rm { font-size: 18px; font-weight: bold; }
-.ppp-loan-space { flex: 1; min-height: 8mm; }
-.ppp-loan-stars { font-size: 14px; font-weight: bold; }
-.ppp-date-cell { width: 40mm; text-align: center; padding: 2mm; border-right: 1px solid #d42027; }
-.ppp-date-cell:last-child { border-right: none; }
-.ppp-date-lbl { font-size: 8px; font-weight: bold; }
-.ppp-date-space { min-height: 8mm; }
-.ppp-date-yel { background: #f5c518; }
-
-/* FOOTER */
-.ppp-footer { font-size: 8px; line-height: 1.4; padding-top: 2mm; display: flex; justify-content: space-between; align-items: flex-end; }
-.ppp-footer-left { flex: 1; }
-.ppp-footer-right { display: flex; align-items: flex-end; gap: 2mm; text-align: right; }
-.ppp-footer-label { font-size: 7px; line-height: 1.2; }
-.ppp-footer-berat { font-size: 10px; font-weight: bold; }
-.ppp-gm-box { border: 1px solid #1a4a7a; width: 16mm; height: 12mm; display: inline-flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 1mm; }
-.ppp-gm-label { font-size: 7px; }
-.ppp-gm-lu { font-size: 9px; font-weight: bold; }
-</style>
-
-<div class="ppp-front">
+    // Build single form block (reused for both copies)
+    $formBlock = <<<FORM
     <div class="ppp-header">
         <div class="ppp-header-left">
             {$logoHtml}
@@ -3401,7 +3264,7 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
         </div>
         <div class="ppp-header-right">
             <div class="ppp-phone-sejak">
-                <div class="ppp-phone-box">☎ {$phoneHtml}</div>
+                <div class="ppp-phone-box">&#9742; {$phoneHtml}</div>
                 <div class="ppp-sejak"><span class="ppp-sejak-lbl">SEJAK</span><span class="ppp-sejak-yr">{$estYear}</span></div>
             </div>
             <div class="ppp-hours-box">
@@ -3479,6 +3342,158 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
             <div class="ppp-footer-berat">Berat :</div>
             <div class="ppp-gm-box"><span class="ppp-gm-label">(gm)</span><span class="ppp-gm-lu">L U</span></div>
         </div>
+    </div>
+FORM;
+
+    return <<<HTML
+<style>
+/* ══════════════════════════════════════════════════════════════
+   PRE-PRINTED FORM - PORTRAIT, 2 COPIES PER PAGE
+   @page: portrait — prevents browser rotation
+   Each copy uses flex to fill exactly half the page height
+   Tractor feed: 241mm × 279mm (9.5" × 11")
+   Each copy = ~136mm (279mm ÷ 2 = 139.5mm minus cut line)
+   ══════════════════════════════════════════════════════════════ */
+@page { size: portrait; margin: 0; }
+@media print {
+    html, body { 
+        margin: 0 !important; padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .ppp-page-wrapper {
+        width: 200mm !important;
+        margin: 0 auto !important;
+        page-break-after: always;
+        page-break-inside: avoid;
+    }
+}
+
+/* Page wrapper holds both copies — uses flex to distribute space evenly */
+.ppp-page-wrapper {
+    width: 200mm;
+    margin: 0 auto;
+    page-break-after: always;
+    break-after: page;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Each form copy — flex: 1 makes both copies share the page equally */
+.ppp-front {
+    width: 200mm; padding: 3mm 4mm;
+    font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
+    background: #fff !important; box-sizing: border-box;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.ppp-front * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Dashed cut line between the two copies */
+.ppp-cut-line {
+    border: none;
+    border-top: 1px dashed #aaa;
+    margin: 6mm 4mm;
+    flex-shrink: 0;
+}
+
+/* ── HEADER ── */
+.ppp-header { 
+    display: flex; align-items: flex-start; justify-content: space-between; 
+    padding-bottom: 1.5mm; border-bottom: 1px solid #1a4a7a; margin-bottom: 1.5mm;
+    flex-shrink: 0;
+}
+.ppp-header-left { display: flex; align-items: flex-start; gap: 2mm; flex: 1; }
+.ppp-logo { width: 12mm; height: 12mm; object-fit: contain; }
+.ppp-company-info { flex: 1; }
+.ppp-company-name { font-size: 16px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+.ppp-company-multi { font-size: 11px; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
+.ppp-company-addr { font-size: 7px; color: #1a4a7a; margin-top: 0.5mm; }
+.ppp-header-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 40mm; }
+.ppp-phone-sejak { display: flex; align-items: center; gap: 1.5mm; margin-bottom: 1mm; }
+.ppp-phone-box { background: #d42027; color: #fff; padding: 1mm 2mm; border-radius: 2px; font-size: 7px; font-weight: bold; }
+.ppp-sejak { background: #d42027; color: #fff; width: 9mm; height: 9mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #b01a20; }
+.ppp-sejak-lbl { font-size: 4px; font-weight: bold; }
+.ppp-sejak-yr { font-size: 7px; font-weight: bold; }
+.ppp-hours-box { background: #f5c518; color: #000; padding: 1mm 2mm; text-align: center; min-width: 38mm; }
+.ppp-hours-title { font-size: 8px; font-weight: bold; }
+.ppp-hours-line { font-size: 6px; font-weight: bold; color: #1a4a7a; }
+
+/* ── MIDDLE — items section grows to fill available space ── */
+.ppp-mid { 
+    display: flex; border: 1px solid #1a4a7a; margin-bottom: 1.5mm;
+    flex: 1; /* ★ THIS makes the items section expand to fill remaining space */
+    min-height: 30mm;
+}
+.ppp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
+.ppp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; flex-shrink: 0; }
+.ppp-items-area { flex: 1; min-height: 20mm; } /* ★ Grows to fill space */
+.ppp-rcol { width: 42mm; min-width: 42mm; display: flex; flex-direction: column; }
+.ppp-ticket-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; flex-shrink: 0; }
+.ppp-ticket-lbl { font-size: 8px; font-weight: bold; color: #000; }
+.ppp-ticket-space { flex: 1; min-height: 8mm; } /* ★ Grows to fill space */
+.ppp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; flex-shrink: 0; }
+.ppp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
+.ppp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
+.ppp-rate-val { font-size: 11px; font-weight: bold; color: #1a4a7a; }
+.ppp-kadar { padding: 1.5mm 2mm; flex-shrink: 0; }
+.ppp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center; margin-bottom: 0.5mm; }
+.ppp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.3; }
+
+/* ── CUSTOMER ── */
+.ppp-customer-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; flex-shrink: 0; }
+.ppp-customer-box { border: 1px solid #d42027; padding: 2mm; margin-bottom: 1.5mm; flex-shrink: 0; }
+.ppp-cust-row { display: flex; align-items: baseline; margin-bottom: 2mm; font-size: 8px; gap: 2mm; }
+.ppp-cust-row:last-child { margin-bottom: 0; }
+.ppp-cust-col { display: flex; align-items: baseline; flex: 1; min-width: 0; }
+.ppp-cust-lbl { white-space: nowrap; min-width: 20mm; flex-shrink: 0; font-size: 7px; font-weight: bold; }
+.ppp-cust-val { flex: 1; min-height: 4mm; border-bottom: 1px dotted #1a4a7a; }
+.ppp-cust-row.full-width { flex-wrap: nowrap; }
+.ppp-cust-row.full-width .ppp-cust-col { flex: 1; }
+
+/* ── AMOUNT ── */
+.ppp-amount-section { border: 1px solid #d42027; margin-bottom: 1.5mm; flex-shrink: 0; }
+.ppp-amount-words { padding: 1.5mm 2mm; font-size: 8px; font-weight: bold; border-bottom: 1px solid #d42027; }
+.ppp-amount-row { display: flex; }
+.ppp-loan-cell { flex: 1; padding: 1.5mm 2mm; display: flex; align-items: baseline; gap: 1.5mm; border-right: 1px solid #d42027; min-width: 0; }
+.ppp-loan-lbl { font-size: 8px; }
+.ppp-loan-rm { font-size: 14px; font-weight: bold; }
+.ppp-loan-space { flex: 1; min-height: 5mm; border-bottom: 1px dotted #1a4a7a; }
+.ppp-loan-stars { font-size: 11px; font-weight: bold; }
+.ppp-date-cell { width: 28mm; text-align: center; padding: 1.5mm; border-right: 1px solid #d42027; }
+.ppp-date-cell:last-child { border-right: none; }
+.ppp-date-lbl { font-size: 6px; font-weight: bold; }
+.ppp-date-space { min-height: 5mm; }
+.ppp-date-yel { background: #f5c518; }
+
+/* ── FOOTER ── */
+.ppp-footer { font-size: 6px; line-height: 1.2; padding-top: 0.5mm; display: flex; justify-content: space-between; align-items: flex-end; flex-shrink: 0; }
+.ppp-footer-left { flex: 1; }
+.ppp-footer-right { display: flex; align-items: flex-end; gap: 1.5mm; text-align: right; }
+.ppp-footer-label { font-size: 5px; line-height: 1.2; }
+.ppp-footer-berat { font-size: 7px; font-weight: bold; }
+.ppp-gm-box { border: 1px solid #1a4a7a; width: 11mm; height: 7mm; display: inline-flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 0.5mm; }
+.ppp-gm-label { font-size: 5px; }
+.ppp-gm-lu { font-size: 6px; font-weight: bold; }
+</style>
+
+<div class="ppp-page-wrapper">
+    <!-- ═══ COPY 1 (Top) ═══ -->
+    
+    <div class="ppp-front">
+    <p>&nbsp;</p>
+{$formBlock}
+    </div>
+    <p>&nbsp;</p>
+    <!-- ✂ Cut Line ── -->
+    <hr class="ppp-cut-line">
+
+    <!-- ═══ COPY 2 (Bottom) ═══ -->
+    <div class="ppp-front">
+    <p>&nbsp;</p>
+{$formBlock}
     </div>
 </div>
 HTML;
