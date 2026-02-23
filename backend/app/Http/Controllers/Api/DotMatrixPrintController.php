@@ -4078,6 +4078,7 @@ BLOCK;
 <div class="pppb-page-wrapper">
     <!-- ═══ COPY 1 (Top) ═══ -->
     <div class="pppb-back">
+        <p>&nbsp;</p>
 {$backBlock}
     </div>
 
