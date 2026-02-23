@@ -3449,7 +3449,7 @@ FORM;
 .ppp-cust-row:last-child { margin-bottom: 0; }
 .ppp-cust-col { display: flex; align-items: baseline; flex: 1; min-width: 0; }
 .ppp-cust-lbl { white-space: nowrap; min-width: 20mm; flex-shrink: 0; font-size: 7px; font-weight: bold; }
-.ppp-cust-val { flex: 1; min-height: 4mm; border-bottom: 1px dotted #1a4a7a; }
+.ppp-cust-val { flex: 1; min-height: 4mm; }
 .ppp-cust-row.full-width { flex-wrap: nowrap; }
 .ppp-cust-row.full-width .ppp-cust-col { flex: 1; }
 
@@ -3460,7 +3460,7 @@ FORM;
 .ppp-loan-cell { flex: 1; padding: 1.5mm 2mm; display: flex; align-items: baseline; gap: 1.5mm; border-right: 1px solid #d42027; min-width: 0; }
 .ppp-loan-lbl { font-size: 8px; }
 .ppp-loan-rm { font-size: 14px; font-weight: bold; }
-.ppp-loan-space { flex: 1; min-height: 5mm; border-bottom: 1px dotted #1a4a7a; }
+.ppp-loan-space { flex: 1; min-height: 5mm; }
 .ppp-loan-stars { font-size: 11px; font-weight: bold; }
 .ppp-date-cell { width: 28mm; text-align: center; padding: 1.5mm; border-right: 1px solid #d42027; }
 .ppp-date-cell:last-child { border-right: none; }
@@ -4002,7 +4002,7 @@ BLOCK;
     overflow: hidden;
 }
 .pppb-tm {
-    font-size: 7px;
+    font-size: 9px;
     line-height: 1.35;
     margin-bottom: 1.5mm;
     text-align: justify;
@@ -4010,7 +4010,7 @@ BLOCK;
 .pppb-notice {
     border: 2px solid #1a4a7a;
     padding: 2mm 4mm;
-    margin-top: 2mm;
+    margin-top: 3mm;
     text-align: center;
     font-size: 9px;
     font-weight: bold;
@@ -4031,7 +4031,7 @@ BLOCK;
 .pppb-red-h {
     font-size: 9px;
     font-weight: bold;
-    text-align: right;
+    text-align: center
     padding-bottom: 1.5mm;
     margin-bottom: 1.5mm;
     border-bottom: 1px solid #1a4a7a;
@@ -4055,12 +4055,10 @@ BLOCK;
     margin-top: auto;
     padding-top: 2mm;
     flex-shrink: 0;
-    display: flex;
-    justify-content: flex-end;
 }
 .pppb-sig-b {
     border: 1px solid #1a4a7a;
-    width: 25mm;
+    width: 44mm;
     height: 16mm;
     display: flex;
     flex-direction: column;
@@ -4070,7 +4068,7 @@ BLOCK;
 }
 .pppb-sig-l {
     font-size: 6px;
-    text-align: center;
+    text-align: end;
     color: #1a4a7a;
 }
 </style>
