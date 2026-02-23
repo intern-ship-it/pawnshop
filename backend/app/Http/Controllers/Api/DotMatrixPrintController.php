@@ -1186,134 +1186,142 @@ HTML;
         }
     }
 
-/**
- * Generate Pre-Printed Form (9Â½" Ã— 11" LANDSCAPE)
- * Paper size: 9.5in Ã— 11in (241.3mm Ã— 279.4mm) - printed in LANDSCAPE
- * Actual print area: 279.4mm Ã— 241.3mm
- */
-/**
- * Generate Pre-Printed Form (A4 LANDSCAPE)
- * Paper size: A4 Landscape = 297mm Ã— 210mm
- * For laser printers like RICOH Aficio
- */
-public function prePrintedFormA4(Request $request): JsonResponse
-{
-    try {
-        $validated = $request->validate([
-            'count' => 'sometimes|integer|min:1|max:50',
-            'page' => 'sometimes|in:front,back,both',
-            'orientation' => 'sometimes|in:landscape,portrait',
-        ]);
+    /**
+     * Generate Pre-Printed Form (9Â½" Ã— 11" LANDSCAPE)
+     * Paper size: 9.5in Ã— 11in (241.3mm Ã— 279.4mm) - printed in LANDSCAPE
+     * Actual print area: 279.4mm Ã— 241.3mm
+     */
+    /**
+     * Generate Pre-Printed Form (A4 LANDSCAPE)
+     * Paper size: A4 Landscape = 297mm Ã— 210mm
+     * For laser printers like RICOH Aficio
+     */
+    public function prePrintedFormA4(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'count' => 'sometimes|integer|min:1|max:50',
+                'page' => 'sometimes|in:front,back,both',
+                'orientation' => 'sometimes|in:landscape,portrait',
+            ]);
 
-        $count = $validated['count'] ?? 1;
-        $page = $validated['page'] ?? 'both';
-        $orientation = $validated['orientation'] ?? 'landscape';
+            $count = $validated['count'] ?? 1;
+            $page = $validated['page'] ?? 'both';
+            $orientation = $validated['orientation'] ?? 'landscape';
 
-        $branch = $request->user()->branch;
-        $settings = $this->getCompanySettings($branch);
+            $branch = $request->user()->branch;
+            $settings = $this->getCompanySettings($branch);
 
-        $frontHtml = '';
-        $backHtml = '';
+            $frontHtml = '';
+            $backHtml = '';
 
-        if ($page === 'front' || $page === 'both') {
-            if ($orientation === 'portrait') {
-                $frontHtml = $this->generatePrePrintedFrontPageA4Portrait($settings);
-            } else {
-                $frontHtml = $this->generatePrePrintedFrontPageA4($settings);
+            if ($page === 'front' || $page === 'both') {
+                if ($orientation === 'portrait') {
+                    $frontHtml = $this->generatePrePrintedFrontPageA4Portrait($settings);
+                } else {
+                    $frontHtml = $this->generatePrePrintedFrontPageA4($settings);
+                }
             }
-        }
 
-        if ($page === 'back' || $page === 'both') {
-            if ($orientation === 'portrait') {
-                $backHtml = $this->generatePrePrintedBackPageA4Portrait($settings);
-            } else {
-                $backHtml = $this->generatePrePrintedBackPageA4($settings);
+            if ($page === 'back' || $page === 'both') {
+                if ($orientation === 'portrait') {
+                    $backHtml = $this->generatePrePrintedBackPageA4Portrait($settings);
+                } else {
+                    $backHtml = $this->generatePrePrintedBackPageA4($settings);
+                }
             }
+
+            $bulkFrontHtml = '';
+            $bulkBackHtml = '';
+            for ($i = 0; $i < $count; $i++) {
+                if ($frontHtml)
+                    $bulkFrontHtml .= $frontHtml;
+                if ($backHtml)
+                    $bulkBackHtml .= $backHtml;
+            }
+
+            return $this->success([
+                'front_html' => $bulkFrontHtml,
+                'back_html' => $bulkBackHtml,
+                'count' => $count,
+                'page' => $page,
+                'format' => 'html',
+                'paper_size' => ($orientation === 'portrait')
+                    ? 'A4 Portrait (210mm x 297mm)'
+                    : 'A4 Landscape (297mm x 210mm)',
+                'orientation' => $orientation,
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Pre-Printed Form A4 Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
         }
-
-        $bulkFrontHtml = '';
-        $bulkBackHtml = '';
-        for ($i = 0; $i < $count; $i++) {
-            if ($frontHtml) $bulkFrontHtml .= $frontHtml;
-            if ($backHtml) $bulkBackHtml .= $backHtml;
-        }
-
-        return $this->success([
-            'front_html' => $bulkFrontHtml,
-            'back_html' => $bulkBackHtml,
-            'count' => $count,
-            'page' => $page,
-            'format' => 'html',
-            'paper_size' => ($orientation === 'portrait') 
-                ? 'A4 Portrait (210mm x 297mm)' 
-                : 'A4 Landscape (297mm x 210mm)',
-            'orientation' => $orientation,
-        ]);
-
-    } catch (\Exception $e) {
-        \Log::error('Pre-Printed Form A4 Error: ' . $e->getMessage());
-        return $this->error('Print error: ' . $e->getMessage(), 500);
     }
-}
 
-/**
- * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
- * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
- * For laser printers like RICOH Aficio
- */
-
+    /**
+     * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+     * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
+     * For laser printers like RICOH Aficio
+     */
 
 
 
 
-/**
- * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
- * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
- * For laser printers like RICOH Aficio
- */
-/**
- * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
- * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
- * For laser printers like RICOH Aficio
- * FIXED: Proper landscape orientation + footer visible
- */
 
-/**
- * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
- * FORCED LANDSCAPE: width 297mm > height 210mm
- * For laser printers like RICOH Aficio
- */
-/**
- * FRONT PAGE - Pre-Printed Blank Form (UNIVERSAL)
- * Supports: A4 Portrait, A4 Landscape, A5 Portrait, A5 Landscape
- * Auto-scales, no cutoff, no extra paper waste
- */
-private function generatePrePrintedFrontPageA4(array $settings): string
-{
-    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $logoUrl = $settings['logo_url'] ?? null;
+    /**
+     * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+     * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
+     * For laser printers like RICOH Aficio
+     */
+    /**
+     * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+     * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
+     * For laser printers like RICOH Aficio
+     * FIXED: Proper landscape orientation + footer visible
+     */
 
-    $phoneHtml = $phone1;
-    if ($phone2) { $phoneHtml .= '<br>' . $phone2; }
+    /**
+     * FRONT PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+     * FORCED LANDSCAPE: width 297mm > height 210mm
+     * For laser printers like RICOH Aficio
+     */
+    /**
+     * FRONT PAGE - Pre-Printed Blank Form (UNIVERSAL)
+     * Supports: A4 Portrait, A4 Landscape, A5 Portrait, A5 Landscape
+     * Auto-scales, no cutoff, no extra paper waste
+     */
+    private function generatePrePrintedFrontPageA4(array $settings): string
+    {
+        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $logoUrl = $settings['logo_url'] ?? null;
 
-    $logoHtml = '';
-    if ($logoUrl) { $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">'; }
+        $phoneHtml = $phone1;
+        if ($phone2) {
+            $phoneHtml .= '<br>' . $phone2;
+        }
 
-    $multiName = '';
-    if ($chineseName) $multiName .= $chineseName . ' ';
-    if ($tamilName) $multiName .= $tamilName;
+        $logoHtml = '';
+        if ($logoUrl) {
+            $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
+        }
 
-    return <<<HTML
+        $multiName = '';
+        if ($chineseName)
+            $multiName .= $chineseName . ' ';
+        if ($tamilName)
+            $multiName .= $tamilName;
+
+        return <<<HTML
 <style>
 /* ══════════════════════════════════════════════════════════════
    UNIVERSAL PRE-PRINTED FORM - A4/A5, Portrait/Landscape
@@ -1812,227 +1820,227 @@ private function generatePrePrintedFrontPageA4(array $settings): string
     </div>
 </div>
 HTML;
-}
+    }
 
-/**
- * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
- * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
- * For laser printers like RICOH Aficio
- */
-/**
- * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
- * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
- * FIXED: Matches physical form layout with signature box at bottom right
- */
+    /**
+     * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+     * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
+     * For laser printers like RICOH Aficio
+     */
+    /**
+     * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
+     * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
+     * FIXED: Matches physical form layout with signature box at bottom right
+     */
 
-private function generatePrePrintedBackPageA4(array $settings): string
-{
-    $termsItems = [];
-    try {
-        $dbTerms = TermsCondition::where('is_active', true)
-            ->where('activity_type', 'pledge')
-            ->orderBy('sort_order', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
+    private function generatePrePrintedBackPageA4(array $settings): string
+    {
+        $termsItems = [];
+        try {
+            $dbTerms = TermsCondition::where('is_active', true)
+                ->where('activity_type', 'pledge')
+                ->orderBy('sort_order', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
 
-        if ($dbTerms->count() > 0) {
-            foreach ($dbTerms as $term) {
-                $content = $term->content_ms ?? $term->content_en ?? '';
-                $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
-                $termsItems[] = $content;
+            if ($dbTerms->count() > 0) {
+                foreach ($dbTerms as $term) {
+                    $content = $term->content_ms ?? $term->content_en ?? '';
+                    $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
+                    $termsItems[] = $content;
+                }
             }
+        } catch (\Exception $e) {
+            // fallback
         }
-    } catch (\Exception $e) {
-        // fallback
+
+        if (empty($termsItems)) {
+            $termsItems = [
+                'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
+                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
+                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
+                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.',
+                'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.',
+                'Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
+                'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
+                'Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.',
+                'Sila maklumkan kami jika sekiranya anda menukarkan alamat.',
+                'Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.',
+                'Barang-barang curian tidak diterima.',
+                'Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.',
+            ];
+        }
+
+        $termsHtml = '';
+        foreach ($termsItems as $idx => $content) {
+            $num = $idx + 1;
+            $termsHtml .= '<div class="pp4-tm"><b>' . $num . '.</b> ' . $content . '</div>';
+        }
+
+        // A4 LANDSCAPE = 297mm (width) Ã— 210mm (height)
+        $html = '<style>';
+
+        // Page setup - A4 LANDSCAPE with explicit dimensions
+        $html .= '@page { size: A4; margin: 5mm; }';
+
+        // Print media styles
+        $html .= '@media print { ';
+        $html .= '  html, body { ';
+        $html .= '    width: 297mm !important; ';
+        $html .= '    height: 210mm !important; ';
+        $html .= '    margin: 0 !important; ';
+        $html .= '    padding: 0 !important; ';
+        $html .= '    overflow: hidden !important; ';
+        $html .= '    -webkit-print-color-adjust: exact !important; ';
+        $html .= '    print-color-adjust: exact !important; ';
+        $html .= '  }';
+        $html .= '  .pp4-back { ';
+        $html .= '    width: 297mm !important; ';
+        $html .= '    height: 210mm !important; ';
+        $html .= '    margin: 0 !important; ';
+        $html .= '    page-break-after: always; ';
+        $html .= '    break-after: page; ';
+        $html .= '    page-break-inside: avoid; ';
+        $html .= '  }';
+        $html .= '}';
+
+        // Main container - A4 LANDSCAPE with 18mm left padding to prevent cutoff
+        $html .= '.pp4-back { ';
+        $html .= '  width: 297mm; ';
+        $html .= '  height: 210mm; ';
+        $html .= '  padding: 6mm 6mm 6mm 18mm; ';
+        $html .= '  margin: 0 auto; ';
+        $html .= '  display: flex; ';
+        $html .= '  font-family: Arial, Helvetica, sans-serif; ';
+        $html .= '  color: #1a4a7a; ';
+        $html .= '  background: #fff !important; ';
+        $html .= '  overflow: hidden; ';
+        $html .= '  box-sizing: border-box; ';
+        $html .= '  page-break-after: always; ';
+        $html .= '  break-after: page; ';
+        $html .= '}';
+        $html .= '.pp4-back * { box-sizing: border-box; margin: 0; padding: 0; }';
+
+        // Terms column - Left side
+        $html .= '.pp4-terms-col { ';
+        $html .= '  flex: 1; ';
+        $html .= '  padding-right: 6mm; ';
+        $html .= '  display: flex; ';
+        $html .= '  flex-direction: column; ';
+        $html .= '  height: 100%; ';
+        $html .= '  overflow: hidden; ';
+        $html .= '}';
+        $html .= '.pp4-terms-h { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 4mm; text-decoration: underline; flex-shrink: 0; }';
+        $html .= '.pp4-terms-content { flex: 1; overflow: hidden; }';
+        $html .= '.pp4-tm { font-size: 9px; line-height: 1.4; margin-bottom: 3mm; text-align: justify; }';
+        $html .= '.pp4-notice { ';
+        $html .= '  border: 2px solid #1a4a7a; ';
+        $html .= '  padding: 4mm 8mm; ';
+        $html .= '  margin-top: auto; ';
+        $html .= '  text-align: center; ';
+        $html .= '  font-size: 12px; ';
+        $html .= '  font-weight: bold; ';
+        $html .= '  line-height: 1.3; ';
+        $html .= '  flex-shrink: 0; ';
+        $html .= '}';
+
+        // Redeemer column - Right side with border
+        $html .= '.pp4-red-col { ';
+        $html .= '  width: 72mm; ';
+        $html .= '  min-width: 72mm; ';
+        $html .= '  border: 1px solid #1a4a7a; ';
+        $html .= '  padding: 3mm 4mm; ';
+        $html .= '  display: flex; ';
+        $html .= '  flex-direction: column; ';
+        $html .= '  height: 100%; ';
+        $html .= '}';
+        $html .= '.pp4-red-h { font-size: 11px; font-weight: bold; text-align: right; padding-bottom: 2mm; margin-bottom: 2mm; border-bottom: 1px solid #1a4a7a; flex-shrink: 0; }';
+
+        // Fields - compact
+        $html .= '.pp4-rr { margin-bottom: 4mm; flex-shrink: 0; }';
+        $html .= '.pp4-rl { font-size: 9px; font-weight: bold; display: block; margin-bottom: 1mm; }';
+        $html .= '.pp4-rb { min-height: 6mm; border-bottom: 1px solid #1a4a7a; }';
+        $html .= '.pp4-ri { display: flex; gap: 3mm; }';
+        $html .= '.pp4-rh { flex: 1; }';
+
+        // Alamat section
+        $html .= '.pp4-alamat { flex: 1; display: flex; flex-direction: column; }';
+        $html .= '.pp4-addr-lines { flex: 1; }';
+        $html .= '.pp4-addr-line { border-bottom: 1px solid #1a4a7a; min-height: 5mm; margin-bottom: 2mm; }';
+
+        // Signature box - bottom right corner
+        $html .= '.pp4-sig-section { ';
+        $html .= '  margin-top: auto; ';
+        $html .= '  padding-top: 3mm; ';
+        $html .= '  flex-shrink: 0; ';
+        $html .= '  display: flex; ';
+        $html .= '  justify-content: flex-end; ';
+        $html .= '}';
+        $html .= '.pp4-sig-b { ';
+        $html .= '  border: 1px solid #1a4a7a; ';
+        $html .= '  width: 30mm; ';
+        $html .= '  height: 22mm; ';
+        $html .= '  display: flex; ';
+        $html .= '  flex-direction: column; ';
+        $html .= '  align-items: center; ';
+        $html .= '  justify-content: flex-end; ';
+        $html .= '  padding: 2mm; ';
+        $html .= '}';
+        $html .= '.pp4-sig-l { font-size: 7px; text-align: center; color: #1a4a7a; }';
+
+        $html .= '</style>';
+
+        // HTML Content
+        $html .= '<div class="pp4-back">';
+
+        // Terms Column (Left)
+        $html .= '<div class="pp4-terms-col">';
+        $html .= '<div class="pp4-terms-h">TERMA DAN SYARAT</div>';
+        $html .= '<div class="pp4-terms-content">' . $termsHtml . '</div>';
+        $html .= '<div class="pp4-notice">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>';
+        $html .= '</div>';
+
+        // Redeemer Column (Right) - with border box
+        $html .= '<div class="pp4-red-col">';
+        $html .= '<div class="pp4-red-h">Butir-butir Penebus</div>';
+
+        $html .= '<div class="pp4-rr"><span class="pp4-rl">No. K/P:</span><div class="pp4-rb"></div></div>';
+        $html .= '<div class="pp4-rr"><span class="pp4-rl">Nama :</span><div class="pp4-rb"></div></div>';
+        $html .= '<div class="pp4-rr"><span class="pp4-rl">Kerakyatan :</span><div class="pp4-rb"></div></div>';
+
+        $html .= '<div class="pp4-rr">';
+        $html .= '  <div class="pp4-ri">';
+        $html .= '    <div class="pp4-rh"><span class="pp4-rl">Tahun Lahir :</span><div class="pp4-rb"></div></div>';
+        $html .= '    <div class="pp4-rh"><span class="pp4-rl">Umur :</span><div class="pp4-rb"></div></div>';
+        $html .= '  </div>';
+        $html .= '</div>';
+
+        $html .= '<div class="pp4-rr"><span class="pp4-rl">Jantina :</span><div class="pp4-rb"></div></div>';
+        $html .= '<div class="pp4-rr"><span class="pp4-rl">H/P No:</span><div class="pp4-rb"></div></div>';
+
+        // Alamat with multiple lines
+        $html .= '<div class="pp4-rr pp4-alamat">';
+        $html .= '  <span class="pp4-rl">Alamat:</span>';
+        $html .= '  <div class="pp4-addr-lines">';
+        $html .= '    <div class="pp4-addr-line"></div>';
+        $html .= '    <div class="pp4-addr-line"></div>';
+        $html .= '    <div class="pp4-addr-line"></div>';
+        $html .= '  </div>';
+        $html .= '</div>';
+
+        // Signature Box - Bottom Right Corner
+        $html .= '<div class="pp4-sig-section">';
+        $html .= '  <div class="pp4-sig-b">';
+        $html .= '    <span class="pp4-sig-l">Cap Jari /<br>Tandatangan</span>';
+        $html .= '  </div>';
+        $html .= '</div>';
+
+        $html .= '</div>';  // End redeemer column
+
+        $html .= '</div>';  // End main container
+
+        return $html;
     }
-
-    if (empty($termsItems)) {
-        $termsItems = [
-            'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
-            'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
-            'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
-            'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.',
-            'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.',
-            'Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
-            'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
-            'Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.',
-            'Sila maklumkan kami jika sekiranya anda menukarkan alamat.',
-            'Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.',
-            'Barang-barang curian tidak diterima.',
-            'Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.',
-        ];
-    }
-
-    $termsHtml = '';
-    foreach ($termsItems as $idx => $content) {
-        $num = $idx + 1;
-        $termsHtml .= '<div class="pp4-tm"><b>' . $num . '.</b> ' . $content . '</div>';
-    }
-
-    // A4 LANDSCAPE = 297mm (width) Ã— 210mm (height)
-    $html = '<style>';
-    
-    // Page setup - A4 LANDSCAPE with explicit dimensions
-    $html .= '@page { size: A4; margin: 5mm; }';
-    
-    // Print media styles
-    $html .= '@media print { ';
-    $html .= '  html, body { ';
-    $html .= '    width: 297mm !important; ';
-    $html .= '    height: 210mm !important; ';
-    $html .= '    margin: 0 !important; ';
-    $html .= '    padding: 0 !important; ';
-    $html .= '    overflow: hidden !important; ';
-    $html .= '    -webkit-print-color-adjust: exact !important; ';
-    $html .= '    print-color-adjust: exact !important; ';
-    $html .= '  }';
-    $html .= '  .pp4-back { ';
-    $html .= '    width: 297mm !important; ';
-    $html .= '    height: 210mm !important; ';
-    $html .= '    margin: 0 !important; ';
-    $html .= '    page-break-after: always; ';
-    $html .= '    break-after: page; ';
-    $html .= '    page-break-inside: avoid; ';
-    $html .= '  }';
-    $html .= '}';
-    
-    // Main container - A4 LANDSCAPE with 18mm left padding to prevent cutoff
-    $html .= '.pp4-back { ';
-    $html .= '  width: 297mm; ';
-    $html .= '  height: 210mm; ';
-    $html .= '  padding: 6mm 6mm 6mm 18mm; ';
-    $html .= '  margin: 0 auto; ';
-    $html .= '  display: flex; ';
-    $html .= '  font-family: Arial, Helvetica, sans-serif; ';
-    $html .= '  color: #1a4a7a; ';
-    $html .= '  background: #fff !important; ';
-    $html .= '  overflow: hidden; ';
-    $html .= '  box-sizing: border-box; ';
-    $html .= '  page-break-after: always; ';
-    $html .= '  break-after: page; ';
-    $html .= '}';
-    $html .= '.pp4-back * { box-sizing: border-box; margin: 0; padding: 0; }';
-    
-    // Terms column - Left side
-    $html .= '.pp4-terms-col { ';
-    $html .= '  flex: 1; ';
-    $html .= '  padding-right: 6mm; ';
-    $html .= '  display: flex; ';
-    $html .= '  flex-direction: column; ';
-    $html .= '  height: 100%; ';
-    $html .= '  overflow: hidden; ';
-    $html .= '}';
-    $html .= '.pp4-terms-h { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 4mm; text-decoration: underline; flex-shrink: 0; }';
-    $html .= '.pp4-terms-content { flex: 1; overflow: hidden; }';
-    $html .= '.pp4-tm { font-size: 9px; line-height: 1.4; margin-bottom: 3mm; text-align: justify; }';
-    $html .= '.pp4-notice { ';
-    $html .= '  border: 2px solid #1a4a7a; ';
-    $html .= '  padding: 4mm 8mm; ';
-    $html .= '  margin-top: auto; ';
-    $html .= '  text-align: center; ';
-    $html .= '  font-size: 12px; ';
-    $html .= '  font-weight: bold; ';
-    $html .= '  line-height: 1.3; ';
-    $html .= '  flex-shrink: 0; ';
-    $html .= '}';
-    
-    // Redeemer column - Right side with border
-    $html .= '.pp4-red-col { ';
-    $html .= '  width: 72mm; ';
-    $html .= '  min-width: 72mm; ';
-    $html .= '  border: 1px solid #1a4a7a; ';
-    $html .= '  padding: 3mm 4mm; ';
-    $html .= '  display: flex; ';
-    $html .= '  flex-direction: column; ';
-    $html .= '  height: 100%; ';
-    $html .= '}';
-    $html .= '.pp4-red-h { font-size: 11px; font-weight: bold; text-align: right; padding-bottom: 2mm; margin-bottom: 2mm; border-bottom: 1px solid #1a4a7a; flex-shrink: 0; }';
-    
-    // Fields - compact
-    $html .= '.pp4-rr { margin-bottom: 4mm; flex-shrink: 0; }';
-    $html .= '.pp4-rl { font-size: 9px; font-weight: bold; display: block; margin-bottom: 1mm; }';
-    $html .= '.pp4-rb { min-height: 6mm; border-bottom: 1px solid #1a4a7a; }';
-    $html .= '.pp4-ri { display: flex; gap: 3mm; }';
-    $html .= '.pp4-rh { flex: 1; }';
-    
-    // Alamat section
-    $html .= '.pp4-alamat { flex: 1; display: flex; flex-direction: column; }';
-    $html .= '.pp4-addr-lines { flex: 1; }';
-    $html .= '.pp4-addr-line { border-bottom: 1px solid #1a4a7a; min-height: 5mm; margin-bottom: 2mm; }';
-    
-    // Signature box - bottom right corner
-    $html .= '.pp4-sig-section { ';
-    $html .= '  margin-top: auto; ';
-    $html .= '  padding-top: 3mm; ';
-    $html .= '  flex-shrink: 0; ';
-    $html .= '  display: flex; ';
-    $html .= '  justify-content: flex-end; ';
-    $html .= '}';
-    $html .= '.pp4-sig-b { ';
-    $html .= '  border: 1px solid #1a4a7a; ';
-    $html .= '  width: 30mm; ';
-    $html .= '  height: 22mm; ';
-    $html .= '  display: flex; ';
-    $html .= '  flex-direction: column; ';
-    $html .= '  align-items: center; ';
-    $html .= '  justify-content: flex-end; ';
-    $html .= '  padding: 2mm; ';
-    $html .= '}';
-    $html .= '.pp4-sig-l { font-size: 7px; text-align: center; color: #1a4a7a; }';
-    
-    $html .= '</style>';
-
-    // HTML Content
-    $html .= '<div class="pp4-back">';
-    
-    // Terms Column (Left)
-    $html .= '<div class="pp4-terms-col">';
-    $html .= '<div class="pp4-terms-h">TERMA DAN SYARAT</div>';
-    $html .= '<div class="pp4-terms-content">' . $termsHtml . '</div>';
-    $html .= '<div class="pp4-notice">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>';
-    $html .= '</div>';
-
-    // Redeemer Column (Right) - with border box
-    $html .= '<div class="pp4-red-col">';
-    $html .= '<div class="pp4-red-h">Butir-butir Penebus</div>';
-    
-    $html .= '<div class="pp4-rr"><span class="pp4-rl">No. K/P:</span><div class="pp4-rb"></div></div>';
-    $html .= '<div class="pp4-rr"><span class="pp4-rl">Nama :</span><div class="pp4-rb"></div></div>';
-    $html .= '<div class="pp4-rr"><span class="pp4-rl">Kerakyatan :</span><div class="pp4-rb"></div></div>';
-    
-    $html .= '<div class="pp4-rr">';
-    $html .= '  <div class="pp4-ri">';
-    $html .= '    <div class="pp4-rh"><span class="pp4-rl">Tahun Lahir :</span><div class="pp4-rb"></div></div>';
-    $html .= '    <div class="pp4-rh"><span class="pp4-rl">Umur :</span><div class="pp4-rb"></div></div>';
-    $html .= '  </div>';
-    $html .= '</div>';
-    
-    $html .= '<div class="pp4-rr"><span class="pp4-rl">Jantina :</span><div class="pp4-rb"></div></div>';
-    $html .= '<div class="pp4-rr"><span class="pp4-rl">H/P No:</span><div class="pp4-rb"></div></div>';
-    
-    // Alamat with multiple lines
-    $html .= '<div class="pp4-rr pp4-alamat">';
-    $html .= '  <span class="pp4-rl">Alamat:</span>';
-    $html .= '  <div class="pp4-addr-lines">';
-    $html .= '    <div class="pp4-addr-line"></div>';
-    $html .= '    <div class="pp4-addr-line"></div>';
-    $html .= '    <div class="pp4-addr-line"></div>';
-    $html .= '  </div>';
-    $html .= '</div>';
-    
-    // Signature Box - Bottom Right Corner
-    $html .= '<div class="pp4-sig-section">';
-    $html .= '  <div class="pp4-sig-b">';
-    $html .= '    <span class="pp4-sig-l">Cap Jari /<br>Tandatangan</span>';
-    $html .= '  </div>';
-    $html .= '</div>';
-    
-    $html .= '</div>';  // End redeemer column
-    
-    $html .= '</div>';  // End main container
-
-    return $html;
-}
 
 
     /**
@@ -3220,39 +3228,43 @@ HTML;
 
 
     /**
- * FRONT PAGE - Pre-Printed Blank Form (A4 PORTRAIT)
- * Paper: A4 Portrait = 210mm (width) × 297mm (height)
- * For DOT MATRIX printers with tractor-feed paper
- */
-private function generatePrePrintedFrontPageA4Portrait(array $settings): string
-{
-    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $logoUrl = $settings['logo_url'] ?? null;
+     * FRONT PAGE - Pre-Printed Blank Form (A4 PORTRAIT)
+     * Paper: A4 Portrait = 210mm (width) × 297mm (height)
+     * For DOT MATRIX printers with tractor-feed paper
+     */
+    private function generatePrePrintedFrontPageA4Portrait(array $settings): string
+    {
+        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $logoUrl = $settings['logo_url'] ?? null;
 
-    $phoneHtml = $phone1;
-    if ($phone2) { $phoneHtml .= ' / ' . $phone2; }
+        $phoneHtml = $phone1;
+        if ($phone2) {
+            $phoneHtml .= ' / ' . $phone2;
+        }
 
-    $logoHtml = '';
-    if ($logoUrl) { 
-        $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="ppp-logo" alt="Logo">'; 
-    }
+        $logoHtml = '';
+        if ($logoUrl) {
+            $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="ppp-logo" alt="Logo">';
+        }
 
-    $multiName = '';
-    if ($chineseName) $multiName .= $chineseName . ' ';
-    if ($tamilName) $multiName .= $tamilName;
+        $multiName = '';
+        if ($chineseName)
+            $multiName .= $chineseName . ' ';
+        if ($tamilName)
+            $multiName .= $tamilName;
 
-    // Build single form block (reused for both copies)
-    $formBlock = <<<FORM
+        // Build single form block (reused for both copies)
+        $formBlock = <<<FORM
     <div class="ppp-header">
         <div class="ppp-header-left">
             {$logoHtml}
@@ -3345,7 +3357,7 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
     </div>
 FORM;
 
-    return <<<HTML
+        return <<<HTML
 <style>
 /* ══════════════════════════════════════════════════════════════
    PRE-PRINTED FORM - PORTRAIT, 2 COPIES PER PAGE
@@ -3497,7 +3509,7 @@ FORM;
     </div>
 </div>
 HTML;
-}
+    }
 
     /**
      * Generate Redemption Data Overlay
@@ -3742,6 +3754,265 @@ HTML;
 HTML;
     }
 
+
+
+    /**
+     * BACK PAGE - Pre-Printed Blank Form (A4 PORTRAIT)
+     * Paper: A4 Portrait = 210mm (width) × 297mm (height)
+     * 2 COPIES PER PAGE (matching front page portrait layout)
+     * Each copy = Terms & Conditions + Redeemer Details
+     */
+    private function generatePrePrintedBackPageA4Portrait(array $settings): string
+    {
+        // Fetch terms from database
+        $termsItems = [];
+        try {
+            $dbTerms = TermsCondition::where('is_active', true)
+                ->where('activity_type', 'pledge')
+                ->orderBy('sort_order', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            if ($dbTerms->count() > 0) {
+                foreach ($dbTerms as $term) {
+                    $content = $term->content_ms ?? $term->content_en ?? '';
+                    $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
+                    $termsItems[] = $content;
+                }
+            }
+        } catch (\Exception $e) {
+            // fallback below
+        }
+
+        // Fallback default terms if DB empty
+        if (empty($termsItems)) {
+            $termsItems = [
+                'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
+                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
+                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
+                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u>Setelah membayar amaun keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran amaun keuntungan.</u></b>',
+                'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong. Dia berhak, atas permintaan, kepada apa-apa lebihan jika ada selepas potongan keuntungan yang kena di bayar ke atas sandaran itu dan kos lelong.',
+                'Apa-apa pertanyaan boleh dialamatkan kepada:<br>Pendaftar Pemegang Pajak Gadai,<br>Kementerian Perumahan dan Kerajaan Tempatan, BKKK.<br>Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
+                'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
+                'Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.',
+                'Sila maklumkan kami sekiranya anda menukarkan alamat. Jika tidak, alamat seperti yang tercatat di dalam tiket akan dianggap betul.',
+                'Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am. Jika tidak, kadar ketuntutan lebih satu bulan akan dikira.',
+                'Barang-barang curian tidak diterima. Adalah dianggap bahawa barang-barang yang dipajak gadai adalah bukan barang curian.',
+                'Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.',
+            ];
+        }
+
+        $termsHtml = '';
+        foreach ($termsItems as $idx => $content) {
+            $num = $idx + 1;
+            $termsHtml .= '<div class="pppb-tm"><b>' . $num . '.</b> ' . $content . '</div>';
+        }
+
+        // Build single back page block (reused for both copies)
+        $backBlock = <<<BLOCK
+    <div class="pppb-terms-col">
+        <div class="pppb-terms-h">TERMA DAN SYARAT</div>
+        <div class="pppb-terms-content">
+            {$termsHtml}
+        </div>
+        <div class="pppb-notice">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>
+    </div>
+
+    <div class="pppb-red-col">
+        <div class="pppb-red-h">Butir-butir Penebus</div>
+        <div class="pppb-rr"><span class="pppb-rl">No. K/P:</span><div class="pppb-rb"></div></div>
+        <div class="pppb-rr"><span class="pppb-rl">Nama :</span><div class="pppb-rb"></div></div>
+        <div class="pppb-rr"><span class="pppb-rl">Kerakyatan :</span><div class="pppb-rb"></div></div>
+        <div class="pppb-rr">
+            <div class="pppb-ri">
+                <div class="pppb-rh"><span class="pppb-rl">Tahun Lahir :</span><div class="pppb-rb"></div></div>
+                <div class="pppb-rh"><span class="pppb-rl">Umur :</span><div class="pppb-rb"></div></div>
+            </div>
+        </div>
+        <div class="pppb-rr"><span class="pppb-rl">Jantina :</span><div class="pppb-rb"></div></div>
+        <div class="pppb-rr"><span class="pppb-rl">H/P No:</span><div class="pppb-rb"></div></div>
+        <div class="pppb-rr pppb-alamat">
+            <span class="pppb-rl">Alamat:</span>
+            <div class="pppb-addr-lines">
+                <div class="pppb-addr-line"></div>
+                <div class="pppb-addr-line"></div>
+                <div class="pppb-addr-line"></div>
+            </div>
+        </div>
+        <div class="pppb-sig-section">
+            <div class="pppb-sig-b">
+                <span class="pppb-sig-l">Cap Jari /<br>Tandatangan</span>
+            </div>
+        </div>
+    </div>
+BLOCK;
+
+        return <<<HTML
+<style>
+/* ══════════════════════════════════════════════════════════════
+   PRE-PRINTED BACK PAGE - PORTRAIT, 2 COPIES PER PAGE
+   Matches the front page portrait layout (ppp- prefix)
+   Each copy = Terms (left) + Redeemer (right)
+   ══════════════════════════════════════════════════════════════ */
+@page { size: portrait; margin: 0; }
+@media print {
+    html, body {
+        margin: 0 !important; padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .pppb-page-wrapper {
+        width: 200mm !important;
+        margin: 0 auto !important;
+        page-break-after: always;
+        page-break-inside: avoid;
+    }
+}
+
+/* Page wrapper holds both copies */
+.pppb-page-wrapper {
+    width: 200mm;
+    margin: 0 auto;
+    page-break-after: always;
+    break-after: page;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Each back page copy */
+.pppb-back {
+    width: 200mm;
+    padding: 3mm 4mm;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #1a4a7a;
+    background: #fff !important;
+    box-sizing: border-box;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    gap: 3mm;
+}
+.pppb-back * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Dashed cut line between the two copies */
+.pppb-cut-line {
+    border: none;
+    border-top: 1px dashed #aaa;
+    margin: 6mm 4mm;
+    flex-shrink: 0;
+}
+
+/* ── TERMS COLUMN (Left) ── */
+.pppb-terms-col {
+    flex: 1;
+    padding-right: 3mm;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+.pppb-terms-h {
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 2mm;
+    text-decoration: underline;
+    flex-shrink: 0;
+}
+.pppb-terms-content {
+    flex: 1;
+    overflow: hidden;
+}
+.pppb-tm {
+    font-size: 7px;
+    line-height: 1.35;
+    margin-bottom: 1.5mm;
+    text-align: justify;
+}
+.pppb-notice {
+    border: 2px solid #1a4a7a;
+    padding: 2mm 4mm;
+    margin-top: 2mm;
+    text-align: center;
+    font-size: 9px;
+    font-weight: bold;
+    line-height: 1.3;
+    flex-shrink: 0;
+}
+
+/* ── REDEEMER COLUMN (Right) ── */
+.pppb-red-col {
+    width: 50mm;
+    min-width: 50mm;
+    border: 1px solid #1a4a7a;
+    padding: 2mm 3mm;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.pppb-red-h {
+    font-size: 9px;
+    font-weight: bold;
+    text-align: right;
+    padding-bottom: 1.5mm;
+    margin-bottom: 1.5mm;
+    border-bottom: 1px solid #1a4a7a;
+    flex-shrink: 0;
+}
+
+/* Fields */
+.pppb-rr { margin-bottom: 3mm; flex-shrink: 0; }
+.pppb-rl { font-size: 7px; font-weight: bold; display: block; margin-bottom: 0.5mm; }
+.pppb-rb { min-height: 5mm; border-bottom: 1px solid #1a4a7a; }
+.pppb-ri { display: flex; gap: 2mm; }
+.pppb-rh { flex: 1; }
+
+/* Alamat */
+.pppb-alamat { flex: 1; display: flex; flex-direction: column; }
+.pppb-addr-lines { flex: 1; }
+.pppb-addr-line { border-bottom: 1px solid #1a4a7a; min-height: 4mm; margin-bottom: 1.5mm; }
+
+/* Signature box */
+.pppb-sig-section {
+    margin-top: auto;
+    padding-top: 2mm;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+}
+.pppb-sig-b {
+    border: 1px solid #1a4a7a;
+    width: 25mm;
+    height: 16mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 1mm;
+}
+.pppb-sig-l {
+    font-size: 6px;
+    text-align: center;
+    color: #1a4a7a;
+}
+</style>
+
+<div class="pppb-page-wrapper">
+    <!-- ═══ COPY 1 (Top) ═══ -->
+    <div class="pppb-back">
+{$backBlock}
+    </div>
+
+    <!-- ✂ Cut Line ── -->
+    <hr class="pppb-cut-line">
+
+    <!-- ═══ COPY 2 (Bottom) ═══ -->
+    <div class="pppb-back">
+{$backBlock}
+    </div>
+</div>
+HTML;
+    }
     /**
      * Generate Renewal Receipt WITH Pre-Printed Form Template
      * Returns the complete form (blank template + renewal data filled in)
