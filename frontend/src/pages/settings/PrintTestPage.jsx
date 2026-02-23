@@ -1548,9 +1548,8 @@ export default function PrintTestPage() {
           margin: 0 !important;
           padding: 0 !important;
           ${isPortrait ? `
-            width: 297mm !important;
-            transform: scale(0.707);
-            transform-origin: top left;
+            width: 210mm !important;
+            transform: none;
           ` : `
             width: 297mm !important;
             transform: none;

@@ -3281,13 +3281,13 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
 .ppp-front * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* HEADER */
-.ppp-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 3mm; border-bottom: 2px solid #1a4a7a; margin-bottom: 4mm; }
+.ppp-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 1mm; margin-bottom: 0; }
 .ppp-header-left { display: flex; align-items: flex-start; gap: 3mm; flex: 1; }
 .ppp-logo { width: 18mm; height: 18mm; object-fit: contain; }
 .ppp-company-info { flex: 1; }
-.ppp-company-name { font-size: 18px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
-.ppp-company-multi { font-size: 14px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }
-.ppp-company-addr { font-size: 9px; color: #1a4a7a; margin-top: 1mm; }
+.ppp-company-name { font-size: 26px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+.ppp-company-multi { font-size: 18px; font-weight: bold; color: #1a4a7a; margin-top: 1mm; }
+.ppp-company-addr { font-size: 11px; color: #1a4a7a; margin-top: 1mm; }
 .ppp-header-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 55mm; }
 .ppp-phone-sejak { display: flex; align-items: center; gap: 2mm; margin-bottom: 2mm; }
 .ppp-phone-box { background: #d42027; color: #fff; padding: 2mm 3mm; border-radius: 3px; font-size: 10px; font-weight: bold; }
@@ -3298,32 +3298,41 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
 .ppp-hours-title { font-size: 10px; font-weight: bold; }
 .ppp-hours-line { font-size: 8px; font-weight: bold; color: #1a4a7a; }
 
-/* TICKET & RATES */
-.ppp-ticket-rates { display: flex; gap: 3mm; margin-bottom: 4mm; width: 100%; }
+/* MIDDLE SECTION - Items & Ticket side-by-side */
+.ppp-mid {
+    display: flex;
+    border: 1px solid #1a4a7a;
+    margin-bottom: 4mm;
+    width: 100%;
+}
+.ppp-items-sec {
+    flex: 1;
+    min-width: 55%;
+    padding: 3mm;
+    border-right: 1px solid #1a4a7a;
+}
+.ppp-items-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; color: #1a4a7a; }
+.ppp-items-area { min-height: 40mm; padding: 2mm; }
+
+.ppp-rcol {
+    min-width: 55mm;
+    max-width: 75mm;
+    flex-shrink: 0;
+}
 .ppp-ticket-box {
     background: #f5c518;
     padding: 3mm;
-    flex: 1;  /* Changed from flex: 0 0 70mm */
-    min-width: 70mm;
+    border-bottom: 1px solid #1a4a7a;
 }
 .ppp-ticket-lbl { font-size: 10px; font-weight: bold; color: #000; }
-.ppp-ticket-space { min-height: 12mm; border: 1px dashed #1a4a7a; margin-top: 2mm; background: #fff; }
-.ppp-rates-box {
-    flex: 1;
-    border: 1px solid #1a4a7a;
-    padding: 2mm;
-}
-.ppp-rate-row { display: flex; justify-content: center; border-bottom: 1px solid #1a4a7a; margin-bottom: 2mm; padding-bottom: 2mm; }
-.ppp-rate-cell { text-align: center; }
+.ppp-ticket-space { min-height: 12mm; }
+.ppp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }
+.ppp-rate-cell { flex: 1; padding: 2mm; text-align: center; }
 .ppp-rate-lbl { font-size: 8px; font-weight: bold; color: #1a4a7a; }
 .ppp-rate-val { font-size: 14px; font-weight: bold; color: #1a4a7a; }
+.ppp-kadar { padding: 2mm; }
 .ppp-kadar-title { font-size: 9px; font-weight: bold; color: #1a4a7a; text-align: center; margin-bottom: 1mm; }
 .ppp-kadar-ln { font-size: 8px; color: #1a4a7a; line-height: 1.5; }
-
-/* ITEMS */
-.ppp-items-section { border: 1px solid #1a4a7a; padding: 3mm; margin-bottom: 4mm;width: 100%; }
-.ppp-items-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; color: #1a4a7a; }
-.ppp-items-area { min-height: 35mm; padding: 2mm; border: 1px dashed #ccc; }
 
 /* CUSTOMER */
 .ppp-customer-title { font-size: 10px; font-weight: bold; margin-bottom: 2mm; color: #1a4a7a; }
@@ -3339,7 +3348,7 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
 .ppp-cust-row:last-child { margin-bottom: 0; }
 .ppp-cust-col { display: flex; align-items: baseline; flex: 1; min-width: 0; }
 .ppp-cust-lbl { white-space: nowrap; min-width: 28mm; flex-shrink: 0; font-size: 9px; font-weight: bold; }
-.ppp-cust-val { flex: 1; min-height: 5mm; border-bottom: 1px dotted #1a4a7a; margin-right: 0; }
+.ppp-cust-val { flex: 1; min-height: 5mm; margin-right: 0; }
 .ppp-cust-row.full-width { flex-wrap: nowrap; }
 .ppp-cust-row.full-width .ppp-cust-col { flex: 1; }
 
@@ -3361,7 +3370,7 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
 }
 .ppp-loan-lbl { font-size: 10px; }
 .ppp-loan-rm { font-size: 18px; font-weight: bold; }
-.ppp-loan-space { flex: 1; min-height: 8mm; border-bottom: 1px dotted #1a4a7a; }
+.ppp-loan-space { flex: 1; min-height: 8mm; }
 .ppp-loan-stars { font-size: 14px; font-weight: bold; }
 .ppp-date-cell { width: 40mm; text-align: center; padding: 2mm; border-right: 1px solid #d42027; }
 .ppp-date-cell:last-child { border-right: none; }
@@ -3402,28 +3411,29 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
         </div>
     </div>
 
-    <div class="ppp-ticket-rates">
-        <div class="ppp-ticket-box">
-            <div class="ppp-ticket-lbl">NO. TIKET:</div>
-            <div class="ppp-ticket-space"></div>
+    <div class="ppp-mid">
+        <div class="ppp-items-sec">
+            <div class="ppp-items-title">Perihal terperinci artikel yang digadai:-</div>
+            <div class="ppp-items-area"></div>
         </div>
-        <div class="ppp-rates-box">
+        <div class="ppp-rcol">
+            <div class="ppp-ticket-box">
+                <div class="ppp-ticket-lbl">NO. TIKET:</div>
+                <div class="ppp-ticket-space"></div>
+            </div>
             <div class="ppp-rate-row">
                 <div class="ppp-rate-cell">
                     <div class="ppp-rate-lbl">TEMPOH TAMAT</div>
                     <div class="ppp-rate-val">{$redemptionPeriod}</div>
                 </div>
             </div>
-            <div class="ppp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-            <div class="ppp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
-            <div class="ppp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
-            <div class="ppp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+            <div class="ppp-kadar">
+                <div class="ppp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
+                <div class="ppp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
+                <div class="ppp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
+                <div class="ppp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+            </div>
         </div>
-    </div>
-
-    <div class="ppp-items-section">
-        <div class="ppp-items-title">Perihal terperinci artikel yang digadai:-</div>
-        <div class="ppp-items-area"></div>
     </div>
 
     <div class="ppp-customer-title">Butir-butir terperinci mengenai pemajak gadai:-</div>
