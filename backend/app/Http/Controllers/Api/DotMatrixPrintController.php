@@ -3262,16 +3262,16 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
     }
     .ppp-front { 
         width: 100% !important;
-        max-width: 210mm !important;
+        max-width: 195mm !important;
         margin: 0 !important; 
-        padding: 5mm 3mm !important;
+        padding: 4mm 5mm !important;
         page-break-after: always;
     }
 }
 .ppp-front {
     width: 100%; 
     max-width: 195mm;
-    padding: 5mm 3mm;
+    padding: 4mm 5mm;
     margin: 0;
     font-family: Arial, Helvetica, sans-serif; 
     color: #1a4a7a;
