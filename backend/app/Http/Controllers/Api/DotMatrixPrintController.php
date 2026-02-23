@@ -4199,7 +4199,7 @@ HTML;
 
         } catch (\Exception $e) {
             \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
-            return $this->error('Print error: ' . $e->getMessage(), 500);
+            return $this->error('Print error: ' . $e->getMessage(), 5000);
         }
     }
 
