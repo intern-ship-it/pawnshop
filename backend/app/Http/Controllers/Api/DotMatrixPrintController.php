@@ -3889,7 +3889,7 @@ HTML;
         // Build single back page block (reused for both copies)
         $backBlock = <<<BLOCK
     <div class="pppb-terms-col">
-        <div class="pppb-terms-h">TERMA DAN SYARAT</div>
+        <div class="pppb-terms-h" style="margin-top: 10px;">TERMA DAN SYARAT</div>
         <div class="pppb-terms-content">
             {$termsHtml}
         </div>
@@ -4076,10 +4076,9 @@ BLOCK;
 </style>
 
 <div class="pppb-page-wrapper">
+    <br>
     <!-- ═══ COPY 1 (Top) ═══ -->
     <div class="pppb-back">
-        <br>
-        <p>&nbsp;</p>
 {$backBlock}
     </div>
 
