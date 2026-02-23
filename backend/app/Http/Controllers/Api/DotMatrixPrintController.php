@@ -3270,7 +3270,7 @@ private function generatePrePrintedFrontPageA4Portrait(array $settings): string
 }
 .ppp-front {
     width: 100%; 
-    max-width: 210mm;
+    max-width: 200mm;
     padding: 5mm 3mm;
     margin: 0;
     font-family: Arial, Helvetica, sans-serif; 
