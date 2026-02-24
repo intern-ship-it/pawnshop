@@ -2311,6 +2311,7 @@ HTML;
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
 
         return <<<HTML
+
 <style>
 /* @page { size: 210mm 148mm; margin: 0; } */
 
@@ -4439,53 +4440,6 @@ HTML;
 
 
 
-
-    /**
-     * Generate Pledge Receipt Data Overlay for A4 Portrait Pre-Printed Form
-     * Prints ONLY the DATA - 2 copies per page
-     * For dot matrix printers with A4 tractor-feed paper
-     */
-    // public function prePrintedPledgeReceiptA4(Request $request, Pledge $pledge): JsonResponse
-    // {
-    //     try {
-    //         if ($pledge->branch_id !== $request->user()->branch_id) {
-    //             return $this->error('Unauthorized', 403);
-    //         }
-
-    //         $pledge->load([
-    //             'customer',
-    //             'items.category',
-    //             'items.purity',
-    //             'branch',
-    //         ]);
-
-    //         $settings = $this->getCompanySettings($pledge->branch);
-    //         $frontHtml = $this->generatePrePrintedDataOverlayA4Portrait($pledge, $settings);
-
-    //         // Record print
-    //         $pledge->update([
-    //             'receipt_printed' => true,
-    //             'receipt_print_count' => ($pledge->receipt_print_count ?? 0) + 1,
-    //         ]);
-
-    //         return $this->success([
-    //             'front_html' => $frontHtml,
-    //             'back_html' => '',
-    //             'pledge_no' => $pledge->pledge_no,
-    //             'orientation' => 'portrait',
-    //             'format' => 'html',
-    //             'paper_size' => 'A4 Portrait (210mm x 297mm)',
-    //             'type' => 'pre_printed_overlay_a4',
-    //         ]);
-
-    //     } catch (\Exception $e) {
-    //         \Log::error('Pre-Printed A4 Overlay Error: ' . $e->getMessage());
-    //         return $this->error('Print error: ' . $e->getMessage(), 500);
-    //     }
-    // }
-
-
-
     public function prePrintedPledgeReceiptA4(Request $request, Pledge $pledge): JsonResponse
     {
         try {
@@ -4502,13 +4456,9 @@ HTML;
 
             $settings = $this->getCompanySettings($pledge->branch);
 
-            // Reuse the WORKING A5 overlay generator
-            // Use dedicated A4 overlay generator
-            $singleOverlay = $this->generatePrePrintedDataOverlayNewA4($pledge, $settings);
-
-            // Wrap 2 copies into A4 Portrait page
-            $frontHtml = $this->wrapA4PortraitOverlay($singleOverlay);
-
+            $overlay1 = $this->generatePrePrintedDataOverlayNewA4($pledge, $settings);
+            $overlay2 = $this->generatePrePrintedDataOverlayNewA4Copy2($pledge, $settings);
+            $frontHtml = $this->wrapA4PortraitOverlay($overlay1, $overlay2);
             // Record print
             $pledge->update([
                 'receipt_printed' => true,
@@ -4530,6 +4480,227 @@ HTML;
             return $this->error('Print error: ' . $e->getMessage(), 500);
         }
     }
+
+
+
+
+/**
+     * Generate Data Overlay for A4 Portrait - COPY 2
+     * Uses _new suffix classes for INDEPENDENT CSS positioning
+     * ★ Edit these CSS values to adjust Copy 2 WITHOUT affecting Copy 1 ★
+     */
+    private function generatePrePrintedDataOverlayNewA4Copy2(Pledge $pledge, array $settings): string
+    {
+        $customer = $pledge->customer;
+        $loanAmount = $pledge->loan_amount ?? 0;
+
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
+
+        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+        if (is_string($pledgeDate))
+            $pledgeDate = Carbon::parse($pledgeDate);
+        $dueDate = $pledge->due_date;
+        if (is_string($dueDate))
+            $dueDate = Carbon::parse($dueDate);
+
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
+        $catatan = $pledge->reference_no ?? $pledge->notes ?? '';
+
+        $itemsText = '';
+        $itemNumber = 1;
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $desc = $item->description ?? '';
+            if ($desc) {
+                if ($catatan)
+                    $catatan .= "; ";
+                $catatan .= $desc;
+            }
+            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $itemNumber++;
+        }
+
+        $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
+        $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
+
+        return <<<HTML
+
+<style>
+/* ═══ A4 DATA OVERLAY COPY 2 - ppoa-*_new classes ═══ */
+/* ★ EDIT THESE VALUES TO ADJUST COPY 2 WITHOUT AFFECTING COPY 1 ★ */
+
+.ppoa-page_new {
+    width: 210mm;
+    height: 148mm;
+    padding: 0;
+    top: 1rem;
+    right: 3.9rem;
+    margin: 0;
+    position: relative;
+    font-family: 'Courier New', 'Courier', monospace;
+    font-weight: normal;
+    letter-spacing: 0.5px;
+    color: #000;
+    background: transparent !important;
+    overflow: hidden;
+    box-sizing: border-box;
+    page-break-after: avoid;
+}
+.ppoa-page_new * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ═══ TICKET NUMBER ═══ */
+.ppoa-ticket_new {
+    position: absolute;
+    top: 30mm;
+    right: 9mm;
+    width: 40mm;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 10mm;
+}
+
+/* ═══ ITEMS LIST ═══ */
+.ppoa-items_new {
+    position: absolute;
+    top: 34mm;
+    left: 11mm;
+    width: 120mm;
+    font-size: 9px;
+    line-height: 1.4;
+}
+.ppoa-item_new { margin-bottom: 1mm; }
+
+/* ═══ CUSTOMER SECTION ═══ */
+.ppoa-ic_new {
+    position: absolute;
+    top: 69.5mm;
+    left: 31mm;
+    font-size: 11px;
+    width: 55mm;
+}
+.ppoa-name_new {
+    position: absolute;
+    top: 69.5mm;
+    left: 85mm;
+    font-size: 11px;
+    width: 55mm;
+}
+.ppoa-nationality_new {
+    position: absolute;
+    top: 69.5mm;
+    left: 150mm;
+    font-size: 10px;
+}
+
+.ppoa-birthyear_new {
+    position: absolute;
+    top: 76mm;
+    left: 31mm;
+    font-size: 11px;
+}
+.ppoa-gender_new {
+    position: absolute;
+    top: 76mm;
+    left: 85mm;
+    font-size: 11px;
+}
+
+.ppoa-address_new {
+    position: absolute;
+    top: 83mm;
+    left: 31mm;
+    width: 150mm;
+    font-size: 10px;
+}
+
+.ppoa-catatan_new {
+    position: absolute;
+    top: 96mm;
+    left: 28mm;
+    width: 150mm;
+    font-size: 11px;
+}
+
+.ppoa-amount-words_new {
+    position: absolute;
+    top: 96.5mm;
+    left: 31mm;
+    width: 150mm;
+    font-size: 9px;
+}
+
+.ppoa-loan-amount_new {
+    position: absolute;
+    top: 103mm;
+    left: 52mm;
+    font-size: 18px;
+    font-family: 'Courier New', monospace;
+}
+.ppoa-pledge-date_new {
+    position: absolute;
+    top: 105mm;
+    left: 145mm;
+    width: 28mm;
+    font-size: 12px;
+    text-align: center;
+}
+.ppoa-due-date_new {
+    position: absolute;
+    top: 105mm;
+    left: 173mm;
+    width: 28mm;
+    font-size: 12px;
+    text-align: center;
+}
+
+.ppoa-weight_new {
+    position: absolute;
+    top: 115mm;
+    right: 10mm;
+    font-size: 6px;
+}
+
+@media print {
+    .ppoa-page_new { page-break-after: avoid; }
+}
+</style>
+
+<div class="ppoa-page_new">
+    <div class="ppoa-ticket_new">{$pledge->pledge_no}</div>
+    <div class="ppoa-items_new">{$itemsText}</div>
+    <div class="ppoa-ic_new">{$icNumber}</div>
+    <div class="ppoa-name_new">{$customer->name}</div>
+    <div class="ppoa-nationality_new">{$nationality}</div>
+    <div class="ppoa-birthyear_new">{$birthYear}</div>
+    <div class="ppoa-gender_new">{$gender}</div>
+    <div class="ppoa-address_new">{$address}</div>
+    <div class="ppoa-catatan_new">{$catatan}</div>
+    <div class="ppoa-amount-words_new">{$amountWords} SAHAJA</div>
+    <div class="ppoa-loan-amount_new">{$loanAmountFormatted}</div>
+    <div class="ppoa-pledge-date_new">{$pledgeDate->format('d/m/Y')}</div>
+    <div class="ppoa-due-date_new">{$dueDate->format('d/m/Y')}</div>
+    <div class="ppoa-weight_new">{$this->formatNumber($totalWeight, 2)}g</div>
+</div>
+HTML;
+    }
+
+
+
+
 
     /**
      * A4 PORTRAIT Data Overlay - 2 copies per page
@@ -4791,8 +4962,80 @@ HTML;
      * Takes the existing ppo- overlay HTML and stacks 2 copies vertically
      * Page: 210mm x 297mm, each copy ~148mm tall
      */
-    private function wrapA4PortraitOverlay(string $singleOverlayHtml): string
+//     private function wrapA4PortraitOverlay(string $singleOverlayHtml): string
+//     {
+//         return <<<HTML
+// <style>
+// @page { size: 210mm 297mm; margin: 0; }
+
+// .a4p-wrapper {
+//     width: 210mm;
+//     height: 297mm;
+//     margin: 0;
+//     padding: 0;
+//     display: flex;
+//     flex-direction: column;
+//     page-break-after: always;
+//     break-after: page;
+//     overflow: hidden;
+//     background: transparent !important;
+// }
+
+// /* Each copy = A5 size (210mm x 148mm) */
+// .a4p-copy {
+//     width: 210mm;
+//     height: 148mm;
+//     position: relative;
+//     overflow: hidden;
+//     flex-shrink: 0;
+// }
+
+// /* Override the ppo-page inside each copy to fit */
+// .a4p-copy .ppo-page {
+//     page-break-after: avoid !important;
+//     break-after: avoid !important;
+// }
+
+// @media print {
+//     html, body {
+//         margin: 0 !important;
+//         padding: 0 !important;
+//     }
+//     .a4p-wrapper {
+//         page-break-after: always;
+//         page-break-inside: avoid;
+//     }
+//     * {
+//         -webkit-print-color-adjust: exact !important;
+//         print-color-adjust: exact !important;
+//     }
+// }
+// </style>
+
+// <div class="a4p-wrapper">
+//     <!-- ═══ COPY 1 (Top Half) ═══ -->
+//     <div class="a4p-copy">
+//         {$singleOverlayHtml}
+//     </div>
+
+//     <!-- ═══ COPY 2 (Bottom Half) ═══ -->
+//     <div class="a4p-copy" style="margin-top:1.5rem !important;">
+//         {$singleOverlayHtml}
+//     </div>
+// </div>
+// HTML;
+//     }
+
+
+
+
+
+private function wrapA4PortraitOverlay(string $overlay1Html, string $overlay2Html = ''): string
     {
+        if (empty($overlay2Html)) {
+            $overlay2Html = $overlay1Html;
+        }
+
         return <<<HTML
 <style>
 @page { size: 210mm 297mm; margin: 0; }
@@ -4810,7 +5053,6 @@ HTML;
     background: transparent !important;
 }
 
-/* Each copy = A5 size (210mm x 148mm) */
 .a4p-copy {
     width: 210mm;
     height: 148mm;
@@ -4819,8 +5061,11 @@ HTML;
     flex-shrink: 0;
 }
 
-/* Override the ppo-page inside each copy to fit */
-.a4p-copy .ppo-page {
+.a4p-copy .ppoa-page {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+}
+.a4p-copy .ppoa-page_new {
     page-break-after: avoid !important;
     break-after: avoid !important;
 }
@@ -4842,14 +5087,14 @@ HTML;
 </style>
 
 <div class="a4p-wrapper">
-    <!-- ═══ COPY 1 (Top Half) ═══ -->
+    <!-- ═══ COPY 1 (Top Half) - ppoa- classes ═══ -->
     <div class="a4p-copy">
-        {$singleOverlayHtml}
+        {$overlay1Html}
     </div>
 
-    <!-- ═══ COPY 2 (Bottom Half) ═══ -->
+    <!-- ═══ COPY 2 (Bottom Half) - ppoa-*_new classes ═══ -->
     <div class="a4p-copy" style="margin-top:1.5rem !important;">
-        {$singleOverlayHtml}
+        {$overlay2Html}
     </div>
 </div>
 HTML;
