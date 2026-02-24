@@ -2379,7 +2379,7 @@ HTML;
 }
 .ppoa-nationality {
     position: absolute;
-    top: 70mm;
+    top: 69.5mm;
     left: 150mm;
     font-size: 10px;
 }
@@ -4848,7 +4848,7 @@ HTML;
     </div>
 
     <!-- ═══ COPY 2 (Bottom Half) ═══ -->
-    <div class="a4p-copy" style="margin-top:1.5rem !important;">
+    <div class="a4p-copy" style="margin-top:1rem !important;">
         {$singleOverlayHtml}
     </div>
 </div>
