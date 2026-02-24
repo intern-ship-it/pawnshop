@@ -5093,7 +5093,7 @@ private function wrapA4PortraitOverlay(string $overlay1Html, string $overlay2Htm
     </div>
 
     <!-- ═══ COPY 2 (Bottom Half) - ppoa-*_new classes ═══ -->
-    <div class="a4p-copy" style="margin-top:1.5rem !important;">
+    <div class="a4p-copy" >
         {$overlay2Html}
     </div>
 </div>
