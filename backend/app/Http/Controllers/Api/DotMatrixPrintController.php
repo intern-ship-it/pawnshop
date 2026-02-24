@@ -2319,6 +2319,8 @@ HTML;
     width: 210mm;
     height: 148mm;
     padding: 0;
+    top: 1rem;
+    right: 1rem;
     margin: 0;
     position: relative;
     font-family: 'Courier New', 'Courier', monospace;
