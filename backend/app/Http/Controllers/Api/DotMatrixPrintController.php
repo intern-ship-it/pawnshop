@@ -4848,7 +4848,7 @@ HTML;
     </div>
 
     <!-- ═══ COPY 2 (Bottom Half) ═══ -->
-    <div class="a4p-copy" style="margin-top:1rem !important;">
+    <div class="a4p-copy" style="margin-top:1.5rem !important;">
         {$singleOverlayHtml}
     </div>
 </div>
