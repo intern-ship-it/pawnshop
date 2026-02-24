@@ -2320,7 +2320,7 @@ HTML;
     height: 148mm;
     padding: 0;
     top: 1rem;
-    right: 0;
+    right: 3.5rem ;
     margin: 0;
     position: relative;
     font-family: 'Courier New', 'Courier', monospace;
@@ -4848,7 +4848,7 @@ HTML;
     </div>
 
     <!-- ═══ COPY 2 (Bottom Half) ═══ -->
-    <div class="a4p-copy" style="margin-top:2.5rem !important; right:0 !important;">
+    <div class="a4p-copy" style="margin-top:1.5rem !important;">
         {$singleOverlayHtml}
     </div>
 </div>
