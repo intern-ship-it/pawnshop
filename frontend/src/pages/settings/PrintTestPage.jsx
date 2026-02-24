@@ -84,6 +84,226 @@ export default function PrintTestPage() {
     }
   };
 
+
+
+  // ── FUNCTION 1: Print A4 Portrait Data Overlay ──
+const printPrePrintedOverlayA4 = async () => {
+  if (!selectedPledge) {
+    dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+    return;
+  }
+
+  setPrinting(true);
+  setPreviewType("A4 Data Overlay");
+  const startTime = Date.now();
+
+  try {
+    const token = getToken();
+    const response = await fetch(
+      `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${selectedPledge.id}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      },
+    );
+
+    const data = await response.json();
+    const duration = Date.now() - startTime;
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Failed to generate A4 overlay");
+    }
+
+    const frontHtml = data.data?.front_html || "";
+    const pledgeNo = data.data?.pledge_no || selectedPledge.pledge_no;
+
+    logResult("A4 Data Overlay", true, `Portrait overlay for ${pledgeNo}`, duration);
+    openA4OverlayPrintWindow(frontHtml, pledgeNo);
+
+    dispatch(addToast({ type: "success", title: "Success", message: `A4 overlay ready (${duration}ms)` }));
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logResult("A4 Data Overlay", false, error.message, duration);
+    dispatch(addToast({ type: "error", title: "Print Error", message: error.message }));
+  } finally {
+    setPrinting(false);
+  }
+};
+
+
+// ── FUNCTION 2: Open A4 overlay print window ──
+const openA4OverlayPrintWindow = (dataHtml, pledgeNo) => {
+  const printWindow = window.open("", "_blank", "width=900,height=1000");
+  if (!printWindow) {
+    dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups" }));
+    return;
+  }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>A4 Data Overlay - ${pledgeNo}</title>
+      <style>
+        @page { size: portrait; margin: 0; }
+        body { background: #1f2937; padding: 20px; margin: 0; font-family: Arial, sans-serif; }
+        .ctrl {
+          text-align: center; padding: 16px; background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+          margin-bottom: 20px; border-radius: 10px; position: sticky; top: 0; z-index: 100;
+        }
+        .ctrl h2 { color: #fff; margin: 0 0 8px; font-size: 18px; }
+        .ctrl p { color: rgba(255,255,255,0.8); margin: 4px 0; font-size: 13px; }
+        .ctrl .hl { color: #fbbf24; font-weight: bold; }
+        .btn-row { display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
+        .ctrl button { padding: 12px 24px; font-size: 14px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; }
+        .btn-pr { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #000; }
+        .btn-pr:hover { transform: translateY(-2px); }
+        .btn-cl { background: #6b7280; color: #fff; }
+        .pw { max-width: 210mm; margin: 0 auto; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
+        .pw-label { background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); color: #fff; padding: 10px 15px; font-size: 12px; font-weight: bold; }
+        @media print {
+          body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+          .ctrl, .pw-label { display: none !important; }
+          .pw { box-shadow: none !important; border-radius: 0 !important; margin: 0 !important; max-width: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="ctrl">
+        <h2>🖨️ A4 Portrait Data Overlay - ${pledgeNo}</h2>
+        <p>Prints <span class="hl">DATA ONLY</span> — 2 copies per page</p>
+        <p>Load pre-printed A4 forms into dot matrix printer first</p>
+        <div class="btn-row">
+          <button class="btn-pr" onclick="window.print()">🖨️ Print Data</button>
+          <button class="btn-cl" onclick="window.close()">✕ Close</button>
+        </div>
+      </div>
+      <div class="pw">
+        <div class="pw-label">📊 DATA OVERLAY - ${pledgeNo} (A4 Portrait, 2 copies)</div>
+        ${dataHtml}
+      </div>
+      <script>window.onload = function() { document.querySelector('.btn-pr').focus(); };</script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+};
+
+
+// ── FUNCTION 3: Test alignment with A4 form background ──
+const testDataOverlayA4 = async () => {
+  if (!selectedPledge) {
+    dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+    return;
+  }
+
+  setPrinting(true);
+  const startTime = Date.now();
+
+  try {
+    const token = getToken();
+
+    const [formResponse, dataResponse] = await Promise.all([
+      fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
+      }),
+      fetch(`${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${selectedPledge.id}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+      }),
+    ]);
+
+    const formData = await formResponse.json();
+    const dataData = await dataResponse.json();
+    const duration = Date.now() - startTime;
+
+    if (!formResponse.ok || !formData.success) throw new Error(formData.message || "Failed to load A4 form");
+    if (!dataResponse.ok || !dataData.success) throw new Error(dataData.message || "Failed to generate overlay");
+
+    const formHtml = formData.data?.front_html || "";
+    const dataHtml = dataData.data?.front_html || "";
+
+    const pw = window.open("", "_blank", "width=900,height=1000");
+    if (!pw) { dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups" })); return; }
+
+    pw.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>A4 Overlay Alignment - ${selectedPledge.pledge_no}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
+          h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 18px; }
+          h1 span { color: #38bdf8; }
+          .ctrls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
+          .ctrls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+          .bf { background: #3b82f6; color: white; }
+          .bd { background: #f59e0b; color: white; }
+          .bb { background: #10b981; color: white; }
+          .bp { background: #ef4444; color: white; }
+          .bc { background: #6b7280; color: white; }
+          .container { position: relative; width: 210mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-height: 297mm; }
+          .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.4; pointer-events: none; }
+          .form-layer.hidden { display: none; }
+          .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+          .data-layer.hidden { display: none; }
+          .st { text-align: center; color: #9ca3af; font-size: 12px; margin: 10px 0; }
+          .st span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
+          .st .on { background: #22c55e; color: white; }
+          .st .off { background: #ef4444; color: white; }
+          @media print {
+            body { background: white !important; padding: 0 !important; }
+            .ctrls, h1, .st { display: none !important; }
+            .container { box-shadow: none !important; }
+            .form-layer { display: none !important; }
+            .data-layer { position: relative !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>📊 A4 Portrait <span>Data Overlay</span> Alignment</h1>
+        <div class="ctrls">
+          <button class="bf" onclick="toggleForm()">Toggle Form</button>
+          <button class="bd" onclick="toggleData()">Toggle Data</button>
+          <button class="bb" onclick="showBoth()">Both</button>
+          <button class="bp" onclick="window.print()">Print Data Only</button>
+          <button class="bc" onclick="window.close()">Close</button>
+        </div>
+        <div class="st">Form: <span id="fs" class="on">ON</span> Data: <span id="ds" class="on">ON</span></div>
+        <div class="container">
+          <div id="fl" class="form-layer">${formHtml}</div>
+          <div id="dl" class="data-layer">${dataHtml}</div>
+        </div>
+        <script>
+          let fv=true,dv=true;
+          function toggleForm(){fv=!fv;document.getElementById('fl').classList.toggle('hidden');document.getElementById('fs').className=fv?'on':'off';document.getElementById('fs').textContent=fv?'ON':'OFF';}
+          function toggleData(){dv=!dv;document.getElementById('dl').classList.toggle('hidden');document.getElementById('ds').className=dv?'on':'off';document.getElementById('ds').textContent=dv?'ON':'OFF';}
+          function showBoth(){fv=dv=true;document.getElementById('fl').classList.remove('hidden');document.getElementById('dl').classList.remove('hidden');document.getElementById('fs').className='on';document.getElementById('fs').textContent='ON';document.getElementById('ds').className='on';document.getElementById('ds').textContent='ON';}
+        </script>
+      </body>
+      </html>
+    `);
+    pw.document.close();
+
+    logResult("A4 Overlay Test", true, `Alignment for ${selectedPledge.pledge_no}`, duration);
+    dispatch(addToast({ type: "success", title: "Success", message: `A4 overlay test ready (${duration}ms)` }));
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logResult("A4 Overlay Test", false, error.message, duration);
+    dispatch(addToast({ type: "error", title: "Error", message: error.message }));
+  } finally {
+    setPrinting(false);
+  }
+};
   const logResult = (type, success, message, duration) => {
     setTestResults((prev) => [
       {
@@ -2839,6 +3059,48 @@ export default function PrintTestPage() {
                   🔍 Toggle layers to check data positioning accuracy
                 </p>
               </div>
+
+
+ <div className="p-3 bg-sky-50 rounded-lg border border-sky-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-sky-800">
+                      A4 Data Overlay (Portrait)
+                    </p>
+                    <p className="text-xs text-sky-600">
+                      Data only on A4 pre-printed form (2 copies)
+                    </p>
+                  </div>
+                  <Badge className="bg-sky-500 text-white">A4</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={Layers}
+                    onClick={testDataOverlayA4}
+                    disabled={!selectedPledge || printing}
+                    className="border-sky-400 text-sky-700 hover:bg-sky-100"
+                  >
+                    Test Alignment
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={Printer}
+                    onClick={printPrePrintedOverlayA4}
+                    loading={printing && previewType === "A4 Data Overlay"}
+                    disabled={!selectedPledge || printing}
+                    className="bg-sky-600 hover:bg-sky-700"
+                  >
+                    Print Data
+                  </Button>
+                </div>
+                <p className="text-xs text-sky-500 mt-2">
+                  🖨️ Load pre-printed A4 forms, then print data only via dot matrix
+                </p>
+              </div>
+
 
               {/* Renewal Document View Test */}
               <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
