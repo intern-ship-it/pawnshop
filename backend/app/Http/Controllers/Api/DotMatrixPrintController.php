@@ -2320,7 +2320,7 @@ HTML;
     height: 148mm;
     padding: 0;
     top: 1rem;
-    right: 4rem ;
+    right: 3.7rem ;
     margin: 0;
     position: relative;
     font-family: 'Courier New', 'Courier', monospace;
