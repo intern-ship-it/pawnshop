@@ -1636,7 +1636,7 @@ export default function NewPledge() {
         .label { 
           width: 50mm; 
           height: 50mm;
-          padding: 4mm 3mm; 
+          padding: 3mm 4mm; 
           background: white; 
           display: flex; 
           flex-direction: column; 
@@ -1662,23 +1662,32 @@ export default function NewPledge() {
           padding: 1mm 0;
         }
         .barcode-img { 
-          width: 46mm; 
-          height: 24mm; 
+          max-width: 40mm; 
+          width: 100%;
+          height: 18mm; 
           object-fit: contain; 
         }
         .barcode-text { 
           font-family: 'Courier New', monospace; 
-          font-size: 9pt; 
+          font-size: 8pt; 
           margin-top: 1mm; 
           font-weight: bold; 
-          letter-spacing: 0.5px; 
+          letter-spacing: 0.3px;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .footer-row { 
           border-top: 0.3mm solid #333; 
           padding-top: 1mm; 
-          font-size: 8pt; 
+          font-size: 7pt; 
           font-weight: bold; 
-          text-align: center; 
+          text-align: center;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          overflow: hidden;
         }
         @media screen { 
           body { padding: 20px; width: auto; } 
@@ -1703,7 +1712,10 @@ export default function NewPledge() {
             ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
             <div class="barcode-text">${barcodeText}</div>
           </div>
-          <div class="footer-row">Total: ${parseFloat(totalWeight).toFixed(2)}g</div>
+          <div class="footer-row">
+            <div>${receiptNo || ''}</div>
+            <div>Total: ${parseFloat(totalWeight).toFixed(2)}g</div>
+          </div>
         </div>
       </div>
       <script>window.onload = function() { document.querySelector('button').focus(); };</script>

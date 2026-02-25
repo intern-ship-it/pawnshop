@@ -71,7 +71,8 @@ class PrintController extends Controller
             $terms = [];
             try {
                 $terms = \App\Models\TermsCondition::getForActivity('pledge', $pledge->branch_id) ?? [];
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 $terms = [];
             }
 
@@ -98,8 +99,9 @@ class PrintController extends Controller
                     'printed_by' => $request->user()->id,
                     'printed_at' => now(),
                 ]);
-            } catch (\Exception $e) {
-                // Table may not exist, skip
+            }
+            catch (\Exception $e) {
+            // Table may not exist, skip
             }
 
             $pledge->update([
@@ -109,7 +111,8 @@ class PrintController extends Controller
 
             return $pdf->download("pledge-receipt-{$pledge->receipt_no}.pdf");
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -143,7 +146,7 @@ class PrintController extends Controller
     }
 
     /**
-     * Get barcodes for all items in a pledge
+     * Get barcode for a pledge (one barcode per pledge, not per item)
      */
     public function pledgeBarcodes(Request $request, Pledge $pledge): JsonResponse
     {
@@ -154,21 +157,28 @@ class PrintController extends Controller
         $pledge->load(['items.category', 'items.purity']);
 
         $generator = new BarcodeGeneratorPNG();
-        $items = [];
 
-        foreach ($pledge->items as $item) {
-            $items[] = [
-                'barcode' => $item->barcode,
-                'item_code' => $item->barcode,
-                'image' => 'data:image/png;base64,' . base64_encode(
-                    $generator->getBarcode($item->barcode, $generator::TYPE_CODE_128, 3, 80)
-                ),
+        // One barcode per pledge
+        $barcodeValue = $pledge->pledge_no;
+        $barcodeImage = 'data:image/png;base64,' . base64_encode(
+            $generator->getBarcode($barcodeValue, $generator::TYPE_CODE_128, 3, 80)
+        );
+
+        // Summarize items for the label
+        $itemSummary = $pledge->items->map(function ($item) {
+            return ($item->category->name_en ?? 'Item') . ' ' . ($item->purity->code ?? '') . ' ' . $item->net_weight . 'g';
+        })->implode(', ');
+
+        $items = [[
+                'barcode' => $barcodeValue,
+                'item_code' => $barcodeValue,
+                'image' => $barcodeImage,
                 'pledge_no' => $pledge->pledge_no,
-                'category' => $item->category->name_en ?? 'Item',
-                'purity' => $item->purity->code ?? '',
-                'net_weight' => $item->net_weight,
-            ];
-        }
+                'category' => $pledge->items->count() . ' item(s)',
+                'purity' => '',
+                'net_weight' => $pledge->items->sum('net_weight'),
+                'item_summary' => $itemSummary,
+            ]];
 
         return $this->success([
             'items' => $items,
@@ -280,12 +290,11 @@ class PrintController extends Controller
         $dayEndReport->update(['report_printed' => true]);
 
         $filename = "day-end-report-{$dayEndReport->report_date->format('Y-m-d')}.pdf";
-
         return $pdf->download($filename);
     }
 
     /**
-     * Print multiple barcodes (batch)
+     * Print barcodes (batch) - one barcode per pledge, not per item
      */
     public function batchBarcodes(Request $request)
     {
@@ -297,6 +306,7 @@ class PrintController extends Controller
         $branchId = $request->user()->branch_id;
         $generator = new BarcodeGeneratorPNG();
         $barcodes = [];
+        $processedPledges = []; // Track pledges to avoid duplicate barcodes
 
         foreach ($validated['item_ids'] as $itemId) {
             $item = PledgeItem::with(['pledge', 'category', 'purity'])->find($itemId);
@@ -305,11 +315,19 @@ class PrintController extends Controller
                 continue;
             }
 
+            // One barcode per pledge - skip if already added
+            $pledgeId = $item->pledge->id;
+            if (in_array($pledgeId, $processedPledges)) {
+                continue;
+            }
+            $processedPledges[] = $pledgeId;
+
+            $barcodeValue = $item->pledge->pledge_no;
             $barcodes[] = [
-                'barcode' => $item->barcode,
+                'barcode' => $barcodeValue,
                 'image' => 'data:image/png;base64,' . base64_encode(
-                    $generator->getBarcode($item->barcode, $generator::TYPE_CODE_128, 3, 80)
-                ),
+                $generator->getBarcode($barcodeValue, $generator::TYPE_CODE_128, 3, 80)
+            ),
                 'pledge_no' => $item->pledge->pledge_no,
                 'category' => $item->category->name_en,
                 'weight' => $item->net_weight . 'g',

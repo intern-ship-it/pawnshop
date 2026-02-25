@@ -87,63 +87,63 @@ export default function PrintTestPage() {
 
 
   // ── FUNCTION 1: Print A4 Portrait Data Overlay ──
-const printPrePrintedOverlayA4 = async () => {
-  if (!selectedPledge) {
-    dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
-    return;
-  }
-
-  setPrinting(true);
-  setPreviewType("A4 Data Overlay");
-  const startTime = Date.now();
-
-  try {
-    const token = getToken();
-    const response = await fetch(
-      `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${selectedPledge.id}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-      },
-    );
-
-    const data = await response.json();
-    const duration = Date.now() - startTime;
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || "Failed to generate A4 overlay");
+  const printPrePrintedOverlayA4 = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
     }
 
-    const frontHtml = data.data?.front_html || "";
-    const pledgeNo = data.data?.pledge_no || selectedPledge.pledge_no;
+    setPrinting(true);
+    setPreviewType("A4 Data Overlay");
+    const startTime = Date.now();
 
-    logResult("A4 Data Overlay", true, `Portrait overlay for ${pledgeNo}`, duration);
-    openA4OverlayPrintWindow(frontHtml, pledgeNo);
+    try {
+      const token = getToken();
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${selectedPledge.id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
+      );
 
-    dispatch(addToast({ type: "success", title: "Success", message: `A4 overlay ready (${duration}ms)` }));
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    logResult("A4 Data Overlay", false, error.message, duration);
-    dispatch(addToast({ type: "error", title: "Print Error", message: error.message }));
-  } finally {
-    setPrinting(false);
-  }
-};
+      const data = await response.json();
+      const duration = Date.now() - startTime;
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate A4 overlay");
+      }
+
+      const frontHtml = data.data?.front_html || "";
+      const pledgeNo = data.data?.pledge_no || selectedPledge.pledge_no;
+
+      logResult("A4 Data Overlay", true, `Portrait overlay for ${pledgeNo}`, duration);
+      openA4OverlayPrintWindow(frontHtml, pledgeNo);
+
+      dispatch(addToast({ type: "success", title: "Success", message: `A4 overlay ready (${duration}ms)` }));
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("A4 Data Overlay", false, error.message, duration);
+      dispatch(addToast({ type: "error", title: "Print Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
 
 
-// ── FUNCTION 2: Open A4 overlay print window ──
-const openA4OverlayPrintWindow = (dataHtml, pledgeNo) => {
-  const printWindow = window.open("", "_blank", "width=900,height=1000");
-  if (!printWindow) {
-    dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups" }));
-    return;
-  }
+  // ── FUNCTION 2: Open A4 overlay print window ──
+  const openA4OverlayPrintWindow = (dataHtml, pledgeNo) => {
+    const printWindow = window.open("", "_blank", "width=900,height=1000");
+    if (!printWindow) {
+      dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups" }));
+      return;
+    }
 
-  printWindow.document.write(`
+    printWindow.document.write(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -191,50 +191,50 @@ const openA4OverlayPrintWindow = (dataHtml, pledgeNo) => {
     </body>
     </html>
   `);
-  printWindow.document.close();
-  printWindow.focus();
-};
+    printWindow.document.close();
+    printWindow.focus();
+  };
 
 
-// ── FUNCTION 3: Test alignment with A4 form background ──
-const testDataOverlayA4 = async () => {
-  if (!selectedPledge) {
-    dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
-    return;
-  }
+  // ── FUNCTION 3: Test alignment with A4 form background ──
+  const testDataOverlayA4 = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
+    }
 
-  setPrinting(true);
-  const startTime = Date.now();
+    setPrinting(true);
+    const startTime = Date.now();
 
-  try {
-    const token = getToken();
+    try {
+      const token = getToken();
 
-    const [formResponse, dataResponse] = await Promise.all([
-      fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
-      }),
-      fetch(`${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${selectedPledge.id}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
-      }),
-    ]);
+      const [formResponse, dataResponse] = await Promise.all([
+        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
+        }),
+        fetch(`${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${selectedPledge.id}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+        }),
+      ]);
 
-    const formData = await formResponse.json();
-    const dataData = await dataResponse.json();
-    const duration = Date.now() - startTime;
+      const formData = await formResponse.json();
+      const dataData = await dataResponse.json();
+      const duration = Date.now() - startTime;
 
-    if (!formResponse.ok || !formData.success) throw new Error(formData.message || "Failed to load A4 form");
-    if (!dataResponse.ok || !dataData.success) throw new Error(dataData.message || "Failed to generate overlay");
+      if (!formResponse.ok || !formData.success) throw new Error(formData.message || "Failed to load A4 form");
+      if (!dataResponse.ok || !dataData.success) throw new Error(dataData.message || "Failed to generate overlay");
 
-    const formHtml = formData.data?.front_html || "";
-    const dataHtml = dataData.data?.front_html || "";
+      const formHtml = formData.data?.front_html || "";
+      const dataHtml = dataData.data?.front_html || "";
 
-    const pw = window.open("", "_blank", "width=900,height=1000");
-    if (!pw) { dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups" })); return; }
+      const pw = window.open("", "_blank", "width=900,height=1000");
+      if (!pw) { dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups" })); return; }
 
-    pw.document.write(`
+      pw.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -292,18 +292,18 @@ const testDataOverlayA4 = async () => {
       </body>
       </html>
     `);
-    pw.document.close();
+      pw.document.close();
 
-    logResult("A4 Overlay Test", true, `Alignment for ${selectedPledge.pledge_no}`, duration);
-    dispatch(addToast({ type: "success", title: "Success", message: `A4 overlay test ready (${duration}ms)` }));
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    logResult("A4 Overlay Test", false, error.message, duration);
-    dispatch(addToast({ type: "error", title: "Error", message: error.message }));
-  } finally {
-    setPrinting(false);
-  }
-};
+      logResult("A4 Overlay Test", true, `Alignment for ${selectedPledge.pledge_no}`, duration);
+      dispatch(addToast({ type: "success", title: "Success", message: `A4 overlay test ready (${duration}ms)` }));
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("A4 Overlay Test", false, error.message, duration);
+      dispatch(addToast({ type: "error", title: "Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
   const logResult = (type, success, message, duration) => {
     setTestResults((prev) => [
       {
@@ -948,7 +948,7 @@ const testDataOverlayA4 = async () => {
         .label { 
           width: 50mm; 
           height: 50mm;
-          padding: 4mm 3mm; 
+          padding: 3mm 4mm; 
           background: white; 
           display: flex; 
           flex-direction: column; 
@@ -976,16 +976,21 @@ const testDataOverlayA4 = async () => {
           padding: 1mm 0;
         }
         .barcode-img { 
-          width: 44mm; 
+          max-width: 40mm; 
+          width: 100%;
           height: 18mm; 
           object-fit: contain; 
         }
         .barcode-text { 
           font-family: 'Courier New', monospace; 
-          font-size: 9pt; 
+          font-size: 8pt; 
           margin-top: 1mm; 
           font-weight: bold; 
-          letter-spacing: 0.5px; 
+          letter-spacing: 0.3px;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .footer-row { 
           border-top: 0.3mm solid #333; 
@@ -3061,7 +3066,7 @@ const testDataOverlayA4 = async () => {
               </div>
 
 
- <div className="p-3 bg-sky-50 rounded-lg border border-sky-200">
+              <div className="p-3 bg-sky-50 rounded-lg border border-sky-200">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium text-sky-800">

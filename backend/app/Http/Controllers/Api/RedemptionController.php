@@ -50,14 +50,15 @@ class RedemptionController extends Controller
 
             $query->whereHas('pledge', function ($q) use ($search, $searchNormalized) {
                 $q->where(function ($q2) use ($search, $searchNormalized) {
-                    // Match with hyphens (original format)
-                    $q2->where('pledge_no', 'like', "%{$search}%")
-                        ->orWhere('receipt_no', 'like', "%{$search}%")
-                        // Match without hyphens (barcode scanner format)
-                        ->orWhereRaw("REPLACE(pledge_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
-                        ->orWhereRaw("REPLACE(receipt_no, '-', '') LIKE ?", ["%{$searchNormalized}%"]);
+                        // Match with hyphens (original format)
+                        $q2->where('pledge_no', 'like', "%{$search}%")
+                            ->orWhere('receipt_no', 'like', "%{$search}%")
+                            // Match without hyphens (barcode scanner format)
+                            ->orWhereRaw("REPLACE(pledge_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
+                            ->orWhereRaw("REPLACE(receipt_no, '-', '') LIKE ?", ["%{$searchNormalized}%"]);
+                    }
+                    );
                 });
-            });
         }
 
         $redemptions = $query->orderBy('created_at', 'desc')
@@ -87,7 +88,11 @@ class RedemptionController extends Controller
         $pledge = Pledge::where('id', $validated['pledge_id'])
             ->where('branch_id', $branchId)
             ->whereIn('status', ['active', 'overdue']) // Changed from just 'active'
-            ->with(['items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot'])
+            ->with(['items' => function ($q) {
+            // Only load items that have NOT been redeemed yet
+            $q->whereNotIn('status', ['redeemed', 'released'])
+                ->with(['category', 'purity', 'vault', 'box', 'slot']);
+        }])
             ->first();
 
         if (!$pledge) {
@@ -148,9 +153,9 @@ class RedemptionController extends Controller
                 ],
                 'items' => $itemsWithLocation->values(),
                 'all_items' => $allItems->map(function ($item) {
-                    $item->location_string = $this->buildLocationString($item);
-                    return $item;
-                }),
+                $item->location_string = $this->buildLocationString($item);
+                return $item;
+            }),
                 'calculation' => $calculation,
             ]);
         }
@@ -237,7 +242,10 @@ class RedemptionController extends Controller
         $pledge = Pledge::where('id', $validated['pledge_id'])
             ->where('branch_id', $branchId)
             ->whereIn('status', ['active', 'overdue']) // Changed from just 'active'
-            ->with('items')
+            ->with(['items' => function ($q) {
+            // Only load items that have NOT been redeemed yet
+            $q->whereNotIn('status', ['redeemed', 'released']);
+        }])
             ->first();
 
         if (!$pledge) {
@@ -357,9 +365,10 @@ class RedemptionController extends Controller
                     // Keep status as active/overdue for remaining items
                 ]);
 
-                // Note: Remaining items keep their existing barcodes
-                // New barcodes could be generated here if business rules require it
-            } else {
+            // Note: Remaining items keep their existing barcodes
+            // New barcodes could be generated here if business rules require it
+            }
+            else {
                 // Full redemption - update pledge status
                 $pledge->update(['status' => 'redeemed']);
             }
@@ -407,7 +416,8 @@ class RedemptionController extends Controller
                     'severity' => 'info',
                     'created_at' => now(),
                 ]);
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 Log::warning('Audit log failed: ' . $e->getMessage());
             }
 
@@ -441,7 +451,8 @@ class RedemptionController extends Controller
                         'created_by' => $request->user()->name,
                     ],
                 ]);
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 Log::warning('Notification creation failed: ' . $e->getMessage());
             }
 
@@ -452,7 +463,8 @@ class RedemptionController extends Controller
                 'items_remaining' => $remainingItems->count(),
             ], 'Redemption processed successfully', 201);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             DB::rollBack();
             Log::error('Redemption failed: ' . $e->getMessage());
             return $this->error('Failed to process redemption: ' . $e->getMessage(), 500);
@@ -524,7 +536,8 @@ class RedemptionController extends Controller
 
             return $this->success(null, 'Items released successfully');
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to release items: ' . $e->getMessage(), 500);
         }

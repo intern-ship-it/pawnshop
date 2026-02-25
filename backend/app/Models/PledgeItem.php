@@ -81,17 +81,17 @@ class PledgeItem extends Model
 
     public function assignedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'location_assigned_by');
+        return $this->belongsTo(User::class , 'location_assigned_by');
     }
 
     public function locationHistory(): HasMany
     {
-        return $this->hasMany(ItemLocationHistory::class, 'pledge_item_id');
+        return $this->hasMany(ItemLocationHistory::class , 'pledge_item_id');
     }
 
     public function auctionItems(): HasMany
     {
-        return $this->hasMany(AuctionItem::class, 'pledge_item_id');
+        return $this->hasMany(AuctionItem::class , 'pledge_item_id');
     }
 
     public function getLocationStringAttribute(): string
@@ -109,6 +109,7 @@ class PledgeItem extends Model
     public static function generateBarcode(int $pledgeId, int $itemIndex): string
     {
         $pledge = Pledge::find($pledgeId);
-        return sprintf('%s-%02d', $pledge->pledge_no, $itemIndex);
+        // One barcode per pledge (not per item)
+        return $pledge->pledge_no;
     }
 }

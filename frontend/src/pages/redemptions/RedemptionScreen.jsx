@@ -272,8 +272,8 @@ export default function RedemptionScreen() {
     customerIC: data.customer?.ic_number || "",
     customerPhone:
       data.customer?.country_code &&
-      data.customer?.phone &&
-      !data.customer.phone.startsWith("+")
+        data.customer?.phone &&
+        !data.customer.phone.startsWith("+")
         ? `${data.customer.country_code} ${data.customer.phone}`
         : data.customer?.phone || "",
     totalWeight: parseFloat(data.total_weight) || 0,
@@ -288,7 +288,7 @@ export default function RedemptionScreen() {
     graceEndDate: data.grace_end_date,
     status: data.status,
     renewalCount: data.renewal_count || 0,
-    itemsCount: data.items?.length || 0,
+    itemsCount: data.items_count ?? data.items?.length ?? 0,
     items: data.items || [],
     createdAt: data.created_at,
   });
@@ -582,7 +582,7 @@ export default function RedemptionScreen() {
         bank_id:
           (paymentMethod === "transfer" ||
             (paymentMethod === "partial" && parseFloat(transferAmount) > 0)) &&
-          bankId
+            bankId
             ? parseInt(bankId)
             : undefined,
         reference_no: referenceNo || undefined,
@@ -633,6 +633,16 @@ export default function RedemptionScreen() {
           itemsRemaining:
             data.items_remaining || allItems.length - selectedItemIds.length,
         });
+
+        // ✅ FIX: Update allItems to remove redeemed items so the count
+        // and item list immediately reflect the remaining unredeemed items.
+        const redeemedIds = new Set(selectedItemIds);
+        const remainingItems = allItems.filter((i) => !redeemedIds.has(i.id));
+        setAllItems(remainingItems);
+        setItems(remainingItems);
+        // Reset selection to whatever is still left (for a possible next partial redemption)
+        setSelectedItemIds(remainingItems.map((i) => i.id));
+        setIsPartialRedemption(false);
 
         setShowSuccessModal(true);
 
@@ -1873,35 +1883,35 @@ export default function RedemptionScreen() {
                 {(paymentMethod === "transfer" ||
                   (paymentMethod === "partial" &&
                     parseFloat(transferAmount) > 0)) && (
-                  <>
-                    <div className="mb-4">
-                      <label className="text-sm text-zinc-600 mb-2 block">
-                        Bank
-                      </label>
-                      <Select
-                        value={bankId}
-                        onChange={(e) => setBankId(e.target.value)}
-                        options={[
-                          { value: "", label: "Select Bank..." },
-                          ...banks.map((bank) => ({
-                            value: String(bank.id),
-                            label: bank.name,
-                          })),
-                        ]}
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label className="text-sm text-zinc-600 mb-2 block">
-                        Reference No
-                      </label>
-                      <Input
-                        placeholder="Transfer reference number"
-                        value={referenceNo}
-                        onChange={(e) => setReferenceNo(e.target.value)}
-                      />
-                    </div>
-                  </>
-                )}
+                    <>
+                      <div className="mb-4">
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Bank
+                        </label>
+                        <Select
+                          value={bankId}
+                          onChange={(e) => setBankId(e.target.value)}
+                          options={[
+                            { value: "", label: "Select Bank..." },
+                            ...banks.map((bank) => ({
+                              value: String(bank.id),
+                              label: bank.name,
+                            })),
+                          ]}
+                        />
+                      </div>
+                      <div className="mb-4">
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Reference No
+                        </label>
+                        <Input
+                          placeholder="Transfer reference number"
+                          value={referenceNo}
+                          onChange={(e) => setReferenceNo(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
 
                 {/* Change - only for non-partial payments */}
                 {paymentMethod !== "partial" &&
@@ -1941,13 +1951,13 @@ export default function RedemptionScreen() {
                     selectedItemIds.length === 0 || // Issue 2: Require at least one item selected
                     (paymentMethod === "partial"
                       ? Math.max(
-                          0,
-                          totalPayable -
-                            (parseFloat(cashAmount) || 0) -
-                            (parseFloat(transferAmount) || 0),
-                        ) >= 0.01
+                        0,
+                        totalPayable -
+                        (parseFloat(cashAmount) || 0) -
+                        (parseFloat(transferAmount) || 0),
+                      ) >= 0.01
                       : !amountReceived ||
-                        parseFloat(amountReceived) < totalPayable)
+                      parseFloat(amountReceived) < totalPayable)
                   }
                 >
                   {isPartialRedemption
@@ -1982,9 +1992,7 @@ export default function RedemptionScreen() {
         onClose={() => {
           setShowSuccessModal(false);
           setRedemptionResult(null);
-          setSearchQuery("");
-          setPledge(null);
-          setPledgeList([]); // Clear pledge list
+          // Reset payment fields
           setAmountReceived("");
           setCashAmount("");
           setTransferAmount("");
@@ -1993,13 +2001,28 @@ export default function RedemptionScreen() {
           setVerifiedIC(false);
           setVerifiedItems(false);
           setCalculation(null);
-          setItems([]);
-          setAllItems([]); // Issue 2: Reset allItems
-          setSelectedItemIds([]); // Issue 2: Reset selection
-          setIsPartialRedemption(false); // Issue 2: Reset partial flag
-          setSearchResult(null);
           setTermsAgreed(false);
           setWhatsAppSent(false);
+
+          // If items remain (partial redemption), keep the pledge loaded so
+          // the user can immediately redeem the remaining items.
+          // allItems / selectedItemIds / items were already updated on success.
+          if (allItems.length === 0) {
+            // Full redemption — reset everything back to blank search
+            setSearchQuery("");
+            setPledge(null);
+            setPledgeList([]);
+            setItems([]);
+            setAllItems([]);
+            setSelectedItemIds([]);
+            setIsPartialRedemption(false);
+            setSearchResult(null);
+          } else {
+            // Partial — pledge stays loaded with remaining items.
+            // Re-fetch calculation so the totals reflect only the remaining items.
+            const remainingIds = allItems.map((i) => i.id);
+            fetchCalculation(pledge.id, remainingIds);
+          }
         }}
         title="Redemption Successful!"
         size="md"
@@ -2140,11 +2163,12 @@ export default function RedemptionScreen() {
               fullWidth
               leftIcon={Plus}
               onClick={() => {
+                // "New Redemption" always resets everything to start fresh
                 setShowSuccessModal(false);
                 setRedemptionResult(null);
                 setSearchQuery("");
                 setPledge(null);
-                setPledgeList([]); // Clear pledge list
+                setPledgeList([]);
                 setAmountReceived("");
                 setCashAmount("");
                 setTransferAmount("");

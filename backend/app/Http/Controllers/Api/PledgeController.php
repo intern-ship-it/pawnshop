@@ -36,10 +36,17 @@ class PledgeController extends Controller
 
         $query = Pledge::where('branch_id', $branchId)
             ->with(['customer:id,name,ic_number,phone,country_code'])
-            ->withCount('items');
+            // Only count items that have NOT been redeemed/released
+            ->withCount(['items as items_count' => function ($q) {
+            $q->whereNotIn('status', ['redeemed', 'released']);
+        }]);
 
         if ($request->boolean('with_items')) {
-            $query->with(['items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot']);
+            // Only load items that have NOT been redeemed/released
+            $query->with(['items' => function ($q) {
+                $q->whereNotIn('status', ['redeemed', 'released'])
+                    ->with(['category', 'purity', 'vault', 'box', 'slot']);
+            }]);
         }
 
         // Search
@@ -48,9 +55,10 @@ class PledgeController extends Controller
                 $q->where('pledge_no', 'like', "%{$search}%")
                     ->orWhere('receipt_no', 'like', "%{$search}%")
                     ->orWhereHas('customer', function ($cq) use ($search) {
-                        $cq->where('name', 'like', "%{$search}%")
-                            ->orWhere('ic_number', 'like', "%{$search}%");
-                    });
+                    $cq->where('name', 'like', "%{$search}%")
+                        ->orWhere('ic_number', 'like', "%{$search}%");
+                }
+                );
             });
         }
 
@@ -88,19 +96,24 @@ class PledgeController extends Controller
         // Search by receipt_no, pledge_no, or customer IC
         $pledge = Pledge::where('branch_id', $branchId)
             ->where(function ($query) use ($searchTerm, $searchNormalized) {
-                $query->where('receipt_no', $searchTerm)
-                    ->orWhere('pledge_no', $searchTerm)
-                    // Handle barcode scanner format (without hyphens)
-                    ->orWhereRaw("REPLACE(receipt_no, '-', '') = ?", [$searchNormalized])
-                    ->orWhereRaw("REPLACE(pledge_no, '-', '') = ?", [$searchNormalized])
-                    ->orWhereHas('customer', function ($q) use ($searchTerm) {
-                        // Remove dashes/spaces from IC for matching
-                        $cleanIC = preg_replace('/[-\s]/', '', $searchTerm);
-                        $q->where('ic_number', $searchTerm)
-                            ->orWhere(DB::raw("REPLACE(REPLACE(ic_number, '-', ''), ' ', '')"), $cleanIC);
-                    });
-            })
-            ->with(['customer', 'items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot'])
+            $query->where('receipt_no', $searchTerm)
+                ->orWhere('pledge_no', $searchTerm)
+                // Handle barcode scanner format (without hyphens)
+                ->orWhereRaw("REPLACE(receipt_no, '-', '') = ?", [$searchNormalized])
+                ->orWhereRaw("REPLACE(pledge_no, '-', '') = ?", [$searchNormalized])
+                ->orWhereHas('customer', function ($q) use ($searchTerm) {
+                // Remove dashes/spaces from IC for matching
+                $cleanIC = preg_replace('/[-\s]/', '', $searchTerm);
+                $q->where('ic_number', $searchTerm)
+                    ->orWhere(DB::raw("REPLACE(REPLACE(ic_number, '-', ''), ' ', '')"), $cleanIC);
+            }
+            );
+        })
+            ->with(['customer', 'items' => function ($q) {
+            // Only show non-redeemed items when loading a pledge by receipt/pledge no
+            $q->whereNotIn('status', ['redeemed', 'released'])
+                ->with(['category', 'purity', 'vault', 'box', 'slot']);
+        }])
             ->first();
 
         if (!$pledge) {
@@ -175,7 +188,8 @@ class PledgeController extends Controller
             if ($stoneDeductionType === 'amount') {
                 $netValue = $grossValue - $deductionAmount;
                 $deductionAmountCalc = $deductionAmount;
-            } else {
+            }
+            else {
                 $netValue = $netWeight * $pricePerGram;
                 $deductionAmountCalc = $deductionWeight * $pricePerGram;
             }
@@ -477,7 +491,8 @@ class PledgeController extends Controller
                     'severity' => 'info',
                     'created_at' => now(),
                 ]);
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 // Don't fail pledge creation if audit logging fails
                 Log::warning('Audit log failed: ' . $e->getMessage());
             }
@@ -502,14 +517,16 @@ class PledgeController extends Controller
                         'created_by' => $request->user()->name,
                     ],
                 ]);
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 // Don't fail pledge creation if notification fails
                 Log::warning('Notification creation failed: ' . $e->getMessage());
             }
 
             return $this->success($pledge, 'Pledge created successfully', 201);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to create pledge: ' . $e->getMessage(), 500);
         }
@@ -564,6 +581,7 @@ class PledgeController extends Controller
         }
 
         $items = $pledge->items()
+            ->whereNotIn('status', ['redeemed', 'released'])
             ->with(['category', 'purity', 'vault', 'box', 'slot'])
             ->get();
 
@@ -650,7 +668,8 @@ class PledgeController extends Controller
 
             return $this->success(null, 'Storage locations assigned successfully');
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             DB::rollBack();
             return $this->error('Failed to assign storage: ' . $e->getMessage(), 500);
         }
@@ -787,7 +806,8 @@ class PledgeController extends Controller
                     'severity' => 'warning',
                     'created_at' => now(),
                 ]);
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 Log::warning('Audit log failed: ' . $e->getMessage());
             }
 
@@ -796,7 +816,8 @@ class PledgeController extends Controller
                 'pledge' => $pledge->fresh(),
             ]);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             DB::rollBack();
             Log::error('Pledge cancellation failed: ' . $e->getMessage());
             return $this->error('Failed to cancel pledge: ' . $e->getMessage(), 500);
@@ -851,7 +872,8 @@ class PledgeController extends Controller
                     if (!$pdfResult['success']) {
                         Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
                     }
-                } catch (\Exception $pdfError) {
+                }
+                catch (\Exception $pdfError) {
                     Log::warning('PDF attachment error: ' . $pdfError->getMessage());
                 }
 
@@ -871,11 +893,13 @@ class PledgeController extends Controller
                 return $this->success([
                     'message' => 'WhatsApp sent successfully to ' . $pledge->customer->phone,
                 ]);
-            } else {
+            }
+            else {
                 return $this->error($result['message'] ?? 'Failed to send WhatsApp', 500);
             }
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Log::error('WhatsApp sending failed: ' . $e->getMessage());
             return $this->error('Failed to send WhatsApp: ' . $e->getMessage(), 500);
         }
@@ -931,13 +955,13 @@ class PledgeController extends Controller
             // Disable SSL verification for development (Windows SSL cert issue)
             $response = \Illuminate\Support\Facades\Http::withoutVerifying()
                 ->post(
-                    "https://api.ultramsg.com/{$config->instance_id}/messages/chat",
-                    [
-                        'token' => $config->api_token,
-                        'to' => $phone,
-                        'body' => $message,
-                    ]
-                );
+                "https://api.ultramsg.com/{$config->instance_id}/messages/chat",
+            [
+                'token' => $config->api_token,
+                'to' => $phone,
+                'body' => $message,
+            ]
+            );
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -948,7 +972,8 @@ class PledgeController extends Controller
             }
 
             return ['success' => false, 'message' => 'API request failed: ' . $response->status()];
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
@@ -994,7 +1019,8 @@ class PledgeController extends Controller
             $terms = [];
             try {
                 $terms = \App\Models\TermsCondition::getForActivity('pledge', $pledge->branch_id) ?? [];
-            } catch (\Exception $e) {
+            }
+            catch (\Exception $e) {
                 $terms = [];
             }
 
@@ -1017,15 +1043,15 @@ class PledgeController extends Controller
             if ($config->provider === 'ultramsg') {
                 $response = \Illuminate\Support\Facades\Http::withoutVerifying()
                     ->post(
-                        "https://api.ultramsg.com/{$config->instance_id}/messages/document",
-                        [
-                            'token' => $config->api_token,
-                            'to' => $phone,
-                            'document' => 'data:application/pdf;base64,' . $pdfBase64,
-                            'filename' => "Receipt-{$pledge->receipt_no}.pdf",
-                            'caption' => "📄 Receipt for Pledge {$pledge->pledge_no}",
-                        ]
-                    );
+                    "https://api.ultramsg.com/{$config->instance_id}/messages/document",
+                [
+                    'token' => $config->api_token,
+                    'to' => $phone,
+                    'document' => 'data:application/pdf;base64,' . $pdfBase64,
+                    'filename' => "Receipt-{$pledge->receipt_no}.pdf",
+                    'caption' => "📄 Receipt for Pledge {$pledge->pledge_no}",
+                ]
+                );
 
                 if ($response->successful()) {
                     $responseData = $response->json();
@@ -1040,7 +1066,8 @@ class PledgeController extends Controller
 
             return ['success' => false, 'message' => 'PDF sending not supported for this provider'];
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             Log::error('PDF receipt generation failed: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
