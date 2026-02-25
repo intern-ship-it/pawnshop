@@ -197,6 +197,7 @@ export default function NewPledge() {
 
   // Step 2: Items state
   const [items, setItems] = useState([{ ...emptyItem, id: "item-1" }]);
+  const [commonItemDescription, setCommonItemDescription] = useState("");
 
   // Handle global camera capture
   const { capturedImage, contextId } = useAppSelector(
@@ -2160,7 +2161,7 @@ export default function NewPledge() {
             gross_weight: parseFloat(item.weight),
             stone_deduction_type: item.stoneDeductionType || "amount",
             stone_deduction_value: parseFloat(item.stoneDeduction) || 0,
-            description: item.description || null,
+            description: commonItemDescription || item.description || null,
             photo: item.photo || null, // Include captured item photo
           };
 
@@ -2964,6 +2965,15 @@ export default function NewPledge() {
                 </Button>
               </div>
 
+              <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Description / Remarks (for all items)"
+                  placeholder="e.g., 916 Gold Chain with pendant"
+                  value={commonItemDescription}
+                  onChange={(e) => setCommonItemDescription(e.target.value)}
+                />
+              </div>
+
               {/* Items List */}
               <div className="space-y-4">
                 {items.map((item, index) => (
@@ -3107,15 +3117,7 @@ export default function NewPledge() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <Input
-                        label="Description / Remarks"
-                        placeholder="e.g., 916 Gold Chain with pendant"
-                        value={item.description}
-                        onChange={(e) =>
-                          updateItem(item.id, "description", e.target.value)
-                        }
-                      />
+                    <div className="mt-4">
                       <div>
                         <label className="block text-sm font-medium text-zinc-700 mb-1.5">
                           Item Photo
@@ -4494,12 +4496,12 @@ export default function NewPledge() {
                             </div>
 
                             {/* Description (if exists) */}
-                            {item.description && (
+                            {(commonItemDescription || item.description) && (
                               <p
                                 className="text-[10px] text-zinc-400 ml-7 mt-1 line-clamp-1"
-                                title={item.description}
+                                title={commonItemDescription || item.description}
                               >
-                                {item.description}
+                                {commonItemDescription || item.description}
                               </p>
                             )}
 
@@ -5053,6 +5055,7 @@ export default function NewPledge() {
                 setCreatedReceiptNo(null);
                 setIsPrinting(false);
                 setIsSendingWhatsApp(false);
+                setCommonItemDescription("");
                 // Reset print job status
                 setPrintJobStatus({
                   dotMatrixOffice: { status: "pending", message: "" },

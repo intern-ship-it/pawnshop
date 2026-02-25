@@ -2050,15 +2050,17 @@ HTML;
         // Build items text
         $itemsText = '';
         $itemNumber = 1;
+        $usedDescriptions = [];
         foreach ($pledge->items as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
             $desc = $item->description ?? '';
-            if ($desc) {
+            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
                 if ($catatan)
                     $catatan .= "; ";
                 $catatan .= $desc;
+                $usedDescriptions[] = $desc;
             }
             $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
             $itemNumber++;
@@ -2292,15 +2294,17 @@ HTML;
         // Build items text
         $itemsText = '';
         $itemNumber = 1;
+        $usedDescriptions = [];
         foreach ($pledge->items as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
             $desc = $item->description ?? '';
-            if ($desc) {
+            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
                 if ($catatan)
                     $catatan .= "; ";
                 $catatan .= $desc;
+                $usedDescriptions[] = $desc;
             }
             $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
             $itemNumber++;
@@ -2411,8 +2415,8 @@ HTML;
 /* ROW 4: Catatan */
 .ppoa-catatan {
     position: absolute;
-    top: 96mm;
-    left: 28mm;
+    top: 91.5mm;
+    left: 31mm;
     width: 150mm;
     font-size: 11px;
 }
@@ -4515,15 +4519,17 @@ HTML;
 
         $itemsText = '';
         $itemNumber = 1;
+        $usedDescriptions = [];
         foreach ($pledge->items as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
             $desc = $item->description ?? '';
-            if ($desc) {
+            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
                 if ($catatan)
                     $catatan .= "; ";
                 $catatan .= $desc;
+                $usedDescriptions[] = $desc;
             }
             $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
             $itemNumber++;
@@ -4629,8 +4635,8 @@ HTML;
 
 .ppoa-catatan_new {
     position: absolute;
-    top: 96mm;
-    left: 28mm;
+    top: 89mm;
+    left: 31mm;
     width: 150mm;
     font-size: 11px;
 }
