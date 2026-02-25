@@ -2955,7 +2955,7 @@ export default function NewPledge() {
                     </h3>
                     <p className="text-sm text-zinc-500">
                       Add gold items for this pledge (
-                      {items.filter((i) => i.category && i.weight).length}/
+                      {items.length}/
                       {MAX_PLEDGE_ITEMS} max)
                     </p>
                   </div>
@@ -2971,19 +2971,8 @@ export default function NewPledge() {
                       : "Add new item"
                   }
                 >
-                  Add Item{" "}
-                  {items.length >= MAX_PLEDGE_ITEMS &&
-                    `(${MAX_PLEDGE_ITEMS}/${MAX_PLEDGE_ITEMS})`}
+                  Add Item ({items.length}/{MAX_PLEDGE_ITEMS})
                 </Button>
-              </div>
-
-              <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Description / Remarks (for all items)"
-                  placeholder="e.g., 916 Gold Chain with pendant"
-                  value={commonItemDescription}
-                  onChange={(e) => setCommonItemDescription(e.target.value)}
-                />
               </div>
 
               {/* Items List */}
@@ -3227,6 +3216,16 @@ export default function NewPledge() {
                     )}
                   </motion.div>
                 ))}
+              </div>
+
+              {/* Description / Remarks - MOVED BELOW ITEMS */}
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Description / Remarks (for all items)"
+                  placeholder="e.g., 916 Gold Chain with pendant"
+                  value={commonItemDescription}
+                  onChange={(e) => setCommonItemDescription(e.target.value)}
+                />
               </div>
 
               {/* Total Summary */}
@@ -4978,28 +4977,6 @@ export default function NewPledge() {
               Manual Print Options
             </summary>
             <div className="mt-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={Printer}
-                  onClick={() => handleDotMatrixPrint("office")}
-                  loading={isPrinting}
-                  disabled={isPrinting}
-                >
-                  Office Copy
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={Printer}
-                  onClick={() => handleDotMatrixPrint("customer")}
-                  loading={isPrinting}
-                  disabled={isPrinting}
-                >
-                  Customer Copy
-                </Button>
-              </div>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
