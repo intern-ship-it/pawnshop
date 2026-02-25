@@ -2471,7 +2471,7 @@ HTML;
 
 .ppoa-barcode {
     position: absolute;
-    top: 32mm;
+    top: 34mm;
     left: 96mm;
     width: 58mm;
     display: flex;
