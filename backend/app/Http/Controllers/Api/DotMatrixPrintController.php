@@ -3507,10 +3507,16 @@ HTML;
     </div>
 
     <div class="ppp-mid">
-        <div class="ppp-items-sec">
-            <div class="ppp-items-title">Perihal terperinci artikel yang digadai:-</div>
-            <div class="ppp-items-area"></div>
+    <div class="ppp-items-sec">
+    <div class="ppp-items-title">Perihal terperinci artikel yang digadai:-</div>
+    <div class="ppp-items-split">
+        <div class="ppp-items-area"></div>
+        <div class="ppp-barcode-area">
+            <div class="ppp-barcode-space"></div>
+            <div class="ppp-barcode-lbl">BARCODE</div>
         </div>
+    </div>
+</div>
         <div class="ppp-rcol">
             <div class="ppp-ticket-box">
                 <div class="ppp-ticket-lbl">NO. TIKET:</div>
@@ -3660,7 +3666,7 @@ FORM;
     flex: 1; /* ★ THIS makes the items section expand to fill remaining space */
     min-height: 30mm;
 }
-.ppp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
+.ppp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; display: flex;  }
 .ppp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; flex-shrink: 0; }
 .ppp-items-area { flex: 1; min-height: 20mm; } /* ★ Grows to fill space */
 .ppp-rcol { width: 42mm; min-width: 42mm; display: flex; flex-direction: column; }
@@ -3727,6 +3733,35 @@ FORM;
     pointer-events: none;
     z-index: 10;
     text-transform: uppercase;
+}
+
+
+/* Items split - left items + right barcode */
+.ppp-items-split {
+    display: flex;
+    flex: 1;
+    min-height: 20mm;
+}
+.ppp-barcode-area {
+    width: 30mm;
+    min-width: 68mm;
+    border-left: 1px dashed #1a4a7a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2mm;
+    flex-shrink: 0;
+}
+.ppp-barcode-space {
+    width: 90%;
+    height: 24mm;
+    border: 1px solid #ccc;
+}
+.ppp-barcode-lbl {
+    font-size: 5px;
+    color: #999;
+    margin-top: 0.5mm;
 }
 </style>
 
