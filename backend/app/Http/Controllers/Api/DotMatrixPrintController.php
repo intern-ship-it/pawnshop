@@ -2467,6 +2467,19 @@ HTML;
     .ppoa-page { page-break-after: avoid; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
+
+
+.ppoa-barcode {
+    position: absolute;
+    top: 32mm;
+    left: 96mm;
+    width: 58mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
 </style>
 
 <div class="ppoa-page">
@@ -2475,6 +2488,10 @@ HTML;
     
     <!-- ITEMS LIST -->
     <div class="ppoa-items">{$itemsText}</div>
+    <div class="ppoa-barcode">
+    <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:18mm;width:auto;max-width:55mm;">
+    <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
+</div>
     
     <!-- ROW 1: IC | NAME | NATIONALITY -->
     <div class="ppoa-ic">{$icNumber}</div>
@@ -4718,11 +4735,25 @@ HTML;
 @media print {
     .ppoa-page_new { page-break-after: avoid; }
 }
+.ppoa-barcode_new {
+    position: absolute;
+    top: 33mm;
+    left: 97mm;
+    width: 58mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
 </style>
 
 <div class="ppoa-page_new">
     <div class="ppoa-ticket_new">{$pledge->pledge_no}</div>
     <div class="ppoa-items_new">{$itemsText}</div>
+    <div class="ppoa-barcode_new">
+    <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:18mm;width:auto;max-width:55mm;">
+    <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
+</div>
     <div class="ppoa-ic_new">{$icNumber}</div>
     <div class="ppoa-name_new">{$customer->name}</div>
     <div class="ppoa-nationality_new">{$nationality}</div>
