@@ -1140,11 +1140,11 @@ export default function NewPledge() {
     let officeWindow = null;
     let barcodeWindow = null;
 
-    // 1. Dot Matrix Receipt (Data Overlay for Pre-Printed Forms)
+    // 1. Dot Matrix Receipt (A4 Portrait Data Overlay for Pre-Printed Forms)
     updateJobStatus("dotMatrixOffice", "running", "Printing receipt...");
     try {
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed/pledge/${pledgeId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${pledgeId}`,
         {
           method: "POST",
           headers: {
@@ -1165,9 +1165,9 @@ export default function NewPledge() {
             <!DOCTYPE html>
             <html>
             <head>
-              <title>Pledge ${pledgeId} - Receipt</title>
+              <title>Pledge ${pledgeId} - A4 Data Overlay</title>
               <style>
-                @page { size: A5 landscape; margin: 0; }
+                @page { size: portrait; margin: 0; }
                 body { margin: 0; padding: 0; }
               </style>
             </head>
@@ -1722,7 +1722,7 @@ export default function NewPledge() {
       switch (jobKey) {
         case "dotMatrixOffice": {
           const response = await fetch(
-            `${apiUrl}/print/dot-matrix/pre-printed/pledge/${createdPledgeId}`,
+            `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${createdPledgeId}`,
             {
               method: "POST",
               headers: {
