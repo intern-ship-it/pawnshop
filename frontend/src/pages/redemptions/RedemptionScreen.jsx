@@ -899,9 +899,9 @@ export default function RedemptionScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Redemption ${redemptionId} - Receipt</title>
+          <title>A4 Overlay Alignment - Redemption ${redemptionId}</title>
           <style>
-            @page { size: A5 landscape; margin: 0; }
+            @page { size: A4 portrait; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>
@@ -1006,9 +1006,9 @@ export default function RedemptionScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Redemption ${redemptionId} - Receipt</title>
+          <title>A4 Overlay Alignment - Redemption ${redemptionId}</title>
           <style>
-            @page { size: A5 landscape; margin: 0; }
+            @page { size: A4 portrait; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>

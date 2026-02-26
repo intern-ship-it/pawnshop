@@ -3139,17 +3139,19 @@ HTML;
             }
 
             $settings = $this->getCompanySettings($pledge->branch);
-            $frontHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
+            $overlay1 = $this->generatePrePrintedRenewalOverlayA4($renewal, $pledge, $settings);
+            $overlay2 = $this->generatePrePrintedRenewalOverlayA4Copy2($renewal, $pledge, $settings);
+            $frontHtml = $this->wrapA4PortraitOverlay($overlay1, $overlay2);
 
             return $this->success([
                 'front_html' => $frontHtml,
                 'back_html' => '',
                 'renewal_no' => $renewal->renewal_no,
                 'pledge_no' => $pledge->pledge_no,
-                'orientation' => 'landscape',
+                'orientation' => 'portrait',
                 'format' => 'html',
-                'paper_size' => 'A5',
-                'type' => 'pre_printed_overlay',
+                'paper_size' => 'A4 Portrait (210mm x 297mm)',
+                'type' => 'pre_printed_overlay_a4',
             ]);
 
         } catch (\Exception $e) {
@@ -3444,17 +3446,19 @@ HTML;
             }
 
             $settings = $this->getCompanySettings($pledge->branch);
-            $frontHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
+            $overlay1 = $this->generatePrePrintedRedemptionOverlayA4($redemption, $pledge, $settings);
+            $overlay2 = $this->generatePrePrintedRedemptionOverlayA4Copy2($redemption, $pledge, $settings);
+            $frontHtml = $this->wrapA4PortraitOverlay($overlay1, $overlay2);
 
             return $this->success([
                 'front_html' => $frontHtml,
                 'back_html' => '',
                 'redemption_no' => $redemption->redemption_no,
                 'pledge_no' => $pledge->pledge_no,
-                'orientation' => 'landscape',
+                'orientation' => 'portrait',
                 'format' => 'html',
-                'paper_size' => 'A5',
-                'type' => 'pre_printed_overlay',
+                'paper_size' => 'A4 Portrait (210mm x 297mm)',
+                'type' => 'pre_printed_overlay_a4',
             ]);
 
         } catch (\Exception $e) {
@@ -5171,4 +5175,356 @@ private function wrapA4PortraitOverlay(string $overlay1Html, string $overlay2Htm
 </div>
 HTML;
     }
+
+
+    /**
+     * Generate Redemption Data Overlay for A4 Portrait - COPY 1
+     * Uses ppoa- prefix classes (same positions as pledge A4 overlay)
+     */
+    private function generatePrePrintedRedemptionOverlayA4(Redemption $redemption, Pledge $pledge, array $settings): string
+    {
+        $customer = $pledge->customer;
+        $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
+        $interestAmount = $redemption->interest_amount ?? 0;
+        $handlingFee = $redemption->handling_fee ?? 0;
+        $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
+
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
+
+        $redemptionDate = $redemption->created_at ?? now();
+        if (is_string($redemptionDate))
+            $redemptionDate = Carbon::parse($redemptionDate);
+
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
+
+        $itemsText = '';
+        $itemNumber = 1;
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $itemNumber++;
+        }
+
+        $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
+        $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
+
+        $catatan = "TEBUS; Asal: {$pledge->pledge_no}; Pokok: RM " . $this->formatNumber($principal) .
+            "; Faedah: RM " . $this->formatNumber($interestAmount) .
+            "; Jumlah: RM " . $this->formatNumber($totalPaid);
+
+        $ticketNo = $redemption->redemption_no ?? $pledge->pledge_no;
+
+        return <<<HTML
+<style>
+.ppoa-page { width: 210mm; height: 148mm; padding: 0; top: 1rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
+.ppoa-page * { box-sizing: border-box; margin: 0; padding: 0; }
+.ppoa-ticket { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
+.ppoa-items { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item { margin-bottom: 1mm; }
+.ppoa-ic { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
+.ppoa-name { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
+.ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
+.ppoa-birthyear { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
+.ppoa-gender { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
+.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-catatan { position: absolute; top: 91.5mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppoa-amount-words { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
+.ppoa-loan-amount { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
+.ppoa-pledge-date { position: absolute; top: 105mm; left: 145mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-due-date { position: absolute; top: 105mm; left: 173mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-weight { position: absolute; top: 115mm; right: 10mm; font-size: 6px; }
+@media print { .ppoa-page { page-break-after: avoid; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
+.ppoa-barcode { position: absolute; top: 34mm; left: 96mm; width: 58mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+</style>
+<div class="ppoa-page">
+    <div class="ppoa-ticket">{$ticketNo}</div>
+    <div class="ppoa-items">{$itemsText}</div>
+    <div class="ppoa-barcode">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$ticketNo}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$ticketNo}" style="height:18mm;width:auto;max-width:55mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$ticketNo}</div>
+    </div>
+    <div class="ppoa-ic">{$icNumber}</div>
+    <div class="ppoa-name">{$customer->name}</div>
+    <div class="ppoa-nationality">{$nationality}</div>
+    <div class="ppoa-birthyear">{$birthYear}</div>
+    <div class="ppoa-gender">{$gender}</div>
+    <div class="ppoa-address">{$address}</div>
+    <div class="ppoa-catatan">{$catatan}</div>
+    <div class="ppoa-amount-words">{$amountWords} SAHAJA</div>
+    <div class="ppoa-loan-amount">{$totalPaidFormatted}</div>
+    <div class="ppoa-pledge-date">{$redemptionDate->format('d/m/Y')}</div>
+    <div class="ppoa-weight">{$this->formatNumber($totalWeight, 2)}g</div>
+</div>
+HTML;
+    }
+
+    /**
+     * Generate Redemption Data Overlay for A4 Portrait - COPY 2
+     */
+    private function generatePrePrintedRedemptionOverlayA4Copy2(Redemption $redemption, Pledge $pledge, array $settings): string
+    {
+        $customer = $pledge->customer;
+        $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
+        $interestAmount = $redemption->interest_amount ?? 0;
+        $handlingFee = $redemption->handling_fee ?? 0;
+        $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
+
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
+
+        $redemptionDate = $redemption->created_at ?? now();
+        if (is_string($redemptionDate))
+            $redemptionDate = Carbon::parse($redemptionDate);
+
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
+
+        $itemsText = '';
+        $itemNumber = 1;
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $itemNumber++;
+        }
+
+        $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
+        $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
+
+        $catatan = "TEBUS; Asal: {$pledge->pledge_no}; Pokok: RM " . $this->formatNumber($principal) .
+            "; Faedah: RM " . $this->formatNumber($interestAmount) .
+            "; Jumlah: RM " . $this->formatNumber($totalPaid);
+
+        $ticketNo = $redemption->redemption_no ?? $pledge->pledge_no;
+
+        return <<<HTML
+<style>
+.ppoa-page_new { width: 210mm; height: 148mm; padding: 0; top: 1.5rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
+.ppoa-page_new * { box-sizing: border-box; margin: 0; padding: 0; }
+.ppoa-ticket_new { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
+.ppoa-items_new { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item_new { margin-bottom: 1mm; }
+.ppoa-ic_new { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
+.ppoa-name_new { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
+.ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
+.ppoa-birthyear_new { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
+.ppoa-gender_new { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
+.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-catatan_new { position: absolute; top: 89mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppoa-amount-words_new { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
+.ppoa-loan-amount_new { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
+.ppoa-pledge-date_new { position: absolute; top: 105mm; left: 145mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-due-date_new { position: absolute; top: 105mm; left: 173mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-weight_new { position: absolute; top: 115mm; right: 10mm; font-size: 6px; }
+@media print { .ppoa-page_new { page-break-after: avoid; } }
+.ppoa-barcode_new { position: absolute; top: 33mm; left: 97mm; width: 58mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+</style>
+<div class="ppoa-page_new">
+    <div class="ppoa-ticket_new">{$ticketNo}</div>
+    <div class="ppoa-items_new">{$itemsText}</div>
+    <div class="ppoa-barcode_new">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$ticketNo}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$ticketNo}" style="height:18mm;width:auto;max-width:55mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$ticketNo}</div>
+    </div>
+    <div class="ppoa-ic_new">{$icNumber}</div>
+    <div class="ppoa-name_new">{$customer->name}</div>
+    <div class="ppoa-nationality_new">{$nationality}</div>
+    <div class="ppoa-birthyear_new">{$birthYear}</div>
+    <div class="ppoa-gender_new">{$gender}</div>
+    <div class="ppoa-address_new">{$address}</div>
+    <div class="ppoa-catatan_new">{$catatan}</div>
+    <div class="ppoa-amount-words_new">{$amountWords} SAHAJA</div>
+    <div class="ppoa-loan-amount_new">{$totalPaidFormatted}</div>
+    <div class="ppoa-pledge-date_new">{$redemptionDate->format('d/m/Y')}</div>
+    <div class="ppoa-weight_new">{$this->formatNumber($totalWeight, 2)}g</div>
+</div>
+HTML;
+    }
+
+    /**
+     * Generate Renewal Data Overlay for A4 Portrait - COPY 1
+     */
+    private function generatePrePrintedRenewalOverlayA4(Renewal $renewal, Pledge $pledge, array $settings): string
+    {
+        $customer = $pledge->customer;
+        $interestAmount = $renewal->interest_amount ?? 0;
+        $loanAmount = $pledge->loan_amount ?? 0;
+
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
+
+        $renewalDate = $renewal->created_at ?? now();
+        if (is_string($renewalDate)) $renewalDate = Carbon::parse($renewalDate);
+        $newDueDate = $renewal->new_due_date;
+        if (is_string($newDueDate)) $newDueDate = Carbon::parse($newDueDate);
+
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
+
+        $itemsText = '';
+        $itemNumber = 1;
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $itemNumber++;
+        }
+
+        $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
+        $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
+        $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this->formatNumber($interestAmount);
+        $ticketNo = $renewal->renewal_no ?? $pledge->pledge_no;
+
+        return <<<HTML
+<style>
+.ppoa-page { width: 210mm; height: 148mm; padding: 0; top: 1rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
+.ppoa-page * { box-sizing: border-box; margin: 0; padding: 0; }
+.ppoa-ticket { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
+.ppoa-items { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item { margin-bottom: 1mm; }
+.ppoa-ic { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
+.ppoa-name { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
+.ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
+.ppoa-birthyear { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
+.ppoa-gender { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
+.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-catatan { position: absolute; top: 91.5mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppoa-amount-words { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
+.ppoa-loan-amount { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
+.ppoa-pledge-date { position: absolute; top: 105mm; left: 145mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-due-date { position: absolute; top: 105mm; left: 173mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-weight { position: absolute; top: 115mm; right: 10mm; font-size: 6px; }
+@media print { .ppoa-page { page-break-after: avoid; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
+.ppoa-barcode { position: absolute; top: 34mm; left: 96mm; width: 58mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+</style>
+<div class="ppoa-page">
+    <div class="ppoa-ticket">{$ticketNo}</div>
+    <div class="ppoa-items">{$itemsText}</div>
+    <div class="ppoa-barcode">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$ticketNo}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$ticketNo}" style="height:18mm;width:auto;max-width:55mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$ticketNo}</div>
+    </div>
+    <div class="ppoa-ic">{$icNumber}</div>
+    <div class="ppoa-name">{$customer->name}</div>
+    <div class="ppoa-nationality">{$nationality}</div>
+    <div class="ppoa-birthyear">{$birthYear}</div>
+    <div class="ppoa-gender">{$gender}</div>
+    <div class="ppoa-address">{$address}</div>
+    <div class="ppoa-catatan">{$catatan}</div>
+    <div class="ppoa-amount-words">{$amountWords} SAHAJA</div>
+    <div class="ppoa-loan-amount">{$loanAmountFormatted}</div>
+    <div class="ppoa-pledge-date">{$renewalDate->format('d/m/Y')}</div>
+    <div class="ppoa-due-date">{$newDueDate->format('d/m/Y')}</div>
+    <div class="ppoa-weight">{$this->formatNumber($totalWeight, 2)}g</div>
+</div>
+HTML;
+    }
+
+    /**
+     * Generate Renewal Data Overlay for A4 Portrait - COPY 2
+     */
+    private function generatePrePrintedRenewalOverlayA4Copy2(Renewal $renewal, Pledge $pledge, array $settings): string
+    {
+        $customer = $pledge->customer;
+        $interestAmount = $renewal->interest_amount ?? 0;
+        $loanAmount = $pledge->loan_amount ?? 0;
+
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
+
+        $renewalDate = $renewal->created_at ?? now();
+        if (is_string($renewalDate)) $renewalDate = Carbon::parse($renewalDate);
+        $newDueDate = $renewal->new_due_date;
+        if (is_string($newDueDate)) $newDueDate = Carbon::parse($newDueDate);
+
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
+
+        $itemsText = '';
+        $itemNumber = 1;
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $itemNumber++;
+        }
+
+        $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
+        $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
+        $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this->formatNumber($interestAmount);
+        $ticketNo = $renewal->renewal_no ?? $pledge->pledge_no;
+
+        return <<<HTML
+<style>
+.ppoa-page_new { width: 210mm; height: 148mm; padding: 0; top: 1.5rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
+.ppoa-page_new * { box-sizing: border-box; margin: 0; padding: 0; }
+.ppoa-ticket_new { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
+.ppoa-items_new { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item_new { margin-bottom: 1mm; }
+.ppoa-ic_new { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
+.ppoa-name_new { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
+.ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
+.ppoa-birthyear_new { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
+.ppoa-gender_new { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
+.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-catatan_new { position: absolute; top: 89mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppoa-amount-words_new { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
+.ppoa-loan-amount_new { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
+.ppoa-pledge-date_new { position: absolute; top: 105mm; left: 145mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-due-date_new { position: absolute; top: 105mm; left: 173mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-weight_new { position: absolute; top: 115mm; right: 10mm; font-size: 6px; }
+@media print { .ppoa-page_new { page-break-after: avoid; } }
+.ppoa-barcode_new { position: absolute; top: 33mm; left: 97mm; width: 58mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+</style>
+<div class="ppoa-page_new">
+    <div class="ppoa-ticket_new">{$ticketNo}</div>
+    <div class="ppoa-items_new">{$itemsText}</div>
+    <div class="ppoa-barcode_new">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$ticketNo}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$ticketNo}" style="height:18mm;width:auto;max-width:55mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$ticketNo}</div>
+    </div>
+    <div class="ppoa-ic_new">{$icNumber}</div>
+    <div class="ppoa-name_new">{$customer->name}</div>
+    <div class="ppoa-nationality_new">{$nationality}</div>
+    <div class="ppoa-birthyear_new">{$birthYear}</div>
+    <div class="ppoa-gender_new">{$gender}</div>
+    <div class="ppoa-address_new">{$address}</div>
+    <div class="ppoa-catatan_new">{$catatan}</div>
+    <div class="ppoa-amount-words_new">{$amountWords} SAHAJA</div>
+    <div class="ppoa-loan-amount_new">{$loanAmountFormatted}</div>
+    <div class="ppoa-pledge-date_new">{$renewalDate->format('d/m/Y')}</div>
+    <div class="ppoa-due-date_new">{$newDueDate->format('d/m/Y')}</div>
+    <div class="ppoa-weight_new">{$this->formatNumber($totalWeight, 2)}g</div>
+</div>
+HTML;
+    }
+
+
 }

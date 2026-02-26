@@ -753,9 +753,9 @@ export default function RenewalScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Renewal ${renewalId} - Receipt</title>
+          <title>A4 Overlay Alignment - Renewal ${renewalId}</title>
           <style>
-            @page { size: A5 landscape; margin: 0; }
+            @page { size: A4 portrait; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>
@@ -858,9 +858,9 @@ export default function RenewalScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Renewal ${renewalResult.id} - Receipt</title>
+          <title>A4 Overlay Alignment - Renewal ${renewalResult.id}</title>
           <style>
-            @page { size: A5 landscape; margin: 0; }
+            @page { size: A4 portrait; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>
@@ -1637,11 +1637,11 @@ export default function RenewalScreen() {
                       <span className="font-bold">
                         {formatCurrency(
                           (parseFloat(cashAmount) || 0) +
-                            (parseFloat(transferAmount) || 0),
+                          (parseFloat(transferAmount) || 0),
                         )}
                         {(parseFloat(cashAmount) || 0) +
                           (parseFloat(transferAmount) || 0) >=
-                        totalPayable
+                          totalPayable
                           ? " ✓"
                           : ` (need ${formatCurrency(totalPayable)})`}
                       </span>
@@ -1666,35 +1666,35 @@ export default function RenewalScreen() {
                 {(paymentMethod === "transfer" ||
                   (paymentMethod === "partial" &&
                     parseFloat(transferAmount) > 0)) && (
-                  <>
-                    <div className="mb-4">
-                      <label className="text-sm text-zinc-600 mb-2 block">
-                        Bank
-                      </label>
-                      <Select
-                        value={bankId}
-                        onChange={(e) => setBankId(e.target.value)}
-                        options={[
-                          { value: "", label: "Select Bank..." },
-                          ...banks.map((bank) => ({
-                            value: String(bank.id),
-                            label: bank.name,
-                          })),
-                        ]}
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label className="text-sm text-zinc-600 mb-2 block">
-                        Reference No
-                      </label>
-                      <Input
-                        placeholder="Transfer reference number"
-                        value={referenceNo}
-                        onChange={(e) => setReferenceNo(e.target.value)}
-                      />
-                    </div>
-                  </>
-                )}
+                    <>
+                      <div className="mb-4">
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Bank
+                        </label>
+                        <Select
+                          value={bankId}
+                          onChange={(e) => setBankId(e.target.value)}
+                          options={[
+                            { value: "", label: "Select Bank..." },
+                            ...banks.map((bank) => ({
+                              value: String(bank.id),
+                              label: bank.name,
+                            })),
+                          ]}
+                        />
+                      </div>
+                      <div className="mb-4">
+                        <label className="text-sm text-zinc-600 mb-2 block">
+                          Reference No
+                        </label>
+                        <Input
+                          placeholder="Transfer reference number"
+                          value={referenceNo}
+                          onChange={(e) => setReferenceNo(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
 
                 {/* Change - only for non-partial payments */}
                 {paymentMethod !== "partial" &&
@@ -1746,10 +1746,10 @@ export default function RenewalScreen() {
                     isCalculating ||
                     (paymentMethod === "partial"
                       ? (parseFloat(cashAmount) || 0) +
-                          (parseFloat(transferAmount) || 0) <
-                        totalPayable
+                      (parseFloat(transferAmount) || 0) <
+                      totalPayable
                       : !amountReceived ||
-                        parseFloat(amountReceived) < totalPayable)
+                      parseFloat(amountReceived) < totalPayable)
                   }
                 >
                   Process Renewal - {formatCurrency(totalPayable)}

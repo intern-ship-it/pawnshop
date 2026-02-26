@@ -2277,269 +2277,310 @@ export default function PrintTestPage() {
     printWindow.focus();
   };
 
-  // Test Renewal Document View - fetches latest renewal and shows data on form
-  const testRenewalDocument = async () => {
-    setPrinting(true);
-    setPreviewType("Renewal Document");
-    const startTime = Date.now();
-
-    try {
-      const token = getToken();
-
-      // Step 1: Fetch latest renewals
-      const renewalsRes = await fetch(
-        `${apiUrl}/renewals?per_page=10&sort=-created_at`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        },
-      );
-      if (!renewalsRes.ok) throw new Error("Failed to fetch renewals");
-      const renewalsData = await renewalsRes.json();
-      const renewalsList = renewalsData.data?.data || renewalsData.data || [];
-
-      if (renewalsList.length === 0) {
-        throw new Error("No renewals found. Create a renewal first to test.");
-      }
-
-      const renewal = renewalsList[0];
-      const renewalId = renewal.id;
-
-      // Step 2: Call the pre-printed with-form renewal endpoint
-      const docRes = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-with-form/renewal/${renewalId}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-        },
-      );
-
-      const data = await docRes.json();
-      const duration = Date.now() - startTime;
-
-      if (!docRes.ok || !data.success) {
-        throw new Error(data.message || "Failed to generate renewal document");
-      }
-
-      const frontHtml = data.data?.front_html || "";
-      const renewalNo =
-        data.data?.renewal_no || renewal.renewal_no || "Unknown";
-
-      logResult(
-        "Renewal Document",
-        true,
-        `Document for ${renewalNo}`,
-        duration,
-      );
-
-      // Open in document view window (same as pledge document view)
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) throw new Error("Popup blocked");
-
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Renewal Document - ${renewalNo}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Courier New', Courier, monospace; background: #f5f5f5; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
-            .print-container { width: 210mm; max-width: 210mm; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin: 0; padding: 0; overflow: hidden; }
-            .print-actions { width: 100%; max-width: 210mm; text-align: center; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }
-            .print-btn { background: #28a745; color: white; border: none; padding: 10px 30px; font-size: 16px; border-radius: 4px; cursor: pointer; margin: 0 5px; }
-            .print-btn:hover { background: #218838; }
-            .close-btn { background: #dc3545; }
-            .close-btn:hover { background: #c82333; }
-            @media print {
-              body { background: white; padding: 0; display: block; }
-              .print-container { box-shadow: none; margin: 0; }
-              .print-actions { display: none; }
-            }
-            @page { size: A5; margin: 0; }
-          </style>
-        </head>
-        <body>
-          <div class="print-actions">
-            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 Renewal Document View - ${renewalNo}
-            </p>
-            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-              Data overlay on pre-printed form template (★ SAMBUNGAN banner)
-            </p>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
-          </div>
-          <div class="print-container">
-            ${frontHtml}
-          </div>
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Success",
-          message: `Renewal document ready (${duration}ms)`,
-        }),
-      );
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      logResult("Renewal Document", false, error.message, duration);
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Renewal Document Error",
-          message: error.message,
-        }),
-      );
-    } finally {
-      setPrinting(false);
-    }
+  // Test Renewal Document View - A4 Portrait overlay with form background
+  const testRenewalDocument = async () => {
+    setPrinting(true);
+    setPreviewType("Renewal Document");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      // Step 1: Fetch latest renewals
+      const renewalsRes = await fetch(
+        `${apiUrl}/renewals?per_page=10&sort=-created_at`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        },
+      );
+      if (!renewalsRes.ok) throw new Error("Failed to fetch renewals");
+      const renewalsData = await renewalsRes.json();
+      const renewalsList = renewalsData.data?.data || renewalsData.data || [];
+
+      if (renewalsList.length === 0) {
+        throw new Error("No renewals found. Create a renewal first to test.");
+      }
+
+      const renewal = renewalsList[0];
+      const renewalId = renewal.id;
+
+      // Step 2: Fetch A4 form background + A4 data overlay in parallel
+      const [formResponse, docRes] = await Promise.all([
+        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
+        }),
+        fetch(
+          `${apiUrl}/print/dot-matrix/pre-printed/renewal/${renewalId}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          },
+        ),
+      ]);
+
+      const formData = await formResponse.json();
+      const data = await docRes.json();
+      const duration = Date.now() - startTime;
+
+      if (!docRes.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate renewal document");
+      }
+
+      const formHtml = formData.success ? (formData.data?.front_html || "") : "";
+      const dataHtml = data.data?.front_html || "";
+      const renewalNo = data.data?.renewal_no || renewal.renewal_no || "Unknown";
+
+      logResult("Renewal Document", true, `A4 Portrait overlay for ${renewalNo}`, duration);
+
+      // Open A4 overlay alignment window
+      const pw = window.open("", "_blank", "width=900,height=1000");
+      if (!pw) throw new Error("Popup blocked");
+
+      pw.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>A4 Overlay Alignment - Renewal ${renewalNo}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
+            h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 18px; }
+            h1 span { color: #f59e0b; }
+            .ctrls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
+            .ctrls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+            .bf { background: #3b82f6; color: white; }
+            .bd { background: #f59e0b; color: white; }
+            .bb { background: #10b981; color: white; }
+            .bp { background: #ef4444; color: white; }
+            .bc { background: #6b7280; color: white; }
+            .container { position: relative; width: 210mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-height: 297mm; }
+            .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.4; pointer-events: none; }
+            .form-layer.hidden { display: none; }
+            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+            .data-layer.hidden { display: none; }
+            .st { text-align: center; color: #9ca3af; font-size: 12px; margin: 10px 0; }
+            .st span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
+            .st .on { background: #22c55e; color: white; }
+            .st .off { background: #ef4444; color: white; }
+            @media print {
+              body { background: white !important; padding: 0 !important; }
+              .ctrls, h1, .st { display: none !important; }
+              .container { box-shadow: none !important; }
+              .form-layer { display: none !important; }
+              .data-layer { position: relative !important; }
+            }
+            @page { size: A4 portrait; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <h1>\u{1f4ca} A4 Portrait <span>Renewal Overlay</span> Alignment - ${renewalNo}</h1>
+          <div class="ctrls">
+            <button class="bf" onclick="toggleForm()">Toggle Form</button>
+            <button class="bd" onclick="toggleData()">Toggle Data</button>
+            <button class="bb" onclick="showBoth()">Both</button>
+            <button class="bp" onclick="window.print()">Print Data Only</button>
+            <button class="bc" onclick="window.close()">Close</button>
+          </div>
+          <div class="st">Form: <span id="fs" class="on">ON</span> Data: <span id="ds" class="on">ON</span></div>
+          <div class="container">
+            <div id="fl" class="form-layer">${formHtml}</div>
+            <div id="dl" class="data-layer">${dataHtml}</div>
+          </div>
+          <script>
+            let fv=true,dv=true;
+            function toggleForm(){fv=!fv;document.getElementById('fl').classList.toggle('hidden');document.getElementById('fs').className=fv?'on':'off';document.getElementById('fs').textContent=fv?'ON':'OFF';}
+            function toggleData(){dv=!dv;document.getElementById('dl').classList.toggle('hidden');document.getElementById('ds').className=dv?'on':'off';document.getElementById('ds').textContent=dv?'ON':'OFF';}
+            function showBoth(){fv=dv=true;document.getElementById('fl').classList.remove('hidden');document.getElementById('dl').classList.remove('hidden');document.getElementById('fs').className='on';document.getElementById('fs').textContent='ON';document.getElementById('ds').className='on';document.getElementById('ds').textContent='ON';}
+          </script>
+        </body>
+        </html>
+      `);
+      pw.document.close();
+      pw.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `Renewal A4 overlay ready (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Renewal Document", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Renewal Document Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
   };
 
-  // Test Redemption Document View - fetches latest redemption and shows data on form
-  const testRedemptionDocument = async () => {
-    setPrinting(true);
-    setPreviewType("Redemption Document");
-    const startTime = Date.now();
-
-    try {
-      const token = getToken();
-
-      // Step 1: Fetch latest redemptions
-      const redemptionsRes = await fetch(
-        `${apiUrl}/redemptions?per_page=10&sort=-created_at`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        },
-      );
-      if (!redemptionsRes.ok) throw new Error("Failed to fetch redemptions");
-      const redemptionsData = await redemptionsRes.json();
-      const redemptionsList =
-        redemptionsData.data?.data || redemptionsData.data || [];
-
-      if (redemptionsList.length === 0) {
-        throw new Error(
-          "No redemptions found. Create a redemption first to test.",
-        );
-      }
-
-      const redemption = redemptionsList[0];
-      const redemptionId = redemption.id;
-
-      // Step 2: Call the pre-printed with-form redemption endpoint
-      const docRes = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-with-form/redemption/${redemptionId}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-        },
-      );
-
-      const data = await docRes.json();
-      const duration = Date.now() - startTime;
-
-      if (!docRes.ok || !data.success) {
-        throw new Error(
-          data.message || "Failed to generate redemption document",
-        );
-      }
-
-      const frontHtml = data.data?.front_html || "";
-      const redemptionNo =
-        data.data?.redemption_no || redemption.redemption_no || "Unknown";
-
-      logResult(
-        "Redemption Document",
-        true,
-        `Document for ${redemptionNo}`,
-        duration,
-      );
-
-      // Open in document view window (same as pledge document view)
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) throw new Error("Popup blocked");
-
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Redemption Document - ${redemptionNo}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Courier New', Courier, monospace; background: #f5f5f5; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
-            .print-container { width: 210mm; max-width: 210mm; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin: 0; padding: 0; overflow: hidden; }
-            .print-actions { width: 100%; max-width: 210mm; text-align: center; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }
-            .print-btn { background: #28a745; color: white; border: none; padding: 10px 30px; font-size: 16px; border-radius: 4px; cursor: pointer; margin: 0 5px; }
-            .print-btn:hover { background: #218838; }
-            .close-btn { background: #dc3545; }
-            .close-btn:hover { background: #c82333; }
-            @media print {
-              body { background: white; padding: 0; display: block; }
-              .print-container { box-shadow: none; margin: 0; }
-              .print-actions { display: none; }
-            }
-            @page { size: A5; margin: 0; }
-          </style>
-        </head>
-        <body>
-          <div class="print-actions">
-            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 Redemption Document View - ${redemptionNo}
-            </p>
-            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-              Data overlay on pre-printed form template (★ TEBUS banner)
-            </p>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
-          </div>
-          <div class="print-container">
-            ${frontHtml}
-          </div>
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Success",
-          message: `Redemption document ready (${duration}ms)`,
-        }),
-      );
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      logResult("Redemption Document", false, error.message, duration);
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Redemption Document Error",
-          message: error.message,
-        }),
-      );
-    } finally {
-      setPrinting(false);
-    }
+  // Test Redemption Document View - A4 Portrait overlay with form background
+  const testRedemptionDocument = async () => {
+    setPrinting(true);
+    setPreviewType("Redemption Document");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      // Step 1: Fetch latest redemptions
+      const redemptionsRes = await fetch(
+        `${apiUrl}/redemptions?per_page=10&sort=-created_at`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        },
+      );
+      if (!redemptionsRes.ok) throw new Error("Failed to fetch redemptions");
+      const redemptionsData = await redemptionsRes.json();
+      const redemptionsList = redemptionsData.data?.data || redemptionsData.data || [];
+
+      if (redemptionsList.length === 0) {
+        throw new Error("No redemptions found. Create a redemption first to test.");
+      }
+
+      const redemption = redemptionsList[0];
+      const redemptionId = redemption.id;
+
+      // Step 2: Fetch A4 form background + A4 data overlay in parallel
+      const [formResponse, docRes] = await Promise.all([
+        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
+        }),
+        fetch(
+          `${apiUrl}/print/dot-matrix/pre-printed/redemption/${redemptionId}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          },
+        ),
+      ]);
+
+      const formData = await formResponse.json();
+      const data = await docRes.json();
+      const duration = Date.now() - startTime;
+
+      if (!docRes.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate redemption document");
+      }
+
+      const formHtml = formData.success ? (formData.data?.front_html || "") : "";
+      const dataHtml = data.data?.front_html || "";
+      const redemptionNo = data.data?.redemption_no || redemption.redemption_no || "Unknown";
+
+      logResult("Redemption Document", true, `A4 Portrait overlay for ${redemptionNo}`, duration);
+
+      // Open A4 overlay alignment window
+      const pw = window.open("", "_blank", "width=900,height=1000");
+      if (!pw) throw new Error("Popup blocked");
+
+      pw.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>A4 Overlay Alignment - Redemption ${redemptionNo}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
+            h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 18px; }
+            h1 span { color: #ef4444; }
+            .ctrls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
+            .ctrls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+            .bf { background: #3b82f6; color: white; }
+            .bd { background: #f59e0b; color: white; }
+            .bb { background: #10b981; color: white; }
+            .bp { background: #ef4444; color: white; }
+            .bc { background: #6b7280; color: white; }
+            .container { position: relative; width: 210mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-height: 297mm; }
+            .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.4; pointer-events: none; }
+            .form-layer.hidden { display: none; }
+            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+            .data-layer.hidden { display: none; }
+            .st { text-align: center; color: #9ca3af; font-size: 12px; margin: 10px 0; }
+            .st span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
+            .st .on { background: #22c55e; color: white; }
+            .st .off { background: #ef4444; color: white; }
+            @media print {
+              body { background: white !important; padding: 0 !important; }
+              .ctrls, h1, .st { display: none !important; }
+              .container { box-shadow: none !important; }
+              .form-layer { display: none !important; }
+              .data-layer { position: relative !important; }
+            }
+            @page { size: A4 portrait; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <h1>\u{1f4ca} A4 Portrait <span>Redemption Overlay</span> Alignment - ${redemptionNo}</h1>
+          <div class="ctrls">
+            <button class="bf" onclick="toggleForm()">Toggle Form</button>
+            <button class="bd" onclick="toggleData()">Toggle Data</button>
+            <button class="bb" onclick="showBoth()">Both</button>
+            <button class="bp" onclick="window.print()">Print Data Only</button>
+            <button class="bc" onclick="window.close()">Close</button>
+          </div>
+          <div class="st">Form: <span id="fs" class="on">ON</span> Data: <span id="ds" class="on">ON</span></div>
+          <div class="container">
+            <div id="fl" class="form-layer">${formHtml}</div>
+            <div id="dl" class="data-layer">${dataHtml}</div>
+          </div>
+          <script>
+            let fv=true,dv=true;
+            function toggleForm(){fv=!fv;document.getElementById('fl').classList.toggle('hidden');document.getElementById('fs').className=fv?'on':'off';document.getElementById('fs').textContent=fv?'ON':'OFF';}
+            function toggleData(){dv=!dv;document.getElementById('dl').classList.toggle('hidden');document.getElementById('ds').className=dv?'on':'off';document.getElementById('ds').textContent=dv?'ON':'OFF';}
+            function showBoth(){fv=dv=true;document.getElementById('fl').classList.remove('hidden');document.getElementById('dl').classList.remove('hidden');document.getElementById('fs').className='on';document.getElementById('fs').textContent='ON';document.getElementById('ds').className='on';document.getElementById('ds').textContent='ON';}
+          </script>
+        </body>
+        </html>
+      `);
+      pw.document.close();
+      pw.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `Redemption A4 overlay ready (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Redemption Document", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Redemption Document Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const filteredPledges = pledges.filter((p) => {
