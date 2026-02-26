@@ -69,7 +69,8 @@ class WhatsAppController extends Controller
 
         if ($config) {
             $config->update($validated);
-        } else {
+        }
+        else {
             // For new config, token is required
             if (empty($request->api_token) || $request->api_token === '********') {
                 return $this->error('API token is required for new configuration', 422);
@@ -104,7 +105,8 @@ class WhatsAppController extends Controller
 
             return $this->error('Connection failed: ' . ($result['error'] ?? 'Unknown error'), 422);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return $this->error('Connection failed: ' . $e->getMessage(), 500);
         }
     }
@@ -132,31 +134,33 @@ class WhatsAppController extends Controller
     {
         $branchId = $request->user()->branch_id;
 
-        // If updating global template, create branch-specific copy
-        if (!$whatsAppTemplate->branch_id) {
-            $validated = $request->validate([
-                'name' => 'sometimes|string|max:100',
-                'content' => 'sometimes|string',
-                'variables' => 'nullable|array',
-                'is_enabled' => 'sometimes|boolean',
-            ]);
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:100',
+            'content' => 'sometimes|string',
+            'variables' => 'nullable|array',
+            'is_enabled' => 'sometimes|boolean',
+        ]);
 
-            $whatsAppTemplate = WhatsAppTemplate::create(array_merge(
-                $whatsAppTemplate->toArray(),
+        // If updating global template, find or create branch-specific copy
+        if (!$whatsAppTemplate->branch_id) {
+            $whatsAppTemplate = WhatsAppTemplate::updateOrCreate(
+            [
+                'branch_id' => $branchId,
+                'template_key' => $whatsAppTemplate->template_key,
+            ],
+                array_merge(
+                collect($whatsAppTemplate->toArray())
+                ->except(['id', 'created_at', 'updated_at'])
+                ->toArray(),
                 $validated,
-                ['branch_id' => $branchId]
-            ));
-        } else {
+            ['branch_id' => $branchId]
+            )
+            );
+        }
+        else {
             if ($whatsAppTemplate->branch_id !== $branchId) {
                 return $this->error('Unauthorized', 403);
             }
-
-            $validated = $request->validate([
-                'name' => 'sometimes|string|max:100',
-                'content' => 'sometimes|string',
-                'variables' => 'nullable|array',
-                'is_enabled' => 'sometimes|boolean',
-            ]);
 
             $whatsAppTemplate->update($validated);
         }
@@ -191,8 +195,8 @@ class WhatsAppController extends Controller
         // Get template
         $template = WhatsAppTemplate::where('template_key', $validated['template_key'])
             ->where(function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
             ->where('is_enabled', true)
             ->orderBy('branch_id', 'desc') // Branch-specific first
             ->first();
@@ -239,7 +243,8 @@ class WhatsAppController extends Controller
 
             return $this->error('Failed to send: ' . ($result['error'] ?? 'Unknown error'), 422);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             $log->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage(),
@@ -318,7 +323,8 @@ class WhatsAppController extends Controller
 
             return $this->error('Failed to resend: ' . ($result['error'] ?? 'Unknown error'), 422);
 
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return $this->error('Failed to resend: ' . $e->getMessage(), 500);
         }
     }
@@ -330,11 +336,11 @@ class WhatsAppController extends Controller
     {
         // Test with a simple API call to verify credentials
         return match ($config->provider) {
-            'ultramsg' => $this->testUltramsg($config),
-            'twilio' => $this->testTwilio($config),
-            'wati' => $this->testWati($config),
-            default => ['success' => false, 'error' => 'Unknown provider'],
-        };
+                'ultramsg' => $this->testUltramsg($config),
+                'twilio' => $this->testTwilio($config),
+                'wati' => $this->testWati($config),
+                default => ['success' => false, 'error' => 'Unknown provider'],
+            };
     }
 
     /**
@@ -343,11 +349,11 @@ class WhatsAppController extends Controller
     protected function sendWhatsAppMessage(WhatsAppConfig $config, string $phone, string $message): array
     {
         return match ($config->provider) {
-            'ultramsg' => $this->sendViaUltramsg($config, $phone, $message),
-            'twilio' => $this->sendViaTwilio($config, $phone, $message),
-            'wati' => $this->sendViaWati($config, $phone, $message),
-            default => ['success' => false, 'error' => 'Unknown provider'],
-        };
+                'ultramsg' => $this->sendViaUltramsg($config, $phone, $message),
+                'twilio' => $this->sendViaTwilio($config, $phone, $message),
+                'wati' => $this->sendViaWati($config, $phone, $message),
+                default => ['success' => false, 'error' => 'Unknown provider'],
+            };
     }
     /**
      * Test Ultramsg connection
@@ -393,7 +399,8 @@ class WhatsAppController extends Controller
             }
 
             return ['success' => false, 'error' => $result['error'] ?? $response];
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -450,7 +457,8 @@ class WhatsAppController extends Controller
             }
 
             return ['success' => false, 'error' => $result['error'] ?? $response];
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }

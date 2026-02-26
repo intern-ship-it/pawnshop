@@ -233,17 +233,28 @@ export default function CustomerCreate() {
     if (ic.length >= 6) {
       // Extract DOB
       const year = ic.substring(0, 2);
-      const month = ic.substring(2, 4);
-      const day = ic.substring(4, 6);
+      const monthStr = ic.substring(2, 4);
+      const dayStr = ic.substring(4, 6);
+      const monthNum = parseInt(monthStr, 10);
+      const dayNum = parseInt(dayStr, 10);
 
-      // Determine century (00-30 = 2000s, 31-99 = 1900s)
-      const fullYear = parseInt(year) <= 30 ? `20${year}` : `19${year}`;
-      const dob = `${fullYear}-${month}-${day}`;
+      // Validate month (1-12) and day (1-31) before setting
+      if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+        // Determine century (00-30 = 2000s, 31-99 = 1900s)
+        const fullYear = parseInt(year) <= 30 ? `20${year}` : `19${year}`;
+        const dob = `${fullYear}-${monthStr}-${dayStr}`;
 
-      // Validate date
-      const dateObj = new Date(dob);
-      if (!isNaN(dateObj.getTime())) {
-        setFormData((prev) => ({ ...prev, dateOfBirth: dob }));
+        // Double-check with Date object (catches invalid combos like Feb 31)
+        const dateObj = new Date(dob);
+        if (!isNaN(dateObj.getTime()) &&
+          dateObj.getMonth() + 1 === monthNum &&
+          dateObj.getDate() === dayNum) {
+          setFormData((prev) => ({ ...prev, dateOfBirth: dob }));
+        } else {
+          setFormData((prev) => ({ ...prev, dateOfBirth: "" }));
+        }
+      } else {
+        setFormData((prev) => ({ ...prev, dateOfBirth: "" }));
       }
     }
 
@@ -320,9 +331,13 @@ export default function CustomerCreate() {
       case "icNumber":
         const cleanIC = value.replace(/[-\s]/g, "");
         if (!cleanIC) error = "IC number is required";
-        else if (!validateIC(cleanIC))
-          error = "Invalid IC format (12 digits required)";
         else {
+          const icResult = validateIC(cleanIC);
+          if (!icResult.valid) {
+            error = icResult.error;
+          }
+        }
+        if (!error && cleanIC) {
           // Check for duplicate (local check)
           const exists = customers.find(
             (c) => c.icNumber?.replace(/[-\s]/g, "") === cleanIC
@@ -428,13 +443,12 @@ export default function CustomerCreate() {
         addToast({
           type: "success",
           title: "Image Uploaded",
-          message: `${
-            type === "icFront"
+          message: `${type === "icFront"
               ? "IC Front"
               : type === "icBack"
-              ? "IC Back"
-              : "Profile Photo"
-          } uploaded successfully`,
+                ? "IC Back"
+                : "Profile Photo"
+            } uploaded successfully`,
         })
       );
     };
@@ -500,13 +514,12 @@ export default function CustomerCreate() {
             addToast({
               type: "success",
               title: "Photo Captured",
-              message: `${
-                currentCaptureType === "icFront"
+              message: `${currentCaptureType === "icFront"
                   ? "IC Front"
                   : currentCaptureType === "icBack"
-                  ? "IC Back"
-                  : "Profile Photo"
-              } captured successfully`,
+                    ? "IC Back"
+                    : "Profile Photo"
+                } captured successfully`,
             })
           );
 

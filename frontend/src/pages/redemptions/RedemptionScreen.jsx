@@ -21,6 +21,7 @@ import {
   formatIC,
   formatPhone,
 } from "@/utils/formatters";
+import { getStorageUrl } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -276,6 +277,9 @@ export default function RedemptionScreen() {
         !data.customer.phone.startsWith("+")
         ? `${data.customer.country_code} ${data.customer.phone}`
         : data.customer?.phone || "",
+    customerPhoto: data.customer?.selfie_photo
+      ? getStorageUrl(data.customer.selfie_photo)
+      : null,
     totalWeight: parseFloat(data.total_weight) || 0,
     grossValue: parseFloat(data.gross_value) || 0,
     totalDeduction: parseFloat(data.total_deduction) || 0,
@@ -1287,8 +1291,26 @@ export default function RedemptionScreen() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">
-                        {p.customerName.charAt(0)}
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold overflow-hidden">
+                        {p.customerPhoto ? (
+                          <img
+                            src={p.customerPhoto}
+                            alt={p.customerName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                              e.target.nextSibling.style.display = "flex";
+                            }}
+                          />
+                        ) : null}
+                        <span
+                          className={cn(
+                            "w-full h-full items-center justify-center",
+                            p.customerPhoto ? "hidden" : "flex"
+                          )}
+                        >
+                          {p.customerName.charAt(0)}
+                        </span>
                       </div>
                       <div>
                         <h4 className="font-semibold text-zinc-800 group-hover:text-emerald-600 transition-colors">
@@ -1338,8 +1360,26 @@ export default function RedemptionScreen() {
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-xl">
-                      {pledge.customerName?.charAt(0)}
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-xl overflow-hidden">
+                      {pledge.customerPhoto ? (
+                        <img
+                          src={pledge.customerPhoto}
+                          alt={pledge.customerName}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "w-full h-full items-center justify-center",
+                          pledge.customerPhoto ? "hidden" : "flex"
+                        )}
+                      >
+                        {pledge.customerName?.charAt(0)}
+                      </span>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">

@@ -181,8 +181,8 @@ export default function AuditLogScreen() {
         if (actionFilter !== "all") params.action = actionFilter;
         if (userFilter !== "all") params.user_id = userFilter;
         if (dateRange !== "all") params.date_range = dateRange;
-        if (startDate) params.start_date = startDate;
-        if (endDate) params.end_date = endDate;
+        if (startDate) params.from_date = startDate;
+        if (endDate) params.to_date = endDate;
 
         const response = await auditService.getLogs(params);
 
@@ -243,8 +243,15 @@ export default function AuditLogScreen() {
   const fetchOptions = useCallback(async () => {
     try {
       const response = await auditService.getOptions();
-      if (response.success && response.data) {
-        setFilterOptions(response.data);
+      console.log("Audit options raw response:", response);
+      // Handle both wrapped {success, data: {modules, actions, users}} and direct formats
+      const optionsData = response?.data || response;
+      if (optionsData) {
+        setFilterOptions({
+          modules: optionsData.modules || [],
+          actions: optionsData.actions || [],
+          users: optionsData.users || [],
+        });
       }
     } catch (error) {
       console.error("Error fetching filter options:", error);
@@ -421,8 +428,8 @@ export default function AuditLogScreen() {
           </thead>
           <tbody>
             ${logs
-              .map(
-                (log) => `
+        .map(
+          (log) => `
               <tr>
                 <td>${formatTimestamp(log.created_at)}</td>
                 <td>${log.user?.name || "System"}</td>
@@ -432,8 +439,8 @@ export default function AuditLogScreen() {
                 <td>${log.ip_address || "-"}</td>
               </tr>
             `,
-              )
-              .join("")}
+        )
+        .join("")}
           </tbody>
         </table>
         <p class="footer">Total: ${logs.length} entries | Printed from PawnSys</p>
@@ -972,15 +979,15 @@ export default function AuditLogScreen() {
                     className={cn(
                       "w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm",
                       action.color === "blue" &&
-                        "bg-gradient-to-br from-blue-100 to-blue-200",
+                      "bg-gradient-to-br from-blue-100 to-blue-200",
                       action.color === "emerald" &&
-                        "bg-gradient-to-br from-emerald-100 to-emerald-200",
+                      "bg-gradient-to-br from-emerald-100 to-emerald-200",
                       action.color === "amber" &&
-                        "bg-gradient-to-br from-amber-100 to-amber-200",
+                      "bg-gradient-to-br from-amber-100 to-amber-200",
                       action.color === "red" &&
-                        "bg-gradient-to-br from-red-100 to-red-200",
+                      "bg-gradient-to-br from-red-100 to-red-200",
                       action.color === "zinc" &&
-                        "bg-gradient-to-br from-zinc-100 to-zinc-200",
+                      "bg-gradient-to-br from-zinc-100 to-zinc-200",
                     )}
                   >
                     <ActionIcon
@@ -1218,16 +1225,16 @@ export default function AuditLogScreen() {
                 className={cn(
                   "flex items-center justify-between p-4 rounded-xl border cursor-pointer",
                   actionConfig[selectedLog.action]?.color === "emerald" &&
-                    "bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-emerald-100",
+                  "bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-emerald-100",
                   actionConfig[selectedLog.action]?.color === "amber" &&
-                    "bg-gradient-to-r from-amber-50 to-amber-100/50 border-amber-100",
+                  "bg-gradient-to-r from-amber-50 to-amber-100/50 border-amber-100",
                   actionConfig[selectedLog.action]?.color === "red" &&
-                    "bg-gradient-to-r from-red-50 to-red-100/50 border-red-100",
+                  "bg-gradient-to-r from-red-50 to-red-100/50 border-red-100",
                   actionConfig[selectedLog.action]?.color === "blue" &&
-                    "bg-gradient-to-r from-blue-50 to-blue-100/50 border-blue-100",
+                  "bg-gradient-to-r from-blue-50 to-blue-100/50 border-blue-100",
                   (!actionConfig[selectedLog.action]?.color ||
                     actionConfig[selectedLog.action]?.color === "zinc") &&
-                    "bg-gradient-to-r from-zinc-50 to-zinc-100/50 border-zinc-200",
+                  "bg-gradient-to-r from-zinc-50 to-zinc-100/50 border-zinc-200",
                 )}
                 whileHover={{
                   scale: 1.02,
@@ -1241,32 +1248,32 @@ export default function AuditLogScreen() {
                     className={cn(
                       "w-9 h-9 rounded-lg flex items-center justify-center",
                       actionConfig[selectedLog.action]?.color === "emerald" &&
-                        "bg-emerald-100",
+                      "bg-emerald-100",
                       actionConfig[selectedLog.action]?.color === "amber" &&
-                        "bg-amber-100",
+                      "bg-amber-100",
                       actionConfig[selectedLog.action]?.color === "red" &&
-                        "bg-red-100",
+                      "bg-red-100",
                       actionConfig[selectedLog.action]?.color === "blue" &&
-                        "bg-blue-100",
+                      "bg-blue-100",
                       (!actionConfig[selectedLog.action]?.color ||
                         actionConfig[selectedLog.action]?.color === "zinc") &&
-                        "bg-zinc-200",
+                      "bg-zinc-200",
                     )}
                   >
                     <Activity
                       className={cn(
                         "w-4 h-4",
                         actionConfig[selectedLog.action]?.color === "emerald" &&
-                          "text-emerald-600",
+                        "text-emerald-600",
                         actionConfig[selectedLog.action]?.color === "amber" &&
-                          "text-amber-600",
+                        "text-amber-600",
                         actionConfig[selectedLog.action]?.color === "red" &&
-                          "text-red-600",
+                        "text-red-600",
                         actionConfig[selectedLog.action]?.color === "blue" &&
-                          "text-blue-600",
+                        "text-blue-600",
                         (!actionConfig[selectedLog.action]?.color ||
                           actionConfig[selectedLog.action]?.color === "zinc") &&
-                          "text-zinc-600",
+                        "text-zinc-600",
                       )}
                     />
                   </div>
@@ -1274,16 +1281,16 @@ export default function AuditLogScreen() {
                     className={cn(
                       "font-medium",
                       actionConfig[selectedLog.action]?.color === "emerald" &&
-                        "text-emerald-700",
+                      "text-emerald-700",
                       actionConfig[selectedLog.action]?.color === "amber" &&
-                        "text-amber-700",
+                      "text-amber-700",
                       actionConfig[selectedLog.action]?.color === "red" &&
-                        "text-red-700",
+                      "text-red-700",
                       actionConfig[selectedLog.action]?.color === "blue" &&
-                        "text-blue-700",
+                      "text-blue-700",
                       (!actionConfig[selectedLog.action]?.color ||
                         actionConfig[selectedLog.action]?.color === "zinc") &&
-                        "text-zinc-700",
+                      "text-zinc-700",
                     )}
                   >
                     Action

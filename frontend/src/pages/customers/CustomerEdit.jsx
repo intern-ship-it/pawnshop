@@ -13,7 +13,7 @@ import { formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { Card, Button, Input, Select } from "@/components/common";
+import { Card, Button, Input, Select, PhoneInput } from "@/components/common";
 import {
   ArrowLeft,
   Save,
@@ -139,8 +139,8 @@ export default function CustomerEdit() {
         setFormData({
           name: customer.name || "",
           icNumber: customer.ic_number || "",
-          phone: customer.phone || "",
-          whatsapp: customer.phone_alt || customer.phone || "",
+          phone: (customer.country_code || "+60") + (customer.phone || ""),
+          whatsapp: (customer.country_code || "+60") + (customer.phone_alt || customer.phone || ""),
           email: customer.email || "",
           address: customer.address_line1 || "",
           city: customer.city || "",
@@ -226,12 +226,16 @@ export default function CustomerEdit() {
       case "icNumber":
         const cleanIC = value.replace(/[-\s]/g, "");
         if (!cleanIC) error = "IC number is required";
-        else if (!validateIC(cleanIC))
-          error = "Invalid IC format (12 digits required)";
+        else {
+          const icResult = validateIC(cleanIC);
+          if (!icResult.valid) {
+            error = icResult.error;
+          }
+        }
         break;
       case "phone":
-        if (!value.trim()) error = "Phone number is required";
-        else if (!validatePhone(value)) error = "Invalid phone format";
+        if (!value || !value.trim()) error = "Phone number is required";
+        else if (value.length < 10) error = "Phone number is too short";
         break;
       case "email":
         if (value && !validateEmail(value)) error = "Invalid email format";
@@ -313,13 +317,12 @@ export default function CustomerEdit() {
         addToast({
           type: "success",
           title: "Image Updated",
-          message: `${
-            type === "icFront"
-              ? "IC Front"
-              : type === "icBack"
+          message: `${type === "icFront"
+            ? "IC Front"
+            : type === "icBack"
               ? "IC Back"
               : "Profile Photo"
-          } updated`,
+            } updated`,
         })
       );
     };
@@ -357,8 +360,8 @@ export default function CustomerEdit() {
     setFormData({
       name: originalCustomer.name || "",
       icNumber: originalCustomer.ic_number || "",
-      phone: originalCustomer.phone || "",
-      whatsapp: originalCustomer.phone_alt || originalCustomer.phone || "",
+      phone: (originalCustomer.country_code || "+60") + (originalCustomer.phone || ""),
+      whatsapp: (originalCustomer.country_code || "+60") + (originalCustomer.phone_alt || originalCustomer.phone || ""),
       email: originalCustomer.email || "",
       address: originalCustomer.address_line1 || "",
       city: originalCustomer.city || "",
@@ -425,12 +428,29 @@ export default function CustomerEdit() {
     setIsSubmitting(true);
 
     try {
+      // Parse phone number to extract country code
+      const parsePhoneNumber = (phoneValue) => {
+        if (!phoneValue) return { countryCode: "+60", phone: "" };
+        const match = phoneValue.match(/^(\+\d{1,4})(.+)$/);
+        if (match) {
+          return {
+            countryCode: match[1],
+            phone: match[2].replace(/\s/g, ""),
+          };
+        }
+        return { countryCode: "+60", phone: phoneValue };
+      };
+
+      const parsedPhone = parsePhoneNumber(formData.phone);
+      const parsedWhatsApp = parsePhoneNumber(formData.whatsapp || formData.phone);
+
       const customerData = {
         name: formData.name.trim(),
         ic_number: formData.icNumber.replace(/[-\s]/g, ""),
         ic_type: "mykad",
-        phone: formData.phone.trim(),
-        whatsapp: formData.whatsapp.trim() || formData.phone.trim(),
+        phone: parsedPhone.phone,
+        country_code: parsedPhone.countryCode,
+        whatsapp: parsedWhatsApp.phone,
         email: formData.email.trim() || null,
         address: formData.address.trim(),
         city: formData.city.trim() || null,
@@ -660,28 +680,38 @@ export default function CustomerEdit() {
               <div className="p-5 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Input
+                    <PhoneInput
                       label="Phone Number"
-                      name="phone"
-                      placeholder="01X-XXX XXXX"
                       value={formData.phone}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
+                      onChange={(value) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          phone: value || "",
+                        }));
+                        if (errors.phone) {
+                          setErrors((prev) => ({ ...prev, phone: null }));
+                        }
+                      }}
                       error={touched.phone && errors.phone}
                       required
-                      leftIcon={Phone}
+                      placeholder="Enter phone number"
+                      defaultCountry="MY"
                     />
                   </div>
 
                   <div>
-                    <Input
+                    <PhoneInput
                       label="WhatsApp Number"
-                      name="whatsapp"
-                      placeholder="01X-XXX XXXX"
                       value={formData.whatsapp}
-                      onChange={handleChange}
+                      onChange={(value) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          whatsapp: value || "",
+                        }));
+                      }}
                       disabled={sameAsPhone}
-                      leftIcon={Phone}
+                      placeholder="Enter WhatsApp number"
+                      defaultCountry="MY"
                     />
                     <label className="flex items-center gap-2 mt-2 cursor-pointer">
                       <input

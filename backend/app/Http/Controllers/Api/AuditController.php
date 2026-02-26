@@ -31,8 +31,25 @@ class AuditController extends Controller
         }
 
         // Filter by action
+        // Transaction-type actions (redemption, renewal, etc.) are stored as
+        // action='create' + module='redemption', so map them correctly
         if ($action = $request->get('action')) {
-            $query->where('action', $action);
+            $moduleActions = [
+                'redemption' => ['action' => 'create', 'module' => 'redemption'],
+                'renewal' => ['action' => 'create', 'module' => 'renewal'],
+                'pledge_create' => ['action' => 'create', 'module' => 'pledge'],
+                'pledge_update' => ['action' => 'update', 'module' => 'pledge'],
+                'forfeit' => ['action' => 'create', 'module' => 'auction'],
+                'auction' => ['action' => 'create', 'module' => 'auction'],
+            ];
+
+            if (isset($moduleActions[$action])) {
+                $mapping = $moduleActions[$action];
+                $query->where('action', $mapping['action'])
+                      ->where('module', $mapping['module']);
+            } else {
+                $query->where('action', $action);
+            }
         }
 
         // Date range filter
@@ -110,8 +127,25 @@ class AuditController extends Controller
         }
 
         // Filter by action
+        // Transaction-type actions (redemption, renewal, etc.) are stored as
+        // action='create' + module='redemption', so map them correctly
         if ($action = $request->get('action')) {
-            $query->where('action', $action);
+            $moduleActions = [
+                'redemption' => ['action' => 'create', 'module' => 'redemption'],
+                'renewal' => ['action' => 'create', 'module' => 'renewal'],
+                'pledge_create' => ['action' => 'create', 'module' => 'pledge'],
+                'pledge_update' => ['action' => 'update', 'module' => 'pledge'],
+                'forfeit' => ['action' => 'create', 'module' => 'auction'],
+                'auction' => ['action' => 'create', 'module' => 'auction'],
+            ];
+
+            if (isset($moduleActions[$action])) {
+                $mapping = $moduleActions[$action];
+                $query->where('action', $mapping['action'])
+                      ->where('module', $mapping['module']);
+            } else {
+                $query->where('action', $action);
+            }
         }
 
         // Filter by module

@@ -22,6 +22,7 @@ import {
   formatIC,
   formatPhone,
 } from "@/utils/formatters";
+import { getStorageUrl } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -290,9 +291,7 @@ export default function RenewalScreen() {
         // If only one result, auto-select it
         if (pledges.length === 1) {
           const item = pledges[0];
-          const pledgeData = transformPledgeData(item);
-          setPledge(pledgeData);
-          fetchCalculation(item.id, extensionMonths);
+          await loadPledgeWithDetails(item);
         }
       } else {
         setSearchResult("not_found");
@@ -354,9 +353,7 @@ export default function RenewalScreen() {
           );
           if (pledges.length === 1) {
             const item = pledges[0];
-            const pledgeData = transformPledgeData(item);
-            setPledge(pledgeData);
-            fetchCalculation(item.id, extensionMonths);
+            loadPledgeWithDetails(item);
           }
         } else {
           setSearchResult("not_found");
@@ -388,7 +385,15 @@ export default function RenewalScreen() {
     customerId: data.customer_id,
     customerName: data.customer?.name || "Unknown",
     customerIC: data.customer?.ic_number || "",
-    customerPhone: data.customer?.phone || "",
+    customerPhone:
+      data.customer?.country_code &&
+      data.customer?.phone &&
+      !data.customer.phone.startsWith("+")
+        ? `${data.customer.country_code.startsWith("+") ? "" : "+"}${data.customer.country_code} ${data.customer.phone}`
+        : data.customer?.phone || "",
+    customerPhoto: data.customer?.selfie_photo
+      ? getStorageUrl(data.customer.selfie_photo)
+      : null,
     totalWeight: parseFloat(data.total_weight) || 0,
     grossValue: parseFloat(data.gross_value) || 0,
     totalDeduction: parseFloat(data.total_deduction) || 0,
@@ -405,6 +410,32 @@ export default function RenewalScreen() {
     items: data.items || [],
     createdAt: data.created_at,
   });
+
+  const loadPledgeWithDetails = async (data) => {
+    const basePledge = transformPledgeData(data);
+    let enrichedPledge = basePledge;
+
+    if (!basePledge.customerPhoto) {
+      try {
+        const detailResponse = await pledgeService.getById(data.id);
+        const raw = detailResponse.data?.data || detailResponse.data;
+        const detailData = raw?.pledge || raw;
+
+        if (detailData?.customer?.selfie_photo) {
+          enrichedPledge = {
+            ...basePledge,
+            customerPhoto: getStorageUrl(detailData.customer.selfie_photo),
+          };
+        }
+      } catch (error) {
+        console.error("Failed to load pledge details for photo:", error);
+      }
+    }
+
+    setPledge(enrichedPledge);
+    setSearchResult("found");
+    fetchCalculation(data.id, extensionMonths);
+  };
 
   // Process renewal via API
   const handleProcessRenewal = async () => {
@@ -1160,6 +1191,9 @@ export default function RenewalScreen() {
                     <tbody>
                       {dueList.map((item) => {
                         const isOverdue = new Date(item.due_date) < new Date();
+                        const customerPhotoUrl = item.customer?.selfie_photo
+                          ? getStorageUrl(item.customer.selfie_photo)
+                          : null;
                         return (
                           <tr
                             key={item.id}
@@ -1169,7 +1203,33 @@ export default function RenewalScreen() {
                               {item.pledge_no}
                             </td>
                             <td className="py-3 px-2">
-                              {item.customer?.name || "N/A"}
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white text-sm font-semibold overflow-hidden">
+                                  {customerPhotoUrl ? (
+                                    <img
+                                      src={customerPhotoUrl}
+                                      alt={item.customer?.name || "Customer"}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = "none";
+                                        e.target.nextSibling.style.display =
+                                          "flex";
+                                      }}
+                                    />
+                                  ) : null}
+                                  <span
+                                    className={cn(
+                                      "w-full h-full items-center justify-center",
+                                      customerPhotoUrl ? "hidden" : "flex",
+                                    )}
+                                  >
+                                    {(item.customer?.name || "N")
+                                      .charAt(0)
+                                      .toUpperCase()}
+                                  </span>
+                                </div>
+                                <span>{item.customer?.name || "N/A"}</span>
+                              </div>
                             </td>
                             <td className="py-3 px-2 font-mono">
                               {formatIC(item.customer?.ic_number || "")}
@@ -1195,11 +1255,7 @@ export default function RenewalScreen() {
                                 leftIcon={RefreshCw}
                                 onClick={() => {
                                   setSearchQuery(item.pledge_no);
-                                  // Transform and set pledge data
-                                  const pledgeData = transformPledgeData(item);
-                                  setPledge(pledgeData);
-                                  setSearchResult("found");
-                                  fetchCalculation(item.id, extensionMonths);
+                                  loadPledgeWithDetails(item);
                                 }}
                               >
                                 Process
@@ -1243,8 +1299,26 @@ export default function RenewalScreen() {
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl">
-                      {pledge.customerName?.charAt(0)}
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl overflow-hidden">
+                      {pledge.customerPhoto ? (
+                        <img
+                          src={pledge.customerPhoto}
+                          alt={pledge.customerName}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "w-full h-full items-center justify-center",
+                          pledge.customerPhoto ? "hidden" : "flex"
+                        )}
+                      >
+                        {pledge.customerName?.charAt(0)}
+                      </span>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">

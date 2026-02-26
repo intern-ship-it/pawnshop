@@ -31,6 +31,15 @@ class WhatsAppTemplate extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * Get the route key name for Laravel route model binding.
+     * Templates are identified by their template_key in URLs.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'template_key';
+    }
+
     public function render(array $data): string
     {
         $content = $this->content;

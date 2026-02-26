@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { getStorageItem, setStorageItem } from "@/utils/localStorage";
@@ -219,6 +219,7 @@ export default function WhatsAppSettings() {
   // Edit template modal
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
+  const templateTextareaRef = useRef(null);
 
   // Test modal
   const [showTestModal, setShowTestModal] = useState(false);
@@ -1171,6 +1172,7 @@ export default function WhatsAppSettings() {
                   Message Template
                 </label>
                 <textarea
+                  ref={templateTextareaRef}
                   className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono text-sm"
                   rows={12}
                   value={editingTemplate.template}
@@ -1192,12 +1194,30 @@ export default function WhatsAppSettings() {
                   {variables.map((v) => (
                     <button
                       key={v}
-                      onClick={() =>
-                        setEditingTemplate({
-                          ...editingTemplate,
-                          template: editingTemplate.template + v,
-                        })
-                      }
+                      onClick={() => {
+                        const textarea = templateTextareaRef.current;
+                        const text = editingTemplate.template;
+                        if (textarea) {
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const newText = text.substring(0, start) + v + text.substring(end);
+                          setEditingTemplate({
+                            ...editingTemplate,
+                            template: newText,
+                          });
+                          // Restore cursor position after the inserted variable
+                          requestAnimationFrame(() => {
+                            textarea.focus();
+                            textarea.selectionStart = start + v.length;
+                            textarea.selectionEnd = start + v.length;
+                          });
+                        } else {
+                          setEditingTemplate({
+                            ...editingTemplate,
+                            template: text + v,
+                          });
+                        }
+                      }}
                       className="px-2 py-1 text-xs bg-zinc-100 hover:bg-zinc-200 rounded transition-colors"
                     >
                       {v}
