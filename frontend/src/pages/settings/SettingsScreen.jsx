@@ -47,6 +47,7 @@ import {
   MessageCircle,
   Loader2,
   FileText,
+  Printer,
 } from "lucide-react";
 import WhatsAppSettings from "./WhatsAppSettings";
 import storageService from "@/services/storageService";
@@ -129,6 +130,7 @@ const tabs = [
   { id: "terms", label: "Terms & Conditions", icon: FileText },
   { id: "racks", label: "Racks", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+  // { id: "printTest", label: "Print Test", icon: Printer, route: "/settings/print-test" },  // Hidden - uncomment to re-enable
 ];
 
 export default function SettingsScreen() {
@@ -484,7 +486,7 @@ export default function SettingsScreen() {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => tab.route ? navigate(tab.route) : setActiveTab(tab.id)}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all",
                       activeTab === tab.id
@@ -603,7 +605,7 @@ function CompanyTab({ settings, updateSettings }) {
             if (!logoUrl.startsWith("http")) {
               const baseUrl =
                 window.location.hostname === "localhost" ||
-                window.location.hostname === "127.0.0.1"
+                  window.location.hostname === "127.0.0.1"
                   ? "http://localhost:8000"
                   : window.location.origin;
               fullUrl =
@@ -2177,9 +2179,8 @@ function RacksTab({ settings, updateSettings }) {
               { value: "", label: "Select vault..." },
               ...vaults.map((v) => ({
                 value: v.id,
-                label: `${v.name} (${v.boxes_count} boxes, ${
-                  v.total_slots || 0
-                } slots)`,
+                label: `${v.name} (${v.boxes_count} boxes, ${v.total_slots || 0
+                  } slots)`,
               })),
             ]}
             required

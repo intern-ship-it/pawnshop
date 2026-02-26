@@ -2277,310 +2277,612 @@ export default function PrintTestPage() {
     printWindow.focus();
   };
 
-  // Test Renewal Document View - A4 Portrait overlay with form background
-  const testRenewalDocument = async () => {
-    setPrinting(true);
-    setPreviewType("Renewal Document");
-    const startTime = Date.now();
-
-    try {
-      const token = getToken();
-
-      // Step 1: Fetch latest renewals
-      const renewalsRes = await fetch(
-        `${apiUrl}/renewals?per_page=10&sort=-created_at`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        },
-      );
-      if (!renewalsRes.ok) throw new Error("Failed to fetch renewals");
-      const renewalsData = await renewalsRes.json();
-      const renewalsList = renewalsData.data?.data || renewalsData.data || [];
-
-      if (renewalsList.length === 0) {
-        throw new Error("No renewals found. Create a renewal first to test.");
-      }
-
-      const renewal = renewalsList[0];
-      const renewalId = renewal.id;
-
-      // Step 2: Fetch A4 form background + A4 data overlay in parallel
-      const [formResponse, docRes] = await Promise.all([
-        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
-        }),
-        fetch(
-          `${apiUrl}/print/dot-matrix/pre-printed/renewal/${renewalId}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-          },
-        ),
-      ]);
-
-      const formData = await formResponse.json();
-      const data = await docRes.json();
-      const duration = Date.now() - startTime;
-
-      if (!docRes.ok || !data.success) {
-        throw new Error(data.message || "Failed to generate renewal document");
-      }
-
-      const formHtml = formData.success ? (formData.data?.front_html || "") : "";
-      const dataHtml = data.data?.front_html || "";
-      const renewalNo = data.data?.renewal_no || renewal.renewal_no || "Unknown";
-
-      logResult("Renewal Document", true, `A4 Portrait overlay for ${renewalNo}`, duration);
-
-      // Open A4 overlay alignment window
-      const pw = window.open("", "_blank", "width=900,height=1000");
-      if (!pw) throw new Error("Popup blocked");
-
-      pw.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>A4 Overlay Alignment - Renewal ${renewalNo}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
-            h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 18px; }
-            h1 span { color: #f59e0b; }
-            .ctrls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
-            .ctrls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
-            .bf { background: #3b82f6; color: white; }
-            .bd { background: #f59e0b; color: white; }
-            .bb { background: #10b981; color: white; }
-            .bp { background: #ef4444; color: white; }
-            .bc { background: #6b7280; color: white; }
-            .container { position: relative; width: 210mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-height: 297mm; }
-            .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.4; pointer-events: none; }
-            .form-layer.hidden { display: none; }
-            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
-            .data-layer.hidden { display: none; }
-            .st { text-align: center; color: #9ca3af; font-size: 12px; margin: 10px 0; }
-            .st span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
-            .st .on { background: #22c55e; color: white; }
-            .st .off { background: #ef4444; color: white; }
-            @media print {
-              body { background: white !important; padding: 0 !important; }
-              .ctrls, h1, .st { display: none !important; }
-              .container { box-shadow: none !important; }
-              .form-layer { display: none !important; }
-              .data-layer { position: relative !important; }
-            }
-            @page { size: A4 portrait; margin: 0; }
-          </style>
-        </head>
-        <body>
-          <h1>\u{1f4ca} A4 Portrait <span>Renewal Overlay</span> Alignment - ${renewalNo}</h1>
-          <div class="ctrls">
-            <button class="bf" onclick="toggleForm()">Toggle Form</button>
-            <button class="bd" onclick="toggleData()">Toggle Data</button>
-            <button class="bb" onclick="showBoth()">Both</button>
-            <button class="bp" onclick="window.print()">Print Data Only</button>
-            <button class="bc" onclick="window.close()">Close</button>
-          </div>
-          <div class="st">Form: <span id="fs" class="on">ON</span> Data: <span id="ds" class="on">ON</span></div>
-          <div class="container">
-            <div id="fl" class="form-layer">${formHtml}</div>
-            <div id="dl" class="data-layer">${dataHtml}</div>
-          </div>
-          <script>
-            let fv=true,dv=true;
-            function toggleForm(){fv=!fv;document.getElementById('fl').classList.toggle('hidden');document.getElementById('fs').className=fv?'on':'off';document.getElementById('fs').textContent=fv?'ON':'OFF';}
-            function toggleData(){dv=!dv;document.getElementById('dl').classList.toggle('hidden');document.getElementById('ds').className=dv?'on':'off';document.getElementById('ds').textContent=dv?'ON':'OFF';}
-            function showBoth(){fv=dv=true;document.getElementById('fl').classList.remove('hidden');document.getElementById('dl').classList.remove('hidden');document.getElementById('fs').className='on';document.getElementById('fs').textContent='ON';document.getElementById('ds').className='on';document.getElementById('ds').textContent='ON';}
-          </script>
-        </body>
-        </html>
-      `);
-      pw.document.close();
-      pw.focus();
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Success",
-          message: `Renewal A4 overlay ready (${duration}ms)`,
-        }),
-      );
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      logResult("Renewal Document", false, error.message, duration);
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Renewal Document Error",
-          message: error.message,
-        }),
-      );
-    } finally {
-      setPrinting(false);
-    }
+  // Test Renewal Document View - A4 Portrait overlay with form background
+
+  const testRenewalDocument = async () => {
+
+    setPrinting(true);
+
+    setPreviewType("Renewal Document");
+
+    const startTime = Date.now();
+
+
+
+    try {
+
+      const token = getToken();
+
+
+
+      // Step 1: Fetch latest renewals
+
+      const renewalsRes = await fetch(
+
+        `${apiUrl}/renewals?per_page=10&sort=-created_at`,
+
+        {
+
+          headers: {
+
+            Authorization: `Bearer ${token}`,
+
+            Accept: "application/json",
+
+          },
+
+        },
+
+      );
+
+      if (!renewalsRes.ok) throw new Error("Failed to fetch renewals");
+
+      const renewalsData = await renewalsRes.json();
+
+      const renewalsList = renewalsData.data?.data || renewalsData.data || [];
+
+
+
+      if (renewalsList.length === 0) {
+
+        throw new Error("No renewals found. Create a renewal first to test.");
+
+      }
+
+
+
+      const renewal = renewalsList[0];
+
+      const renewalId = renewal.id;
+
+
+
+      // Step 2: Fetch A4 form background + A4 data overlay in parallel
+
+      const [formResponse, docRes] = await Promise.all([
+
+        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
+
+          method: "POST",
+
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+
+          body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
+
+        }),
+
+        fetch(
+
+          `${apiUrl}/print/dot-matrix/pre-printed/renewal/${renewalId}`,
+
+          {
+
+            method: "POST",
+
+            headers: {
+
+              Authorization: `Bearer ${token}`,
+
+              "Content-Type": "application/json",
+
+              Accept: "application/json",
+
+            },
+
+          },
+
+        ),
+
+      ]);
+
+
+
+      const formData = await formResponse.json();
+
+      const data = await docRes.json();
+
+      const duration = Date.now() - startTime;
+
+
+
+      if (!docRes.ok || !data.success) {
+
+        throw new Error(data.message || "Failed to generate renewal document");
+
+      }
+
+
+
+      const formHtml = formData.success ? (formData.data?.front_html || "") : "";
+
+      const dataHtml = data.data?.front_html || "";
+
+      const renewalNo = data.data?.renewal_no || renewal.renewal_no || "Unknown";
+
+
+
+      logResult("Renewal Document", true, `A4 Portrait overlay for ${renewalNo}`, duration);
+
+
+
+      // Open A4 overlay alignment window
+
+      const pw = window.open("", "_blank", "width=900,height=1000");
+
+      if (!pw) throw new Error("Popup blocked");
+
+
+
+      pw.document.write(`
+
+        <!DOCTYPE html>
+
+        <html>
+
+        <head>
+
+          <meta charset="UTF-8">
+
+          <title>A4 Overlay Alignment - Renewal ${renewalNo}</title>
+
+          <style>
+
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+
+            body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
+
+            h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 18px; }
+
+            h1 span { color: #f59e0b; }
+
+            .ctrls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
+
+            .ctrls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+
+            .bf { background: #3b82f6; color: white; }
+
+            .bd { background: #f59e0b; color: white; }
+
+            .bb { background: #10b981; color: white; }
+
+            .bp { background: #ef4444; color: white; }
+
+            .bc { background: #6b7280; color: white; }
+
+            .container { position: relative; width: 210mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-height: 297mm; }
+
+            .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.4; pointer-events: none; }
+
+            .form-layer.hidden { display: none; }
+
+            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+
+            .data-layer.hidden { display: none; }
+
+            .st { text-align: center; color: #9ca3af; font-size: 12px; margin: 10px 0; }
+
+            .st span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
+
+            .st .on { background: #22c55e; color: white; }
+
+            .st .off { background: #ef4444; color: white; }
+
+            @media print {
+
+              body { background: white !important; padding: 0 !important; }
+
+              .ctrls, h1, .st { display: none !important; }
+
+              .container { box-shadow: none !important; }
+
+              .form-layer { display: none !important; }
+
+              .data-layer { position: relative !important; }
+
+            }
+
+            @page { size: A4 portrait; margin: 0; }
+
+          </style>
+
+        </head>
+
+        <body>
+
+          <h1>\u{1f4ca} A4 Portrait <span>Renewal Overlay</span> Alignment - ${renewalNo}</h1>
+
+          <div class="ctrls">
+
+            <button class="bf" onclick="toggleForm()">Toggle Form</button>
+
+            <button class="bd" onclick="toggleData()">Toggle Data</button>
+
+            <button class="bb" onclick="showBoth()">Both</button>
+
+            <button class="bp" onclick="window.print()">Print Data Only</button>
+
+            <button class="bc" onclick="window.close()">Close</button>
+
+          </div>
+
+          <div class="st">Form: <span id="fs" class="on">ON</span> Data: <span id="ds" class="on">ON</span></div>
+
+          <div class="container">
+
+            <div id="fl" class="form-layer">${formHtml}</div>
+
+            <div id="dl" class="data-layer">${dataHtml}</div>
+
+          </div>
+
+          <script>
+
+            let fv=true,dv=true;
+
+            function toggleForm(){fv=!fv;document.getElementById('fl').classList.toggle('hidden');document.getElementById('fs').className=fv?'on':'off';document.getElementById('fs').textContent=fv?'ON':'OFF';}
+
+            function toggleData(){dv=!dv;document.getElementById('dl').classList.toggle('hidden');document.getElementById('ds').className=dv?'on':'off';document.getElementById('ds').textContent=dv?'ON':'OFF';}
+
+            function showBoth(){fv=dv=true;document.getElementById('fl').classList.remove('hidden');document.getElementById('dl').classList.remove('hidden');document.getElementById('fs').className='on';document.getElementById('fs').textContent='ON';document.getElementById('ds').className='on';document.getElementById('ds').textContent='ON';}
+
+          </script>
+
+        </body>
+
+        </html>
+
+      `);
+
+      pw.document.close();
+
+      pw.focus();
+
+
+
+      dispatch(
+
+        addToast({
+
+          type: "success",
+
+          title: "Success",
+
+          message: `Renewal A4 overlay ready (${duration}ms)`,
+
+        }),
+
+      );
+
+    } catch (error) {
+
+      const duration = Date.now() - startTime;
+
+      logResult("Renewal Document", false, error.message, duration);
+
+      dispatch(
+
+        addToast({
+
+          type: "error",
+
+          title: "Renewal Document Error",
+
+          message: error.message,
+
+        }),
+
+      );
+
+    } finally {
+
+      setPrinting(false);
+
+    }
+
   };
 
-  // Test Redemption Document View - A4 Portrait overlay with form background
-  const testRedemptionDocument = async () => {
-    setPrinting(true);
-    setPreviewType("Redemption Document");
-    const startTime = Date.now();
-
-    try {
-      const token = getToken();
-
-      // Step 1: Fetch latest redemptions
-      const redemptionsRes = await fetch(
-        `${apiUrl}/redemptions?per_page=10&sort=-created_at`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        },
-      );
-      if (!redemptionsRes.ok) throw new Error("Failed to fetch redemptions");
-      const redemptionsData = await redemptionsRes.json();
-      const redemptionsList = redemptionsData.data?.data || redemptionsData.data || [];
-
-      if (redemptionsList.length === 0) {
-        throw new Error("No redemptions found. Create a redemption first to test.");
-      }
-
-      const redemption = redemptionsList[0];
-      const redemptionId = redemption.id;
-
-      // Step 2: Fetch A4 form background + A4 data overlay in parallel
-      const [formResponse, docRes] = await Promise.all([
-        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
-        }),
-        fetch(
-          `${apiUrl}/print/dot-matrix/pre-printed/redemption/${redemptionId}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-          },
-        ),
-      ]);
-
-      const formData = await formResponse.json();
-      const data = await docRes.json();
-      const duration = Date.now() - startTime;
-
-      if (!docRes.ok || !data.success) {
-        throw new Error(data.message || "Failed to generate redemption document");
-      }
-
-      const formHtml = formData.success ? (formData.data?.front_html || "") : "";
-      const dataHtml = data.data?.front_html || "";
-      const redemptionNo = data.data?.redemption_no || redemption.redemption_no || "Unknown";
-
-      logResult("Redemption Document", true, `A4 Portrait overlay for ${redemptionNo}`, duration);
-
-      // Open A4 overlay alignment window
-      const pw = window.open("", "_blank", "width=900,height=1000");
-      if (!pw) throw new Error("Popup blocked");
-
-      pw.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>A4 Overlay Alignment - Redemption ${redemptionNo}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
-            h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 18px; }
-            h1 span { color: #ef4444; }
-            .ctrls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
-            .ctrls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
-            .bf { background: #3b82f6; color: white; }
-            .bd { background: #f59e0b; color: white; }
-            .bb { background: #10b981; color: white; }
-            .bp { background: #ef4444; color: white; }
-            .bc { background: #6b7280; color: white; }
-            .container { position: relative; width: 210mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-height: 297mm; }
-            .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.4; pointer-events: none; }
-            .form-layer.hidden { display: none; }
-            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
-            .data-layer.hidden { display: none; }
-            .st { text-align: center; color: #9ca3af; font-size: 12px; margin: 10px 0; }
-            .st span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
-            .st .on { background: #22c55e; color: white; }
-            .st .off { background: #ef4444; color: white; }
-            @media print {
-              body { background: white !important; padding: 0 !important; }
-              .ctrls, h1, .st { display: none !important; }
-              .container { box-shadow: none !important; }
-              .form-layer { display: none !important; }
-              .data-layer { position: relative !important; }
-            }
-            @page { size: A4 portrait; margin: 0; }
-          </style>
-        </head>
-        <body>
-          <h1>\u{1f4ca} A4 Portrait <span>Redemption Overlay</span> Alignment - ${redemptionNo}</h1>
-          <div class="ctrls">
-            <button class="bf" onclick="toggleForm()">Toggle Form</button>
-            <button class="bd" onclick="toggleData()">Toggle Data</button>
-            <button class="bb" onclick="showBoth()">Both</button>
-            <button class="bp" onclick="window.print()">Print Data Only</button>
-            <button class="bc" onclick="window.close()">Close</button>
-          </div>
-          <div class="st">Form: <span id="fs" class="on">ON</span> Data: <span id="ds" class="on">ON</span></div>
-          <div class="container">
-            <div id="fl" class="form-layer">${formHtml}</div>
-            <div id="dl" class="data-layer">${dataHtml}</div>
-          </div>
-          <script>
-            let fv=true,dv=true;
-            function toggleForm(){fv=!fv;document.getElementById('fl').classList.toggle('hidden');document.getElementById('fs').className=fv?'on':'off';document.getElementById('fs').textContent=fv?'ON':'OFF';}
-            function toggleData(){dv=!dv;document.getElementById('dl').classList.toggle('hidden');document.getElementById('ds').className=dv?'on':'off';document.getElementById('ds').textContent=dv?'ON':'OFF';}
-            function showBoth(){fv=dv=true;document.getElementById('fl').classList.remove('hidden');document.getElementById('dl').classList.remove('hidden');document.getElementById('fs').className='on';document.getElementById('fs').textContent='ON';document.getElementById('ds').className='on';document.getElementById('ds').textContent='ON';}
-          </script>
-        </body>
-        </html>
-      `);
-      pw.document.close();
-      pw.focus();
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Success",
-          message: `Redemption A4 overlay ready (${duration}ms)`,
-        }),
-      );
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      logResult("Redemption Document", false, error.message, duration);
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Redemption Document Error",
-          message: error.message,
-        }),
-      );
-    } finally {
-      setPrinting(false);
-    }
+  // Test Redemption Document View - A4 Portrait overlay with form background
+
+  const testRedemptionDocument = async () => {
+
+    setPrinting(true);
+
+    setPreviewType("Redemption Document");
+
+    const startTime = Date.now();
+
+
+
+    try {
+
+      const token = getToken();
+
+
+
+      // Step 1: Fetch latest redemptions
+
+      const redemptionsRes = await fetch(
+
+        `${apiUrl}/redemptions?per_page=10&sort=-created_at`,
+
+        {
+
+          headers: {
+
+            Authorization: `Bearer ${token}`,
+
+            Accept: "application/json",
+
+          },
+
+        },
+
+      );
+
+      if (!redemptionsRes.ok) throw new Error("Failed to fetch redemptions");
+
+      const redemptionsData = await redemptionsRes.json();
+
+      const redemptionsList = redemptionsData.data?.data || redemptionsData.data || [];
+
+
+
+      if (redemptionsList.length === 0) {
+
+        throw new Error("No redemptions found. Create a redemption first to test.");
+
+      }
+
+
+
+      const redemption = redemptionsList[0];
+
+      const redemptionId = redemption.id;
+
+
+
+      // Step 2: Fetch A4 form background + A4 data overlay in parallel
+
+      const [formResponse, docRes] = await Promise.all([
+
+        fetch(`${apiUrl}/print/dot-matrix/pre-printed-form-a4`, {
+
+          method: "POST",
+
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+
+          body: JSON.stringify({ count: 1, page: "front", orientation: "portrait" }),
+
+        }),
+
+        fetch(
+
+          `${apiUrl}/print/dot-matrix/pre-printed/redemption/${redemptionId}`,
+
+          {
+
+            method: "POST",
+
+            headers: {
+
+              Authorization: `Bearer ${token}`,
+
+              "Content-Type": "application/json",
+
+              Accept: "application/json",
+
+            },
+
+          },
+
+        ),
+
+      ]);
+
+
+
+      const formData = await formResponse.json();
+
+      const data = await docRes.json();
+
+      const duration = Date.now() - startTime;
+
+
+
+      if (!docRes.ok || !data.success) {
+
+        throw new Error(data.message || "Failed to generate redemption document");
+
+      }
+
+
+
+      const formHtml = formData.success ? (formData.data?.front_html || "") : "";
+
+      const dataHtml = data.data?.front_html || "";
+
+      const redemptionNo = data.data?.redemption_no || redemption.redemption_no || "Unknown";
+
+
+
+      logResult("Redemption Document", true, `A4 Portrait overlay for ${redemptionNo}`, duration);
+
+
+
+      // Open A4 overlay alignment window
+
+      const pw = window.open("", "_blank", "width=900,height=1000");
+
+      if (!pw) throw new Error("Popup blocked");
+
+
+
+      pw.document.write(`
+
+        <!DOCTYPE html>
+
+        <html>
+
+        <head>
+
+          <meta charset="UTF-8">
+
+          <title>A4 Overlay Alignment - Redemption ${redemptionNo}</title>
+
+          <style>
+
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+
+            body { background: #1a1a2e; padding: 20px; font-family: Arial, sans-serif; }
+
+            h1 { color: #fff; text-align: center; margin-bottom: 15px; font-size: 18px; }
+
+            h1 span { color: #ef4444; }
+
+            .ctrls { text-align: center; margin-bottom: 15px; display: flex; justify-content: center; gap: 10px; }
+
+            .ctrls button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+
+            .bf { background: #3b82f6; color: white; }
+
+            .bd { background: #f59e0b; color: white; }
+
+            .bb { background: #10b981; color: white; }
+
+            .bp { background: #ef4444; color: white; }
+
+            .bc { background: #6b7280; color: white; }
+
+            .container { position: relative; width: 210mm; margin: 0 auto; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-height: 297mm; }
+
+            .form-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.4; pointer-events: none; }
+
+            .form-layer.hidden { display: none; }
+
+            .data-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+
+            .data-layer.hidden { display: none; }
+
+            .st { text-align: center; color: #9ca3af; font-size: 12px; margin: 10px 0; }
+
+            .st span { display: inline-block; padding: 3px 8px; border-radius: 4px; margin: 0 5px; }
+
+            .st .on { background: #22c55e; color: white; }
+
+            .st .off { background: #ef4444; color: white; }
+
+            @media print {
+
+              body { background: white !important; padding: 0 !important; }
+
+              .ctrls, h1, .st { display: none !important; }
+
+              .container { box-shadow: none !important; }
+
+              .form-layer { display: none !important; }
+
+              .data-layer { position: relative !important; }
+
+            }
+
+            @page { size: A4 portrait; margin: 0; }
+
+          </style>
+
+        </head>
+
+        <body>
+
+          <h1>\u{1f4ca} A4 Portrait <span>Redemption Overlay</span> Alignment - ${redemptionNo}</h1>
+
+          <div class="ctrls">
+
+            <button class="bf" onclick="toggleForm()">Toggle Form</button>
+
+            <button class="bd" onclick="toggleData()">Toggle Data</button>
+
+            <button class="bb" onclick="showBoth()">Both</button>
+
+            <button class="bp" onclick="window.print()">Print Data Only</button>
+
+            <button class="bc" onclick="window.close()">Close</button>
+
+          </div>
+
+          <div class="st">Form: <span id="fs" class="on">ON</span> Data: <span id="ds" class="on">ON</span></div>
+
+          <div class="container">
+
+            <div id="fl" class="form-layer">${formHtml}</div>
+
+            <div id="dl" class="data-layer">${dataHtml}</div>
+
+          </div>
+
+          <script>
+
+            let fv=true,dv=true;
+
+            function toggleForm(){fv=!fv;document.getElementById('fl').classList.toggle('hidden');document.getElementById('fs').className=fv?'on':'off';document.getElementById('fs').textContent=fv?'ON':'OFF';}
+
+            function toggleData(){dv=!dv;document.getElementById('dl').classList.toggle('hidden');document.getElementById('ds').className=dv?'on':'off';document.getElementById('ds').textContent=dv?'ON':'OFF';}
+
+            function showBoth(){fv=dv=true;document.getElementById('fl').classList.remove('hidden');document.getElementById('dl').classList.remove('hidden');document.getElementById('fs').className='on';document.getElementById('fs').textContent='ON';document.getElementById('ds').className='on';document.getElementById('ds').textContent='ON';}
+
+          </script>
+
+        </body>
+
+        </html>
+
+      `);
+
+      pw.document.close();
+
+      pw.focus();
+
+
+
+      dispatch(
+
+        addToast({
+
+          type: "success",
+
+          title: "Success",
+
+          message: `Redemption A4 overlay ready (${duration}ms)`,
+
+        }),
+
+      );
+
+    } catch (error) {
+
+      const duration = Date.now() - startTime;
+
+      logResult("Redemption Document", false, error.message, duration);
+
+      dispatch(
+
+        addToast({
+
+          type: "error",
+
+          title: "Redemption Document Error",
+
+          message: error.message,
+
+        }),
+
+      );
+
+    } finally {
+
+      setPrinting(false);
+
+    }
+
   };
 
   const filteredPledges = pledges.filter((p) => {
@@ -2751,130 +3053,137 @@ export default function PrintTestPage() {
               Print Actions
             </h3>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Copy Type
-              </label>
-              <div className="flex gap-2">
-                {["office", "customer"].map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setCopyType(type)}
-                    className={cn(
-                      "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all",
-                      copyType === type
-                        ? "bg-amber-500 text-white"
-                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200",
-                    )}
-                  >
-                    {type === "office" ? "Office Copy" : "Customer Copy"}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Hidden sections - uncomment to re-enable */}
+            {false && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    Copy Type
+                  </label>
+                  <div className="flex gap-2">
+                    {["office", "customer"].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setCopyType(type)}
+                        className={cn(
+                          "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all",
+                          copyType === type
+                            ? "bg-amber-500 text-white"
+                            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200",
+                        )}
+                      >
+                        {type === "office" ? "Office Copy" : "Customer Copy"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
+                <div className="space-y-3">
+                  {/* Styled Receipt */}
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-blue-800">Styled Receipt</p>
+                        <p className="text-xs text-blue-600">
+                          Blue form + Terms page
+                        </p>
+                      </div>
+                      <Badge variant="info">HTML</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* New Manual Duplex Print */}
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        leftIcon={Printer}
+                        onClick={() => testDotMatrixPrint(copyType, true, "wizard")}
+                        loading={printing && previewType.includes("Receipt")}
+                        disabled={!selectedPledge || printing}
+                        className="bg-blue-600 hover:bg-blue-700 col-span-2"
+                      >
+                        Print (Manual Duplex)
+                      </Button>
+
+                      {/* Old Standard Print */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={Printer}
+                        onClick={() =>
+                          testDotMatrixPrint(copyType, true, "standard")
+                        }
+                        disabled={!selectedPledge || printing}
+                        className="col-span-1"
+                      >
+                        Old Print
+                      </Button>
+
+                      {/* Preview */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={Eye}
+                        onClick={() => testDotMatrixPrint(copyType, false)}
+                        disabled={!selectedPledge || printing}
+                        className="col-span-1"
+                      >
+                        Preview
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* PDF */}
+                  <div className="p-3 bg-zinc-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-zinc-800">PDF Receipt</p>
+                        <p className="text-xs text-zinc-500">A5 Portrait</p>
+                      </div>
+                      <Badge variant="success">PDF</Badge>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={FileText}
+                      onClick={testPDFPrint}
+                      loading={printing && previewType === "PDF Receipt"}
+                      disabled={!selectedPledge || printing}
+                      fullWidth
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      Generate PDF
+                    </Button>
+                  </div>
+
+                  {/* Barcode */}
+                  <div className="p-3 bg-zinc-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-zinc-800">Barcode Labels</p>
+                        <p className="text-xs text-zinc-500">50mm × 50mm</p>
+                      </div>
+                      <Badge variant="warning">Labels</Badge>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={Barcode}
+                      onClick={testBarcodePrint}
+                      loading={printing && previewType === "Barcode Labels"}
+                      disabled={!selectedPledge || printing}
+                      fullWidth
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      Print Barcodes
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Both Copies */}
             <div className="space-y-3">
-              {/* Styled Receipt */}
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-medium text-blue-800">Styled Receipt</p>
-                    <p className="text-xs text-blue-600">
-                      Blue form + Terms page
-                    </p>
-                  </div>
-                  <Badge variant="info">HTML</Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {/* New Manual Duplex Print */}
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    leftIcon={Printer}
-                    onClick={() => testDotMatrixPrint(copyType, true, "wizard")}
-                    loading={printing && previewType.includes("Receipt")}
-                    disabled={!selectedPledge || printing}
-                    className="bg-blue-600 hover:bg-blue-700 col-span-2"
-                  >
-                    Print (Manual Duplex)
-                  </Button>
-
-                  {/* Old Standard Print */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={Printer}
-                    onClick={() =>
-                      testDotMatrixPrint(copyType, true, "standard")
-                    }
-                    disabled={!selectedPledge || printing}
-                    className="col-span-1"
-                  >
-                    Old Print
-                  </Button>
-
-                  {/* Preview */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={Eye}
-                    onClick={() => testDotMatrixPrint(copyType, false)}
-                    disabled={!selectedPledge || printing}
-                    className="col-span-1"
-                  >
-                    Preview
-                  </Button>
-                </div>
-              </div>
-
-              {/* PDF */}
-              <div className="p-3 bg-zinc-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-medium text-zinc-800">PDF Receipt</p>
-                    <p className="text-xs text-zinc-500">A5 Portrait</p>
-                  </div>
-                  <Badge variant="success">PDF</Badge>
-                </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={FileText}
-                  onClick={testPDFPrint}
-                  loading={printing && previewType === "PDF Receipt"}
-                  disabled={!selectedPledge || printing}
-                  fullWidth
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  Generate PDF
-                </Button>
-              </div>
-
-              {/* Barcode */}
-              <div className="p-3 bg-zinc-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-medium text-zinc-800">Barcode Labels</p>
-                    <p className="text-xs text-zinc-500">50mm × 50mm</p>
-                  </div>
-                  <Badge variant="warning">Labels</Badge>
-                </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={Barcode}
-                  onClick={testBarcodePrint}
-                  loading={printing && previewType === "Barcode Labels"}
-                  disabled={!selectedPledge || printing}
-                  fullWidth
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  Print Barcodes
-                </Button>
-              </div>
-
-              {/* Both Copies */}
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+              {/* <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium text-amber-800">
@@ -2897,10 +3206,10 @@ export default function PrintTestPage() {
                 >
                   Print Both
                 </Button>
-              </div>
+              </div> */}
 
               {/* Bulk Terms - NEW */}
-              <div className="p-3 bg-violet-50 rounded-lg border border-violet-200">
+              {/* <div className="p-3 bg-violet-50 rounded-lg border border-violet-200">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="font-medium text-violet-800">
@@ -2948,7 +3257,7 @@ export default function PrintTestPage() {
                   💡 Pre-print terms, then print only front page when creating
                   pledges
                 </p>
-              </div>
+              </div> */}
 
               {/* Pre-Printed Form - NEW */}
               <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
