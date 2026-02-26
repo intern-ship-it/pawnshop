@@ -35,7 +35,7 @@ class PledgeController extends Controller
         $branchId = $request->user()->branch_id;
 
         $query = Pledge::where('branch_id', $branchId)
-            ->with(['customer:id,name,ic_number,phone,country_code'])
+            ->with(['customer:id,name,ic_number,phone,country_code,selfie_photo'])
             // Only count items that have NOT been redeemed/released
             ->withCount(['items as items_count' => function ($q) {
             $q->whereNotIn('status', ['redeemed', 'released']);

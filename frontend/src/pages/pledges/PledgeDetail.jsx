@@ -11,6 +11,7 @@ import {
   formatIC,
   formatPhone,
 } from "@/utils/formatters";
+import { getStorageUrl } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -106,6 +107,7 @@ export default function PledgeDetail() {
               ? `${data.customer.country_code.startsWith("+") ? "" : "+"}${data.customer.country_code} ${data.customer?.phone || ""}`
               : data.customer?.phone || "",
           customerAddress: data.customer?.address || "",
+          customerPhoto: data.customer?.selfie_photo || null,
           totalWeight: parseFloat(data.total_weight) || 0,
           grossValue: parseFloat(data.gross_value) || 0,
           totalDeduction: parseFloat(data.total_deduction) || 0,
@@ -397,13 +399,12 @@ export default function PledgeDetail() {
                 ${frontHtml}
               </div>
 
-              ${
-                backHtml
-                  ? `<div class="print-container" style="margin-top: 20px;">
+              ${backHtml
+              ? `<div class="print-container" style="margin-top: 20px;">
                       ${backHtml}
                      </div>`
-                  : ""
-              }
+              : ""
+            }
               
               <script>
                 window.onload = function() { 
@@ -449,8 +450,8 @@ export default function PledgeDetail() {
       if (response.success === false || response.data?.success === false) {
         throw new Error(
           response.message ||
-            response.data?.message ||
-            "Failed to send WhatsApp",
+          response.data?.message ||
+          "Failed to send WhatsApp",
         );
       }
 
@@ -703,10 +704,23 @@ export default function PledgeDetail() {
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-amber-600">
-                      {pledge.customerName?.charAt(0) || "?"}
-                    </span>
+                  <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+                    {pledge.customerPhoto ? (
+                      <img
+                        src={getStorageUrl(pledge.customerPhoto)}
+                        alt={pledge.customerName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }}
+                      />
+                    ) : null}
+                    <div
+                      className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center"
+                      style={{ display: pledge.customerPhoto ? 'none' : 'flex' }}
+                    >
+                      <span className="text-lg font-semibold text-amber-600">
+                        {pledge.customerName?.charAt(0) || "?"}
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <p className="font-semibold text-zinc-800">
@@ -840,7 +854,7 @@ export default function PledgeDetail() {
                   <p className="text-xl font-bold text-emerald-700">
                     {formatCurrency(
                       pledge.payoutAmount ||
-                        pledge.loanAmount - pledge.handlingFee,
+                      pledge.loanAmount - pledge.handlingFee,
                     )}
                   </p>
                   <p className="text-xs text-emerald-500 mt-1">
@@ -952,12 +966,12 @@ export default function PledgeDetail() {
                                   // Handle photo URL - use directly if http or data URI, else prefix with storage URL
                                   const photoUrl =
                                     item.photo.startsWith("http") ||
-                                    item.photo.startsWith("data:")
+                                      item.photo.startsWith("data:")
                                       ? item.photo
                                       : `${import.meta.env.VITE_API_URL?.replace(
-                                          "/api",
-                                          "",
-                                        )}/storage/${item.photo}`;
+                                        "/api",
+                                        "",
+                                      )}/storage/${item.photo}`;
                                   setSelectedImage(photoUrl);
                                   setShowImageModal(true);
                                 }
@@ -968,12 +982,12 @@ export default function PledgeDetail() {
                                   <img
                                     src={
                                       item.photo.startsWith("http") ||
-                                      item.photo.startsWith("data:")
+                                        item.photo.startsWith("data:")
                                         ? item.photo
                                         : `${import.meta.env.VITE_API_URL?.replace(
-                                            "/api",
-                                            "",
-                                          )}/storage/${item.photo}`
+                                          "/api",
+                                          "",
+                                        )}/storage/${item.photo}`
                                     }
                                     alt={item.category}
                                     className="w-12 h-12 rounded-lg object-cover border border-zinc-200 group-hover:border-amber-400 transition-colors"
@@ -1000,7 +1014,7 @@ export default function PledgeDetail() {
                                   className={cn(
                                     "font-medium text-zinc-800",
                                     item.photo &&
-                                      "group-hover:text-amber-600 transition-colors",
+                                    "group-hover:text-amber-600 transition-colors",
                                   )}
                                 >
                                   {item.category}
@@ -1132,52 +1146,52 @@ export default function PledgeDetail() {
                 {/* Renewals - show each renewal with date */}
                 {pledge.renewals?.length > 0
                   ? pledge.renewals.map((renewal, idx) => (
-                      <div key={renewal.id || idx} className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                            <RefreshCw className="w-5 h-5 text-amber-600" />
-                          </div>
-                          <div className="w-px h-full bg-zinc-200" />
+                    <div key={renewal.id || idx} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                          <RefreshCw className="w-5 h-5 text-amber-600" />
                         </div>
-                        <div className="pb-6">
-                          <p className="font-semibold text-zinc-800">
-                            Renewal #{idx + 1}
-                            {renewal.renewalNo && (
-                              <span className="ml-2 text-xs font-mono text-zinc-400">
-                                ({renewal.renewalNo})
-                              </span>
-                            )}
+                        <div className="w-px h-full bg-zinc-200" />
+                      </div>
+                      <div className="pb-6">
+                        <p className="font-semibold text-zinc-800">
+                          Renewal #{idx + 1}
+                          {renewal.renewalNo && (
+                            <span className="ml-2 text-xs font-mono text-zinc-400">
+                              ({renewal.renewalNo})
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-sm text-zinc-500">
+                          {formatDate(renewal.renewalDate)}
+                        </p>
+                        <div className="text-sm text-zinc-600 mt-1">
+                          <p>Extended for {renewal.renewalMonths} month(s)</p>
+                          <p>
+                            Interest paid:{" "}
+                            {formatCurrency(renewal.interestAmount)}
                           </p>
-                          <p className="text-sm text-zinc-500">
-                            {formatDate(renewal.renewalDate)}
+                          <p className="text-amber-600">
+                            New due date: {formatDate(renewal.newDueDate)}
                           </p>
-                          <div className="text-sm text-zinc-600 mt-1">
-                            <p>Extended for {renewal.renewalMonths} month(s)</p>
-                            <p>
-                              Interest paid:{" "}
-                              {formatCurrency(renewal.interestAmount)}
-                            </p>
-                            <p className="text-amber-600">
-                              New due date: {formatDate(renewal.newDueDate)}
-                            </p>
-                          </div>
                         </div>
                       </div>
-                    ))
+                    </div>
+                  ))
                   : pledge.renewalCount > 0 && (
-                      <div className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                            <RefreshCw className="w-5 h-5 text-amber-600" />
-                          </div>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-zinc-800">
-                            Renewed {pledge.renewalCount} time(s)
-                          </p>
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                          <RefreshCw className="w-5 h-5 text-amber-600" />
                         </div>
                       </div>
-                    )}
+                      <div>
+                        <p className="font-semibold text-zinc-800">
+                          Renewed {pledge.renewalCount} time(s)
+                        </p>
+                      </div>
+                    </div>
+                  )}
               </div>
             </Card>
           </motion.div>

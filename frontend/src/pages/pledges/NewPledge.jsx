@@ -17,6 +17,7 @@ import storageService from "@/services/storageService";
 import goldPriceService from "@/services/goldPriceService";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { formatCurrency, formatIC, formatPhone } from "@/utils/formatters";
+import { getStorageUrl } from "@/utils/helpers";
 import { validateIC } from "@/utils/validators";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2747,8 +2748,21 @@ export default function NewPledge() {
                     {/* Customer Info Card */}
                     <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl">
-                          {customer.name?.charAt(0) || "?"}
+                        <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0">
+                          {customer.selfie_photo ? (
+                            <img
+                              src={getStorageUrl(customer.selfie_photo)}
+                              alt={customer.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }}
+                            />
+                          ) : null}
+                          <div
+                            className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-bold text-xl"
+                            style={{ display: customer.selfie_photo ? 'none' : 'flex' }}
+                          >
+                            {customer.name?.charAt(0) || "?"}
+                          </div>
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
@@ -2774,11 +2788,7 @@ export default function NewPledge() {
                             Active Pledges
                           </p>
                           <p className="text-xl font-bold text-zinc-800">
-                            {Array.isArray(customer.active_pledges)
-                              ? customer.active_pledges.length
-                              : customer.total_pledges ||
-                              customerPledges.length ||
-                              0}
+                            {customerPledges.length || 0}
                           </p>
                         </div>
                         <Button

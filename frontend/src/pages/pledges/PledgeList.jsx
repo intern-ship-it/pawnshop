@@ -6,6 +6,7 @@ import { addToast } from "@/features/ui/uiSlice";
 import { pledgeService } from "@/services";
 import { getToken } from "@/services/api";
 import { formatCurrency, formatDate, formatIC } from "@/utils/formatters";
+import { getStorageUrl } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -102,6 +103,7 @@ export default function PledgeList() {
         customerName: pledge.customer?.name || "Unknown",
         customerIC: pledge.customer?.ic_number || "",
         customerPhone: pledge.customer?.phone || "",
+        customerPhoto: pledge.customer?.selfie_photo || null,
         totalWeight: parseFloat(pledge.total_weight) || 0,
         grossValue: parseFloat(pledge.gross_value) || 0,
         totalDeduction: parseFloat(pledge.total_deduction) || 0,
@@ -299,13 +301,12 @@ export default function PledgeList() {
             ${frontHtml}
           </div>
 
-          ${
-            backHtml
-              ? `<div class="print-container" style="margin-top: 20px;">
+          ${backHtml
+          ? `<div class="print-container" style="margin-top: 20px;">
                   ${backHtml}
                  </div>`
-              : ""
-          }
+          : ""
+        }
           
           <script>
             window.onload = function() { 
@@ -486,15 +487,14 @@ export default function PledgeList() {
               <button class="print-btn" onclick="printFront()">
                 🖨️ Cetak DEPAN / Print FRONT
               </button>
-              ${
-                termsHtml
-                  ? `
+              ${termsHtml
+          ? `
               <button class="print-btn secondary" onclick="toggleTerms()">
                 📋 Tunjuk Terma / Show Terms
               </button>
               `
-                  : ""
-              }
+          : ""
+        }
               <button class="close-btn" onclick="window.close()">✕ Tutup / Close</button>
             </div>
             
@@ -516,9 +516,8 @@ export default function PledgeList() {
             ${receiptHtml}
           </div>
           
-          ${
-            termsHtml
-              ? `
+          ${termsHtml
+          ? `
           <div class="preview-container hidden-for-print" id="backPage">
             <div class="page-label terms">
               <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT (Tersembunyi / Hidden)</span>
@@ -527,8 +526,8 @@ export default function PledgeList() {
             ${termsHtml}
           </div>
           `
-              : ""
-          }
+          : ""
+        }
           
           <script>
             function printFront() {
@@ -666,9 +665,8 @@ export default function PledgeList() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `pledges-export-${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
+    link.download = `pledges-export-${new Date().toISOString().split("T")[0]
+      }.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -723,9 +721,8 @@ export default function PledgeList() {
           addToast({
             type: "success",
             title: "Cancelled",
-            message: `Pledge ${
-              cancellingPledge.pledgeNo || cancellingPledge.receiptNo
-            } has been cancelled`,
+            message: `Pledge ${cancellingPledge.pledgeNo || cancellingPledge.receiptNo
+              } has been cancelled`,
           }),
         );
         setShowCancelModal(false);
@@ -1095,8 +1092,19 @@ export default function PledgeList() {
                       {/* Customer */}
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
-                            <User className="w-4 h-4 text-zinc-500" />
+                          {pledge.customerPhoto ? (
+                            <img
+                              src={getStorageUrl(pledge.customerPhoto)}
+                              alt={pledge.customerName}
+                              className="w-8 h-8 rounded-full object-cover border border-zinc-200"
+                              onError={(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }}
+                            />
+                          ) : null}
+                          <div
+                            className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm"
+                            style={{ display: pledge.customerPhoto ? 'none' : 'flex' }}
+                          >
+                            {pledge.customerName?.charAt(0) || '?'}
                           </div>
                           <div>
                             <p className="font-medium text-zinc-800">
