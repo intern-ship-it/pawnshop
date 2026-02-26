@@ -247,7 +247,7 @@ export default function PledgeDetail() {
   };
 
   const interest = calculateInterest();
-  // Handle print - Pre-Printed Form with Data (Document View)
+  // Handle print - A4 Portrait Data Overlay (2-copy)
   const handlePrint = async () => {
     try {
       const token = getToken();
@@ -267,7 +267,7 @@ export default function PledgeDetail() {
         import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledge.id}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${pledge.id}`,
         {
           method: "POST",
           headers: {
@@ -299,7 +299,7 @@ export default function PledgeDetail() {
             <html>
             <head>
               <meta charset="UTF-8">
-              <title>Pre-Printed Form - ${pledgeNo}</title>
+              <title>A4 Overlay Alignment - ${pledgeNo}</title>
               <style>
                 * {
                   margin: 0;
@@ -378,7 +378,7 @@ export default function PledgeDetail() {
                 }
                 
                 @page {
-                  size: A5 landscape;
+                  size: A4 portrait;
                   margin: 0;
                 }
               </style>
@@ -386,10 +386,10 @@ export default function PledgeDetail() {
             <body>
               <div class="print-actions">
                 <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-                  📄 Pre-Printed Form with Data - ${pledgeNo}
+                  📄 2 copy A4 portrait — A4 Data Overlay (Portrait) - ${pledgeNo}
                 </p>
                 <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-                  This shows the data overlay on a pre-printed form template
+                  A4 Data Overlay (Portrait) — prints 2 copies on pre-printed paper
                 </p>
                 <button class="print-btn" onclick="window.print()">🖨️ Print</button>
                 <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
@@ -423,7 +423,7 @@ export default function PledgeDetail() {
           addToast({
             type: "success",
             title: "Receipt Ready",
-            message: "Document view generated",
+            message: "A4 Portrait overlay generated",
           }),
         );
       } else {

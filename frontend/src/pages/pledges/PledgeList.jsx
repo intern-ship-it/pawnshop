@@ -290,10 +290,10 @@ export default function PledgeList() {
         <body>
           <div class="print-actions">
             <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 Pre-Printed Form with Data - ${pledgeNo}
+              📄 A5 Landscape — Pre-Printed Form with Data - ${pledgeNo}
             </p>
             <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-              This shows the data overlay on a pre-printed form template
+              A5 Pre-Printed Form Template + Data Overlay (Landscape)
             </p>
             <button class="print-btn" onclick="window.print()">🖨️ Print</button>
             <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
@@ -466,10 +466,10 @@ export default function PledgeList() {
         <body>
           <div class="print-actions">
             <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 ${docType} - ${pledgeNo}
+              📄 2 copy A4 portrait — ${docType} Data Overlay (Portrait) - ${pledgeNo}
             </p>
             <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-              A4 Portrait Data Overlay
+              A4 Data Overlay (Portrait) — prints 2 copies on pre-printed paper
             </p>
             <button class="print-btn" onclick="window.print()">🖨️ Print</button>
             <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
@@ -871,7 +871,7 @@ export default function PledgeList() {
           {/* Search */}
           <div className="flex-1 min-w-[250px]">
             <Input
-              placeholder="Search by ticket #, customer name, or IC..."
+              placeholder="Search by ticket , customer name, or IC..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               leftIcon={Search}
@@ -947,7 +947,7 @@ export default function PledgeList() {
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
                 <th className="text-left p-4 text-sm font-semibold text-zinc-600">
-                  TICKET #
+                  TICKET
                 </th>
                 <th className="text-left p-4 text-sm font-semibold text-zinc-600">
                   CUSTOMER
@@ -1128,7 +1128,7 @@ export default function PledgeList() {
                               size="icon-sm"
                               disabled={printingId === pledge.id}
                               onClick={(e) => handlePrint(pledge.id, e)}
-                              title="Print Pre-Printed Form with Data"
+                              title="A5 Landscape — Pre-Printed Form with Data"
                             >
                               {printingId === pledge.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1145,7 +1145,7 @@ export default function PledgeList() {
                               size="icon-sm"
                               disabled={dotPrintingId === pledge.id}
                               onClick={(e) => handleDotPrint(pledge, e)}
-                              title="Print Dot Matrix Receipt"
+                              title="2 copy A4 portrait — A4 Data Overlay (Portrait)"
                               className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                             >
                               {dotPrintingId === pledge.id ? (
