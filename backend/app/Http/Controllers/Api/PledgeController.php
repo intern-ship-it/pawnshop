@@ -36,6 +36,13 @@ class PledgeController extends Controller
 
         $query = Pledge::where('branch_id', $branchId)
             ->with(['customer:id,name,ic_number,phone,country_code,selfie_photo'])
+            // Load latest renewal and redemption IDs for print routing
+            ->with(['renewals' => function ($q) {
+            $q->select('id', 'pledge_id')->latest()->limit(1);
+        }])
+            ->with(['redemption' => function ($q) {
+            $q->select('id', 'pledge_id')->latest()->limit(1);
+        }])
             // Only count items that have NOT been redeemed/released
             ->withCount(['items as items_count' => function ($q) {
             $q->whereNotIn('status', ['redeemed', 'released']);
