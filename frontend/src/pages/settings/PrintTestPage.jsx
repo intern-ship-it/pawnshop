@@ -3183,6 +3183,31 @@ export default function PrintTestPage() {
               </>
             )}
 
+
+             {/* Barcode */}
+                  <div className="p-3 bg-zinc-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-zinc-800">Barcode Labels</p>
+                        <p className="text-xs text-zinc-500">50mm × 50mm</p>
+                      </div>
+                      <Badge variant="warning">Labels</Badge>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={Barcode}
+                      onClick={testBarcodePrint}
+                      loading={printing && previewType === "Barcode Labels"}
+                      disabled={!selectedPledge || printing}
+                      fullWidth
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      Print Barcodes
+                    </Button>
+                  </div>
+                </div>
+
             {/* Both Copies */}
             <div className="space-y-3">
               {/* <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
