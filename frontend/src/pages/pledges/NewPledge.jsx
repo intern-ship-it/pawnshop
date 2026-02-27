@@ -2558,6 +2558,92 @@ export default function NewPledge() {
       setIsPrinting(false);
     }
   };
+
+
+  // Handle HP Print A5 - Pre-Printed Form with Data (A5 Landscape)
+const handleHPPrintA5 = async () => {
+  if (!createdPledgeId) return;
+
+  const token = getToken();
+  if (!token) {
+    dispatch(addToast({ type: "error", title: "Error", message: "Please login again" }));
+    return;
+  }
+
+  setIsPrinting(true);
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    const response = await fetch(
+      `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${createdPledgeId}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Failed to generate HP Print A5");
+    }
+
+    const frontHtml = data.data.front_html || "";
+    let backHtml = data.data.back_html || "";
+    backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
+    const pledgeNo = data.data.pledge_no || createdReceiptNo || "N/A";
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      throw new Error("Please allow popups to print");
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>HP Print - A5 - ${pledgeNo}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Courier New', Courier, monospace; background: #f5f5f5; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+          .print-container { width: 210mm; max-width: 210mm; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin: 0; padding: 0; overflow: hidden; }
+          .print-actions { width: 100%; max-width: 210mm; text-align: center; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }
+          .print-btn { background: #28a745; color: white; border: none; padding: 10px 30px; font-size: 16px; border-radius: 4px; cursor: pointer; margin: 0 5px; }
+          .print-btn:hover { background: #218838; }
+          .close-btn { background: #dc3545; }
+          .close-btn:hover { background: #c82333; }
+          @media print { body { background: white; padding: 0; display: block; } .print-container { box-shadow: none; margin: 0; } .print-actions { display: none; } }
+          @page { size: A5 landscape; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <div class="print-actions">
+          <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">📄 HP Print - A5 - ${pledgeNo}</p>
+          <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">A5 Pre-Printed Form Template + Data Overlay (Landscape)</p>
+          <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+          <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+        </div>
+        <div class="print-container">${frontHtml}</div>
+        ${backHtml ? `<div class="print-container" style="margin-top: 20px;">${backHtml}</div>` : ""}
+        <script>window.onload = function() { document.querySelector('.print-btn').focus(); };</script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+
+    dispatch(addToast({ type: "success", title: "Success", message: "HP Print A5 generated" }));
+  } catch (error) {
+    console.error("HP Print A5 error:", error);
+    dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to generate HP Print A5" }));
+  } finally {
+    setIsPrinting(false);
+  }
+};
+  
   // Animation variants
   const stepVariants = {
     hidden: { opacity: 0, x: 50 },
@@ -4996,7 +5082,7 @@ export default function NewPledge() {
               Manual Print Options
             </summary>
             <div className="mt-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
+             <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -5018,6 +5104,17 @@ export default function NewPledge() {
                   Barcodes
                 </Button>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={FileText}
+                onClick={handleHPPrintA5}
+                loading={isPrinting}
+                disabled={isPrinting}
+                className="w-full"
+              >
+                HP Print - A5
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

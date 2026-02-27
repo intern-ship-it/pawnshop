@@ -2113,7 +2113,7 @@ HTML;
     top: 31mm;
     left: 7mm;
     width: 120mm;
-    font-size: 9px;
+    font-size: 12px;
     line-height: 1.4;
 }
 .ppo-item { margin-bottom: 1mm; }
@@ -2984,7 +2984,7 @@ HTMLSTART
         <div class="pp-rr"><span class="pp-rl">Jantina :</span><div class="pp-rb"></div></div>
         <div class="pp-rr"><span class="pp-rl">H/P No:</span><div class="pp-rb"></div></div>
         <div class="pp-rr pp-alamat"><span class="pp-rl">Alamat:</span><div class="pp-colons">:<br>:<br>:<br>:</div></div>
-        <div class="pp-barcode-area"></div>
+       
         <div class="pp-sig-section">
             <div class="pp-sig-b">
                 <span class="pp-sig-l">Cap Jari /<br>Tandatangan</span>
