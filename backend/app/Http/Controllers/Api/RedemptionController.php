@@ -542,4 +542,240 @@ class RedemptionController extends Controller
             return $this->error('Failed to release items: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * Send redemption details via WhatsApp
+     */
+    public function sendWhatsApp(Request $request, Redemption $redemption): JsonResponse
+    {
+        try {
+            // Check branch access
+            if ($redemption->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            // Load relationships
+            $redemption->load(['pledge.customer', 'pledge.items.category', 'pledge.items.purity', 'pledge.branch', 'bank', 'createdBy']);
+
+            $pledge = $redemption->pledge;
+
+            // Get WhatsApp configuration
+            $config = \App\Models\WhatsAppConfig::where('branch_id', $redemption->branch_id)
+                ->where('is_enabled', true)
+                ->first();
+
+            if (!$config) {
+                return $this->error('WhatsApp not configured for this branch', 400);
+            }
+
+            // Build redemption message
+            $message = $this->buildRedemptionWhatsAppMessage($redemption);
+
+            // Get customer phone with correct country code from database
+            $phone = preg_replace('/[^0-9]/', '', $pledge->customer->phone);
+            $countryCode = preg_replace('/[^0-9]/', '', $pledge->customer->country_code ?? '60');
+
+            // Remove leading 0 from phone if present
+            if (substr($phone, 0, 1) === '0') {
+                $phone = substr($phone, 1);
+            }
+
+            // Add country code (use stored country_code, default to 60 for Malaysia)
+            $phone = $countryCode . $phone;
+
+            // Send text message via configured provider
+            $result = $this->sendViaProvider($config, $phone, $message);
+
+            if ($result['success']) {
+                // Also send PDF redemption receipt as document
+                try {
+                    $pdfResult = $this->sendRedemptionPdfReceipt($config, $phone, $redemption);
+                    if (!$pdfResult['success']) {
+                        Log::warning('Redemption PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
+                    }
+                }
+                catch (\Exception $pdfError) {
+                    Log::warning('Redemption PDF attachment error: ' . $pdfError->getMessage());
+                }
+
+                // Log the message
+                \App\Models\WhatsAppLog::create([
+                    'branch_id' => $redemption->branch_id,
+                    'recipient_phone' => $phone,
+                    'recipient_name' => $pledge->customer->name,
+                    'message_content' => $message,
+                    'status' => 'sent',
+                    'related_type' => 'redemption',
+                    'related_id' => $redemption->id,
+                    'sent_at' => now(),
+                    'sent_by' => $request->user()->id,
+                ]);
+
+                return $this->success([
+                    'message' => 'Redemption WhatsApp sent successfully to ' . $phone,
+                ]);
+            }
+            else {
+                return $this->error($result['message'] ?? 'Failed to send WhatsApp', 500);
+            }
+
+        }
+        catch (\Exception $e) {
+            Log::error('Redemption WhatsApp sending failed: ' . $e->getMessage());
+            return $this->error('Failed to send WhatsApp: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Build WhatsApp message for redemption
+     */
+    private function buildRedemptionWhatsAppMessage(Redemption $redemption): string
+    {
+        $pledge = $redemption->pledge;
+
+        $items = $pledge->items->map(function ($item) {
+            return "• {$item->category->name_en} ({$item->purity->code}) - {$item->net_weight}g";
+        })->join("\n");
+
+        $isPartial = $redemption->is_partial;
+
+        $message = "✅ *REDEMPTION RECEIPT*\n";
+        $message .= "━━━━━━━━━━━━━━━━━━\n\n";
+        $message .= "📋 *Redemption No:* {$redemption->redemption_no}\n";
+        $message .= "📋 *Pledge No:* {$pledge->pledge_no}\n";
+        $message .= "📅 *Date:* {$redemption->created_at->format('d/m/Y H:i')}\n\n";
+        $message .= "*Customer:* {$pledge->customer->name}\n";
+        $message .= "*IC:* {$pledge->customer->ic_number}\n\n";
+
+        if ($isPartial) {
+            $message .= "⚠️ *Partial Redemption*\n\n";
+        }
+
+        $message .= "📦 *Items Released:*\n{$items}\n\n";
+        $message .= "💰 *Principal:* RM " . number_format($redemption->principal_amount, 2) . "\n";
+        $message .= "📊 *Interest:* RM " . number_format($redemption->interest_amount, 2) . "\n";
+
+        if ($redemption->handling_fee > 0) {
+            $message .= "🧾 *Handling Fee:* RM " . number_format($redemption->handling_fee, 2) . "\n";
+        }
+
+        $message .= "💵 *Total Paid:* RM " . number_format($redemption->total_payable, 2) . "\n\n";
+
+        $paymentInfo = '';
+        if ($redemption->cash_amount > 0) {
+            $paymentInfo .= "Cash: RM " . number_format($redemption->cash_amount, 2);
+        }
+        if ($redemption->transfer_amount > 0) {
+            if ($paymentInfo)
+                $paymentInfo .= " | ";
+            $paymentInfo .= "Transfer: RM " . number_format($redemption->transfer_amount, 2);
+        }
+        if ($paymentInfo) {
+            $message .= "💳 *Payment:* {$paymentInfo}\n\n";
+        }
+
+        $message .= "━━━━━━━━━━━━━━━━━━\n";
+        $message .= "_Your items have been released._\n";
+        $message .= "_Thank you for your business!_\n";
+        $message .= "_{$pledge->branch->name}_";
+
+        return $message;
+    }
+
+    /**
+     * Send redemption PDF receipt via WhatsApp
+     */
+    private function sendRedemptionPdfReceipt($config, string $phone, Redemption $redemption): array
+    {
+        try {
+            $redemption->load(['pledge.customer', 'pledge.items.category', 'pledge.items.purity',
+                'pledge.items.vault', 'pledge.items.box', 'pledge.items.slot',
+                'pledge.branch', 'bank', 'createdBy']);
+
+            $data = [
+                'redemption' => $redemption,
+                'printed_at' => now(),
+                'printed_by' => 'WhatsApp',
+            ];
+
+            // Generate PDF using redemption-receipt template
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.redemption-receipt', $data);
+            $pdf->setPaper('a5', 'portrait');
+            $pdfContent = $pdf->output();
+            $pdfBase64 = base64_encode($pdfContent);
+
+            // Send via Ultramsg document API
+            if ($config->provider === 'ultramsg') {
+                $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                    ->post(
+                    "https://api.ultramsg.com/{$config->instance_id}/messages/document",
+                [
+                    'token' => $config->api_token,
+                    'to' => $phone,
+                    'document' => 'data:application/pdf;base64,' . $pdfBase64,
+                    'filename' => "Redemption-Receipt-{$redemption->redemption_no}.pdf",
+                    'caption' => "📄 Redemption Receipt {$redemption->redemption_no}",
+                ]
+                );
+
+                if ($response->successful()) {
+                    $responseData = $response->json();
+                    if (isset($responseData['sent']) && $responseData['sent'] === 'true') {
+                        return ['success' => true];
+                    }
+                    return ['success' => false, 'message' => $responseData['message'] ?? 'Document send failed'];
+                }
+
+                return ['success' => false, 'message' => 'Document API request failed: ' . $response->status()];
+            }
+
+            return ['success' => false, 'message' => 'PDF sending not supported for this provider'];
+
+        }
+        catch (\Exception $e) {
+            Log::error('Redemption PDF receipt generation failed: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send message via configured provider
+     */
+    private function sendViaProvider($config, string $phone, string $message): array
+    {
+        switch ($config->provider) {
+            case 'ultramsg':
+                return $this->sendViaUltramsg($config, $phone, $message);
+            default:
+                return ['success' => false, 'message' => 'Provider not supported'];
+        }
+    }
+
+    private function sendViaUltramsg($config, string $phone, string $message): array
+    {
+        try {
+            $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->post(
+                "https://api.ultramsg.com/{$config->instance_id}/messages/chat",
+            [
+                'token' => $config->api_token,
+                'to' => $phone,
+                'body' => $message,
+            ]
+            );
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['sent']) && $data['sent'] === 'true') {
+                    return ['success' => true];
+                }
+                return ['success' => false, 'message' => $data['message'] ?? 'Failed to send'];
+            }
+
+            return ['success' => false, 'message' => 'API request failed: ' . $response->status()];
+        }
+        catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
 }

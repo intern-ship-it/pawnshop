@@ -387,8 +387,8 @@ export default function RenewalScreen() {
     customerIC: data.customer?.ic_number || "",
     customerPhone:
       data.customer?.country_code &&
-      data.customer?.phone &&
-      !data.customer.phone.startsWith("+")
+        data.customer?.phone &&
+        !data.customer.phone.startsWith("+")
         ? `${data.customer.country_code.startsWith("+") ? "" : "+"}${data.customer.country_code} ${data.customer.phone}`
         : data.customer?.phone || "",
     customerPhoto: data.customer?.selfie_photo
@@ -562,7 +562,7 @@ export default function RenewalScreen() {
     // Auto-send WhatsApp (if customer has phone)
     if (pledge?.customerPhone) {
       try {
-        await handleSendWhatsAppAuto();
+        await handleSendWhatsAppAuto(result.id);
       } catch (error) {
         console.error("Auto-WhatsApp failed:", error);
       }
@@ -932,19 +932,19 @@ export default function RenewalScreen() {
     }
   };
 
-  // Auto-send WhatsApp (Issue 5 fix - called automatically)
-  const handleSendWhatsAppAuto = async () => {
-    if (!pledge?.id) return;
+  // Auto-send WhatsApp (renewal receipt)
+  const handleSendWhatsAppAuto = async (renewalId) => {
+    if (!renewalId) return;
 
     setIsSendingWhatsApp(true);
     try {
-      const response = await pledgeService.sendWhatsApp(pledge.id);
+      const response = await renewalService.sendWhatsApp(renewalId);
       if (response.success || response.data?.success) {
         dispatch(
           addToast({
             type: "success",
             title: "WhatsApp Sent",
-            message: "Renewal notification sent to customer automatically",
+            message: "Renewal receipt sent to customer automatically",
           }),
         );
       }
@@ -955,14 +955,15 @@ export default function RenewalScreen() {
     }
   };
 
-  // Send WhatsApp notification (manual button)
+  // Send WhatsApp notification (manual button) - sends renewal receipt
   const handleSendWhatsApp = async () => {
-    if (!pledge?.id) {
+    const renewalId = renewalResult?.id;
+    if (!renewalId) {
       dispatch(
         addToast({
           type: "error",
           title: "Error",
-          message: "Pledge information not found",
+          message: "Renewal information not found",
         }),
       );
       return;
@@ -970,8 +971,8 @@ export default function RenewalScreen() {
 
     setIsSendingWhatsApp(true);
     try {
-      // Use the pledge's sendWhatsApp endpoint
-      const response = await pledgeService.sendWhatsApp(pledge.id);
+      // Use the renewal's sendWhatsApp endpoint
+      const response = await renewalService.sendWhatsApp(renewalId);
 
       if (response.success || response.data?.success) {
         dispatch(

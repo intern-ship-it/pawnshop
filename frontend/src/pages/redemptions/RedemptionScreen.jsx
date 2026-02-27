@@ -700,7 +700,7 @@ export default function RedemptionScreen() {
     // Auto-send WhatsApp if customer has phone
     if (pledge?.customerPhone) {
       try {
-        await handleSendWhatsAppAuto();
+        await handleSendWhatsAppAuto(redemptionId);
       } catch (error) {
         console.error("Auto-WhatsApp failed:", error);
       }
@@ -1053,19 +1053,19 @@ export default function RedemptionScreen() {
     }
   };
 
-  // Auto-send WhatsApp
-  const handleSendWhatsAppAuto = async () => {
-    if (!pledge?.id) return;
+  // Auto-send WhatsApp (redemption receipt)
+  const handleSendWhatsAppAuto = async (redemptionId) => {
+    if (!redemptionId) return;
 
     setIsSendingWhatsApp(true);
     try {
-      const response = await pledgeService.sendWhatsApp(pledge.id);
+      const response = await redemptionService.sendWhatsApp(redemptionId);
       if (response.success || response.data?.success) {
         dispatch(
           addToast({
             type: "success",
             title: "WhatsApp Sent",
-            message: "Redemption notification sent automatically",
+            message: "Redemption receipt sent automatically",
           }),
         );
         setWhatsAppSent(true);
@@ -1077,14 +1077,15 @@ export default function RedemptionScreen() {
     }
   };
 
-  // Send WhatsApp notification (manual button)
+  // Send WhatsApp notification (manual button) - sends redemption receipt
   const handleSendWhatsApp = async () => {
-    if (!pledge?.id) {
+    const redemptionId = redemptionResult?.id;
+    if (!redemptionId) {
       dispatch(
         addToast({
           type: "error",
           title: "Error",
-          message: "Pledge information not found",
+          message: "Redemption information not found",
         }),
       );
       return;
@@ -1092,7 +1093,7 @@ export default function RedemptionScreen() {
 
     setIsSendingWhatsApp(true);
     try {
-      const response = await pledgeService.sendWhatsApp(pledge.id);
+      const response = await redemptionService.sendWhatsApp(redemptionId);
 
       if (response.success || response.data?.success) {
         dispatch(

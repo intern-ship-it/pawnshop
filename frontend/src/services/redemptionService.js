@@ -58,6 +58,15 @@ const redemptionService = {
   async printReceipt(redemptionId) {
     return apiPost(`/redemptions/${redemptionId}/print-receipt`)
   },
+
+  /**
+   * Send redemption details via WhatsApp
+   * @param {number} redemptionId 
+   * @returns {Promise}
+   */
+  async sendWhatsApp(redemptionId) {
+    return apiPost(`/redemptions/${redemptionId}/send-whatsapp`)
+  },
 }
 
 export default redemptionService

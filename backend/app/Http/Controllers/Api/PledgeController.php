@@ -898,7 +898,7 @@ class PledgeController extends Controller
                 ]);
 
                 return $this->success([
-                    'message' => 'WhatsApp sent successfully to ' . $pledge->customer->phone,
+                    'message' => 'WhatsApp sent successfully to ' . $phone,
                 ]);
             }
             else {

@@ -66,6 +66,15 @@ const renewalService = {
   async printReceipt(renewalId) {
     return apiPost(`/renewals/${renewalId}/print-receipt`)
   },
+
+  /**
+   * Send renewal details via WhatsApp
+   * @param {number} renewalId 
+   * @returns {Promise}
+   */
+  async sendWhatsApp(renewalId) {
+    return apiPost(`/renewals/${renewalId}/send-whatsapp`)
+  },
 }
 
 export default renewalService
