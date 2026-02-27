@@ -953,7 +953,7 @@ export default function PrintTestPage() {
           background: white; 
           display: flex; 
           flex-direction: column; 
-          overflow: hidden; 
+          overflow: unset; 
           border-bottom: 1px dashed #ccc;
         }
         .label:last-child { border-bottom: none; }
