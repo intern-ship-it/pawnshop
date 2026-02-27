@@ -945,10 +945,10 @@ export default function PrintTestPage() {
           background: white; 
           box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
         }
-        .label { 
+      .label { 
           width: 50mm; 
           height: 50mm;
-          padding: 3mm 4mm; 
+          padding: 3mm 2mm 3mm 5mm;
           background: white; 
           display: flex; 
           flex-direction: column; 
@@ -966,20 +966,22 @@ export default function PrintTestPage() {
         }
         .pledge-no { font-size: 8pt; font-weight: bold; }
         .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-        .barcode-section { 
+     .barcode-section { 
           flex: 1; 
           text-align: center; 
           display: flex; 
           flex-direction: column; 
           align-items: center; 
           justify-content: center;
-          padding: 1mm 0;
+          padding: 1mm 2mm;
+          width: 100%;
         }
         .barcode-img { 
-          max-width: 40mm; 
-          width: 100%;
-          height: 18mm; 
-          object-fit: contain; 
+          max-width: 38mm; 
+          width: 38mm;
+          height: 16mm; 
+          object-fit: contain;
+          margin: 0 auto;
         }
         .barcode-text { 
           font-family: 'Courier New', monospace; 
