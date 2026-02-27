@@ -3206,7 +3206,7 @@ export default function PrintTestPage() {
                       Print Barcodes
                     </Button>
                   </div>
-                </div>
+                
 
             {/* Both Copies */}
             <div className="space-y-3">
