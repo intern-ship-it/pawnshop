@@ -2215,6 +2215,18 @@ HTML;
     font-size: 10px;
 }
 
+/* ═══ BARCODE ═══ */
+.ppo-barcode {
+    position: absolute;
+    top: 36mm;
+    left: 88mm;
+    width: 56mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
 @media print {
     .ppo-page { page-break-after: always; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -2226,7 +2238,13 @@ HTML;
     <div class="ppo-ticket">{$pledge->pledge_no}</div>
     
     <!-- ITEMS LIST -->
-    <div class="ppo-items">{$itemsText}</div>
+      <div class="ppo-items">{$itemsText}</div>
+    
+    <!-- BARCODE -->
+    <div class="ppo-barcode">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:18mm;width:auto;max-width:55mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
+    </div>
     
     <!-- ROW 1: IC | NAME | NATIONALITY -->
     <div class="ppo-ic">{$icNumber}</div>
@@ -2586,9 +2604,15 @@ HTML;
 
 /* Middle section */
 .pp-mid { display: flex; border: 1px solid #1a4a7a; }
-.pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; }
+.pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
 .pp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
-.pp-items-area { min-height: 32mm; padding-left: 2mm; }
+.pp-items-area { min-height: 20mm; padding-left: 2mm; flex: 1; }
+
+/* Items split - left items + right barcode (A5) */
+.pp-items-split { display: flex; flex: 1; min-height: 32mm; }
+.pp-barcode-area { width: 81mm; min-width: 45mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm; flex-shrink: 0; }
+.pp-barcode-space { width: 90%; height: 29mm; border: 1px solid #ccc; }
+.pp-barcode-lbl { font-size: 5px; color: #999; margin-top: 0.5mm; }
 
 .pp-rcol { width: 45mm; min-width: 45mm; }
 .pp-tkt-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; }
@@ -2702,7 +2726,7 @@ HTMLSTART
         <div class="pp-hdr-right">
             <div class="pp-top-row">
                 <div class="pp-phone-box">
-                    <span class="pp-phone-icon">â˜Ž</span>
+                    <span class="pp-phone-icon">&#9742;</span>
                     <div class="pp-phone-nums">{$phoneHtml}</div>
                 </div>
                 <div class="pp-sejak">
@@ -2720,7 +2744,13 @@ HTMLSTART
     <div class="pp-mid">
         <div class="pp-items-sec">
             <div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div>
-            <div class="pp-items-area"></div>
+            <div class="pp-items-split">
+                <div class="pp-items-area"></div>
+                <div class="pp-barcode-area">
+                    <div class="pp-barcode-space"></div>
+                    <div class="pp-barcode-lbl">BARCODE</div>
+                </div>
+            </div>
         </div>
         <div class="pp-rcol">
             <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
@@ -2912,7 +2942,7 @@ HTML;
 
 /* Barcode area */
 .pp-barcode-area {
-    height: 12mm;
+    height: 32mm;
     margin-bottom: 3mm;
     display: flex;
     align-items: center;
@@ -4778,259 +4808,8 @@ HTML;
 
 
 
-    /**
-     * A4 PORTRAIT Data Overlay - 2 copies per page
-     * Page: 210mm (width) × 297mm (height)
-     * Each copy ~136mm tall (matching the A4 portrait front form layout)
-     * Positions matched to generatePrePrintedFrontPageA4Portrait()
-     */
-    private function generatePrePrintedDataOverlayA4Portrait(Pledge $pledge, array $settings): string
-    {
-        $customer = $pledge->customer;
-        $loanAmount = $pledge->loan_amount ?? 0;
-
-        $totalWeight = 0;
-        foreach ($pledge->items as $item) {
-            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
-        }
-
-        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
-        if (is_string($pledgeDate))
-            $pledgeDate = Carbon::parse($pledgeDate);
-        $dueDate = $pledge->due_date;
-        if (is_string($dueDate))
-            $dueDate = Carbon::parse($dueDate);
-
-        $icNumber = $this->formatIC($customer->ic_number ?? '');
-        $birthYear = $this->extractBirthYear($customer);
-        $gender = $this->getGender($customer);
-        $nationality = $this->getCitizenship($customer);
-        $address = $this->formatCustomerAddress($customer);
-        $catatan = $pledge->reference_no ?? $pledge->notes ?? '';
-
-        // Build items text
-        $itemsText = '';
-        $itemNumber = 1;
-        foreach ($pledge->items as $item) {
-            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
-            $purity = $item->purity->code ?? '';
-            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $desc = $item->description ?? '';
-            if ($desc) {
-                if ($catatan)
-                    $catatan .= "; ";
-                $catatan .= $desc;
-            }
-            $itemsText .= "<div class=\"ppop-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
-            $itemNumber++;
-        }
-
-        $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
-        $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
-
-        // Single copy data block - reused for top & bottom copies
-        $copyBlock = <<<COPY
-    <div class="ppop-ticket">{$pledge->pledge_no}</div>
-    <div class="ppop-items">{$itemsText}</div>
-    <div class="ppop-ic">{$icNumber}</div>
-    <div class="ppop-name">{$customer->name}</div>
-    <div class="ppop-nationality">{$nationality}</div>
-    <div class="ppop-birthyear">{$birthYear}</div>
-    <div class="ppop-gender">{$gender}</div>
-    <div class="ppop-address">{$address}</div>
-    <div class="ppop-catatan">{$catatan}</div>
-    <div class="ppop-amount-words">{$amountWords} SAHAJA</div>
-    <div class="ppop-loan-amount">{$loanAmountFormatted}</div>
-    <div class="ppop-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
-    <div class="ppop-due-date">{$dueDate->format('d/m/Y')}</div>
-    <div class="ppop-weight">{$this->formatNumber($totalWeight, 2)}g</div>
-COPY;
-
-        return <<<HTML
-<style>
-@page { size: portrait; margin: 0; }
-
-/* ═══ A4 PORTRAIT DATA OVERLAY - 2 COPIES PER PAGE ═══ */
-.ppop-wrapper {
-    width: 200mm;
-    margin: 0 auto;
-    page-break-after: always;
-    break-after: page;
-    display: flex;
-    flex-direction: column;
-}
-.ppop-wrapper * { box-sizing: border-box; margin: 0; padding: 0; }
-
-/* Each copy block - matches the ppp-front form height */
-.ppop-copy {
-    width: 200mm;
-    flex: 1;
-    position: relative;
-    font-family: 'Courier New', 'Courier', monospace;
-    font-weight: normal;
-    letter-spacing: 0.5px;
-    color: #000;
-    background: transparent !important;
-    overflow: hidden;
-}
-
-/* Spacer between copies (matches cut line area) */
-.ppop-spacer { height: 14mm; flex-shrink: 0; }
-
-/* ═══ TICKET NUMBER - inside yellow NO. TIKET box ═══ */
-.ppop-ticket {
-    position: absolute;
-    top: 30mm;
-    right: 8mm;
-    width: 36mm;
-    text-align: center;
-    font-size: 13px;
-    font-weight: bold;
-    font-family: 'Courier New', monospace;
-    height: 8mm;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* ═══ ITEMS LIST - left items box ═══ */
-.ppop-items {
-    position: absolute;
-    top: 34mm;
-    left: 8mm;
-    width: 115mm;
-    font-size: 10px;
-    line-height: 1.4;
-}
-.ppop-item { margin-bottom: 1mm; }
-
-/* ═══ CUSTOMER FIELDS ═══ */
-/* Row 1: IC | Nama */
-.ppop-ic {
-    position: absolute;
-    top: 76mm;
-    left: 28mm;
-    font-size: 11px;
-    width: 60mm;
-}
-.ppop-name {
-    position: absolute;
-    top: 76mm;
-    left: 95mm;
-    font-size: 11px;
-    width: 60mm;
-}
-
-/* Row 2: Kerakyatan | Tahun Lahir | Jantina */
-.ppop-nationality {
-    position: absolute;
-    top: 84mm;
-    left: 28mm;
-    font-size: 10px;
-}
-.ppop-birthyear {
-    position: absolute;
-    top: 84mm;
-    left: 80mm;
-    font-size: 11px;
-}
-.ppop-gender {
-    position: absolute;
-    top: 84mm;
-    left: 125mm;
-    font-size: 11px;
-}
-
-/* Row 3: Alamat */
-.ppop-address {
-    position: absolute;
-    top: 92mm;
-    left: 28mm;
-    width: 150mm;
-    font-size: 10px;
-}
-
-/* Row 4: Catatan */
-.ppop-catatan {
-    position: absolute;
-    top: 99mm;
-    left: 28mm;
-    width: 150mm;
-    font-size: 10px;
-}
-
-/* ═══ AMOUNT IN WORDS ═══ */
-.ppop-amount-words {
-    position: absolute;
-    top: 107mm;
-    left: 25mm;
-    width: 155mm;
-    font-size: 9px;
-}
-
-/* ═══ BOTTOM ROW: Pinjaman RM | Dates ═══ */
-.ppop-loan-amount {
-    position: absolute;
-    top: 114mm;
-    left: 48mm;
-    font-size: 16px;
-    font-family: 'Courier New', monospace;
-    font-weight: bold;
-}
-.ppop-pledge-date {
-    position: absolute;
-    top: 117mm;
-    left: 136mm;
-    width: 28mm;
-    font-size: 11px;
-    text-align: center;
-}
-.ppop-due-date {
-    position: absolute;
-    top: 117mm;
-    left: 165mm;
-    width: 28mm;
-    font-size: 11px;
-    text-align: center;
-}
-
-/* ═══ WEIGHT ═══ */
-.ppop-weight {
-    position: absolute;
-    top: 126mm;
-    right: 10mm;
-    font-size: 10px;
-}
-
-@media print {
-    html, body { margin: 0 !important; padding: 0 !important; }
-    .ppop-wrapper {
-        width: 200mm !important;
-        margin: 0 auto !important;
-        page-break-after: always;
-        page-break-inside: avoid;
-    }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-}
-</style>
-
-<div class="ppop-wrapper">
-    <!-- ═══ COPY 1 (Top) ═══ -->
-    <div class="ppop-copy">
-        <p>&nbsp;</p>
-        {$copyBlock}
-    </div>
-
-    <div class="ppop-spacer"></div>
-
-    <!-- ═══ COPY 2 (Bottom) ═══ -->
-    <div class="ppop-copy">
-        <p>&nbsp;</p>
-        {$copyBlock}
-    </div>
-</div>
-HTML;
-    }
+  
+   
 
 
     /**

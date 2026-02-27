@@ -289,12 +289,12 @@ export default function PledgeList() {
         </head>
         <body>
           <div class="print-actions">
-            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 A5 Landscape — Pre-Printed Form with Data - ${pledgeNo}
-            </p>
-            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-              A5 Pre-Printed Form Template + Data Overlay (Landscape)
-            </p>
+           <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+  📄 HP Print - A5 - ${pledgeNo}
+</p>
+<p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+  A5 Pre-Printed Form Template + Data Overlay (Landscape)
+</p>
             <button class="print-btn" onclick="window.print()">🖨️ Print</button>
             <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
           </div>
@@ -465,12 +465,12 @@ export default function PledgeList() {
         </head>
         <body>
           <div class="print-actions">
-            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 2 copy A4 portrait — ${docType} Data Overlay (Portrait) - ${pledgeNo}
-            </p>
-            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-              A4 Data Overlay (Portrait) — prints 2 copies on pre-printed paper
-            </p>
+          <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+  📄 EPSON - A4 — ${docType} Data Overlay (Portrait) - ${pledgeNo}
+</p>
+<p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+  A4 Data Overlay (Portrait) — prints 2 copies on pre-printed paper
+</p>
             <button class="print-btn" onclick="window.print()">🖨️ Print</button>
             <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
           </div>
