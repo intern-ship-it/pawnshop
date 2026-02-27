@@ -883,9 +883,9 @@ export default function PrintTestPage() {
     <head>
       <title>Barcode Labels - ${pledgeNo || "Test"}</title>
       <style>
-        @page { 
+     @page { 
           size: 50mm 50mm; 
-          margin: 0; 
+          margin: 0 !important; 
         }
         @media print {
           html, body {
@@ -903,6 +903,7 @@ export default function PrintTestPage() {
           .label {
             page-break-after: always;
             page-break-inside: avoid;
+            margin: 0 !important;
           }
           .label:last-child {
             page-break-after: avoid;
@@ -3184,29 +3185,29 @@ export default function PrintTestPage() {
             )}
 
 
-             {/* Barcode */}
-                  <div className="p-3 bg-zinc-50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-medium text-zinc-800">Barcode Labels</p>
-                        <p className="text-xs text-zinc-500">50mm × 50mm</p>
-                      </div>
-                      <Badge variant="warning">Labels</Badge>
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      leftIcon={Barcode}
-                      onClick={testBarcodePrint}
-                      loading={printing && previewType === "Barcode Labels"}
-                      disabled={!selectedPledge || printing}
-                      fullWidth
-                      className="bg-purple-600 hover:bg-purple-700"
-                    >
-                      Print Barcodes
-                    </Button>
-                  </div>
-                
+            {/* Barcode */}
+            <div className="p-3 bg-zinc-50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-medium text-zinc-800">Barcode Labels</p>
+                  <p className="text-xs text-zinc-500">50mm × 50mm</p>
+                </div>
+                <Badge variant="warning">Labels</Badge>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={Barcode}
+                onClick={testBarcodePrint}
+                loading={printing && previewType === "Barcode Labels"}
+                disabled={!selectedPledge || printing}
+                fullWidth
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                Print Barcodes
+              </Button>
+            </div>
+
 
             {/* Both Copies */}
             <div className="space-y-3">
