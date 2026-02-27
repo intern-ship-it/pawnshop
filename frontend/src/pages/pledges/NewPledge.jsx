@@ -1588,22 +1588,30 @@ export default function NewPledge() {
       <head>
         <title>Barcode Label - ${receiptNo || pledgeNo || "Pledge"}</title>
         <style>
-          @page { 
+       @page { 
             size: 50mm 50mm; 
-            margin: 0; 
+            margin: 0 !important; 
           }
-          @media print {
+       @media print {
             html, body {
-              width: 50mm;
-              height: 50mm;
-              margin: 0;
-              padding: 0;
+              width: 50mm !important;
+              height: 50mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
             }
             .controls { display: none !important; }
             .labels-wrapper { 
               width: 50mm !important; 
               margin: 0 !important;
               box-shadow: none !important;
+            }
+            .label {
+              page-break-after: always;
+              page-break-inside: avoid;
+              margin: 0 !important;
+            }
+            .label:last-child {
+              page-break-after: avoid;
             }
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1643,14 +1651,14 @@ export default function NewPledge() {
             background: white; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
           }
-          .label { 
+        .label { 
             width: 50mm; 
             height: 50mm;
-            padding: 3mm 3mm; 
+            padding: 3mm 2mm 3mm 5mm; 
             background: white; 
             display: flex; 
             flex-direction: column; 
-            overflow: hidden; 
+            overflow: unset; 
           }
           .header-row { 
             display: flex; 
