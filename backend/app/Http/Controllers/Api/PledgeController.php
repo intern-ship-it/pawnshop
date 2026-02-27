@@ -1004,22 +1004,46 @@ class PledgeController extends Controller
     {
         try {
             // Get company settings
-            $companySettings = \App\Models\Setting::where('category', 'company')->get();
             $settingsMap = [];
-            foreach ($companySettings as $setting) {
-                $settingsMap[$setting->key_name] = $setting->value;
+            try {
+                $companySettings = \App\Models\Setting::where('category', 'company')->get();
+                $receiptSettings = \App\Models\Setting::where('category', 'receipt')->get();
+                foreach ($companySettings as $setting) {
+                    $settingsMap[$setting->key_name] = $setting->value;
+                }
+                foreach ($receiptSettings as $setting) {
+                    $settingsMap['receipt_' . $setting->key_name] = $setting->value;
+                }
+            }
+            catch (\Exception $e) {
+            // Settings table may not exist
+            }
+
+            // Resolve logo URL
+            $logoUrl = $settingsMap['logo'] ?? $settingsMap['logo_url'] ?? $settingsMap['company_logo'] ?? null;
+            if ($logoUrl && !str_starts_with($logoUrl, 'http') && !str_starts_with($logoUrl, 'data:')) {
+                $path = ltrim($logoUrl, '/');
+                $logoUrl = str_starts_with($path, 'storage/') ? url($path) : url('storage/' . $path);
             }
 
             $settings = [
                 'company_name' => $settingsMap['name'] ?? $pledge->branch->name ?? 'PAJAK GADAI SDN BHD',
+                'company_name_chinese' => $settingsMap['name_chinese'] ?? '',
+                'company_name_tamil' => $settingsMap['name_tamil'] ?? '',
                 'registration_no' => $settingsMap['registration_no'] ?? '',
                 'license_no' => $settingsMap['license_no'] ?? $pledge->branch->license_no ?? '',
+                'established_year' => $settingsMap['established_year'] ?? '',
                 'address' => $settingsMap['address'] ?? $pledge->branch->address ?? '',
                 'phone' => $settingsMap['phone'] ?? $pledge->branch->phone ?? '',
+                'phone2' => $settingsMap['phone2'] ?? '',
                 'fax' => $settingsMap['fax'] ?? '',
-                'email' => $settingsMap['email'] ?? $pledge->branch->email ?? '',
-                'receipt_header_text' => $settingsMap['receipt_header'] ?? 'PAJAK GADAI BERLESEN',
-                'receipt_footer_text' => $settingsMap['receipt_footer'] ?? 'Terima kasih atas sokongan anda',
+                'business_hours' => $settingsMap['business_hours'] ?? '8.30AM - 6.00PM',
+                'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
+                'closed_days' => $settingsMap['closed_days'] ?? '',
+                'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
+                'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
+                'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
+                'logo_url' => $logoUrl,
             ];
 
             // Get terms
@@ -1041,8 +1065,8 @@ class PledgeController extends Controller
             ];
 
             // Generate PDF
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.pledge-receipt', $data);
-            $pdf->setPaper('a5', 'portrait');
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
+            $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
             $pdfContent = $pdf->output();
             $pdfBase64 = base64_encode($pdfContent);
 
@@ -1055,7 +1079,7 @@ class PledgeController extends Controller
                     'token' => $config->api_token,
                     'to' => $phone,
                     'document' => 'data:application/pdf;base64,' . $pdfBase64,
-                    'filename' => "Receipt-{$pledge->receipt_no}.pdf",
+                    'filename' => "Receipt-{$pledge->pledge_no}.pdf",
                     'caption' => "📄 Receipt for Pledge {$pledge->pledge_no}",
                 ]
                 );

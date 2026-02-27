@@ -338,6 +338,171 @@ class PrintController extends Controller
         return $this->success($barcodes);
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // PDF Receipts – Pre-Printed Form Style (A5 Landscape)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Get company settings with defaults – INCLUDING LOGO
+     * (mirrors DotMatrixPrintController::getCompanySettings)
+     */
+    private function getCompanySettings($branch): array
+    {
+        $settingsMap = [];
+
+        try {
+            if (class_exists('\App\Models\Setting')) {
+                $companySettings = \App\Models\Setting::where('category', 'company')->get();
+                $receiptSettings = \App\Models\Setting::where('category', 'receipt')->get();
+
+                foreach ($companySettings as $setting) {
+                    $settingsMap[$setting->key_name] = $setting->value;
+                }
+                foreach ($receiptSettings as $setting) {
+                    $settingsMap['receipt_' . $setting->key_name] = $setting->value;
+                }
+            }
+        }
+        catch (\Exception $e) {
+        // Settings table may not exist – use defaults
+        }
+
+        // Get logo URL – check multiple possible keys
+        $logoUrl = $settingsMap['logo'] ?? $settingsMap['logo_url'] ?? $settingsMap['company_logo'] ?? null;
+
+        // If logo is a relative path, make it absolute
+        if ($logoUrl && !str_starts_with($logoUrl, 'http') && !str_starts_with($logoUrl, 'data:')) {
+            $path = ltrim($logoUrl, '/');
+            $logoUrl = str_starts_with($path, 'storage/') ? url($path) : url('storage/' . $path);
+        }
+
+        return [
+            'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
+            'company_name_chinese' => $settingsMap['name_chinese'] ?? '',
+            'company_name_tamil' => $settingsMap['name_tamil'] ?? '',
+            'registration_no' => $settingsMap['registration_no'] ?? '',
+            'license_no' => $settingsMap['license_no'] ?? $branch->license_no ?? '',
+            'established_year' => $settingsMap['established_year'] ?? '1966',
+            'address' => $settingsMap['address'] ?? $branch->address ?? '123 Jalan Utama, 55100 Kuala Lumpur',
+            'phone' => $settingsMap['phone'] ?? $branch->phone ?? '03-12345678',
+            'phone2' => $settingsMap['phone2'] ?? '',
+            'fax' => $settingsMap['fax'] ?? '',
+            'business_hours' => $settingsMap['business_hours'] ?? '8.30AM - 6.00PM',
+            'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
+            'closed_days' => $settingsMap['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA',
+            'handling_fee' => $settingsMap['receipt_handling_fee'] ?? $settingsMap['handling_fee'] ?? '50 SEN',
+            'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
+            'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
+            'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
+            'branch_code' => $branch->code ?? 'HQ',
+            'logo_url' => $logoUrl,
+        ];
+    }
+
+    /**
+     * Print pledge receipt as PDF (Pre-Printed Form Style)
+     * Used for both PDF download and WhatsApp sending
+     */
+    public function pledgeReceiptPdf(Request $request, Pledge $pledge)
+    {
+        if ($pledge->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $pledge->load([
+            'customer',
+            'items.category',
+            'items.purity',
+            'items.vault',
+            'items.box',
+            'items.slot',
+            'branch',
+            'createdBy:id,name',
+        ]);
+
+        $settings = $this->getCompanySettings($pledge->branch);
+        $terms = \App\Models\TermsCondition::getForActivity('pledge', $pledge->branch_id);
+
+        $data = [
+            'pledge' => $pledge,
+            'copy_type' => $request->input('copy_type', 'customer'),
+            'settings' => $settings,
+            'terms' => $terms,
+            'printed_at' => now(),
+            'printed_by' => $request->user()->name,
+        ];
+
+        $pdf = Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
+        $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+
+        $filename = "Receipt-{$pledge->pledge_no}.pdf";
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Renewal receipt PDF (Pre-Printed Form Style)
+     */
+    public function renewalReceiptPdf(Request $request, Renewal $renewal)
+    {
+        if ($renewal->pledge->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $renewal->load([
+            'pledge.customer',
+            'pledge.items.category',
+            'pledge.items.purity',
+            'pledge.branch',
+        ]);
+
+        $settings = $this->getCompanySettings($renewal->pledge->branch);
+
+        $data = [
+            'renewal' => $renewal,
+            'settings' => $settings,
+            'printed_at' => now(),
+            'printed_by' => $request->user()->name,
+        ];
+
+        $pdf = Pdf::loadView('pdf.renewal-receipt-preprinted', $data);
+        $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+
+        $filename = "Renewal-{$renewal->renewal_no}.pdf";
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Redemption receipt PDF (Pre-Printed Form Style)
+     */
+    public function redemptionReceiptPdf(Request $request, Redemption $redemption)
+    {
+        if ($redemption->pledge->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $redemption->load([
+            'pledge.customer',
+            'pledge.items.category',
+            'pledge.items.purity',
+            'pledge.branch',
+        ]);
+
+        $settings = $this->getCompanySettings($redemption->pledge->branch);
+
+        $data = [
+            'redemption' => $redemption,
+            'settings' => $settings,
+            'printed_at' => now(),
+            'printed_by' => $request->user()->name,
+        ];
+
+        $pdf = Pdf::loadView('pdf.redemption-receipt-preprinted', $data);
+        $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+
+        $filename = "Redemption-{$redemption->redemption_no}.pdf";
+        return $pdf->download($filename);
+    }
+
     /**
      * Preview receipt (returns HTML)
      */

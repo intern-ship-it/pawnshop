@@ -49,6 +49,7 @@ import {
   Gem,
   X,
   FileText,
+  FileDown,
   Receipt,
   ExternalLink,
   AlertTriangle,
@@ -2570,47 +2571,83 @@ export default function NewPledge() {
   };
 
 
-  // Handle HP Print A5 - Pre-Printed Form with Data (A5 Landscape)
-const handleHPPrintA5 = async () => {
-  if (!createdPledgeId) return;
-
-  const token = getToken();
-  if (!token) {
-    dispatch(addToast({ type: "error", title: "Error", message: "Please login again" }));
-    return;
-  }
-
-  setIsPrinting(true);
-  try {
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-    const response = await fetch(
-      `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${createdPledgeId}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+  // Handle PDF Download - Downloads the pre-printed A5 PDF directly
+  const handleDownloadPdf = async () => {
+    if (!createdPledgeId) return;
+    const token = getToken();
+    if (!token) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please login again" }));
+      return;
+    }
+    setIsPrinting(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const response = await fetch(`${apiUrl}/print/pdf/pledge/${createdPledgeId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to download PDF");
       }
-    );
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Receipt-${createdReceiptNo || createdPledgeId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF receipt downloaded" }));
+    } catch (error) {
+      console.error("PDF download error:", error);
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to download PDF" }));
+    } finally {
+      setIsPrinting(false);
+    }
+  };
 
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || "Failed to generate HP Print A5");
+  // Handle HP Print A5 - Pre-Printed Form with Data (A5 Landscape)
+  const handleHPPrintA5 = async () => {
+    if (!createdPledgeId) return;
+
+    const token = getToken();
+    if (!token) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please login again" }));
+      return;
     }
 
-    const frontHtml = data.data.front_html || "";
-    let backHtml = data.data.back_html || "";
-    backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
-    const pledgeNo = data.data.pledge_no || createdReceiptNo || "N/A";
+    setIsPrinting(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${createdPledgeId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
 
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      throw new Error("Please allow popups to print");
-    }
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate HP Print A5");
+      }
 
-    printWindow.document.write(`
+      const frontHtml = data.data.front_html || "";
+      let backHtml = data.data.back_html || "";
+      backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
+      const pledgeNo = data.data.pledge_no || createdReceiptNo || "N/A";
+
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        throw new Error("Please allow popups to print");
+      }
+
+      printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -2642,18 +2679,18 @@ const handleHPPrintA5 = async () => {
       </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
+      printWindow.document.close();
+      printWindow.focus();
 
-    dispatch(addToast({ type: "success", title: "Success", message: "HP Print A5 generated" }));
-  } catch (error) {
-    console.error("HP Print A5 error:", error);
-    dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to generate HP Print A5" }));
-  } finally {
-    setIsPrinting(false);
-  }
-};
-  
+      dispatch(addToast({ type: "success", title: "Success", message: "HP Print A5 generated" }));
+    } catch (error) {
+      console.error("HP Print A5 error:", error);
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to generate HP Print A5" }));
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   // Animation variants
   const stepVariants = {
     hidden: { opacity: 0, x: 50 },
@@ -5092,7 +5129,7 @@ const handleHPPrintA5 = async () => {
               Manual Print Options
             </summary>
             <div className="mt-3 space-y-2">
-             <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -5124,6 +5161,17 @@ const handleHPPrintA5 = async () => {
                 className="w-full"
               >
                 HP Print - A5
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={FileDown}
+                onClick={handleDownloadPdf}
+                loading={isPrinting}
+                disabled={isPrinting}
+                className="w-full"
+              >
+                Download PDF (A5)
               </Button>
               <Button
                 variant="outline"

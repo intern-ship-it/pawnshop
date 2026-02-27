@@ -51,6 +51,7 @@ import {
   AlertTriangle,
   Printer,
   MessageSquare,
+  FileDown,
   Plus,
   ArrowRight,
   Scale,
@@ -1014,6 +1015,43 @@ export default function RenewalScreen() {
     }
   };
 
+  // Handle PDF Download - downloads the pre-printed renewal PDF
+  const handleDownloadPdf = async () => {
+    const renewalId = renewalResult?.id;
+    if (!renewalId) return;
+    const token = getToken();
+    if (!token) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please login again" }));
+      return;
+    }
+    setIsPrintingReceipt(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const response = await fetch(`${apiUrl}/print/pdf/renewal/${renewalId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to download PDF");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Renewal-Receipt-${renewalResult?.renewalId || renewalId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: "Renewal PDF downloaded" }));
+    } catch (error) {
+      console.error("PDF download error:", error);
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to download PDF" }));
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
+
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -1955,6 +1993,17 @@ export default function RenewalScreen() {
               Resend WhatsApp
             </Button>
           </div>
+
+          <Button
+            variant="outline"
+            fullWidth
+            leftIcon={FileDown}
+            onClick={handleDownloadPdf}
+            loading={isPrintingReceipt}
+            className="mt-3 text-blue-600 border-blue-200 hover:bg-blue-50"
+          >
+            Download PDF (A5)
+          </Button>
 
           <div className="flex gap-3 mt-4">
             <Button

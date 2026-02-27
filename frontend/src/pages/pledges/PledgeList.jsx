@@ -28,6 +28,7 @@ import {
   User,
   FileText,
   Download,
+  FileDown,
   TrendingUp,
   Scale,
   Loader2,
@@ -64,6 +65,7 @@ export default function PledgeList() {
   const [refreshing, setRefreshing] = useState(false);
   const [printingId, setPrintingId] = useState(null);
   const [dotPrintingId, setDotPrintingId] = useState(null);
+  const [pdfDownloadingId, setPdfDownloadingId] = useState(null);
 
   // Cancel Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -515,6 +517,61 @@ export default function PledgeList() {
       );
     } finally {
       setDotPrintingId(null);
+    }
+  };
+
+  // Handle PDF download - downloads pre-printed A5 PDF directly
+  const handleDownloadPdf = async (pledge, e) => {
+    if (e) e.stopPropagation();
+    const token = getToken();
+    if (!token) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please login again" }));
+      return;
+    }
+
+    setPdfDownloadingId(pledge.id);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+      // Determine the correct PDF endpoint based on pledge status
+      let pdfUrl;
+      let filename;
+      if (pledge.status === "redeemed" && pledge.latestRedemptionId) {
+        pdfUrl = `${apiUrl}/print/pdf/redemption/${pledge.latestRedemptionId}`;
+        filename = `Redemption-Receipt-${pledge.receiptNo || pledge.latestRedemptionId}.pdf`;
+      } else if (pledge.renewalCount > 0 && pledge.latestRenewalId) {
+        pdfUrl = `${apiUrl}/print/pdf/renewal/${pledge.latestRenewalId}`;
+        filename = `Renewal-Receipt-${pledge.receiptNo || pledge.latestRenewalId}.pdf`;
+      } else {
+        pdfUrl = `${apiUrl}/print/pdf/pledge/${pledge.id}`;
+        filename = `Receipt-${pledge.receiptNo || pledge.id}.pdf`;
+      }
+
+      const response = await fetch(pdfUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to download PDF");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      dispatch(addToast({ type: "success", title: "Downloaded", message: `${filename} downloaded` }));
+    } catch (error) {
+      console.error("PDF download error:", error);
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to download PDF" }));
+    } finally {
+      setPdfDownloadingId(null);
     }
   };
 
@@ -1152,6 +1209,24 @@ export default function PledgeList() {
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
                                 <Printer className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
+
+                          {/* PDF Download Button */}
+                          {canPrint && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={pdfDownloadingId === pledge.id}
+                              onClick={(e) => handleDownloadPdf(pledge, e)}
+                              title="Download PDF Receipt (A5 Landscape)"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              {pdfDownloadingId === pledge.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <FileDown className="w-4 h-4" />
                               )}
                             </Button>
                           )}

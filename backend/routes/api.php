@@ -660,12 +660,23 @@ Route::middleware('auth:sanctum')->group(function () {
                 ->middleware('check.permission:redemptions,print');
             Route::post('/day-end-report/{dayEndReport}', [PrintController::class , 'dayEndReport'])
                 ->middleware('check.permission:dayend,view');
-        }
-        );
 
-        // Audit Logs
-        Route::prefix('audit')->middleware('check.permission:audit,view')->group(
-            function () {
+            // PDF Receipts (Pre-Printed Form Style)
+            Route::prefix('pdf')->group(function () {
+                    Route::get('/pledge/{pledge}', [PrintController::class , 'pledgeReceiptPdf'])
+                        ->middleware('check.permission:pledges,print');
+                    Route::get('/renewal/{renewal}', [PrintController::class , 'renewalReceiptPdf'])
+                        ->middleware('check.permission:renewals,print');
+                    Route::get('/redemption/{redemption}', [PrintController::class , 'redemptionReceiptPdf'])
+                        ->middleware('check.permission:redemptions,print');
+                }
+                );
+            }
+            );
+
+            // Audit Logs
+            Route::prefix('audit')->middleware('check.permission:audit,view')->group(
+                function () {
             Route::get('/logs', [AuditController::class , 'auditLogs']);
             Route::get('/options', [AuditController::class , 'getOptions']);
             Route::get('/passkey-logs', [AuditController::class , 'passkeyLogs']);

@@ -9,6 +9,7 @@ import { Card, Button, Input, Badge } from "@/components/common";
 import {
   Printer,
   FileText,
+  FileDown,
   Barcode,
   Search,
   RefreshCw,
@@ -2888,6 +2889,138 @@ export default function PrintTestPage() {
 
   };
 
+  // ── PDF Download Tests ──
+  const testDownloadPledgePdf = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
+    }
+    setPrinting(true);
+    setPreviewType("Pledge PDF Download");
+    const startTime = Date.now();
+    try {
+      const token = getToken();
+      const response = await fetch(`${apiUrl}/print/pdf/pledge/${selectedPledge.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const duration = Date.now() - startTime;
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Pledge-Receipt-${selectedPledge.pledge_no}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      logResult("Pledge PDF", true, `${(blob.size / 1024).toFixed(1)} KB`, duration);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: `Pledge PDF (${duration}ms, ${(blob.size / 1024).toFixed(1)}KB)` }));
+    } catch (error) {
+      logResult("Pledge PDF", false, error.message, Date.now() - startTime);
+      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const testDownloadRenewalPdf = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
+    }
+    setPrinting(true);
+    setPreviewType("Renewal PDF Download");
+    const startTime = Date.now();
+    try {
+      const token = getToken();
+      // Fetch the pledge's latest renewal ID first
+      const pledgeRes = await fetch(`${apiUrl}/pledges/${selectedPledge.id}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      const pledgeData = await pledgeRes.json();
+      const renewals = pledgeData.data?.pledge?.renewals || pledgeData.data?.renewals || [];
+      if (renewals.length === 0) throw new Error("No renewals found for this pledge");
+      const latestRenewal = renewals[renewals.length - 1];
+      const renewalId = latestRenewal.id;
+
+      const response = await fetch(`${apiUrl}/print/pdf/renewal/${renewalId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const duration = Date.now() - startTime;
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Renewal-Receipt-${latestRenewal.renewal_no || renewalId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      logResult("Renewal PDF", true, `${(blob.size / 1024).toFixed(1)} KB`, duration);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: `Renewal PDF (${duration}ms, ${(blob.size / 1024).toFixed(1)}KB)` }));
+    } catch (error) {
+      logResult("Renewal PDF", false, error.message, Date.now() - startTime);
+      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const testDownloadRedemptionPdf = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
+    }
+    setPrinting(true);
+    setPreviewType("Redemption PDF Download");
+    const startTime = Date.now();
+    try {
+      const token = getToken();
+      // Fetch the pledge's latest redemption ID first
+      const pledgeRes = await fetch(`${apiUrl}/pledges/${selectedPledge.id}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      const pledgeData = await pledgeRes.json();
+      const redemptions = pledgeData.data?.pledge?.redemptions || pledgeData.data?.redemptions || [];
+      if (redemptions.length === 0) throw new Error("No redemptions found for this pledge");
+      const latestRedemption = redemptions[redemptions.length - 1];
+      const redemptionId = latestRedemption.id;
+
+      const response = await fetch(`${apiUrl}/print/pdf/redemption/${redemptionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const duration = Date.now() - startTime;
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Redemption-Receipt-${latestRedemption.redemption_no || redemptionId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      logResult("Redemption PDF", true, `${(blob.size / 1024).toFixed(1)} KB`, duration);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: `Redemption PDF (${duration}ms, ${(blob.size / 1024).toFixed(1)}KB)` }));
+    } catch (error) {
+      logResult("Redemption PDF", false, error.message, Date.now() - startTime);
+      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const filteredPledges = pledges.filter((p) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -3543,6 +3676,91 @@ export default function PrintTestPage() {
                 <p className="text-xs text-rose-500 mt-2">
                   📄 Shows data on form template — check alignment
                 </p>
+              </div>
+
+              {/* ── PDF Download Tests ── */}
+              <div className="pt-3 border-t border-zinc-200">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+                  📥 PDF Downloads (A5 Landscape)
+                </p>
+
+                {/* Pledge PDF */}
+                <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200 mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-indigo-800">Pledge Receipt PDF</p>
+                      <p className="text-xs text-indigo-600">Download A5 landscape PDF</p>
+                    </div>
+                    <Badge className="bg-indigo-500 text-white">PDF</Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={FileDown}
+                    onClick={testDownloadPledgePdf}
+                    loading={printing && previewType === "Pledge PDF Download"}
+                    disabled={!selectedPledge || printing}
+                    fullWidth
+                    className="border-indigo-500 text-indigo-700 hover:bg-indigo-100"
+                  >
+                    Download Pledge PDF
+                  </Button>
+                  <p className="text-xs text-indigo-400 mt-2">
+                    🔗 GET /print/pdf/pledge/{selectedPledge?.id ?? "..."}
+                  </p>
+                </div>
+
+                {/* Renewal PDF */}
+                <div className="p-3 bg-orange-50 rounded-lg border border-orange-300 mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-orange-800">Renewal Receipt PDF</p>
+                      <p className="text-xs text-orange-600">Downloads latest renewal of selected pledge</p>
+                    </div>
+                    <Badge className="bg-orange-500 text-white">PDF</Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={FileDown}
+                    onClick={testDownloadRenewalPdf}
+                    loading={printing && previewType === "Renewal PDF Download"}
+                    disabled={!selectedPledge || printing}
+                    fullWidth
+                    className="border-orange-500 text-orange-700 hover:bg-orange-100"
+                  >
+                    Download Renewal PDF
+                  </Button>
+                  <p className="text-xs text-orange-400 mt-2">
+                    ⚠️ Only works if this pledge has renewals
+                  </p>
+                </div>
+
+                {/* Redemption PDF */}
+                <div className="p-3 bg-rose-50 rounded-lg border border-rose-300">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-rose-800">Redemption Receipt PDF</p>
+                      <p className="text-xs text-rose-600">Downloads latest redemption of selected pledge</p>
+                    </div>
+                    <Badge className="bg-rose-500 text-white">PDF</Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={FileDown}
+                    onClick={testDownloadRedemptionPdf}
+                    loading={printing && previewType === "Redemption PDF Download"}
+                    disabled={!selectedPledge || printing}
+                    fullWidth
+                    className="border-rose-500 text-rose-700 hover:bg-rose-100"
+                  >
+                    Download Redemption PDF
+                  </Button>
+                  <p className="text-xs text-rose-400 mt-2">
+                    ⚠️ Only works if this pledge has been redeemed
+                  </p>
+                </div>
               </div>
             </div>
           </Card>

@@ -260,7 +260,7 @@ class DotMatrixPrintController extends Controller
             <div class="company-info">
                 <div class="company-name">{$settings['company_name']}</div>
                 <div class="company-address">{$settings['address']}</div>
-                <div class="company-phone">ðŸ“ž {$settings['phone']}</div>
+                <div class="company-phone">Ã°Å¸â€œÅ¾ {$settings['phone']}</div>
             </div>
         </div>
         <div class="header-right">
@@ -487,7 +487,7 @@ HTML;
             <div class="company-info">
                 <div class="company-name">{$settings['company_name']}</div>
                 <div class="company-address">{$settings['address']}</div>
-                <div class="company-phone">ðŸ“ž {$settings['phone']}</div>
+                <div class="company-phone">Ã°Å¸â€œÅ¾ {$settings['phone']}</div>
             </div>
         </div>
         <div class="header-right">
@@ -530,7 +530,7 @@ HTML;
             </div>
             
             <div class="released-box">
-                <div class="released-icon">âœ“</div>
+                <div class="released-icon">Ã¢Å“â€œ</div>
                 <div class="released-text">{$itemCount} BARANG DITEBUS<br><span>{$itemCount} ITEM(S) RELEASED</span></div>
             </div>
             
@@ -716,7 +716,7 @@ HTML;
         </div>
         <div class="header-right">
             {$estHtml}
-            <div class="phone-box">ðŸ“ž {$settings['phone']}</div>
+            <div class="phone-box">Ã°Å¸â€œÅ¾ {$settings['phone']}</div>
             <div class="business-hours">BUKA 7 HARI<br>{$settings['business_days']} : {$settings['business_hours']}<br>{$settings['closed_days']}</div>
         </div>
     </div>
@@ -850,7 +850,7 @@ HTML;
             // Fallback to default terms if no terms in database
             $termsHtml = <<<FALLBACK
 <div class="term-item"><b>1.</b> Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.</div>
-<div class="term-item"><b>2.</b> Kadar untung adalah tidak melebihi <u>dua peratus (2%)</u> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <u>lima puluh sen (50Â¢)</u> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.</div>
+<div class="term-item"><b>2.</b> Kadar untung adalah tidak melebihi <u>dua peratus (2%)</u> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <u>lima puluh sen (50Ã‚Â¢)</u> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.</div>
 <div class="term-item"><b>3.</b> Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amoun pampasan adalah satu per empat <u>(25%)</u> lebih daripada jumlah pinjaman.</div>
 <div class="term-item"><b>4.</b> Mana-mana sandaran hendaklah ditebus dalam masa <u>enam bulan</u> dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.</div>
 <div class="term-item"><b>5.</b> Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.</div>
@@ -1066,6 +1066,15 @@ HTML;
         return $w[$n] ?? (string) $n;
     }
 
+    /**
+     * Public accessor for Blade PDF views.
+     * Views call: app(DotMatrixPrintController::class)->numberToMalayWordsPublic($amount)
+     */
+    public function numberToMalayWordsPublic(float $number): string
+    {
+        return $this->numberToMalayWords($number);
+    }
+
     private function numberToMalayWords(float $number): string
     {
         $ones = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'lapan', 'sembilan'];
@@ -1124,9 +1133,9 @@ HTML;
         return ucfirst(trim($words));
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
     //  Pre-Printed Form Generation (Blank Templates)
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
     /**
      * Generate Pre-Printed Form (Blank Template)
@@ -1187,13 +1196,13 @@ HTML;
     }
 
     /**
-     * Generate Pre-Printed Form (9Â½" Ã— 11" LANDSCAPE)
-     * Paper size: 9.5in Ã— 11in (241.3mm Ã— 279.4mm) - printed in LANDSCAPE
-     * Actual print area: 279.4mm Ã— 241.3mm
+     * Generate Pre-Printed Form (9Ã‚Â½" Ãƒâ€” 11" LANDSCAPE)
+     * Paper size: 9.5in Ãƒâ€” 11in (241.3mm Ãƒâ€” 279.4mm) - printed in LANDSCAPE
+     * Actual print area: 279.4mm Ãƒâ€” 241.3mm
      */
     /**
      * Generate Pre-Printed Form (A4 LANDSCAPE)
-     * Paper size: A4 Landscape = 297mm Ã— 210mm
+     * Paper size: A4 Landscape = 297mm Ãƒâ€” 210mm
      * For laser printers like RICOH Aficio
      */
     public function prePrintedFormA4(Request $request): JsonResponse
@@ -1267,8 +1276,8 @@ HTML;
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: 'æ–°æ³°ç•¶', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -1296,9 +1305,9 @@ HTML;
 
         return <<<HTML
 <style>
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    UNIVERSAL PRE-PRINTED FORM - A4/A5, Portrait/Landscape
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 /* Let browser/printer decide - supports ALL paper sizes */
 @page { 
@@ -1322,9 +1331,9 @@ HTML;
     }
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MAIN CONTAINER - Responsive to any paper size
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .pp-form {
     width: 100%;
     max-width: 100%;
@@ -1342,9 +1351,9 @@ HTML;
     padding: 0; 
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    HEADER - Flexible layout
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .pp-hdr {
     display: flex;
     align-items: flex-start;
@@ -1450,9 +1459,9 @@ HTML;
 .pp-hrs-title { font-size: clamp(8px, 1.5vw, 11px); font-weight: bold; }
 .pp-hrs-line { font-size: clamp(6px, 1.2vw, 8px); font-weight: bold; line-height: 1.2; color: #1a4a7a; }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MIDDLE SECTION - Items & Ticket
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .pp-mid {
     display: flex;
     border: 1px solid #1a4a7a;
@@ -1524,9 +1533,9 @@ HTML;
     line-height: 1.4;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    CUSTOMER SECTION
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .pp-cust-title-row {
     display: flex;
     font-size: clamp(8px, 1.5vw, 11px);
@@ -1571,9 +1580,9 @@ HTML;
 .pp-cust-row.full-width .pp-cust-col { min-width: auto; }
 .pp-cust-row.full-width .pp-cust-val { margin-right: 0; }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    AMOUNT & BOTTOM SECTION
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .pp-amt-row {
     border: 1px solid #d42027;
     border-bottom: none;
@@ -1617,9 +1626,9 @@ HTML;
 .pp-dt-sp { min-height: 5mm; }
 .pp-dt-yel { background: #f5c518; }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    FOOTER
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .pp-ftr {
     font-size: clamp(6px, 1vw, 8px);
     line-height: 1.3;
@@ -1797,12 +1806,12 @@ HTML;
 
     /**
      * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
-     * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
+     * Paper: A4 Landscape = 297mm (width) Ãƒâ€” 210mm (height)
      * For laser printers like RICOH Aficio
      */
     /**
      * BACK PAGE - Pre-Printed Blank Form (A4 LANDSCAPE)
-     * Paper: A4 Landscape = 297mm (width) Ã— 210mm (height)
+     * Paper: A4 Landscape = 297mm (width) Ãƒâ€” 210mm (height)
      * FIXED: Matches physical form layout with signature box at bottom right
      */
 
@@ -1830,7 +1839,7 @@ HTML;
         if (empty($termsItems)) {
             $termsItems = [
                 'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
-                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
+                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Ã‚Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
                 'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
                 'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.',
                 'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.',
@@ -1850,7 +1859,7 @@ HTML;
             $termsHtml .= '<div class="pp4-tm"><b>' . $num . '.</b> ' . $content . '</div>';
         }
 
-        // A4 LANDSCAPE = 297mm (width) Ã— 210mm (height)
+        // A4 LANDSCAPE = 297mm (width) Ãƒâ€” 210mm (height)
         $html = '<style>';
 
         // Page setup - A4 LANDSCAPE with explicit dimensions
@@ -2073,7 +2082,7 @@ HTML;
         return <<<HTML
 <style>
 @page { size: 210mm 148mm; margin: 0; }
-/* â•â•â• DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-page {
     width: 210mm;
     height: 148mm;
@@ -2091,7 +2100,7 @@ HTML;
 }
 .ppo-page * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* â•â•â• TICKET NUMBER - Inside NO. TIKET yellow box â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TICKET NUMBER - Inside NO. TIKET yellow box Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ticket {
     position: absolute;
     top: 27mm;
@@ -2107,7 +2116,7 @@ HTML;
     height: 10mm;
 }
 
-/* â•â•â• ITEMS LIST - Left box area â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-items {
     position: absolute;
     top: 31mm;
@@ -2118,7 +2127,7 @@ HTML;
 }
 .ppo-item { margin-bottom: 1mm; }
 
-/* â•â•â• CUSTOMER SECTION - 3 COLUMN LAYOUT â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 /* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
 .ppo-ic {
     position: absolute;
@@ -2173,7 +2182,7 @@ HTML;
     font-size: 11px;
 }
 
-/* â•â•â• AMAUN (Amount in words) â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
     top: 105mm;
@@ -2182,7 +2191,7 @@ HTML;
     font-size: 9px;
 }
 
-/* â•â•â• BOTTOM ROW â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
     top: 113mm;
@@ -2207,7 +2216,7 @@ HTML;
     text-align: center;
 }
 
-/* â•â•â• WEIGHT â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
     top: 126mm;
@@ -2215,7 +2224,7 @@ HTML;
     font-size: 10px;
 }
 
-/* ═══ BARCODE ═══ */
+/* â•â•â• BARCODE â•â•â• */
 .ppo-barcode {
     position: absolute;
     top: 36mm;
@@ -2280,7 +2289,7 @@ HTML;
     /**
      * Generate Data Overlay for A4 Portrait Pre-Printed Form
      * Separate from A5 overlay - positions tuned for A4 portrait form layout
-     * Called by prePrintedPledgeReceiptA4() → wrapA4PortraitOverlay()
+     * Called by prePrintedPledgeReceiptA4() â†’ wrapA4PortraitOverlay()
      */
     private function generatePrePrintedDataOverlayNewA4(Pledge $pledge, array $settings): string
     {
@@ -2337,7 +2346,7 @@ HTML;
 <style>
 /* @page { size: 210mm 148mm; margin: 0; } */
 
-/* ═══ A4 DATA OVERLAY - ppoa- prefix (separate from A5 ppo-) ═══ */
+/* â•â•â• A4 DATA OVERLAY - ppoa- prefix (separate from A5 ppo-) â•â•â• */
 .ppoa-page {
     width: 210mm;
     height: 148mm;
@@ -2357,7 +2366,7 @@ HTML;
 }
 .ppoa-page * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ═══ TICKET NUMBER ═══ */
+/* â•â•â• TICKET NUMBER â•â•â• */
 .ppoa-ticket {
     position: absolute;
    top: 30mm;
@@ -2373,7 +2382,7 @@ HTML;
     height: 10mm;
 }
 
-/* ═══ ITEMS LIST ═══ */
+/* â•â•â• ITEMS LIST â•â•â• */
 .ppoa-items {
     position: absolute;
     top: 34mm;
@@ -2384,7 +2393,7 @@ HTML;
 }
 .ppoa-item { margin-bottom: 1mm; }
 
-/* ═══ CUSTOMER SECTION ═══ */
+/* â•â•â• CUSTOMER SECTION â•â•â• */
 /* ROW 1: IC | Nama | Kerakyatan */
 .ppoa-ic {
     position: absolute;
@@ -2439,7 +2448,7 @@ HTML;
     font-size: 11px;
 }
 
-/* ═══ AMAUN (Amount in words) ═══ */
+/* â•â•â• AMAUN (Amount in words) â•â•â• */
 .ppoa-amount-words {
     position: absolute;
     top: 96.5mm;
@@ -2448,7 +2457,7 @@ HTML;
     font-size: 9px;
 }
 
-/* ═══ BOTTOM ROW ═══ */
+/* â•â•â• BOTTOM ROW â•â•â• */
 .ppoa-loan-amount {
     position: absolute;
     top: 103mm;
@@ -2473,7 +2482,7 @@ HTML;
     text-align: center;
 }
 
-/* ═══ WEIGHT ═══ */
+/* â•â•â• WEIGHT â•â•â• */
 .ppoa-weight {
     position: absolute;
     top: 115mm;
@@ -2540,15 +2549,15 @@ HTML;
 HTML;
     }
     /**
-     * FRONT PAGE â€” Pre-Printed Blank Form (A5 Landscape)
+     * FRONT PAGE Ã¢â‚¬â€ Pre-Printed Blank Form (A5 Landscape)
      * UPDATED: 3-column customer layout matching physical form
      */
     private function generatePrePrintedFrontPage(array $settings): string
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: 'æ–°æ³°ç•¶', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -2637,7 +2646,7 @@ HTML;
 }
 .pp-cust-title-left { flex: 1; }
 
-/* â•â•â• CUSTOMER BOX - 3 COLUMN LAYOUT â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER BOX - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .pp-cust-box { 
     border: 1px solid #d42027; 
     padding: 2mm 3mm; 
@@ -2770,7 +2779,7 @@ HTMLSTART
         <span class="pp-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span>
     </div>
 
-    <!-- â•â•â• CUSTOMER BOX - 3 COLUMN LAYOUT â•â•â• -->
+    <!-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER BOX - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â -->
     <div class="pp-cust-box">
         <!-- ROW 1: No. Kad Pengenalan | Nama | Kerakyatan (3 columns) -->
         <div class="pp-cust-row">
@@ -2838,7 +2847,7 @@ HTML;
 
 
     /**
-     * BACK PAGE â€” Pre-Printed Blank Form (A5 Landscape)
+     * BACK PAGE Ã¢â‚¬â€ Pre-Printed Blank Form (A5 Landscape)
      * Matches physical printed form with proper terms and redeemer section
      */
     private function generatePrePrintedBackPage(array $settings): string
@@ -2867,7 +2876,7 @@ HTML;
         if (empty($termsItems)) {
             $termsItems = [
                 'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
-                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
+                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Ã‚Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
                 'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
                 'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u>Setelah membayar amaun keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran amaun keuntungan.</u></b>',
                 'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong. Dia berhak, atas permintaan, kepada apa-apa lebihan jika ada selepas potongan keuntungan yang kena di bayar ke atas sandaran itu dan kos lelong.',
@@ -2889,7 +2898,7 @@ HTML;
 
         return <<<'HTMLSTART'
 <style>
-/* â•â•â• BACK PAGE STYLES - MATCHES PHYSICAL FORM â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BACK PAGE STYLES - MATCHES PHYSICAL FORM Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .pp-back {
     width: 210mm;
     height: 148mm; 
@@ -2995,10 +3004,10 @@ HTMLSTART
 HTML;
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
     //  PRE-PRINTED FORM DATA OVERLAY (for carbonless forms)
     //  Prints ONLY the variable data - positions aligned to physical form
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
     /**
      * Generate Pledge Receipt for Pre-Printed Form
@@ -3241,7 +3250,7 @@ HTML;
         return <<<HTML
 <style>
 @page { size: 210mm 148mm; margin: 0; }
-/* â•â•â• DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-page {
     width: 210mm;
     height: 148mm;
@@ -3259,7 +3268,7 @@ HTML;
 }
 .ppo-page * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* â•â•â• TRANSACTION TYPE BANNER â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TRANSACTION TYPE BANNER Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-type-banner {
     position: absolute;
     top: 16mm;
@@ -3273,7 +3282,7 @@ HTML;
     white-space: nowrap;
 }
 
-/* â•â•â• TICKET NUMBER - Inside NO. TIKET yellow box â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TICKET NUMBER - Inside NO. TIKET yellow box Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ticket {
     position: absolute;
     top: 27mm;
@@ -3289,7 +3298,7 @@ HTML;
     height: 10mm;
 }
 
-/* â•â•â• ITEMS LIST - Left box area â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-items {
     position: absolute;
     top: 31mm;
@@ -3300,7 +3309,7 @@ HTML;
 }
 .ppo-item { margin-bottom: 1mm; }
 
-/* â•â•â• CUSTOMER SECTION - 3 COLUMN LAYOUT â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ic {
     position: absolute;
     top: 76mm;
@@ -3356,7 +3365,7 @@ HTML;
     color: #003399;
 }
 
-/* â•â•â• AMAUN (Amount in words) â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
     top: 105mm;
@@ -3365,7 +3374,7 @@ HTML;
     font-size: 9px;
 }
 
-/* â•â•â• BOTTOM ROW â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
     top: 113mm;
@@ -3390,7 +3399,7 @@ HTML;
     text-align: center;
 }
 
-/* â•â•â• WEIGHT â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
     top: 126mm;
@@ -3500,15 +3509,15 @@ HTML;
 
     /**
      * FRONT PAGE - Pre-Printed Blank Form (A4 PORTRAIT)
-     * Paper: A4 Portrait = 210mm (width) × 297mm (height)
+     * Paper: A4 Portrait = 210mm (width) Ã— 297mm (height)
      * For DOT MATRIX printers with tractor-feed paper
      */
     private function generatePrePrintedFrontPageA4Portrait(array $settings): string
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: 'æ–°æ³°ç•¶', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -3636,13 +3645,13 @@ FORM;
 
         return <<<HTML
 <style>
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    PRE-PRINTED FORM - PORTRAIT, 2 COPIES PER PAGE
-   @page: portrait — prevents browser rotation
+   @page: portrait â€” prevents browser rotation
    Each copy uses flex to fill exactly half the page height
-   Tractor feed: 241mm × 279mm (9.5" × 11")
-   Each copy = ~136mm (279mm ÷ 2 = 139.5mm minus cut line)
-   ══════════════════════════════════════════════════════════════ */
+   Tractor feed: 241mm Ã— 279mm (9.5" Ã— 11")
+   Each copy = ~136mm (279mm Ã· 2 = 139.5mm minus cut line)
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @page { size: portrait; margin: 0; }
 @media print {
     html, body { 
@@ -3658,7 +3667,7 @@ FORM;
     }
 }
 
-/* Page wrapper holds both copies — uses flex to distribute space evenly */
+/* Page wrapper holds both copies â€” uses flex to distribute space evenly */
 .ppp-page-wrapper {
     width: 200mm;
     margin: 0 auto;
@@ -3668,7 +3677,7 @@ FORM;
     flex-direction: column;
 }
 
-/* Each form copy — flex: 1 makes both copies share the page equally */
+/* Each form copy â€” flex: 1 makes both copies share the page equally */
 .ppp-front {
     width: 200mm; padding: 3mm 4mm;
     font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
@@ -3689,7 +3698,7 @@ FORM;
     flex-shrink: 0;
 }
 
-/* ── HEADER ── */
+/* â”€â”€ HEADER â”€â”€ */
 .ppp-header { 
     display: flex; align-items: flex-start; justify-content: space-between; 
     padding-bottom: 1.5mm; border-bottom: 1px solid #1a4a7a; margin-bottom: 1.5mm;
@@ -3711,19 +3720,19 @@ FORM;
 .ppp-hours-title { font-size: 8px; font-weight: bold; }
 .ppp-hours-line { font-size: 6px; font-weight: bold; color: #1a4a7a; }
 
-/* ── MIDDLE — items section grows to fill available space ── */
+/* â”€â”€ MIDDLE â€” items section grows to fill available space â”€â”€ */
 .ppp-mid { 
     display: flex; border: 1px solid #1a4a7a; margin-bottom: 1.5mm;
-    flex: 1; /* ★ THIS makes the items section expand to fill remaining space */
+    flex: 1; /* â˜… THIS makes the items section expand to fill remaining space */
     min-height: 30mm;
 }
 .ppp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; display: flex;  }
 .ppp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; flex-shrink: 0; }
-.ppp-items-area { flex: 1; min-height: 20mm; } /* ★ Grows to fill space */
+.ppp-items-area { flex: 1; min-height: 20mm; } /* â˜… Grows to fill space */
 .ppp-rcol { width: 42mm; min-width: 42mm; display: flex; flex-direction: column; }
 .ppp-ticket-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; flex-shrink: 0; }
 .ppp-ticket-lbl { font-size: 8px; font-weight: bold; color: #000; }
-.ppp-ticket-space { flex: 1; min-height: 8mm; } /* ★ Grows to fill space */
+.ppp-ticket-space { flex: 1; min-height: 8mm; } /* â˜… Grows to fill space */
 .ppp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; flex-shrink: 0; }
 .ppp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
 .ppp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
@@ -3732,7 +3741,7 @@ FORM;
 .ppp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center; margin-bottom: 0.5mm; }
 .ppp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.3; }
 
-/* ── CUSTOMER ── */
+/* â”€â”€ CUSTOMER â”€â”€ */
 .ppp-customer-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; flex-shrink: 0; }
 .ppp-customer-box { border: 1px solid #d42027; padding: 2mm; margin-bottom: 1.5mm; flex-shrink: 0; }
 .ppp-cust-row { display: flex; align-items: baseline; margin-bottom: 2mm; font-size: 8px; gap: 2mm; }
@@ -3743,7 +3752,7 @@ FORM;
 .ppp-cust-row.full-width { flex-wrap: nowrap; }
 .ppp-cust-row.full-width .ppp-cust-col { flex: 1; }
 
-/* ── AMOUNT ── */
+/* â”€â”€ AMOUNT â”€â”€ */
 .ppp-amount-section { border: 1px solid #d42027; margin-bottom: 1.5mm; flex-shrink: 0; }
 .ppp-amount-words { padding: 1.5mm 2mm; font-size: 8px; font-weight: bold; border-bottom: 1px solid #d42027; }
 .ppp-amount-row { display: flex; }
@@ -3758,7 +3767,7 @@ FORM;
 .ppp-date-space { min-height: 5mm; }
 .ppp-date-yel { background: #f5c518; }
 
-/* ── FOOTER ── */
+/* â”€â”€ FOOTER â”€â”€ */
 .ppp-footer { font-size: 6px; line-height: 1.2; padding-top: 0.5mm; display: flex; justify-content: space-between; align-items: flex-end; flex-shrink: 0; }
 .ppp-footer-left { flex: 1; }
 .ppp-footer-right { display: flex; align-items: flex-end; gap: 1.5mm; text-align: right; }
@@ -3769,7 +3778,7 @@ FORM;
 .ppp-gm-lu { font-size: 6px; font-weight: bold; }
 
 
-/* ── WATERMARK ── */
+/* â”€â”€ WATERMARK â”€â”€ */
 .ppp-watermark {
     position: absolute;
     top: 50%;
@@ -3817,17 +3826,17 @@ FORM;
 </style>
 
 <div class="ppp-page-wrapper">
-    <!-- ═══ COPY 1 (Top) ═══ -->
+    <!-- â•â•â• COPY 1 (Top) â•â•â• -->
     <div class="ppp-front">
         <div class="ppp-watermark">SALINAN PEJABAT</div>
         <p>&nbsp;</p>
 {$formBlock}
     </div>
     <p>&nbsp;</p>
-    <!-- ✂ Cut Line ── -->
+    <!-- âœ‚ Cut Line â”€â”€ -->
     <hr class="ppp-cut-line">
 
-    <!-- ═══ COPY 2 (Bottom) ═══ -->
+    <!-- â•â•â• COPY 2 (Bottom) â•â•â• -->
     <div class="ppp-front">
     <div class="ppp-watermark">SALINAN PELANGGAN</div>
     <p>&nbsp;</p>
@@ -3884,7 +3893,7 @@ HTML;
         return <<<HTML
 <style>
 @page { size: 210mm 148mm; margin: 0; }
-/* â•â•â• DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-page {
     width: 210mm;
     height: 148mm;
@@ -3902,7 +3911,7 @@ HTML;
 }
 .ppo-page * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* â•â•â• TRANSACTION TYPE BANNER â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TRANSACTION TYPE BANNER Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-type-banner {
     position: absolute;
     top: 16mm;
@@ -3916,7 +3925,7 @@ HTML;
     white-space: nowrap;
 }
 
-/* â•â•â• TICKET NUMBER - Inside NO. TIKET yellow box â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TICKET NUMBER - Inside NO. TIKET yellow box Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ticket {
     position: absolute;
     top: 27mm;
@@ -3932,7 +3941,7 @@ HTML;
     height: 10mm;
 }
 
-/* â•â•â• ITEMS LIST - Left box area â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-items {
     position: absolute;
     top: 31mm;
@@ -3943,7 +3952,7 @@ HTML;
 }
 .ppo-item { margin-bottom: 1mm; }
 
-/* â•â•â• CUSTOMER SECTION - 3 COLUMN LAYOUT â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ic {
     position: absolute;
     top: 76mm;
@@ -4002,7 +4011,7 @@ HTML;
     color: #003399;
 }
 
-/* â•â•â• AMAUN (Amount in words) â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
     top: 105mm;
@@ -4011,7 +4020,7 @@ HTML;
     font-size: 9px;
 }
 
-/* â•â•â• BOTTOM ROW â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
     top: 113mm;
@@ -4028,7 +4037,7 @@ HTML;
     text-align: center;
 }
 
-/* â•â•â• WEIGHT â•â•â• */
+/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
     top: 126mm;
@@ -4174,7 +4183,7 @@ HTML;
 
     /**
      * BACK PAGE - Pre-Printed Blank Form (A4 PORTRAIT)
-     * Paper: A4 Portrait = 210mm (width) × 297mm (height)
+     * Paper: A4 Portrait = 210mm (width) Ã— 297mm (height)
      * 2 COPIES PER PAGE (matching front page portrait layout)
      * Each copy = Terms & Conditions + Redeemer Details
      */
@@ -4204,7 +4213,7 @@ HTML;
         if (empty($termsItems)) {
             $termsItems = [
                 'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
-                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
+                'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
                 'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
                 'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u>Setelah membayar amaun keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran amaun keuntungan.</u></b>',
                 'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong. Dia berhak, atas permintaan, kepada apa-apa lebihan jika ada selepas potongan keuntungan yang kena di bayar ke atas sandaran itu dan kos lelong.',
@@ -4265,11 +4274,11 @@ BLOCK;
 
         return <<<HTML
 <style>
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    PRE-PRINTED BACK PAGE - PORTRAIT, 2 COPIES PER PAGE
    Matches the front page portrait layout (ppp- prefix)
    Each copy = Terms (left) + Redeemer (right)
-   ══════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @page { size: portrait; margin: 0; }
 @media print {
     html, body {
@@ -4318,7 +4327,7 @@ BLOCK;
     flex-shrink: 0;
 }
 
-/* ── TERMS COLUMN (Left) ── */
+/* â”€â”€ TERMS COLUMN (Left) â”€â”€ */
 .pppb-terms-col {
     flex: 1;
     padding-right: 3mm;
@@ -4356,7 +4365,7 @@ BLOCK;
     flex-shrink: 0;
 }
 
-/* ── REDEEMER COLUMN (Right) ── */
+/* â”€â”€ REDEEMER COLUMN (Right) â”€â”€ */
 .pppb-red-col {
     width: 50mm;
     min-width: 50mm;
@@ -4413,15 +4422,15 @@ BLOCK;
 
 <div class="pppb-page-wrapper">
     <br>
-    <!-- ═══ COPY 1 (Top) ═══ -->
+    <!-- â•â•â• COPY 1 (Top) â•â•â• -->
     <div class="pppb-back">
 {$backBlock}
     </div>
 
-    <!-- ✂ Cut Line ── -->
+    <!-- âœ‚ Cut Line â”€â”€ -->
     <hr class="pppb-cut-line">
 
-    <!-- ═══ COPY 2 (Bottom) ═══ -->
+    <!-- â•â•â• COPY 2 (Bottom) â•â•â• -->
     <div class="pppb-back">
 {$backBlock}
     </div>
@@ -4577,7 +4586,7 @@ HTML;
 /**
      * Generate Data Overlay for A4 Portrait - COPY 2
      * Uses _new suffix classes for INDEPENDENT CSS positioning
-     * ★ Edit these CSS values to adjust Copy 2 WITHOUT affecting Copy 1 ★
+     * â˜… Edit these CSS values to adjust Copy 2 WITHOUT affecting Copy 1 â˜…
      */
     private function generatePrePrintedDataOverlayNewA4Copy2(Pledge $pledge, array $settings): string
     {
@@ -4627,8 +4636,8 @@ HTML;
         return <<<HTML
 
 <style>
-/* ═══ A4 DATA OVERLAY COPY 2 - ppoa-*_new classes ═══ */
-/* ★ EDIT THESE VALUES TO ADJUST COPY 2 WITHOUT AFFECTING COPY 1 ★ */
+/* â•â•â• A4 DATA OVERLAY COPY 2 - ppoa-*_new classes â•â•â• */
+/* â˜… EDIT THESE VALUES TO ADJUST COPY 2 WITHOUT AFFECTING COPY 1 â˜… */
 
 .ppoa-page_new {
     width: 210mm;
@@ -4649,7 +4658,7 @@ HTML;
 }
 .ppoa-page_new * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ═══ TICKET NUMBER ═══ */
+/* â•â•â• TICKET NUMBER â•â•â• */
 .ppoa-ticket_new {
     position: absolute;
     top: 30mm;
@@ -4665,7 +4674,7 @@ HTML;
     height: 10mm;
 }
 
-/* ═══ ITEMS LIST ═══ */
+/* â•â•â• ITEMS LIST â•â•â• */
 .ppoa-items_new {
     position: absolute;
     top: 34mm;
@@ -4676,7 +4685,7 @@ HTML;
 }
 .ppoa-item_new { margin-bottom: 1mm; }
 
-/* ═══ CUSTOMER SECTION ═══ */
+/* â•â•â• CUSTOMER SECTION â•â•â• */
 .ppoa-ic_new {
     position: absolute;
     top: 69.5mm;
@@ -4868,12 +4877,12 @@ HTML;
 // </style>
 
 // <div class="a4p-wrapper">
-//     <!-- ═══ COPY 1 (Top Half) ═══ -->
+//     <!-- â•â•â• COPY 1 (Top Half) â•â•â• -->
 //     <div class="a4p-copy">
 //         {$singleOverlayHtml}
 //     </div>
 
-//     <!-- ═══ COPY 2 (Bottom Half) ═══ -->
+//     <!-- â•â•â• COPY 2 (Bottom Half) â•â•â• -->
 //     <div class="a4p-copy" style="margin-top:1.5rem !important;">
 //         {$singleOverlayHtml}
 //     </div>
@@ -4942,12 +4951,12 @@ private function wrapA4PortraitOverlay(string $overlay1Html, string $overlay2Htm
 </style>
 
 <div class="a4p-wrapper">
-    <!-- ═══ COPY 1 (Top Half) - ppoa- classes ═══ -->
+    <!-- â•â•â• COPY 1 (Top Half) - ppoa- classes â•â•â• -->
     <div class="a4p-copy">
         {$overlay1Html}
     </div>
 
-    <!-- ═══ COPY 2 (Bottom Half) - ppoa-*_new classes ═══ -->
+    <!-- â•â•â• COPY 2 (Bottom Half) - ppoa-*_new classes â•â•â• -->
     <div class="a4p-copy" >
         {$overlay2Html}
     </div>
