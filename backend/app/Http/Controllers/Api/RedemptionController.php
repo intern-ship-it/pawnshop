@@ -121,6 +121,7 @@ class RedemptionController extends Controller
                 $proRataLoanAmount,
                 $monthsElapsed,
                 $daysOverdue,
+                $pledge->status,
                 $pledge->interest_rate,
                 $pledge->interest_rate_extended,
                 $pledge->interest_rate_overdue
@@ -165,6 +166,7 @@ class RedemptionController extends Controller
             $pledge->loan_amount,
             $monthsElapsed,
             $daysOverdue,
+            $pledge->status,
             $pledge->interest_rate,
             $pledge->interest_rate_extended,
             $pledge->interest_rate_overdue
@@ -283,6 +285,7 @@ class RedemptionController extends Controller
                 $loanAmountToRedeem,
                 $monthsElapsed,
                 $daysOverdue,
+                $pledge->status,
                 $pledge->interest_rate,
                 $pledge->interest_rate_extended,
                 $pledge->interest_rate_overdue

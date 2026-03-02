@@ -1786,7 +1786,7 @@ export default function RedemptionScreen() {
                       Interest ({monthsElapsed} months)
                     </span>
                     <span className="font-medium">
-                      {formatCurrency(regularInterest)}
+                      {formatCurrency(totalInterest)}
                     </span>
                   </div>
                   {overdueInterest > 0 && (
