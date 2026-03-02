@@ -79,10 +79,10 @@ import {
 // Step configuration - NOW 6 STEPS WITH STORAGE
 const steps = [
   { id: 1, title: "Customer", icon: User, description: "Select customer" },
-  { id: 2, title: "Items", icon: Package, description: "Add items" },
+  { id: 2, title: "Valuation", icon: Package, description: "Add items" },
   {
     id: 3,
-    title: "Valuation",
+    title: "Calculation",
     icon: Calculator,
     description: "Calculate value",
   },

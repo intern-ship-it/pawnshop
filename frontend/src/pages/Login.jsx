@@ -315,19 +315,19 @@ export default function Login() {
           transition={{ duration: 0.6 }}
           className="mb-12"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.5)] overflow-hidden">
+          <div className="flex items-center gap-5">
+            <div className="flex items-center justify-center w-24 h-24 rounded-2xl bg-amber-500 shadow-[0_0_50px_rgba(245,158,11,0.5)] overflow-hidden">
               {isLoadingCompany ? (
-                <div className="w-8 h-8 rounded bg-amber-600/50 animate-pulse" />
+                <div className="w-14 h-14 rounded bg-amber-600/50 animate-pulse" />
               ) : companyLogo ? (
                 <img
                   src={companyLogo}
                   alt="Logo"
-                  className="w-full h-full object-contain p-1"
+                  className="w-full h-full object-contain p-1.5"
                   onError={() => setCompanyLogo(null)}
                 />
               ) : (
-                <span className="text-2xl font-bold text-zinc-900">
+                <span className="text-4xl font-bold text-zinc-900">
                   {companyShort}
                 </span>
               )}
@@ -335,13 +335,13 @@ export default function Login() {
             <div className="flex-1">
               {isLoadingCompany ? (
                 <>
-                  <div className="h-6 bg-zinc-700 rounded w-48 mb-2 animate-pulse" />
-                  <div className="h-4 bg-zinc-700/50 rounded w-32 animate-pulse" />
+                  <div className="h-10 bg-zinc-700 rounded w-64 mb-2 animate-pulse" />
+                  <div className="h-5 bg-zinc-700/50 rounded w-40 animate-pulse" />
                 </>
               ) : (
                 <>
-                  <h1 className="text-2xl font-bold">{companyName}</h1>
-                  <p className="text-amber-500 text-sm">
+                  <h1 className="text-5xl font-bold">{companyName}</h1>
+                  <p className="text-amber-500 text-lg mt-0.5">
                     Pajak Kedai Management
                   </p>
                 </>
@@ -400,19 +400,19 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-8 bg-zinc-100">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-amber-500 overflow-hidden">
+          <div className="lg:hidden flex items-center justify-center gap-4 mb-8">
+            <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.4)] overflow-hidden">
               {isLoadingCompany ? (
-                <div className="w-6 h-6 rounded bg-amber-600/50 animate-pulse" />
+                <div className="w-10 h-10 rounded bg-amber-600/50 animate-pulse" />
               ) : companyLogo ? (
                 <img
                   src={companyLogo}
                   alt="Logo"
-                  className="w-full h-full object-contain p-1"
+                  className="w-full h-full object-contain p-1.5"
                   onError={() => setCompanyLogo(null)}
                 />
               ) : (
-                <span className="text-xl font-bold text-zinc-900">
+                <span className="text-2xl font-bold text-zinc-900">
                   {companyShort}
                 </span>
               )}
@@ -420,15 +420,15 @@ export default function Login() {
             <div className="flex-1">
               {isLoadingCompany ? (
                 <>
-                  <div className="h-6 bg-zinc-300 rounded w-40 mb-1 animate-pulse" />
-                  <div className="h-4 bg-zinc-200 rounded w-28 animate-pulse" />
+                  <div className="h-10 bg-zinc-300 rounded w-52 mb-1 animate-pulse" />
+                  <div className="h-5 bg-zinc-200 rounded w-36 animate-pulse" />
                 </>
               ) : (
                 <>
-                  <h1 className="text-2xl font-bold text-zinc-800">
+                  <h1 className="text-4xl font-bold text-zinc-800">
                     {companyName}
                   </h1>
-                  <p className="text-amber-600 text-sm">
+                  <p className="text-amber-600 text-lg mt-0.5">
                     Pajak Kedai Management
                   </p>
                 </>
