@@ -1276,8 +1276,8 @@ HTML;
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: 'æ–°æ³°ç•¶', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -2145,7 +2145,7 @@ HTML;
 }
 .ppo-nationality {
     position: absolute;
-    top: 76mm;
+    top: 77mm;
     left: 152mm;
     font-size: 10px;
 }
@@ -2176,7 +2176,7 @@ HTML;
 /* ROW 4: Catatan */
 .ppo-catatan {
     position: absolute;
-    top: 98mm;
+    top: 97mm;
     left: 24mm;
     width: 150mm;
     font-size: 11px;
@@ -2185,7 +2185,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 105mm;
+    top: 103.5mm;
     left: 22mm;
     width: 150mm;
     font-size: 9px;
@@ -2201,20 +2201,20 @@ HTML;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 115mm;
-    left: 150mm;
+    top: 113mm;
+    left: 178mm;
     width: 28mm;
     font-size: 12px;
     text-align: center;
 }
-.ppo-due-date {
+/* .ppo-due-date {
     position: absolute;
     top: 115mm;
     left: 176mm;
     width: 28mm;
     font-size: 12px;
     text-align: center;
-}
+} */
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
@@ -2276,7 +2276,7 @@ HTML;
     <!-- BOTTOM ROW -->
     <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
     <div class="ppo-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
-    <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div>
+    <!-- <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div> -->
     
     <!-- WEIGHT -->
     <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
@@ -2556,8 +2556,8 @@ HTML;
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: 'æ–°æ³°ç•¶', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -2591,36 +2591,36 @@ HTML;
 .pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* Header */
-.pp-hdr { display: flex; align-items: flex-start; padding-bottom: 1.5mm; border-bottom: 1px solid #1a4a7a; }
-.pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 2mm; }
-.pp-logo { width: 12mm; height: 12mm; object-fit: contain; flex-shrink: 0; }
+.pp-hdr { display: flex; align-items: flex-start; padding-bottom: 2mm; border-bottom: 2px solid #1a4a7a; }
+.pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 3mm; }
+.pp-logo { width: 18mm; height: 18mm; object-fit: contain; flex-shrink: 0; }
 .pp-co-info { flex: 1; }
-.pp-co-name { font-size: 26px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
-.pp-co-multi { font-size: 1.5rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
-.pp-co-addr { font-size: 8px; color: #1a4a7a; margin-top: 0.5mm; }
+.pp-co-name { font-size: 32px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+.pp-co-multi { font-size: 1.8rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
+.pp-co-addr { font-size: 10px; color: #1a4a7a; margin-top: 1mm; }
 
-.pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 45mm; }
-.pp-top-row { display: flex; align-items: center; gap: 1.5mm; margin-bottom: 0.5mm; }
-.pp-phone-box { background: #d42027; color: #fff; padding: 1.5mm 2.5mm; border-radius: 3px; display: flex; align-items: center; gap: 1mm; }
-.pp-phone-icon { font-size: 11px; color: #d42027; background: #fff; border-radius: 50%; width: 4.5mm; height: 4.5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.pp-phone-nums { font-size: 9px; font-weight: bold; line-height: 1.3; }
-.pp-sejak { background: #d42027; color: #fff; width: 11mm; height: 11mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }
-.pp-sejak-lbl { font-size: 5px; font-weight: bold; line-height: 1; }
-.pp-sejak-yr { font-size: 9px; font-weight: bold; line-height: 1; }
-.pp-hrs-box { background: #f5c518; color: #000; padding: 1mm 2mm; width: 45mm; text-align: center; }
-.pp-hrs-title { font-size: 10px; font-weight: bold; text-align: center; }
-.pp-hrs-line { font-size: 6.5px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
+.pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 48mm; }
+.pp-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }
+.pp-phone-box { background: #d42027; color: #fff; padding: 2mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 1.5mm; }
+.pp-phone-icon { font-size: 14px; color: #d42027; background: #fff; border-radius: 50%; width: 5.5mm; height: 5.5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pp-phone-nums { font-size: 11px; font-weight: bold; line-height: 1.3; }
+.pp-sejak { background: #d42027; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }
+.pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; }
+.pp-sejak-yr { font-size: 11px; font-weight: bold; line-height: 1; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 48mm; text-align: center; }
+.pp-hrs-title { font-size: 12px; font-weight: bold; text-align: center; }
+.pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
 
 /* Middle section */
 .pp-mid { display: flex; border: 1px solid #1a4a7a; }
 .pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
 .pp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
-.pp-items-area { min-height: 20mm; padding-left: 2mm; flex: 1; }
+.pp-items-area { min-height: 16mm; padding-left: 2mm; flex: 1; }
 
 /* Items split - left items + right barcode (A5) */
-.pp-items-split { display: flex; flex: 1; min-height: 32mm; }
-.pp-barcode-area { width: 81mm; min-width: 45mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm; flex-shrink: 0; }
-.pp-barcode-space { width: 90%; height: 29mm; border: 1px solid #ccc; }
+.pp-items-split { display: flex; flex: 1; min-height: 26mm; }
+.pp-barcode-area { width: 81mm; min-width: 45mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; flex-shrink: 0; }
+.pp-barcode-space { width: 90%; height: 23mm; border: 1px solid #ccc; }
 .pp-barcode-lbl { font-size: 5px; color: #999; margin-top: 0.5mm; }
 
 .pp-rcol { width: 45mm; min-width: 45mm; }
@@ -2641,22 +2641,22 @@ HTML;
     display: flex; 
     font-size: 8px; 
     font-weight: bold; 
-    padding: 1mm 0; 
-    margin-top: 1mm;
+    padding: 0.5mm 0; 
+    margin-top: 0.5mm;
 }
 .pp-cust-title-left { flex: 1; }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER BOX - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .pp-cust-box { 
     border: 1px solid #d42027; 
-    padding: 2mm 3mm; 
-    min-height: 24mm; 
+    padding: 1.5mm 3mm; 
+    min-height: 20mm; 
 }
 
 .pp-cust-row { 
     display: flex; 
     align-items: baseline; 
-    margin-bottom: 2mm; 
+    margin-bottom: 1.5mm; 
     font-size: 9px; 
     font-weight: bold; 
 }
@@ -2710,7 +2710,7 @@ HTML;
 .pp-dt-yel { background: #f5c518; }
 
 /* Footer */
-.pp-ftr { font-size: 6px; line-height: 1.4; margin-top: 1mm; display: flex; justify-content: space-between; align-items: flex-end; }
+.pp-ftr { font-size: 6px; line-height: 1.3; margin-top: 0.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
 .pp-ftr-left { flex: 1; }
 .pp-ftr-right { text-align: right; font-size: 5px; }
 .pp-gm-box { display: inline-block; text-align: center; font-size: 6px; line-height: 1.2; min-width: 8mm; vertical-align: top; }
@@ -2827,7 +2827,7 @@ HTMLSTART
     <div class="pp-bot">
         <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
         <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div>
-        <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div>
+        <!-- <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div> -->
     </div>
 
     <div class="pp-ftr">
@@ -3101,7 +3101,7 @@ HTML;
 }
 .pp-data-layer {
     position: absolute;
-    top: 0;
+    top: 12px;
     left: 0;
     width: 100%;
     height: 100%;
@@ -3285,7 +3285,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TICKET NUMBER - Inside NO. TIKET yellow box Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ticket {
     position: absolute;
-    top: 27mm;
+    top: 31mm;
     right: 7mm;
     width: 40mm;
     text-align: center;
@@ -3301,7 +3301,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-items {
     position: absolute;
-    top: 31mm;
+    top: 32mm;
     left: 7mm;
     width: 120mm;
     font-size: 9px;
@@ -3312,7 +3312,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ic {
     position: absolute;
-    top: 76mm;
+    top: 77mm;
     left: 24mm;
     font-size: 11px;
     width: 55mm;
@@ -3377,7 +3377,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 113mm;
+    top: 111mm;
     left: 48mm;
     font-size: 18px;
     font-family: 'Courier New', monospace;
@@ -3402,8 +3402,8 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 126mm;
-    right: 9mm;
+    top: 123mm;
+    right: 5mm;
     font-size: 10px;
 }
 
@@ -3432,7 +3432,7 @@ HTML;
     <div class="ppo-birthyear">{$birthYear}</div>
     <div class="ppo-gender">{$gender}</div>
 
-    <!-- ROW 3: ADDRESS -->
+    <!-- ROW 3: ADDRESS --> 
     <div class="ppo-address">{$address}</div>
 
     <!-- ROW 4: CATATAN (Renewal Info) -->
@@ -3516,8 +3516,8 @@ HTML;
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: 'æ–°æ³°ç•¶', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
