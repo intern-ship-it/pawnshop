@@ -2103,7 +2103,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TICKET NUMBER - Inside NO. TIKET yellow box Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ticket {
     position: absolute;
-    top: 27mm;
+    top: 30mm;
     right: 7mm;
     width: 40mm;
     text-align: center;
@@ -2119,7 +2119,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-items {
     position: absolute;
-    top: 31mm;
+    top: 32mm;
     left: 7mm;
     width: 120mm;
     font-size: 12px;
@@ -2167,7 +2167,7 @@ HTML;
 /* ROW 3: Alamat */
 .ppo-address {
     position: absolute;
-    top: 92mm;
+    top: 91mm;
     left: 24mm;
     width: 150mm;
     font-size: 10px;
@@ -2194,7 +2194,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 113mm;
+    top: 111mm;
     left: 48mm;
     font-size: 18px;
     font-family: 'Courier New', monospace;
@@ -2219,8 +2219,8 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 126mm;
-    right: 9mm;
+    top: 123mm;
+    right: 7mm;
     font-size: 10px;
 }
 
@@ -2620,7 +2620,7 @@ HTML;
 /* Items split - left items + right barcode (A5) */
 .pp-items-split { display: flex; flex: 1; min-height: 26mm; }
 .pp-barcode-area { width: 81mm; min-width: 45mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; flex-shrink: 0; }
-.pp-barcode-space { width: 90%; height: 23mm; border: 1px solid #ccc; }
+.pp-barcode-space { width: 90%; height: 26mm; border: 1px solid #ccc; }
 .pp-barcode-lbl { font-size: 5px; color: #999; margin-top: 0.5mm; }
 
 .pp-rcol { width: 45mm; min-width: 45mm; }
@@ -3377,7 +3377,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 111mm;
+    top: 113mm;
     left: 48mm;
     font-size: 18px;
     font-family: 'Courier New', monospace;
