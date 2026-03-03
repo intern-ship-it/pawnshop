@@ -316,7 +316,7 @@ export default function Login() {
           className="mb-12"
         >
           <div className="flex items-center gap-5">
-            <div className="flex items-center justify-center w-24 h-24 rounded-2xl bg-amber-500 shadow-[0_0_50px_rgba(245,158,11,0.5)] overflow-hidden">
+            <div className="flex items-center justify-center w-24 h-24 rounded-2xl bg-white shadow-[0_0_50px_rgba(245,158,11,0.5)] overflow-hidden">
               {isLoadingCompany ? (
                 <div className="w-14 h-14 rounded bg-amber-600/50 animate-pulse" />
               ) : companyLogo ? (
