@@ -5,7 +5,7 @@
     <title>Resit Pajak Gadai - {{ $pledge->pledge_no }}</title>
     <style>
         @page {
-            size: A5 landscape;
+            size: 700pt 420pt;
             margin: 0;
         }
         * {
@@ -15,69 +15,65 @@
         }
         body {
             font-family: 'DejaVu Sans', Arial, Helvetica, sans-serif;
-            font-size: 9px;
+            font-size: 7px;
             color: #1a4a7a;
             background: #fff;
-            width: 210mm;
-            height: 148mm;
+            width: 700pt;
+            height: 420pt;
+            overflow: hidden;
         }
 
-        /* ═══ PAGE CONTAINER ═══ */
+        /* ═══ SINGLE PAGE CONTAINER ═══ */
         .page {
-            width: 210mm;
-            height: 148mm;
-            padding: 3mm 5mm;
-            position: relative;
+            width: 700pt;
+            max-height: 420pt;
+            padding: 6pt 25pt 6pt 10pt;
             overflow: hidden;
-            page-break-after: always;
         }
 
         /* ═══ HEADER ═══ */
-        .header {
-            width: 100%;
-            padding-bottom: 1.5mm;
-            border-bottom: 1px solid #1a4a7a;
-            margin-bottom: 1.5mm;
-        }
         .header-table {
             width: 100%;
             border-collapse: collapse;
+            border-bottom: 2px solid #1a4a7a;
         }
         .header-left {
             vertical-align: top;
+            padding-bottom: 3pt;
         }
         .header-right {
             vertical-align: top;
             text-align: right;
-            width: 50mm;
+            width: 200pt;
+            padding-bottom: 3pt;
+            padding-right: 5pt;
         }
         .logo {
-            width: 12mm;
-            height: 12mm;
+            width: 45pt;
+            height: 45pt;
             vertical-align: top;
-            margin-right: 2mm;
+            margin-right: 5pt;
         }
         .company-name {
-            font-size: 18px;
+            font-size: 24px;
             font-weight: bold;
             color: #1a4a7a;
             line-height: 1.1;
         }
         .company-multilang {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             color: #1a4a7a;
-            margin-top: 0.5mm;
         }
         .company-address {
             font-size: 8px;
             color: #1a4a7a;
-            margin-top: 0.5mm;
+            margin-top: 1pt;
         }
         .phone-box {
             background: #d42027;
             color: #fff;
-            padding: 1.5mm 3mm;
+            padding: 4pt 6pt;
             font-size: 9px;
             font-weight: bold;
             display: inline-block;
@@ -86,23 +82,24 @@
         .established {
             background: #d42027;
             color: #fff;
-            padding: 2mm 3mm;
-            font-size: 8px;
+            padding: 5pt 6pt;
+            font-size: 7px;
             font-weight: bold;
             display: inline-block;
-            border-radius: 50%;
             text-align: center;
             line-height: 1.1;
+            border-radius: 20pt;
         }
         .hours-box {
             background: #f5c518;
             color: #000;
-            padding: 1mm 2mm;
+            padding: 2pt 4pt;
             text-align: center;
-            margin-top: 1mm;
+            margin-top: 2pt;
+            border-radius: 2px;
         }
         .hours-title {
-            font-size: 9px;
+            font-size: 8px;
             font-weight: bold;
         }
         .hours-line {
@@ -111,158 +108,155 @@
             color: #1a4a7a;
         }
 
-        /* ═══ MIDDLE SECTION - Items + Right Column ═══ */
+        /* ═══ MIDDLE SECTION ═══ */
         .mid-section {
             width: 100%;
             border: 1px solid #1a4a7a;
             border-collapse: collapse;
-            margin-bottom: 1mm;
+            margin-top: 2pt;
+            margin-bottom: 2pt;
         }
         .mid-section td {
             vertical-align: top;
             border: 1px solid #1a4a7a;
         }
         .items-cell {
-            padding: 1.5mm 2mm;
-            width: 63%;
+            padding: 3pt 4pt;
+            width: 65%;
         }
         .items-title {
-            font-size: 8px;
+            font-size: 6px;
             font-weight: bold;
-            margin-bottom: 1mm;
+            margin-bottom: 2pt;
             color: #1a4a7a;
         }
         .items-area {
-            min-height: 22mm;
-            padding-left: 2mm;
+            padding-left: 3pt;
         }
         .item-line {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: bold;
-            margin-bottom: 1mm;
-            font-family: 'DejaVu Sans', Arial, sans-serif;
+            margin-bottom: 1pt;
         }
-
-        /* Barcode area in items */
         .barcode-area {
-            text-align: center;
-            padding: 2mm 0;
+            text-align: right;
+            padding: 3pt 15pt 2pt 0;
         }
         .barcode-img {
-            max-width: 55mm;
-            height: 14mm;
+            max-width: 160pt;
+            height: 42pt;
         }
         .barcode-text {
-            font-size: 8px;
+            font-size: 6px;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
-            text-align: center;
+            text-align: right;
             color: #666;
-            margin-top: 0.5mm;
+            padding-right: 15pt;
         }
 
         /* Right column */
         .right-col {
-            width: 37%;
+            width: 35%;
         }
         .ticket-box {
             background: #f5c518;
-            padding: 1.5mm;
+            padding: 2pt;
             text-align: center;
             border-bottom: 1px solid #1a4a7a;
         }
         .ticket-label {
-            font-size: 8px;
+            font-size: 6px;
             font-weight: bold;
             color: #000;
         }
         .ticket-number {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: bold;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
             color: #d42027;
-            padding: 1mm 0;
+            padding: 1pt 0;
         }
         .rate-section {
             text-align: center;
-            padding: 1.5mm;
+            padding: 2pt;
             border-bottom: 1px solid #1a4a7a;
         }
         .rate-label {
-            font-size: 6px;
+            font-size: 5px;
             font-weight: bold;
             color: #1a4a7a;
         }
         .rate-value {
-            font-size: 16px;
+            font-size: 12px;
             font-weight: bold;
             color: #1a4a7a;
         }
         .kadar-section {
-            padding: 1.5mm 2mm;
+            padding: 2pt 4pt;
         }
         .kadar-title {
-            font-size: 7px;
+            font-size: 5px;
             font-weight: bold;
             color: #1a4a7a;
             text-align: center;
-            margin-bottom: 1mm;
+            margin-bottom: 1pt;
         }
         .kadar-line {
-            font-size: 7px;
+            font-size: 5px;
             color: #1a4a7a;
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
         /* ═══ CUSTOMER SECTION ═══ */
         .cust-title {
-            font-size: 8px;
+            font-size: 6px;
             font-weight: bold;
-            padding: 1mm 0;
+            padding: 1pt 0;
             color: #1a4a7a;
         }
         .cust-box {
             border: 1px solid #d42027;
-            padding: 2mm 3mm;
-            margin-bottom: 1mm;
+            padding: 2pt 4pt;
+            margin-bottom: 1pt;
         }
         .cust-table {
             width: 100%;
             border-collapse: collapse;
         }
         .cust-table td {
-            padding: 1mm 0;
-            font-size: 9px;
+            padding: 1pt 0;
+            font-size: 7px;
             vertical-align: top;
         }
         .cust-label {
-            font-size: 8px;
+            font-size: 6px;
             font-weight: bold;
             white-space: nowrap;
-            padding-right: 2mm;
+            padding-right: 3pt;
             color: #1a4a7a;
         }
         .cust-value {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: bold;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
         }
 
-        /* ═══ AMOUNT SECTION ═══ */
+        /* ═══ AMOUNT ═══ */
         .amount-row {
             border: 1px solid #d42027;
             border-bottom: none;
-            padding: 1.5mm 3mm;
+            padding: 2pt 4pt;
         }
         .amount-label {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: bold;
             color: #1a4a7a;
         }
         .amount-words {
-            font-size: 9px;
+            font-size: 7px;
             font-weight: bold;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
-            margin-left: 3mm;
+            margin-left: 4pt;
         }
 
         /* ═══ BOTTOM ROW ═══ */
@@ -273,160 +267,71 @@
         }
         .bottom-table td {
             border: 1px solid #d42027;
-            padding: 1.5mm 3mm;
+            padding: 2pt 4pt;
             vertical-align: middle;
         }
         .pinjaman-cell {
-            width: 50%;
+            width: 60%;
         }
         .pinjaman-label {
-            font-size: 9px;
+            font-size: 7px;
             color: #1a4a7a;
         }
         .pinjaman-rm {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: bold;
             color: #1a4a7a;
-            margin-left: 2mm;
+            margin-left: 3pt;
         }
         .pinjaman-amount {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
-            margin-left: 4mm;
+            margin-left: 6pt;
         }
         .pinjaman-stars {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: bold;
             float: right;
         }
         .date-cell {
             text-align: center;
-            width: 25%;
-        }
-        .date-cell-yellow {
-            text-align: center;
-            width: 25%;
-            background: #f5c518;
+            width: 40%;
         }
         .date-label {
-            font-size: 7px;
+            font-size: 6px;
             font-weight: bold;
             color: #1a4a7a;
         }
         .date-value {
-            font-size: 11px;
+            font-size: 9px;
             font-weight: bold;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
         }
 
         /* ═══ FOOTER ═══ */
-        .footer {
-            margin-top: 1mm;
-            font-size: 6px;
-            line-height: 1.4;
-            color: #1a4a7a;
-        }
         .footer-table {
             width: 100%;
+            margin-top: 1pt;
         }
         .footer-left {
             vertical-align: bottom;
+            font-size: 5px;
+            color: #1a4a7a;
         }
         .footer-right {
             text-align: right;
             vertical-align: bottom;
         }
         .copy-label {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: bold;
             color: #d42027;
-            margin-top: 1mm;
+            margin-top: 1pt;
         }
         .weight-info {
-            font-size: 8px;
+            font-size: 6px;
             text-align: right;
-        }
-
-        /* ═══ TERMS PAGE (PAGE 2) ═══ */
-        .terms-page {
-            width: 210mm;
-            height: 148mm;
-            padding: 3mm 5mm;
-            page-break-after: always;
-        }
-        .terms-table {
-            width: 100%;
-            height: 100%;
-            border-collapse: collapse;
-        }
-        .terms-col {
-            vertical-align: top;
-            padding-right: 3mm;
-            width: 62%;
-        }
-        .redeemer-col {
-            vertical-align: top;
-            width: 38%;
-            border-left: 1px solid #1a4a7a;
-            padding-left: 3mm;
-        }
-        .terms-title {
-            font-size: 13px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 3mm;
-            text-decoration: underline;
-        }
-        .term-item {
-            font-size: 8px;
-            line-height: 1.4;
-            margin-bottom: 2mm;
-            text-align: justify;
-        }
-        .notice-box {
-            border: 2px solid #1a4a7a;
-            padding: 2mm 4mm;
-            margin-top: 2mm;
-            text-align: center;
-            font-size: 10px;
-            font-weight: bold;
-            line-height: 1.3;
-        }
-        .redeemer-title {
-            font-size: 10px;
-            font-weight: bold;
-            text-align: right;
-            padding-bottom: 2mm;
-            margin-bottom: 2mm;
-            border-bottom: 1px solid #1a4a7a;
-        }
-        .redeemer-field {
-            margin-bottom: 3mm;
-        }
-        .redeemer-label {
-            font-size: 8px;
-            font-weight: bold;
-            display: block;
-        }
-        .redeemer-line {
-            border-bottom: 1px solid #1a4a7a;
-            min-height: 5mm;
-            margin-top: 1mm;
-        }
-        .sig-box {
-            border: 1px solid #1a4a7a;
-            height: 18mm;
-            margin-top: 2mm;
-            text-align: right;
-            padding: 1mm 2mm;
-            vertical-align: bottom;
-        }
-        .sig-label {
-            font-size: 8px;
-            font-weight: bold;
-            position: relative;
-            top: 12mm;
         }
     </style>
 </head>
@@ -435,15 +340,12 @@
         $companyName = $settings['company_name'] ?? 'PAJAK GADAI SDN BHD';
         $chineseName = $settings['company_name_chinese'] ?? '';
         $tamilName = $settings['company_name_tamil'] ?? '';
-        $regNo = $settings['registration_no'] ?? '';
-        $licenseNo = $settings['license_no'] ?? '';
         $address = $settings['address'] ?? '';
         $phone = $settings['phone'] ?? '';
         $phone2 = $settings['phone2'] ?? '';
         $estYear = $settings['established_year'] ?? '';
         $businessDays = $settings['business_days'] ?? 'ISNIN - AHAD';
         $businessHours = $settings['business_hours'] ?? '8.30AM - 6.00PM';
-        $closedDays = $settings['closed_days'] ?? '';
         $redemptionPeriod = $settings['redemption_period'] ?? '6 BULAN';
         $interestRateNormal = $settings['interest_rate_normal'] ?? '1.5';
         $interestRateOverdue = $settings['interest_rate_overdue'] ?? '2.0';
@@ -452,44 +354,35 @@
         $customer = $pledge->customer;
         $loanAmount = $pledge->loan_amount ?? 0;
 
-        // Calculate total weight
         $totalWeight = 0;
         foreach ($pledge->items as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
-        // Format dates
         $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
         if (is_string($pledgeDate)) $pledgeDate = \Carbon\Carbon::parse($pledgeDate);
         $dueDate = $pledge->due_date;
         if (is_string($dueDate)) $dueDate = \Carbon\Carbon::parse($dueDate);
 
-        // Customer details
         $ic = preg_replace('/[^0-9]/', '', $customer->ic_number ?? '');
         $icFormatted = strlen($ic) === 12 ? substr($ic, 0, 6) . '-' . substr($ic, 6, 2) . '-' . substr($ic, 8, 4) : ($ic ?: '-');
 
-        // Birth year from IC
         if (!empty($customer->date_of_birth)) {
             try {
                 $dob = $customer->date_of_birth;
                 if (is_string($dob)) $dob = \Carbon\Carbon::parse($dob);
                 $birthYear = $dob->format('Y');
-            } catch (\Exception $e) {
-                $birthYear = '-';
-            }
+            } catch (\Exception $e) { $birthYear = '-'; }
         } else {
             $birthYear = (strlen($ic) >= 6) ? ((intval(substr($ic, 0, 2)) > intval(date('y'))) ? '19' . substr($ic, 0, 2) : '20' . substr($ic, 0, 2)) : '-';
         }
 
-        // Gender
         $g = strtolower($customer->gender ?? '');
         $gender = in_array($g, ['male', 'm', 'lelaki']) ? 'LELAKI' : (in_array($g, ['female', 'f', 'perempuan']) ? 'PEREMPUAN' : '-');
 
-        // Nationality
         $nat = strtoupper($customer->nationality ?? '');
         $nationality = str_contains($nat, 'MALAYSIA') ? 'MALAYSIA' : ($nat ?: 'WARGANEGARA');
 
-        // Address
         $addrParts = array_filter([
             $customer->address_line1 ?? $customer->address ?? '',
             $customer->address_line2 ?? '',
@@ -498,47 +391,37 @@
         ]);
         $customerAddress = implode(', ', $addrParts) ?: '-';
 
-        // Catatan
-        $catatan = '';
+        $catatan = $pledge->reference_no ?? $pledge->notes ?? '';
+        $usedDescriptions = [];
         foreach ($pledge->items as $item) {
             $desc = $item->description ?? '';
-            if ($desc) {
+            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
                 if ($catatan) $catatan .= '; ';
                 $catatan .= $desc;
+                $usedDescriptions[] = $desc;
             }
         }
-        if ($pledge->reference_no) {
-            $catatan = $pledge->reference_no . ($catatan ? '; ' . $catatan : '');
-        }
-        if ($pledge->notes && !$pledge->reference_no) {
-            $catatan = $pledge->notes . ($catatan ? '; ' . $catatan : '');
-        }
 
-        // Amount in Malay words helper
-        $amountWords = strtoupper(app(\App\Http\Controllers\Api\DotMatrixPrintController::class)->numberToMalayWordsPublic($loanAmount) ?? '');
-        // Fallback if method not available
+        $amountWords = '';
+        try {
+            $amountWords = strtoupper(app(\App\Http\Controllers\Api\DotMatrixPrintController::class)->numberToMalayWordsPublic($loanAmount) ?? '');
+        } catch (\Exception $e) {}
         if (empty($amountWords)) {
             $amountWords = strtoupper(number_format($loanAmount, 2));
         }
 
-        // Barcode URL (TEC-IT)
-        $barcodeUrl = 'https://barcode.tec-it.com/barcode.ashx?data=' . urlencode($pledge->pledge_no) . '&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&modulewidth=0.265';
-
-        // Copy type label
+        $barcodeUrl = $barcode_data_uri ?? '';
         $copyLabel = ($copy_type ?? 'customer') === 'office' ? 'SALINAN PEJABAT' : 'SALINAN PELANGGAN';
     @endphp
 
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- PAGE 1: RECEIPT (FRONT) -->
-    <!-- ═══════════════════════════════════════════ -->
     <div class="page">
 
         <!-- HEADER -->
-        <table class="header-table" style="border-bottom: 1px solid #1a4a7a; padding-bottom: 1.5mm; margin-bottom: 1.5mm;">
+        <table class="header-table">
             <tr>
-                <td class="header-left" style="vertical-align: top;">
+                <td class="header-left">
                     @if($logoUrl)
-                        <img src="{{ $logoUrl }}" class="logo" style="float: left; margin-right: 2mm;">
+                        <img src="{{ $logoUrl }}" class="logo" style="float: left; margin-right: 4pt;">
                     @endif
                     <div class="company-name">{{ $companyName }}</div>
                     @if($chineseName || $tamilName)
@@ -546,20 +429,18 @@
                     @endif
                     <div class="company-address">{{ $address }}</div>
                 </td>
-                <td class="header-right" style="vertical-align: top; text-align: right; width: 50mm;">
+                <td class="header-right">
                     <table style="margin-left: auto; border-collapse: collapse;">
                         <tr>
-                            <td style="padding-right: 1mm;">
+                            <td style="padding-right: 2pt;">
                                 <span class="phone-box">&#9742; {{ $phone }}@if($phone2)<br>{{ $phone2 }}@endif</span>
                             </td>
                             @if($estYear)
-                            <td>
-                                <span class="established">SEJAK<br>{{ $estYear }}</span>
-                            </td>
+                            <td><span class="established">SEJAK<br>{{ $estYear }}</span></td>
                             @endif
                         </tr>
                     </table>
-                    <div class="hours-box" style="margin-top: 1mm;">
+                    <div class="hours-box">
                         <div class="hours-title">BUKA 7 HARI</div>
                         <div class="hours-line">{{ $businessDays }} : {{ $businessHours }}</div>
                     </div>
@@ -567,7 +448,7 @@
             </tr>
         </table>
 
-        <!-- MIDDLE SECTION: Items + Right Column -->
+        <!-- MIDDLE SECTION -->
         <table class="mid-section">
             <tr>
                 <td class="items-cell">
@@ -579,10 +460,11 @@
                             </div>
                         @endforeach
                     </div>
-                    <!-- Barcode -->
                     <div class="barcode-area">
-                        <img src="{{ $barcodeUrl }}" class="barcode-img" alt="{{ $pledge->pledge_no }}">
-                        <div class="barcode-text">{{ $pledge->pledge_no }}<br><span style="font-size: 6px; color: #999;">BARCODE</span></div>
+                        @if($barcodeUrl)
+                            <img src="{{ $barcodeUrl }}" class="barcode-img" alt="{{ $pledge->pledge_no }}">
+                        @endif
+                        <div class="barcode-text">{{ $pledge->pledge_no }}</div>
                     </div>
                 </td>
                 <td class="right-col">
@@ -607,63 +489,34 @@
         <!-- CUSTOMER SECTION -->
         <div class="cust-title">Butir-butir terperinci mengenai pemajak gadai:-</div>
         <div class="cust-box">
-            <!-- Row 1: IC | Name | Nationality -->
             <table class="cust-table">
                 <tr>
-                    <td style="width: 33%;">
-                        <span class="cust-label">No. Kad<br>Pengenalan :</span>
-                        <span class="cust-value">{{ $icFormatted }}</span>
-                    </td>
-                    <td style="width: 37%;">
-                        <span class="cust-label">Nama :</span>
-                        <span class="cust-value">{{ $customer->name ?? '-' }}</span>
-                    </td>
-                    <td style="width: 30%;">
-                        <span class="cust-label">Kerakyatan :</span>
-                        <span class="cust-value">{{ $nationality }}</span>
-                    </td>
+                    <td style="width: 33%;"><span class="cust-label">No. Kad Pengenalan :</span> <span class="cust-value">{{ $icFormatted }}</span></td>
+                    <td style="width: 37%;"><span class="cust-label">Nama :</span> <span class="cust-value">{{ $customer->name ?? '-' }}</span></td>
+                    <td style="width: 30%;"><span class="cust-label">Kerakyatan :</span> <span class="cust-value">{{ $nationality }}</span></td>
                 </tr>
             </table>
-            <!-- Row 2: Birth Year | Gender -->
             <table class="cust-table">
                 <tr>
-                    <td style="width: 33%;">
-                        <span class="cust-label">Tahun Lahir :</span>
-                        <span class="cust-value">{{ $birthYear }}</span>
-                    </td>
-                    <td style="width: 67%;">
-                        <span class="cust-label">Jantina :</span>
-                        <span class="cust-value">{{ $gender }}</span>
-                    </td>
+                    <td style="width: 33%;"><span class="cust-label">Tahun Lahir :</span> <span class="cust-value">{{ $birthYear }}</span></td>
+                    <td style="width: 67%;"><span class="cust-label">Jantina :</span> <span class="cust-value">{{ $gender }}</span></td>
                 </tr>
             </table>
-            <!-- Row 3: Address -->
             <table class="cust-table">
-                <tr>
-                    <td>
-                        <span class="cust-label">Alamat :</span>
-                        <span class="cust-value">{{ $customerAddress }}</span>
-                    </td>
-                </tr>
+                <tr><td><span class="cust-label">Alamat :</span> <span class="cust-value">{{ $customerAddress }}</span></td></tr>
             </table>
-            <!-- Row 4: Catatan -->
             <table class="cust-table">
-                <tr>
-                    <td>
-                        <span class="cust-label">Catatan :</span>
-                        <span class="cust-value">{{ $catatan }}</span>
-                    </td>
-                </tr>
+                <tr><td><span class="cust-label">Catatan :</span> <span class="cust-value">{{ $catatan }}</span></td></tr>
             </table>
         </div>
 
         <!-- AMOUNT IN WORDS -->
         <div class="amount-row">
             <span class="amount-label">Amaun</span>
-            <span class="amount-words">{{ $amountWords }} RINGGIT DAN {{ strtoupper(number_format(($loanAmount - floor($loanAmount)) * 100)) }} SEN SAHAJA</span>
+            <span class="amount-words">{{ $amountWords }} SAHAJA</span>
         </div>
 
-        <!-- BOTTOM ROW: Pinjaman | Tarikh Dipajak | Tarikh Cukup Tempoh -->
+        <!-- BOTTOM ROW: Pinjaman | Tarikh Dipajak (NO Tarikh Cukup Tempoh) -->
         <table class="bottom-table">
             <tr>
                 <td class="pinjaman-cell">
@@ -676,87 +529,24 @@
                     <div class="date-label">Tarikh Dipajak</div>
                     <div class="date-value">{{ $pledgeDate->format('d/m/Y') }}</div>
                 </td>
-                <td class="date-cell-yellow">
-                    <div class="date-label">Tarikh Cukup Tempoh</div>
-                    <div class="date-value">{{ $dueDate->format('d/m/Y') }}</div>
-                </td>
             </tr>
         </table>
 
         <!-- FOOTER -->
-        <table class="footer-table" style="margin-top: 1mm;">
+        <table class="footer-table">
             <tr>
-                <td class="footer-left" style="font-size: 6px; color: #1a4a7a; vertical-align: bottom;">
+                <td class="footer-left">
                     <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
                     <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
                     <div class="copy-label">{{ $copyLabel }}</div>
                 </td>
-                <td class="footer-right" style="text-align: right; vertical-align: bottom;">
+                <td class="footer-right">
                     <div class="weight-info">Termasuk Emas, Batu<br>dan lain-lain</div>
-                    <div style="font-size: 9px; font-weight: bold;">{{ number_format($totalWeight, 2) }}g</div>
+                    <div style="font-size: 7px; font-weight: bold;">{{ number_format($totalWeight, 2) }}g</div>
                 </td>
             </tr>
         </table>
 
-    </div>
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- PAGE 2: TERMS & CONDITIONS (BACK) -->
-    <!-- ═══════════════════════════════════════════ -->
-    <div class="terms-page">
-        <table class="terms-table">
-            <tr>
-                <td class="terms-col">
-                    <div class="terms-title">TERMA DAN SYARAT</div>
-                    @if(!empty($terms) && count($terms) > 0)
-                        @foreach($terms as $index => $term)
-                            <div class="term-item">
-                                <strong>{{ $index + 1 }}.</strong> {!! $term->content_ms ?? $term->content_en ?? '' !!}
-                            </div>
-                        @endforeach
-                    @else
-                        <div class="term-item"><strong>1.</strong> Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian.</div>
-                        <div class="term-item"><strong>2.</strong> Kadar untung adalah tidak melebihi <u>dua peratus (2%)</u> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <u>lima puluh sen (50&cent;)</u>.</div>
-                        <div class="term-item"><strong>3.</strong> Jika mana-mana sandaran hilang atau musnah, maka amaun pampasan adalah satu per empat <u>(25%)</u> lebih daripada jumlah pinjaman.</div>
-                        <div class="term-item"><strong>4.</strong> Mana-mana sandaran hendaklah ditebus dalam masa <u>enam bulan</u> dari tarikh pajak gadaian.</div>
-                        <div class="term-item"><strong>5.</strong> Seorang pemajak gadai berhak memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan pelelong.</div>
-                        <div class="term-item"><strong>6.</strong> Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, KPKT, Putrajaya.</div>
-                        <div class="term-item"><strong>7.</strong> Jika sesuatu sandaran tidak ditebus di dalam enam bulan: (a) RM200 ke bawah menjadi harta pemegang pajak gadai. (b) Lebih RM200 hendaklah dijual oleh pelelong berlesen.</div>
-                        <div class="term-item"><strong>8.</strong> Sila maklumkan kami sekiranya anda menukarkan alamat.</div>
-                        <div class="term-item"><strong>9.</strong> Barang-barang curian tidak diterima.</div>
-                        <div class="term-item"><strong>10.</strong> Data peribadi anda akan digunakan dan diproseskan <u>hanya bagi tujuan internal sahaja</u>.</div>
-                    @endif
-                    <div class="notice-box">DIKEHENDAKI MEMBAWA KAD<br>PENGENALAN APABILA MENEBUS<br>BARANG GADAIAN</div>
-                </td>
-                <td class="redeemer-col">
-                    <div class="redeemer-title">Butir-butir Penebus</div>
-                    <div class="redeemer-field"><span class="redeemer-label">No. K/P:</span><div class="redeemer-line"></div></div>
-                    <div class="redeemer-field"><span class="redeemer-label">Nama:</span><div class="redeemer-line"></div></div>
-                    <div class="redeemer-field"><span class="redeemer-label">Kerakyatan:</span><div class="redeemer-line"></div></div>
-                    <div class="redeemer-field">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="width: 50%;"><span class="redeemer-label">Tahun Lahir:</span><div class="redeemer-line"></div></td>
-                                <td style="width: 50%;"><span class="redeemer-label">Umur:</span><div class="redeemer-line"></div></td>
-                            </tr>
-                        </table>
-                    </div>
-                    <div class="redeemer-field"><span class="redeemer-label">Jantina:</span><div class="redeemer-line"></div></div>
-                    <div class="redeemer-field"><span class="redeemer-label">H/P No:</span><div class="redeemer-line"></div></div>
-                    <div class="redeemer-field">
-                        <span class="redeemer-label">Alamat:</span>
-                        <div class="redeemer-line"></div>
-                        <div class="redeemer-line"></div>
-                        <div class="redeemer-line"></div>
-                    </div>
-                    <div style="margin-top: 4mm;">
-                        <div class="sig-box">
-                            <span class="sig-label">Cap Jari /<br>Tandatangan</span>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        </table>
     </div>
 
 </body>

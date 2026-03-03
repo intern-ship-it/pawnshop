@@ -398,7 +398,8 @@
         } catch (\Exception $e) {}
         if (empty($amountWords)) $amountWords = strtoupper(number_format($totalPaid, 2));
 
-        $barcodeUrl = 'https://barcode.tec-it.com/barcode.ashx?data=' . urlencode($pledge->pledge_no) . '&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&modulewidth=0.265';
+        // Barcode - use locally generated base64 data URI (no external requests)
+        $barcodeUrl = $barcode_data_uri ?? '';
     @endphp
 
     <div class="page">

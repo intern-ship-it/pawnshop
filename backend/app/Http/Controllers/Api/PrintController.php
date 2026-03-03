@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Picqer\Barcode\BarcodeGeneratorPNG;
+use App\Http\Controllers\Api\DotMatrixPrintController;
 
 class PrintController extends Controller
 {
@@ -370,10 +371,30 @@ class PrintController extends Controller
         // Get logo URL – check multiple possible keys
         $logoUrl = $settingsMap['logo'] ?? $settingsMap['logo_url'] ?? $settingsMap['company_logo'] ?? null;
 
-        // If logo is a relative path, make it absolute
-        if ($logoUrl && !str_starts_with($logoUrl, 'http') && !str_starts_with($logoUrl, 'data:')) {
+        // Convert logo to base64 data URI for dompdf compatibility
+        // (dompdf cannot fetch from localhost or external URLs reliably)
+        if ($logoUrl && !str_starts_with($logoUrl, 'data:')) {
+            $logoPath = null;
             $path = ltrim($logoUrl, '/');
-            $logoUrl = str_starts_with($path, 'storage/') ? url($path) : url('storage/' . $path);
+            if (!str_starts_with($logoUrl, 'http')) {
+                // Relative path - resolve to storage
+                $logoPath = str_starts_with($path, 'storage/')
+                    ? public_path($path)
+                    : storage_path('app/public/' . $path);
+            } else {
+                // Absolute URL pointing to localhost - resolve to storage
+                $parsed = parse_url($logoUrl);
+                $urlPath = ltrim($parsed['path'] ?? '', '/');
+                if (str_starts_with($urlPath, 'storage/')) {
+                    $logoPath = public_path($urlPath);
+                }
+            }
+            if ($logoPath && file_exists($logoPath)) {
+                $mime = mime_content_type($logoPath);
+                $logoUrl = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logoPath));
+            } else {
+                $logoUrl = null; // Skip logo if file not found
+            }
         }
 
         return [
@@ -400,8 +421,18 @@ class PrintController extends Controller
     }
 
     /**
+     * Generate barcode as base64 data URI (local, no external requests)
+     */
+    private function generateBarcodeDataUri(string $value): string
+    {
+        $generator = new BarcodeGeneratorPNG();
+        $png = $generator->getBarcode($value, $generator::TYPE_CODE_128, 2, 60);
+        return 'data:image/png;base64,' . base64_encode($png);
+    }
+
+    /**
      * Print pledge receipt as PDF (Pre-Printed Form Style)
-     * Used for both PDF download and WhatsApp sending
+     * Uses blade template with table-based layout compatible with dompdf
      */
     public function pledgeReceiptPdf(Request $request, Pledge $pledge)
     {
@@ -421,21 +452,20 @@ class PrintController extends Controller
         ]);
 
         $settings = $this->getCompanySettings($pledge->branch);
-        $terms = \App\Models\TermsCondition::getForActivity('pledge', $pledge->branch_id);
 
         $data = [
             'pledge' => $pledge,
             'copy_type' => $request->input('copy_type', 'customer'),
             'settings' => $settings,
-            'terms' => $terms,
             'printed_at' => now(),
             'printed_by' => $request->user()->name,
+            'barcode_data_uri' => $this->generateBarcodeDataUri($pledge->pledge_no),
         ];
 
         $pdf = Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
-        $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+        $pdf->setPaper([0, 0, 700, 420], 'landscape');
 
-        $filename = "Receipt-{$pledge->pledge_no}.pdf";
+        $filename = "Pledge-Receipt-{$pledge->pledge_no}.pdf";
         return $pdf->download($filename);
     }
 
@@ -462,6 +492,7 @@ class PrintController extends Controller
             'settings' => $settings,
             'printed_at' => now(),
             'printed_by' => $request->user()->name,
+            'barcode_data_uri' => $this->generateBarcodeDataUri($renewal->pledge->pledge_no),
         ];
 
         $pdf = Pdf::loadView('pdf.renewal-receipt-preprinted', $data);
@@ -494,6 +525,7 @@ class PrintController extends Controller
             'settings' => $settings,
             'printed_at' => now(),
             'printed_by' => $request->user()->name,
+            'barcode_data_uri' => $this->generateBarcodeDataUri($redemption->pledge->pledge_no),
         ];
 
         $pdf = Pdf::loadView('pdf.redemption-receipt-preprinted', $data);

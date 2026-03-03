@@ -2900,25 +2900,12 @@ export default function PrintTestPage() {
     const startTime = Date.now();
     try {
       const token = getToken();
-      const response = await fetch(`${apiUrl}/print/pdf/pledge/${selectedPledge.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Direct browser download - server sets Content-Disposition with correct filename
+      const pdfUrl = `${apiUrl}/print/pdf/pledge/${selectedPledge.id}?token=${encodeURIComponent(token)}`;
+      window.open(pdfUrl, '_blank');
       const duration = Date.now() - startTime;
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || `HTTP ${response.status}`);
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Pledge-Receipt-${selectedPledge.pledge_no}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      logResult("Pledge PDF", true, `${(blob.size / 1024).toFixed(1)} KB`, duration);
-      dispatch(addToast({ type: "success", title: "Downloaded", message: `Pledge PDF (${duration}ms, ${(blob.size / 1024).toFixed(1)}KB)` }));
+      logResult("Pledge PDF", true, "Download started", duration);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: "Pledge PDF download started" }));
     } catch (error) {
       logResult("Pledge PDF", false, error.message, Date.now() - startTime);
       dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
@@ -2947,25 +2934,12 @@ export default function PrintTestPage() {
       const latestRenewal = renewals[renewals.length - 1];
       const renewalId = latestRenewal.id;
 
-      const response = await fetch(`${apiUrl}/print/pdf/renewal/${renewalId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Direct browser download
+      const pdfUrl = `${apiUrl}/print/pdf/renewal/${renewalId}?token=${encodeURIComponent(token)}`;
+      window.open(pdfUrl, '_blank');
       const duration = Date.now() - startTime;
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || `HTTP ${response.status}`);
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Renewal-Receipt-${latestRenewal.renewal_no || renewalId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      logResult("Renewal PDF", true, `${(blob.size / 1024).toFixed(1)} KB`, duration);
-      dispatch(addToast({ type: "success", title: "Downloaded", message: `Renewal PDF (${duration}ms, ${(blob.size / 1024).toFixed(1)}KB)` }));
+      logResult("Renewal PDF", true, "Download started", duration);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: "Renewal PDF download started" }));
     } catch (error) {
       logResult("Renewal PDF", false, error.message, Date.now() - startTime);
       dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
@@ -2994,25 +2968,12 @@ export default function PrintTestPage() {
       const latestRedemption = redemptions[redemptions.length - 1];
       const redemptionId = latestRedemption.id;
 
-      const response = await fetch(`${apiUrl}/print/pdf/redemption/${redemptionId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Direct browser download
+      const pdfUrl = `${apiUrl}/print/pdf/redemption/${redemptionId}?token=${encodeURIComponent(token)}`;
+      window.open(pdfUrl, '_blank');
       const duration = Date.now() - startTime;
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || `HTTP ${response.status}`);
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Redemption-Receipt-${latestRedemption.redemption_no || redemptionId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      logResult("Redemption PDF", true, `${(blob.size / 1024).toFixed(1)} KB`, duration);
-      dispatch(addToast({ type: "success", title: "Downloaded", message: `Redemption PDF (${duration}ms, ${(blob.size / 1024).toFixed(1)}KB)` }));
+      logResult("Redemption PDF", true, "Download started", duration);
+      dispatch(addToast({ type: "success", title: "Downloaded", message: "Redemption PDF download started" }));
     } catch (error) {
       logResult("Redemption PDF", false, error.message, Date.now() - startTime);
       dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));

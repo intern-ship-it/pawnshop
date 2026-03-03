@@ -547,26 +547,11 @@ export default function PledgeList() {
         filename = `Receipt-${pledge.receiptNo || pledge.id}.pdf`;
       }
 
-      const response = await fetch(pdfUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Direct browser download - append token as query param
+      const downloadUrl = `${pdfUrl}?token=${encodeURIComponent(token)}`;
+      window.open(downloadUrl, '_blank');
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || "Failed to download PDF");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      dispatch(addToast({ type: "success", title: "Downloaded", message: `${filename} downloaded` }));
+      dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF download started" }));
     } catch (error) {
       console.error("PDF download error:", error);
       dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to download PDF" }));

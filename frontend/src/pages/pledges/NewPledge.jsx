@@ -2582,23 +2582,10 @@ export default function NewPledge() {
     setIsPrinting(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-      const response = await fetch(`${apiUrl}/print/pdf/pledge/${createdPledgeId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || "Failed to download PDF");
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Receipt-${createdReceiptNo || createdPledgeId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF receipt downloaded" }));
+      // Direct browser download with token in query string
+      const pdfUrl = `${apiUrl}/print/pdf/pledge/${createdPledgeId}?token=${encodeURIComponent(token)}`;
+      window.open(pdfUrl, '_blank');
+      dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF receipt download started" }));
     } catch (error) {
       console.error("PDF download error:", error);
       dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to download PDF" }));

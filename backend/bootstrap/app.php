@@ -14,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
 
+        // Allow token from query string for PDF downloads (runs before auth:sanctum)
+        $middleware->api(prepend: [
+            \App\Http\Middleware\TokenFromQuery::class,
+        ]);
         // Disable CSRF for API routes
         $middleware->validateCsrfTokens(except: [
             'api/*',
@@ -24,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.branch' => \App\Http\Middleware\CheckBranch::class,
             'check.permission' => \App\Http\Middleware\CheckPermission::class,
             'audit.log' => \App\Http\Middleware\AuditLogMiddleware::class,
+            'token.query' => \App\Http\Middleware\TokenFromQuery::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
