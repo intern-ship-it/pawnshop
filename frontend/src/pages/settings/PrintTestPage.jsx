@@ -764,6 +764,223 @@ export default function PrintTestPage() {
     }
   };
 
+  // Download Pledge PDF (via GET endpoint)
+  const testDownloadPledgePdf = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
+    }
+
+    setPrinting(true);
+    setPreviewType("Pledge PDF Download");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+      const response = await fetch(
+        `${apiUrl}/print/pdf/pledge/${selectedPledge.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/pdf",
+          },
+        },
+      );
+
+      const duration = Date.now() - startTime;
+      if (!response.ok) throw new Error("Failed to generate Pledge PDF");
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `Pledge-${selectedPledge.pledge_no}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+        if (match) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      logResult("Pledge PDF", true, `Download started`, duration);
+      dispatch(addToast({ type: "success", title: "Success", message: `Pledge PDF downloaded (${duration}ms)` }));
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Pledge PDF", false, error.message, duration);
+      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Download Renewal PDF — looks up the latest renewal for the selected pledge first
+  const testDownloadRenewalPdf = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
+    }
+
+    setPrinting(true);
+    setPreviewType("Renewal PDF Download");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      // Fetch full pledge details (includes renewals relationship)
+      const pledgeResponse = await fetch(
+        `${apiUrl}/pledges/${selectedPledge.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        },
+      );
+
+      if (!pledgeResponse.ok) throw new Error("Failed to fetch pledge details");
+      const pledgeData = await pledgeResponse.json();
+      const renewals = pledgeData.data?.pledge?.renewals || [];
+
+      if (renewals.length === 0) {
+        throw new Error("No renewals found for this pledge");
+      }
+
+      // Take the latest renewal (last in array)
+      const latestRenewal = renewals[renewals.length - 1];
+
+      // Download the renewal PDF
+      const response = await fetch(
+        `${apiUrl}/print/pdf/renewal/${latestRenewal.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/pdf",
+          },
+        },
+      );
+
+      const duration = Date.now() - startTime;
+      if (!response.ok) throw new Error("Failed to generate Renewal PDF");
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `Renewal-${latestRenewal.renewal_no || latestRenewal.id}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+        if (match) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      logResult("Renewal PDF", true, `Download started`, duration);
+      dispatch(addToast({ type: "success", title: "Success", message: `Renewal PDF downloaded (${duration}ms)` }));
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Renewal PDF", false, error.message, duration);
+      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Download Redemption PDF — searches for the latest redemption of the selected pledge
+  const testDownloadRedemptionPdf = async () => {
+    if (!selectedPledge) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+      return;
+    }
+
+    setPrinting(true);
+    setPreviewType("Redemption PDF Download");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      // Search redemptions by pledge number
+      const redemptionsResponse = await fetch(
+        `${apiUrl}/redemptions?search=${encodeURIComponent(selectedPledge.pledge_no)}&per_page=5`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        },
+      );
+
+      if (!redemptionsResponse.ok) throw new Error("Failed to fetch redemptions");
+      const redemptionsData = await redemptionsResponse.json();
+      const redemptionsList = redemptionsData.data?.data || redemptionsData.data || [];
+
+      // Filter to only redemptions that match this exact pledge
+      const matching = redemptionsList.filter(
+        (r) =>
+          r.pledge_id === selectedPledge.id ||
+          r.pledge?.id === selectedPledge.id ||
+          r.pledge?.pledge_no === selectedPledge.pledge_no,
+      );
+
+      if (matching.length === 0) {
+        throw new Error("No redemptions found for this pledge");
+      }
+
+      const latestRedemption = matching[0]; // Already sorted by created_at desc
+
+      // Download the redemption PDF
+      const response = await fetch(
+        `${apiUrl}/print/pdf/redemption/${latestRedemption.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/pdf",
+          },
+        },
+      );
+
+      const duration = Date.now() - startTime;
+      if (!response.ok) throw new Error("Failed to generate Redemption PDF");
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `Redemption-${latestRedemption.redemption_no || latestRedemption.id}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+        if (match) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      logResult("Redemption PDF", true, `Download started`, duration);
+      dispatch(addToast({ type: "success", title: "Success", message: `Redemption PDF downloaded (${duration}ms)` }));
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Redemption PDF", false, error.message, duration);
+      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   // Test Barcode Print
   const testBarcodePrint = async () => {
     if (!selectedPledge) {
@@ -2889,113 +3106,7 @@ export default function PrintTestPage() {
 
   };
 
-  // ── PDF Download Tests ──
-  const testDownloadPledgePdf = async () => {
-    if (!selectedPledge) {
-      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
-      return;
-    }
-    setPrinting(true);
-    setPreviewType("Pledge PDF Download");
-    const startTime = Date.now();
-    try {
-      const token = getToken();
-      // Include filename in URL path so browser uses it for download
-      const filename = `Pledge-Receipt-${selectedPledge.pledge_no || selectedPledge.id}.pdf`;
-      const pdfUrl = `${apiUrl}/print/pdf/pledge/${selectedPledge.id}/${filename}?token=${encodeURIComponent(token)}`;
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = pdfUrl;
-      document.body.appendChild(iframe);
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
-      const duration = Date.now() - startTime;
-      logResult("Pledge PDF", true, "Download started", duration);
-      dispatch(addToast({ type: "success", title: "Downloaded", message: "Pledge PDF download started" }));
-    } catch (error) {
-      logResult("Pledge PDF", false, error.message, Date.now() - startTime);
-      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
-    } finally {
-      setPrinting(false);
-    }
-  };
 
-  const testDownloadRenewalPdf = async () => {
-    if (!selectedPledge) {
-      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
-      return;
-    }
-    setPrinting(true);
-    setPreviewType("Renewal PDF Download");
-    const startTime = Date.now();
-    try {
-      const token = getToken();
-      // Fetch the pledge's latest renewal ID first
-      const pledgeRes = await fetch(`${apiUrl}/pledges/${selectedPledge.id}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      const pledgeData = await pledgeRes.json();
-      const renewals = pledgeData.data?.pledge?.renewals || pledgeData.data?.renewals || [];
-      if (renewals.length === 0) throw new Error("No renewals found for this pledge");
-      const latestRenewal = renewals[renewals.length - 1];
-      const renewalId = latestRenewal.id;
-
-      // Include filename in URL path
-      const filename = `Renewal-${latestRenewal.renewal_no || renewalId}.pdf`;
-      const pdfUrl = `${apiUrl}/print/pdf/renewal/${renewalId}/${filename}?token=${encodeURIComponent(token)}`;
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = pdfUrl;
-      document.body.appendChild(iframe);
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
-      const duration = Date.now() - startTime;
-      logResult("Renewal PDF", true, "Download started", duration);
-      dispatch(addToast({ type: "success", title: "Downloaded", message: "Renewal PDF download started" }));
-    } catch (error) {
-      logResult("Renewal PDF", false, error.message, Date.now() - startTime);
-      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
-    } finally {
-      setPrinting(false);
-    }
-  };
-
-  const testDownloadRedemptionPdf = async () => {
-    if (!selectedPledge) {
-      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
-      return;
-    }
-    setPrinting(true);
-    setPreviewType("Redemption PDF Download");
-    const startTime = Date.now();
-    try {
-      const token = getToken();
-      // Fetch the pledge's latest redemption ID first
-      const pledgeRes = await fetch(`${apiUrl}/pledges/${selectedPledge.id}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      const pledgeData = await pledgeRes.json();
-      const redemptions = pledgeData.data?.pledge?.redemptions || pledgeData.data?.redemptions || [];
-      if (redemptions.length === 0) throw new Error("No redemptions found for this pledge");
-      const latestRedemption = redemptions[redemptions.length - 1];
-      const redemptionId = latestRedemption.id;
-
-      // Include filename in URL path
-      const filename = `Redemption-${latestRedemption.redemption_no || redemptionId}.pdf`;
-      const pdfUrl = `${apiUrl}/print/pdf/redemption/${redemptionId}/${filename}?token=${encodeURIComponent(token)}`;
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = pdfUrl;
-      document.body.appendChild(iframe);
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
-      const duration = Date.now() - startTime;
-      logResult("Redemption PDF", true, "Download started", duration);
-      dispatch(addToast({ type: "success", title: "Downloaded", message: "Redemption PDF download started" }));
-    } catch (error) {
-      logResult("Redemption PDF", false, error.message, Date.now() - startTime);
-      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
-    } finally {
-      setPrinting(false);
-    }
-  };
 
   const filteredPledges = pledges.filter((p) => {
     if (!searchQuery) return true;
