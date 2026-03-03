@@ -2582,9 +2582,14 @@ export default function NewPledge() {
     setIsPrinting(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-      // Direct browser download with token in query string
-      const pdfUrl = `${apiUrl}/print/pdf/pledge/${createdPledgeId}?token=${encodeURIComponent(token)}`;
-      window.open(pdfUrl, '_blank');
+      // Include filename in URL path so browser uses it for download
+      const filename = `Pledge-Receipt-${createdPledgeId}.pdf`;
+      const pdfUrl = `${apiUrl}/print/pdf/pledge/${createdPledgeId}/${filename}?token=${encodeURIComponent(token)}`;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = pdfUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
       dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF receipt download started" }));
     } catch (error) {
       console.error("PDF download error:", error);

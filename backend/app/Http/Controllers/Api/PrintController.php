@@ -466,7 +466,40 @@ class PrintController extends Controller
         $pdf->setPaper([0, 0, 700, 420], 'landscape');
 
         $filename = "Pledge-Receipt-{$pledge->pledge_no}.pdf";
-        return $pdf->download($filename);
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * HTML Preview of pledge receipt (for browser DevTools CSS tweaking)
+     */
+    public function pledgeReceiptPreview(Request $request, Pledge $pledge)
+    {
+        $pledge->load([
+            'customer',
+            'items.category',
+            'items.purity',
+            'items.vault',
+            'items.box',
+            'items.slot',
+            'branch',
+            'createdBy:id,name',
+        ]);
+
+        $settings = $this->getCompanySettings($pledge->branch);
+
+        $data = [
+            'pledge' => $pledge,
+            'copy_type' => $request->input('copy_type', 'customer'),
+            'settings' => $settings,
+            'printed_at' => now(),
+            'printed_by' => $request->user()->name,
+            'barcode_data_uri' => $this->generateBarcodeDataUri($pledge->pledge_no),
+        ];
+
+        return view('pdf.pledge-receipt-preprinted', $data);
     }
 
     /**
@@ -499,7 +532,10 @@ class PrintController extends Controller
         $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
 
         $filename = "Renewal-{$renewal->renewal_no}.pdf";
-        return $pdf->download($filename);
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     /**
@@ -532,7 +568,10 @@ class PrintController extends Controller
         $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
 
         $filename = "Redemption-{$redemption->redemption_no}.pdf";
-        return $pdf->download($filename);
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     /**

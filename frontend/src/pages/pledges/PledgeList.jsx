@@ -547,9 +547,13 @@ export default function PledgeList() {
         filename = `Receipt-${pledge.receiptNo || pledge.id}.pdf`;
       }
 
-      // Direct browser download - append token as query param
-      const downloadUrl = `${pdfUrl}?token=${encodeURIComponent(token)}`;
-      window.open(downloadUrl, '_blank');
+      // Include filename in URL path so browser uses it for download
+      const downloadUrl = `${pdfUrl}/${filename}?token=${encodeURIComponent(token)}`;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = downloadUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
 
       dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF download started" }));
     } catch (error) {

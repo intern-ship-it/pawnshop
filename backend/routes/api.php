@@ -665,10 +665,21 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::prefix('pdf')->group(function () {
                     Route::get('/pledge/{pledge}', [PrintController::class , 'pledgeReceiptPdf'])
                         ->middleware('check.permission:pledges,print');
+                    Route::get('/pledge/{pledge}/{filename}', [PrintController::class , 'pledgeReceiptPdf'])
+                        ->middleware('check.permission:pledges,print')
+                        ->where('filename', '.*\.pdf');
                     Route::get('/renewal/{renewal}', [PrintController::class , 'renewalReceiptPdf'])
                         ->middleware('check.permission:renewals,print');
+                    Route::get('/renewal/{renewal}/{filename}', [PrintController::class , 'renewalReceiptPdf'])
+                        ->middleware('check.permission:renewals,print')
+                        ->where('filename', '.*\.pdf');
                     Route::get('/redemption/{redemption}', [PrintController::class , 'redemptionReceiptPdf'])
                         ->middleware('check.permission:redemptions,print');
+                    Route::get('/redemption/{redemption}/{filename}', [PrintController::class , 'redemptionReceiptPdf'])
+                        ->middleware('check.permission:redemptions,print')
+                        ->where('filename', '.*\.pdf');
+                    // HTML preview for CSS tweaking in browser DevTools
+                    Route::get('/preview/pledge/{pledge}', [PrintController::class , 'pledgeReceiptPreview']);
                 }
                 );
             }

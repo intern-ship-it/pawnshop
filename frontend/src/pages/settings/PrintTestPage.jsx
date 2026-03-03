@@ -2900,9 +2900,14 @@ export default function PrintTestPage() {
     const startTime = Date.now();
     try {
       const token = getToken();
-      // Direct browser download - server sets Content-Disposition with correct filename
-      const pdfUrl = `${apiUrl}/print/pdf/pledge/${selectedPledge.id}?token=${encodeURIComponent(token)}`;
-      window.open(pdfUrl, '_blank');
+      // Include filename in URL path so browser uses it for download
+      const filename = `Pledge-Receipt-${selectedPledge.pledge_no || selectedPledge.id}.pdf`;
+      const pdfUrl = `${apiUrl}/print/pdf/pledge/${selectedPledge.id}/${filename}?token=${encodeURIComponent(token)}`;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = pdfUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
       const duration = Date.now() - startTime;
       logResult("Pledge PDF", true, "Download started", duration);
       dispatch(addToast({ type: "success", title: "Downloaded", message: "Pledge PDF download started" }));
@@ -2934,9 +2939,14 @@ export default function PrintTestPage() {
       const latestRenewal = renewals[renewals.length - 1];
       const renewalId = latestRenewal.id;
 
-      // Direct browser download
-      const pdfUrl = `${apiUrl}/print/pdf/renewal/${renewalId}?token=${encodeURIComponent(token)}`;
-      window.open(pdfUrl, '_blank');
+      // Include filename in URL path
+      const filename = `Renewal-${latestRenewal.renewal_no || renewalId}.pdf`;
+      const pdfUrl = `${apiUrl}/print/pdf/renewal/${renewalId}/${filename}?token=${encodeURIComponent(token)}`;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = pdfUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
       const duration = Date.now() - startTime;
       logResult("Renewal PDF", true, "Download started", duration);
       dispatch(addToast({ type: "success", title: "Downloaded", message: "Renewal PDF download started" }));
@@ -2968,9 +2978,14 @@ export default function PrintTestPage() {
       const latestRedemption = redemptions[redemptions.length - 1];
       const redemptionId = latestRedemption.id;
 
-      // Direct browser download
-      const pdfUrl = `${apiUrl}/print/pdf/redemption/${redemptionId}?token=${encodeURIComponent(token)}`;
-      window.open(pdfUrl, '_blank');
+      // Include filename in URL path
+      const filename = `Redemption-${latestRedemption.redemption_no || redemptionId}.pdf`;
+      const pdfUrl = `${apiUrl}/print/pdf/redemption/${redemptionId}/${filename}?token=${encodeURIComponent(token)}`;
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = pdfUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
       const duration = Date.now() - startTime;
       logResult("Redemption PDF", true, "Download started", duration);
       dispatch(addToast({ type: "success", title: "Downloaded", message: "Redemption PDF download started" }));
