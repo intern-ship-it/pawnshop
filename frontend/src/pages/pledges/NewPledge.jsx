@@ -1242,7 +1242,6 @@ export default function NewPledge() {
             barcode:
               data.data.barcode ||
               data.data.pledge_barcode ||
-              data.data.receipt_no ||
               data.data.pledge_no,
             total_items: data.data.items?.length || data.data.total_items || 1,
             total_weight:
@@ -1252,6 +1251,10 @@ export default function NewPledge() {
                 0,
               ) ||
               0,
+            storage_location:
+              data.data.storage_location ||
+              data.data.items?.[0]?.storage_location ||
+              "",
           };
           barcodeWindow.document.write(
             generateBarcodeHTML(
@@ -1574,14 +1577,9 @@ export default function NewPledge() {
   const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo) => {
     // Extract barcode data - use pledge-level barcode, not item-level
     const barcodeImage = pledgeData.barcode_image || pledgeData.image || "";
-    const barcodeText =
-      pledgeData.barcode ||
-      pledgeData.pledge_barcode ||
-      receiptNo ||
-      pledgeNo ||
-      "N/A";
     const totalItems = pledgeData.total_items || pledgeData.items_count || 1;
     const totalWeight = pledgeData.total_weight || "0";
+    const storageLocation = pledgeData.storage_location || "";
 
     return `
       <!DOCTYPE html>
@@ -1655,11 +1653,12 @@ export default function NewPledge() {
         .label { 
             width: 50mm; 
             height: 50mm;
-            padding: 3mm 2mm 3mm 5mm; 
+            padding: 3mm 4mm 4mm 4mm; 
             background: white; 
             display: flex; 
             flex-direction: column; 
-            overflow: unset; 
+            justify-content: center;
+            overflow: hidden; 
           }
           .header-row { 
             display: flex; 
@@ -1672,7 +1671,6 @@ export default function NewPledge() {
           .pledge-no { font-size: 8pt; font-weight: bold; }
           .items-count { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
          .barcode-section { 
-            flex: 1; 
             text-align: center; 
             display: flex; 
             flex-direction: column; 
@@ -1682,25 +1680,13 @@ export default function NewPledge() {
             width: 100%;
           }
           .barcode-img { 
-            max-width: 38mm; 
-            width: 38mm;
-            height: 16mm; 
+            max-width: 36mm; 
+            width: 36mm;
+            height: 14mm; 
             object-fit: contain;
             margin: 0 auto;
           }
-          .barcode-text { 
-            font-family: 'Courier New', monospace; 
-            font-size: 8pt; 
-            margin-top: 1mm; 
-            font-weight: bold; 
-            letter-spacing: 0.3px;
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-          }
           .footer-row { 
-            border-top: 0.3mm solid #333; 
             padding-top: 1mm; 
             font-size: 7pt; 
             font-weight: bold; 
@@ -1708,7 +1694,15 @@ export default function NewPledge() {
             display: flex;
             justify-content: space-between;
             align-items: center;
+          }
+          .storage-loc {
+            font-size: 6.5pt;
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
             overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 65%;
           }
           @media screen { 
             body { padding: 20px; width: auto; } 
@@ -1731,10 +1725,9 @@ export default function NewPledge() {
             </div>
             <div class="barcode-section">
               ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
-              <div class="barcode-text">${barcodeText}</div>
             </div>
             <div class="footer-row">
-              <div>${receiptNo || ''}</div>
+              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : ""}
               <div>Total: ${parseFloat(totalWeight).toFixed(2)}g</div>
             </div>
           </div>
@@ -1824,13 +1817,12 @@ export default function NewPledge() {
             );
             if (printWindow) {
               // Prepare single barcode data for pledge
-              const pledgeBarcodeData = {
+            const pledgeBarcodeData = {
                 barcode_image:
                   data.data.barcode_image || data.data.items?.[0]?.image || "",
                 barcode:
                   data.data.barcode ||
                   data.data.pledge_barcode ||
-                  data.data.receipt_no ||
                   data.data.pledge_no,
                 total_items:
                   data.data.items?.length || data.data.total_items || 1,
@@ -1841,6 +1833,10 @@ export default function NewPledge() {
                     0,
                   ) ||
                   0,
+                storage_location:
+                  data.data.storage_location ||
+                  data.data.items?.[0]?.storage_location ||
+                  "",
               };
               printWindow.document.write(
                 generateBarcodeHTML(
@@ -2505,14 +2501,13 @@ export default function NewPledge() {
       }
 
       // Prepare single barcode data for pledge
-      const pledgeBarcodeData = {
-        barcode_image:
-          data.data.barcode_image || data.data.items?.[0]?.image || "",
-        barcode:
-          data.data.barcode ||
-          data.data.pledge_barcode ||
-          data.data.receipt_no ||
-          data.data.pledge_no,
+     const pledgeBarcodeData = {
+                barcode_image:
+                  data.data.barcode_image || data.data.items?.[0]?.image || "",
+                barcode:
+                  data.data.barcode ||
+                  data.data.pledge_barcode ||
+                  data.data.pledge_no,
         total_items: data.data.items?.length || data.data.total_items || 1,
         total_weight:
           data.data.total_weight ||

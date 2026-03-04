@@ -155,7 +155,7 @@ class PrintController extends Controller
             return $this->error('Unauthorized', 403);
         }
 
-        $pledge->load(['items.category', 'items.purity']);
+        $pledge->load(['items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot']);
 
         $generator = new BarcodeGeneratorPNG();
 
@@ -170,6 +170,17 @@ class PrintController extends Controller
             return ($item->category->name_en ?? 'Item') . ' ' . ($item->purity->code ?? '') . ' ' . $item->net_weight . 'g';
         })->implode(', ');
 
+        // Build storage location string from first item (all items in a pledge share the same vault)
+        $storageLocation = '';
+        $firstItem = $pledge->items->first();
+        if ($firstItem) {
+            $parts = [];
+            if ($firstItem->vault) $parts[] = $firstItem->vault->name ?? $firstItem->vault->code ?? '';
+            if ($firstItem->box) $parts[] = 'Box ' . ($firstItem->box->box_number ?? $firstItem->box->name ?? '');
+            if ($firstItem->slot) $parts[] = 'Slot ' . ($firstItem->slot->slot_number ?? $firstItem->slot->name ?? '');
+            $storageLocation = implode(' › ', array_filter($parts));
+        }
+
         $items = [[
                 'barcode' => $barcodeValue,
                 'item_code' => $barcodeValue,
@@ -179,12 +190,14 @@ class PrintController extends Controller
                 'purity' => '',
                 'net_weight' => $pledge->items->sum('net_weight'),
                 'item_summary' => $itemSummary,
+                'storage_location' => $storageLocation,
             ]];
 
         return $this->success([
             'items' => $items,
             'pledge_no' => $pledge->pledge_no,
             'receipt_no' => $pledge->receipt_no,
+            'storage_location' => $storageLocation,
         ]);
     }
 
@@ -310,7 +323,7 @@ class PrintController extends Controller
         $processedPledges = []; // Track pledges to avoid duplicate barcodes
 
         foreach ($validated['item_ids'] as $itemId) {
-            $item = PledgeItem::with(['pledge', 'category', 'purity'])->find($itemId);
+            $item = PledgeItem::with(['pledge', 'category', 'purity', 'vault', 'box', 'slot'])->find($itemId);
 
             if ($item->pledge->branch_id !== $branchId) {
                 continue;
@@ -323,6 +336,13 @@ class PrintController extends Controller
             }
             $processedPledges[] = $pledgeId;
 
+            // Build storage location string
+            $parts = [];
+            if ($item->vault) $parts[] = $item->vault->name ?? $item->vault->code ?? '';
+            if ($item->box) $parts[] = 'Box ' . ($item->box->box_number ?? $item->box->name ?? '');
+            if ($item->slot) $parts[] = 'Slot ' . ($item->slot->slot_number ?? $item->slot->name ?? '');
+            $storageLocation = implode(' › ', array_filter($parts));
+
             $barcodeValue = $item->pledge->pledge_no;
             $barcodes[] = [
                 'barcode' => $barcodeValue,
@@ -333,6 +353,8 @@ class PrintController extends Controller
                 'category' => $item->category->name_en,
                 'weight' => $item->net_weight . 'g',
                 'purity' => $item->purity->code,
+                'net_weight' => $item->net_weight,
+                'storage_location' => $storageLocation,
             ];
         }
 

@@ -1087,9 +1087,11 @@ export default function PrintTestPage() {
         </div>
         <div class="barcode-section">
           ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
-          <div class="barcode-text">${item.barcode || item.item_code || "N/A"}</div>
         </div>
-        <div class="footer-row">${item.purity || "916"} • ${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
+        <div class="footer-row">
+          ${item.storage_location ? `<div class="storage-loc">📍 ${item.storage_location}</div>` : `<div>${item.purity || "916"}</div>`}
+          <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
+        </div>
       </div>
     `,
       )
@@ -1167,11 +1169,12 @@ export default function PrintTestPage() {
       .label { 
           width: 50mm; 
           height: 50mm;
-          padding: 3mm 2mm 3mm 5mm;
+          padding: 8mm 4mm 9mm 6mm;
           background: white; 
           display: flex; 
           flex-direction: column; 
-          overflow: unset; 
+          justify-content: center;
+          overflow: hidden; 
           border-bottom: 1px dashed #ccc;
         }
         .label:last-child { border-bottom: none; }
@@ -1186,7 +1189,6 @@ export default function PrintTestPage() {
         .pledge-no { font-size: 8pt; font-weight: bold; }
         .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
      .barcode-section { 
-          flex: 1; 
           text-align: center; 
           display: flex; 
           flex-direction: column; 
@@ -1196,29 +1198,30 @@ export default function PrintTestPage() {
           width: 100%;
         }
         .barcode-img { 
-          max-width: 38mm; 
-          width: 38mm;
-          height: 16mm; 
+          max-width: 36mm; 
+          width: 36mm;
+          height: 14mm; 
           object-fit: contain;
           margin: 0 auto;
         }
-        .barcode-text { 
-          font-family: 'Courier New', monospace; 
-          font-size: 8pt; 
-          margin-top: 1mm; 
-          font-weight: bold; 
-          letter-spacing: 0.3px;
-          max-width: 100%;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
         .footer-row { 
-          border-top: 0.3mm solid #333; 
           padding-top: 1mm; 
-          font-size: 8pt; 
+          font-size: 7pt; 
           font-weight: bold; 
-          text-align: center; 
+          flex-direction: column;
+          text-align: center;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .storage-loc {
+          font-size: 6.5pt;
+          font-weight: 600;
+          color: #333;
+          white-space: nowrap;
+          
+          text-overflow: ellipsis;
+          max-width: 83%;
         }
         @media screen { 
           body { padding: 20px; } 
