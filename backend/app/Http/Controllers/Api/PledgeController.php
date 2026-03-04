@@ -836,6 +836,9 @@ class PledgeController extends Controller
      */
     public function sendWhatsApp(Request $request, Pledge $pledge): JsonResponse
     {
+        // Extend time limit for PDF generation + WhatsApp sending
+        set_time_limit(120);
+
         try {
             // Check branch access
             if ($pledge->branch_id !== $request->user()->branch_id) {
@@ -873,18 +876,7 @@ class PledgeController extends Controller
             $result = $this->sendViaProvider($config, $phone, $message);
 
             if ($result['success']) {
-                // Also send PDF receipt as document
-                try {
-                    $pdfResult = $this->sendPdfReceipt($config, $phone, $pledge);
-                    if (!$pdfResult['success']) {
-                        Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
-                    }
-                }
-                catch (\Exception $pdfError) {
-                    Log::warning('PDF attachment error: ' . $pdfError->getMessage());
-                }
-
-                // Log the message
+                // Log the message immediately
                 \App\Models\WhatsAppLog::create([
                     'branch_id' => $pledge->branch_id,
                     'recipient_phone' => $phone,
@@ -896,6 +888,23 @@ class PledgeController extends Controller
                     'sent_at' => now(),
                     'sent_by' => $request->user()->id,
                 ]);
+
+                // Schedule PDF sending to happen AFTER the response is sent to client
+                // This way the user gets instant success instead of waiting for PDF generation
+                app()->terminating(function () use ($config, $phone, $pledge) {
+                    set_time_limit(90);
+                    try {
+                        Log::info('Starting PDF receipt generation for pledge ' . $pledge->pledge_no);
+                        $pdfResult = $this->sendPdfReceipt($config, $phone, $pledge);
+                        Log::info('PDF receipt result: ' . json_encode($pdfResult));
+                        if (!$pdfResult['success']) {
+                            Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
+                        }
+                    }
+                    catch (\Exception $pdfError) {
+                        Log::warning('PDF attachment error: ' . $pdfError->getMessage());
+                    }
+                });
 
                 return $this->success([
                     'message' => 'WhatsApp sent successfully to ' . $phone,
@@ -970,15 +979,18 @@ class PledgeController extends Controller
             ]
             );
 
+            $data = $response->json();
+
             if ($response->successful()) {
-                $data = $response->json();
                 if (isset($data['sent']) && $data['sent'] === 'true') {
                     return ['success' => true];
                 }
                 return ['success' => false, 'message' => $data['message'] ?? 'Failed to send'];
             }
 
-            return ['success' => false, 'message' => 'API request failed: ' . $response->status()];
+            // Extract descriptive error from response body (e.g. instance stopped, non-payment)
+            $errorMessage = $data['error'] ?? $data['message'] ?? ('API request failed: ' . $response->status());
+            return ['success' => false, 'message' => $errorMessage];
         }
         catch (\Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
@@ -1002,6 +1014,9 @@ class PledgeController extends Controller
      */
     private function sendPdfReceipt($config, string $phone, Pledge $pledge): array
     {
+        // Extend time limit for PDF generation + upload
+        set_time_limit(90);
+
         try {
             // Get company settings
             $settingsMap = [];
@@ -1019,11 +1034,27 @@ class PledgeController extends Controller
             // Settings table may not exist
             }
 
-            // Resolve logo URL
+            // Resolve logo as base64 data URI (avoid HTTP roundtrip which causes DomPDF timeout)
             $logoUrl = $settingsMap['logo'] ?? $settingsMap['logo_url'] ?? $settingsMap['company_logo'] ?? null;
-            if ($logoUrl && !str_starts_with($logoUrl, 'http') && !str_starts_with($logoUrl, 'data:')) {
-                $path = ltrim($logoUrl, '/');
-                $logoUrl = str_starts_with($path, 'storage/') ? url($path) : url('storage/' . $path);
+            if ($logoUrl && !str_starts_with($logoUrl, 'data:')) {
+                // Convert to local file path and read as base64
+                $logoPath = $logoUrl;
+                if (str_starts_with($logoPath, 'http')) {
+                    // Extract path from URL
+                    $parsed = parse_url($logoPath);
+                    $logoPath = ltrim($parsed['path'] ?? '', '/');
+                }
+                $logoPath = ltrim($logoPath, '/');
+                // Try to resolve local file path
+                $localPath = str_starts_with($logoPath, 'storage/')
+                    ? storage_path('app/public/' . substr($logoPath, 8))
+                    : public_path($logoPath);
+                if (file_exists($localPath)) {
+                    $mime = mime_content_type($localPath);
+                    $logoUrl = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($localPath));
+                } else {
+                    $logoUrl = null; // Skip logo if file not found
+                }
             }
 
             $settings = [
@@ -1065,14 +1096,17 @@ class PledgeController extends Controller
             ];
 
             // Generate PDF
+            Log::info('Generating PDF for pledge ' . $pledge->pledge_no . ' using view pdf.pledge-receipt-preprinted');
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
             $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
             $pdfContent = $pdf->output();
             $pdfBase64 = base64_encode($pdfContent);
+            Log::info('PDF generated successfully. Size: ' . strlen($pdfContent) . ' bytes, Base64 size: ' . strlen($pdfBase64));
 
             // Send via Ultramsg document API
             if ($config->provider === 'ultramsg') {
                 $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                    ->timeout(60)
                     ->post(
                     "https://api.ultramsg.com/{$config->instance_id}/messages/document",
                 [
@@ -1084,15 +1118,20 @@ class PledgeController extends Controller
                 ]
                 );
 
+                Log::info('Ultramsg document API response: status=' . $response->status() . ' body=' . substr($response->body(), 0, 500));
+
+                $responseData = $response->json();
+
                 if ($response->successful()) {
-                    $responseData = $response->json();
                     if (isset($responseData['sent']) && $responseData['sent'] === 'true') {
                         return ['success' => true];
                     }
                     return ['success' => false, 'message' => $responseData['message'] ?? 'Document send failed'];
                 }
 
-                return ['success' => false, 'message' => 'Document API request failed: ' . $response->status()];
+                // Extract descriptive error from response body
+                $errorMessage = $responseData['error'] ?? $responseData['message'] ?? ('Document API request failed: ' . $response->status());
+                return ['success' => false, 'message' => $errorMessage];
             }
 
             return ['success' => false, 'message' => 'PDF sending not supported for this provider'];
