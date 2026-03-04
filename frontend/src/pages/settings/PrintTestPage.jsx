@@ -1122,12 +1122,10 @@ export default function PrintTestPage() {
           }
           .label {
             page-break-after: always;
-            page-break-inside: avoid;
+            
             margin: 0 !important;
           }
-          .label:last-child {
-            page-break-after: avoid;
-          }
+       
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
