@@ -1169,7 +1169,7 @@ export default function PrintTestPage() {
       .label { 
           width: 50mm; 
           height: 50mm;
-          padding: 8mm 4mm 9mm 6mm;
+        padding: 4mm 4mm 4mm 6mm; 
           background: white; 
           display: flex; 
           flex-direction: column; 
@@ -1223,7 +1223,7 @@ export default function PrintTestPage() {
           max-width: 83%;
         }
         @media screen { 
-          body { padding: 20px; } 
+          body { padding: 0px; } 
         }
       </style>
     </head>
@@ -1231,10 +1231,10 @@ export default function PrintTestPage() {
       <div class="labels-wrapper">${barcodeLabels}</div>
       <script>
         window.onload = function() { 
-           window.print(); 
+          // window.print(); 
         };
         window.onafterprint = function() {
-           window.close();
+          // window.close();
        };
       </script>
     </body>
