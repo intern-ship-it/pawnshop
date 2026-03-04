@@ -55,6 +55,7 @@ import InterestRatesTab from "./InterestRatesTab";
 import StoneDeductionTab from "./StoneDeductionTab";
 import HandlingChargesTab from "./HandlingChargesTab";
 import TermsConditionsTab from "./TermsConditionsTab";
+import PrintSettingsTab from "./PrintSettingsTab";
 
 // Default settings structure
 const defaultSettings = {
@@ -115,6 +116,9 @@ const defaultSettings = {
     { id: "B", name: "Rack B", slots: 20, description: "Secondary storage" },
     { id: "C", name: "Rack C", slots: 15, description: "Forfeited items" },
   ],
+  printSettings: {
+    receiptFormat: "a5_landscape", // 'a5_landscape' or 'a4_portrait'
+  },
 };
 
 // Tabs configuration
@@ -130,6 +134,7 @@ const tabs = [
   { id: "terms", label: "Terms & Conditions", icon: FileText },
   { id: "racks", label: "Racks", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+  { id: "printSettings", label: "Print Settings", icon: Printer },
   { id: "printTest", label: "Print Test", icon: Printer, route: "/settings/print-test" },  // Hidden - uncomment to re-enable
 ];
 
@@ -312,6 +317,17 @@ export default function SettingsScreen() {
       };
     }
 
+    // Transform print settings
+    if (apiData.print && Array.isArray(apiData.print)) {
+      const printMap = {};
+      apiData.print.forEach((s) => {
+        printMap[s.key_name] = s.value;
+      });
+      result.printSettings = {
+        receiptFormat: printMap.receipt_format || "a5_landscape",
+      };
+    }
+
     return result;
   };
 
@@ -412,6 +428,15 @@ export default function SettingsScreen() {
       });
     }
 
+    // Print settings
+    if (settings.printSettings) {
+      apiSettings.push({
+        category: "print",
+        key_name: "receipt_format",
+        value: settings.printSettings.receiptFormat || "a5_landscape",
+      });
+    }
+
     return apiSettings;
   };
   // Render tab content
@@ -455,6 +480,8 @@ export default function SettingsScreen() {
         return <RacksTab settings={settings} updateSettings={updateSettings} />;
       case "whatsapp":
         return <WhatsAppSettings />;
+      case "printSettings":
+        return <PrintSettingsTab settings={settings} updateSettings={updateSettings} />;
       default:
         return null;
     }
