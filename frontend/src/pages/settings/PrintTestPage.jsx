@@ -1124,8 +1124,6 @@ export default function PrintTestPage() {
             page-break-after: always;
             page-break-inside: avoid;
             margin: 0 !important;
-            transform: rotate(180deg);
-            transform-origin: center center;
           }
           .label:last-child {
             page-break-after: avoid;
