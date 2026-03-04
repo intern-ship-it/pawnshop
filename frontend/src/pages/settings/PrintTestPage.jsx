@@ -1124,6 +1124,8 @@ export default function PrintTestPage() {
             page-break-after: always;
             page-break-inside: avoid;
             margin: 0 !important;
+            transform: rotate(180deg);
+            transform-origin: center center;
           }
           .label:last-child {
             page-break-after: avoid;
@@ -1169,7 +1171,7 @@ export default function PrintTestPage() {
       .label { 
           width: 50mm; 
           height: 50mm;
-        padding: 4mm 4mm 4mm 6mm; 
+        padding: 4mm 4mm 4mm 4mm; 
           background: white; 
           display: flex; 
           flex-direction: column; 
