@@ -1201,7 +1201,7 @@ export default function PrintTestPage() {
           max-width: 36mm; 
           width: 36mm;
           height: 14mm; 
-          object-fit: contain;
+          object-fit: inherit;
           margin: 0 auto;
         }
         .footer-row { 
@@ -1228,14 +1228,15 @@ export default function PrintTestPage() {
       </style>
     </head>
     <body>
-      <div class="controls">
-        <button onclick="window.print()">🏷️ Print ${labelCount} Label${labelCount > 1 ? "s" : ""}</button>
-        <button class="close" onclick="window.close()">✕ Close</button>
-        <p class="info">Label Size: <strong>50mm × 50mm</strong> | Labels: <strong>${labelCount}</strong></p>
-        <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
-      </div>
       <div class="labels-wrapper">${barcodeLabels}</div>
-      <script>window.onload = function() { document.querySelector('button').focus(); }</script>
+      <script>
+        window.onload = function() { 
+           window.print(); 
+        };
+        window.onafterprint = function() {
+           window.close();
+       };
+      </script>
     </body>
     </html>
   `);
