@@ -1653,7 +1653,7 @@ export default function NewPledge() {
         .label { 
             width: 50mm; 
             height: 50mm;
-            padding: 3mm 4mm 4mm 4mm; 
+           padding: 8mm 4mm 9mm 6mm;
             background: white; 
             display: flex; 
             flex-direction: column; 
@@ -1686,23 +1686,23 @@ export default function NewPledge() {
             object-fit: contain;
             margin: 0 auto;
           }
-          .footer-row { 
-            padding-top: 1mm; 
-            font-size: 7pt; 
-            font-weight: bold; 
-            text-align: center;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+           .footer-row { 
+          padding-top: 1mm; 
+          font-size: 7pt; 
+          font-weight: bold; 
+          flex-direction: column;
+          text-align: center;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           }
           .storage-loc {
             font-size: 6.5pt;
             font-weight: 600;
             color: #333;
             white-space: nowrap;
-            overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 65%;
+            max-width: 83%;
           }
           @media screen { 
             body { padding: 20px; width: auto; } 

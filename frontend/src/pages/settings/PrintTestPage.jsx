@@ -1219,7 +1219,6 @@ export default function PrintTestPage() {
           font-weight: 600;
           color: #333;
           white-space: nowrap;
-          
           text-overflow: ellipsis;
           max-width: 83%;
         }
