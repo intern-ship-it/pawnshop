@@ -2139,14 +2139,14 @@ HTML;
 }
 .ppo-name {
     position: absolute;
-    top: 76mm;
+    top: 76.5mm;
     left: 85mm;
     font-size: 12px;
     width: 55mm;
 }
 .ppo-nationality {
     position: absolute;
-    top: 75mm;
+    top: 76.5mm;
     left: 157mm;
     font-size: 12px;
 }
@@ -2154,13 +2154,13 @@ HTML;
 /* ROW 2: Tahun Lahir | Jantina */
 .ppo-birthyear {
     position: absolute;
-    top: 84.5mm;
+    top: 85.5mm;
     left: 30mm;
     font-size: 12px;
 }
 .ppo-gender {
     position: absolute;
-    top: 84mm;
+    top: 86mm;
     left: 87mm;
     font-size: 12px;
 }
@@ -2168,8 +2168,8 @@ HTML;
 /* ROW 3: Alamat */
 .ppo-address {
     position: absolute;
-    top: 91mm;
-    left: 24mm;
+    top: 92mm;
+    left: 21mm;
     width: 183mm;
     font-size: 11px;
 }
@@ -2177,7 +2177,7 @@ HTML;
 /* ROW 4: Catatan */
 .ppo-catatan {
     position: absolute;
-    top: 97mm;
+    top: 98mm;
     left: 24mm;
     width: 150mm;
     font-size: 11px;
@@ -2186,9 +2186,9 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 103.5mm;
+    top: 104.5mm;
     left: 22mm;
-    width: 150mm;
+    width: 160mm;
     font-size: 9px;
 }
 
@@ -2635,7 +2635,7 @@ HTML;
 .pp-rate-big { font-size: 13px; }
 .pp-kadar { padding: 1mm 2mm; }
 .pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center !important; }
-.pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; text-align: left; }
+.pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; text-align: left; font-weight: 800; }
 
 /* Customer title row */
 .pp-cust-title-row { 
@@ -3347,7 +3347,7 @@ HTML;
 .ppo-address {
     position: absolute;
     top: 92mm;
-    left: 24mm;
+    left: 21mm;
     width: 150mm;
     font-size: 10px;
 }
