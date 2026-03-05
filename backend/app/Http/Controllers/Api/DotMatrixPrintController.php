@@ -2132,7 +2132,7 @@ HTML;
 /* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
 .ppo-ic {
     position: absolute;
-    top: 80mm;
+    top: 78mm;
     left: 30mm;
     font-size: 12px;
     width: 55mm;
@@ -2146,7 +2146,7 @@ HTML;
 }
 .ppo-nationality {
     position: absolute;
-    top: 76mm;
+    top: 75mm;
     left: 157mm;
     font-size: 12px;
 }
@@ -2154,13 +2154,13 @@ HTML;
 /* ROW 2: Tahun Lahir | Jantina */
 .ppo-birthyear {
     position: absolute;
-    top: 85.5mm;
+    top: 84.5mm;
     left: 30mm;
     font-size: 12px;
 }
 .ppo-gender {
     position: absolute;
-    top: 85mm;
+    top: 84mm;
     left: 87mm;
     font-size: 12px;
 }
@@ -2168,9 +2168,9 @@ HTML;
 /* ROW 3: Alamat */
 .ppo-address {
     position: absolute;
-    top: 92mm;
+    top: 91mm;
     left: 24mm;
-    width: 150mm;
+    width: 183mm;
     font-size: 11px;
 }
 
@@ -2186,7 +2186,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 104.5mm;
+    top: 103.5mm;
     left: 22mm;
     width: 150mm;
     font-size: 9px;
@@ -2195,14 +2195,14 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 112mm;
+    top: 111mm;
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 115mm;
+    top: 113mm;
     left: 178mm;
     width: 28mm;
     font-size: 13px;
