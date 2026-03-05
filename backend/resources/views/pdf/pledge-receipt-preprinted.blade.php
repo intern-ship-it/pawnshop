@@ -48,8 +48,8 @@
             width: 200pt;
         }
         .logo {
-            width: 46pt;
-            height: 46pt;
+            width: 64pt;
+            height: 64pt;
             vertical-align: top;
         }
         .company-name {
@@ -95,7 +95,7 @@
         .hours-box {
             background: #f5c518;
             color: #000;
-            padding: 2pt 6pt;
+            padding: 2pt 6pt 8pt 6pt;
             text-align: center;
             margin-top: 3pt;
         }
@@ -154,10 +154,9 @@
         .barcode-text {
             font-size: 6.5pt;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
-            text-align: right;
+            text-align: center;
             color: #555;
             margin-top: 1pt;
-            padding-right: 10pt;
         }
         .right-col {
             width: 38%;
@@ -449,7 +448,7 @@
                     <table style="border-collapse: collapse;">
                         <tr>
                             @if($logoUrl)
-                                <td style="vertical-align: top; padding-right: 6pt; width: 50pt;">
+                                <td style="vertical-align: top; padding-right: 6pt; width: 68pt;">
                                     <img src="{{ $logoUrl }}" class="logo" alt="Logo">
                                 </td>
                             @endif
@@ -497,10 +496,12 @@
                         @endforeach
                     </div>
                     <div class="barcode-area">
-                        @if($barcodeUrl)
-                            <img src="{{ $barcodeUrl }}" class="barcode-img" alt="{{ $pledge->pledge_no }}">
-                        @endif
-                        <div class="barcode-text">{{ $pledge->pledge_no }}</div>
+                        <div style="display: inline-block; text-align: center;">
+                            @if($barcodeUrl)
+                                <img src="{{ $barcodeUrl }}" class="barcode-img" alt="{{ $pledge->pledge_no }}">
+                            @endif
+                            <div class="barcode-text">{{ $pledge->pledge_no }}</div>
+                        </div>
                     </div>
                 </td>
                 <td class="right-col">
