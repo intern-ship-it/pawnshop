@@ -2090,7 +2090,7 @@ HTML;
     margin: 0;
     position: relative;
     font-family: 'Courier New', 'Courier', monospace;
-    font-weight: normal;
+    font-weight: bolder;
     letter-spacing: 0.5px;
     color: #000;
     background: transparent !important;
@@ -2124,6 +2124,7 @@ HTML;
     width: 120mm;
     font-size: 12px;
     line-height: 1.4;
+    font-weight: bold;
 }
 .ppo-item { margin-bottom: 1mm; }
 
@@ -2131,46 +2132,46 @@ HTML;
 /* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
 .ppo-ic {
     position: absolute;
-    top: 76mm;
-    left: 24mm;
-    font-size: 11px;
+    top: 80mm;
+    left: 30mm;
+    font-size: 12px;
     width: 55mm;
 }
 .ppo-name {
     position: absolute;
     top: 76mm;
-    left: 81mm;
-    font-size: 11px;
+    left: 85mm;
+    font-size: 12px;
     width: 55mm;
 }
 .ppo-nationality {
     position: absolute;
-    top: 77mm;
-    left: 152mm;
-    font-size: 10px;
+    top: 76mm;
+    left: 157mm;
+    font-size: 12px;
 }
 
 /* ROW 2: Tahun Lahir | Jantina */
 .ppo-birthyear {
     position: absolute;
-    top: 85mm;
-    left: 24mm;
-    font-size: 11px;
+    top: 85.5mm;
+    left: 30mm;
+    font-size: 12px;
 }
 .ppo-gender {
     position: absolute;
     top: 85mm;
-    left: 83mm;
-    font-size: 11px;
+    left: 87mm;
+    font-size: 12px;
 }
 
 /* ROW 3: Alamat */
 .ppo-address {
     position: absolute;
-    top: 91mm;
+    top: 92mm;
     left: 24mm;
     width: 150mm;
-    font-size: 10px;
+    font-size: 11px;
 }
 
 /* ROW 4: Catatan */
@@ -2185,7 +2186,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 103.5mm;
+    top: 104.5mm;
     left: 22mm;
     width: 150mm;
     font-size: 9px;
@@ -2194,17 +2195,17 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 111mm;
+    top: 112mm;
     left: 48mm;
-    font-size: 18px;
+    font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 113mm;
+    top: 115mm;
     left: 178mm;
     width: 28mm;
-    font-size: 12px;
+    font-size: 13px;
     text-align: center;
 }
 /* .ppo-due-date {
@@ -2219,9 +2220,9 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 123mm;
-    right: 7mm;
-    font-size: 10px;
+    top: 130mm;
+    right: 6mm;
+    font-size: 12px;
 }
 
 /* â•â•â• BARCODE â•â•â• */
@@ -2593,7 +2594,7 @@ HTML;
 /* Header */
 .pp-hdr { display: flex; align-items: flex-start; padding-bottom: 2mm; border-bottom: 2px solid #1a4a7a; }
 .pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 3mm; }
-.pp-logo { width: 18mm; height: 18mm; object-fit: contain; flex-shrink: 0; }
+.pp-logo { width: 23mm; height: 24mm; object-fit: cover; flex-shrink: 0; }
 .pp-co-info { flex: 1; }
 .pp-co-name { font-size: 32px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
 .pp-co-multi { font-size: 1.8rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
@@ -2632,9 +2633,9 @@ HTML;
 .pp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
 .pp-rate-val { font-size: 10px; font-weight: bold; color: #1a4a7a; }
 .pp-rate-big { font-size: 13px; }
-.pp-kadar { padding: 1.5mm 2mm; }
+.pp-kadar { padding: 1mm 2mm; }
 .pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center !important; }
-.pp-kadar-ln { font-size: 8px; color: #1a4a7a; line-height: 1.5; text-align: left; }
+.pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; text-align: left; }
 
 /* Customer title row */
 .pp-cust-title-row { 
@@ -2674,7 +2675,7 @@ HTML;
     white-space: nowrap; 
     min-width: 18mm;
     flex-shrink: 0;
-    font-size: 8px;
+    font-size: 11px;
 }
 
 /* Value spaces (dotted underline areas) */
@@ -2710,8 +2711,8 @@ HTML;
 .pp-dt-yel { background: #f5c518; }
 
 /* Footer */
-.pp-ftr { font-size: 6px; line-height: 1.3; margin-top: 0.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
-.pp-ftr-left { flex: 1; }
+.pp-ftr { font-size: 12px; line-height: 1.3; margin-top: 1.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
+.pp-ftr-left { flex: 1; position: relative; top: 1mm; }
 .pp-ftr-right { text-align: right; font-size: 5px; }
 .pp-gm-box { display: inline-block; text-align: center; font-size: 6px; line-height: 1.2; min-width: 8mm; vertical-align: top; }
 
@@ -2749,7 +2750,6 @@ HTMLSTART
             </div>
         </div>
     </div>
-
     <div class="pp-mid">
         <div class="pp-items-sec">
             <div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div>
@@ -2768,9 +2768,9 @@ HTMLSTART
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
-                <div class="pp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
-                <div class="pp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.5% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
             </div>
         </div>
     </div>
@@ -3321,7 +3321,7 @@ HTML;
     position: absolute;
     top: 76mm;
     left: 81mm;
-    font-size: 11px;
+    font-size: 12px;
     width: 55mm;
 }
 .ppo-nationality {
