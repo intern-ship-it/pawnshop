@@ -2920,9 +2920,9 @@ HTML;
 }
 .pp-terms-h { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 3mm; }
 .pp-terms-content { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-.pp-tm { font-size: 8.5px; line-height: 1.45; margin-bottom: 2.5mm; text-align: justify; }
+.pp-tm { font-size: 8.5px; line-height: 1.45; text-align: justify; }
 .pp-notice {
-    border: 2.5px solid #1a4a7a; padding: 3mm 5mm; margin-top: 2mm;
+    border: 2.5px solid #d42027; padding: 3mm 5mm; margin-top: 2mm; color: #d42027;
     text-align: center; font-size: 11px; font-weight: bold; line-height: 1.4;
 }
 
@@ -2936,8 +2936,8 @@ HTML;
     height: 100%;
 }
 .pp-red-h {
-    font-size: 10px; font-weight: bold; text-align: right;
-    padding-bottom: 2mm; margin-bottom: 2mm;
+    font-size: 10px; font-weight: bold; text-align: center;
+    padding-bottom: 2mm; margin-bottom: 2mm;border-bottom: 0.1px solid #1a4a7a;
 }
 .pp-rr { margin-bottom: 3mm; }
 .pp-rl { font-size: 8px; font-weight: bold; display: block; }
