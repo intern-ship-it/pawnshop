@@ -1152,11 +1152,11 @@ export default function NewPledge() {
     let officeWindow = null;
     let barcodeWindow = null;
 
-    // 1. Dot Matrix Receipt (A4 Portrait Data Overlay for Pre-Printed Forms)
+    // 1. A5 Landscape Pre-Printed Form with Data
     updateJobStatus("dotMatrixOffice", "running", "Printing receipt...");
     try {
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${pledgeId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledgeId}`,
         {
           method: "POST",
           headers: {
@@ -1171,25 +1171,96 @@ export default function NewPledge() {
       const data = await response.json();
 
       if (data.success && data.data?.front_html) {
+        const frontHtml = data.data.front_html || "";
+        let backHtml = data.data.back_html || "";
+        // Strip @page styles from backHtml to prevent overriding global margins
+        backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
+        const pledgeNo = data.data.pledge_no || "N/A";
+
         officeWindow = window.open("", "_blank", "width=800,height=600");
         if (officeWindow) {
           officeWindow.document.write(`
               <!DOCTYPE html>
               <html>
               <head>
-                <title>Pledge ${pledgeId} - A4 Data Overlay</title>
+                <meta charset="UTF-8">
+                <title>Pledge ${pledgeNo} - A5 Pre-Printed</title>
                 <style>
-                  @page { size: portrait; margin: 0; }
-                  body { margin: 0; padding: 0; }
+                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                  body {
+                    font-family: 'Courier New', Courier, monospace;
+                    background: #f5f5f5;
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 20px;
+                  }
+                  .print-container {
+                    width: 210mm;
+                    max-width: 210mm;
+                    background: white;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                  }
+                  .print-actions {
+                    width: 100%;
+                    max-width: 210mm;
+                    text-align: center;
+                    padding: 15px;
+                    background: #fff3cd;
+                    border: 1px solid #ffc107;
+                    border-radius: 4px;
+                  }
+                  .print-btn {
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 10px 30px;
+                    font-size: 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin: 0 5px;
+                  }
+                  .print-btn:hover { background: #218838; }
+                  .close-btn { background: #dc3545; }
+                  .close-btn:hover { background: #c82333; }
+                  @media print {
+                    body { background: white; padding: 0; display: block; }
+                    .print-container { box-shadow: none; margin: 0; }
+                    .print-actions { display: none; }
+                  }
+                  @page { size: A5 landscape; margin: 0; }
                 </style>
               </head>
               <body>
-                ${data.data.front_html}
+                <div class="print-actions">
+                  <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+                    📄 A5 Pre-Printed Form - ${pledgeNo}
+                  </p>
+                  <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+                    A5 Pre-Printed Form Template + Data Overlay (Landscape)
+                  </p>
+                  <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+                  <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+                </div>
+
+                <div class="print-container">
+                  ${frontHtml}
+                </div>
+
+                ${backHtml
+              ? '<div class="print-container" style="margin-top: 20px;">' + backHtml + '</div>'
+              : ""
+            }
+
                 <script>
                   window.onload = function() {
-                    window.print();
+                    document.querySelector('.print-btn').focus();
                   };
-                </script>
+                <\/script>
               </body>
               </html>
             `);
@@ -1817,7 +1888,7 @@ export default function NewPledge() {
             );
             if (printWindow) {
               // Prepare single barcode data for pledge
-            const pledgeBarcodeData = {
+              const pledgeBarcodeData = {
                 barcode_image:
                   data.data.barcode_image || data.data.items?.[0]?.image || "",
                 barcode:
@@ -2501,13 +2572,13 @@ export default function NewPledge() {
       }
 
       // Prepare single barcode data for pledge
-     const pledgeBarcodeData = {
-                barcode_image:
-                  data.data.barcode_image || data.data.items?.[0]?.image || "",
-                barcode:
-                  data.data.barcode ||
-                  data.data.pledge_barcode ||
-                  data.data.pledge_no,
+      const pledgeBarcodeData = {
+        barcode_image:
+          data.data.barcode_image || data.data.items?.[0]?.image || "",
+        barcode:
+          data.data.barcode ||
+          data.data.pledge_barcode ||
+          data.data.pledge_no,
         total_items: data.data.items?.length || data.data.total_items || 1,
         total_weight:
           data.data.total_weight ||
@@ -2584,7 +2655,7 @@ export default function NewPledge() {
       iframe.style.display = 'none';
       iframe.src = pdfUrl;
       document.body.appendChild(iframe);
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch (e) { } }, 60000);
       dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF receipt download started" }));
     } catch (error) {
       console.error("PDF download error:", error);
