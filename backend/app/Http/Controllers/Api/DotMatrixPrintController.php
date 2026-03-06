@@ -2220,8 +2220,8 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 130mm;
-    right: 6mm;
+    top: 131mm;
+    right: 13mm;
     font-size: 12px;
 }
 
@@ -2713,8 +2713,9 @@ HTML;
 /* Footer */
 .pp-ftr { font-size: 12px; line-height: 1.3; margin-top: 1.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
 .pp-ftr-left { flex: 1; position: relative; top: 1mm; }
-.pp-ftr-right { text-align: right; font-size: 5px; }
-.pp-gm-box { display: inline-block; text-align: center; font-size: 6px; line-height: 1.2; min-width: 8mm; vertical-align: top; }
+.pp-ftr-right { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 30mm; }
+.pp-ftr-label { font-size: 11px; line-height: 1.3; margin-bottom: 1mm; }
+.pp-ftr-weight-area { font-size: 10px; font-weight: bold; min-height: 5mm; }
 
 @media print {
     .pp-front { page-break-after: always; break-after: page; }
@@ -2836,8 +2837,8 @@ HTMLSTART
             <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
         </div>
         <div class="pp-ftr-right">
-            <span style="font-size:5px;vertical-align:super;">Termasuk Emas, Batu<br>dan lain-lain</span> Berat :
-            <div class="pp-gm-box">(gm)<br><br>L U</div>
+            <div class="pp-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>
+            
         </div>
     </div>
 </div>
