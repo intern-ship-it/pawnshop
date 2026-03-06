@@ -247,7 +247,7 @@ export default function PledgeDetail() {
   };
 
   const interest = calculateInterest();
-  // Handle print - A4 Portrait Data Overlay (2-copy)
+  // Handle print - A5 Landscape Pre-Printed Form with Data
   const handlePrint = async () => {
     try {
       const token = getToken();
@@ -267,7 +267,7 @@ export default function PledgeDetail() {
         import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${pledge.id}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledge.id}`,
         {
           method: "POST",
           headers: {
@@ -281,7 +281,7 @@ export default function PledgeDetail() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || "Failed to generate receipt");
+        throw new Error(data.message || "Failed to generate pre-printed form");
       }
 
       const frontHtml = data.data?.front_html || "";
@@ -291,144 +291,141 @@ export default function PledgeDetail() {
 
       const pledgeNo = data.data?.pledge_no || pledge.pledgeNo;
 
-      if (frontHtml) {
-        const printWindow = window.open("", "_blank");
-        if (printWindow) {
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="UTF-8">
-              <title>A4 Overlay Alignment - ${pledgeNo}</title>
-              <style>
-                * {
-                  margin: 0;
-                  padding: 0;
-                  box-sizing: border-box;
-                }
-                
-                body {
-                  font-family: 'Courier New', Courier, monospace;
-                  background: #f5f5f5;
-                  padding: 20px;
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  gap: 20px;
-                }
-                
-                .print-container {
-                  width: 210mm;
-                  max-width: 210mm;
-                  background: white;
-                  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-                  margin: 0;
-                  padding: 0;
-                  overflow: hidden;
-                }
-                
-                .print-actions {
-                  width: 100%;
-                  max-width: 210mm;
-                  text-align: center;
-                  padding: 15px;
-                  background: #fff3cd;
-                  border: 1px solid #ffc107;
-                  border-radius: 4px;
-                }
-                
-                .print-btn {
-                  background: #28a745;
-                  color: white;
-                  border: none;
-                  padding: 10px 30px;
-                  font-size: 16px;
-                  border-radius: 4px;
-                  cursor: pointer;
-                  margin: 0 5px;
-                }
-                
-                .print-btn:hover {
-                  background: #218838;
-                }
-                
-                .close-btn {
-                  background: #dc3545;
-                }
-                
-                .close-btn:hover {
-                  background: #c82333;
-                }
-                
-                @media print {
-                  body {
-                    background: white;
-                    padding: 0;
-                    display: block;
-                  }
-                  
-                  .print-container {
-                    box-shadow: none;
-                    margin: 0;
-                  }
-                  
-                  .print-actions {
-                    display: none;
-                  }
-                }
-                
-                @page {
-                  size: A4 portrait;
-                  margin: 0;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="print-actions">
-                <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-                  📄 2 copy A4 portrait — A4 Data Overlay (Portrait) - ${pledgeNo}
-                </p>
-                <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-                  A4 Data Overlay (Portrait) — prints 2 copies on pre-printed paper
-                </p>
-                <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-                <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
-              </div>
-              
-              <div class="print-container">
-                ${frontHtml}
-              </div>
-
-              ${backHtml
-              ? `<div class="print-container" style="margin-top: 20px;">
-                      ${backHtml}
-                     </div>`
-              : ""
-            }
-              
-              <script>
-                window.onload = function() { 
-                  document.querySelector('.print-btn').focus(); 
-                };
-              </script>
-            </body>
-            </html>
-          `);
-          printWindow.document.close();
-        } else {
-          throw new Error("Popup blocked. Please allow popups for this site.");
-        }
-
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Receipt Ready",
-            message: "A4 Portrait overlay generated",
-          }),
-        );
-      } else {
-        throw new Error("Invalid response format");
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        throw new Error("Please allow popups to print");
       }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Pre-Printed Form - ${pledgeNo}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              background: #f5f5f5;
+              padding: 20px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 20px;
+            }
+            
+            .print-container {
+              width: 210mm;
+              max-width: 210mm;
+              background: white;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              margin: 0;
+              padding: 0;
+              overflow: hidden;
+            }
+            
+            .print-actions {
+              width: 100%;
+              max-width: 210mm;
+              text-align: center;
+              padding: 15px;
+              background: #fff3cd;
+              border: 1px solid #ffc107;
+              border-radius: 4px;
+            }
+            
+            .print-btn {
+              background: #28a745;
+              color: white;
+              border: none;
+              padding: 10px 30px;
+              font-size: 16px;
+              border-radius: 4px;
+              cursor: pointer;
+              margin: 0 5px;
+            }
+            
+            .print-btn:hover {
+              background: #218838;
+            }
+            
+            .close-btn {
+              background: #dc3545;
+            }
+            
+            .close-btn:hover {
+              background: #c82333;
+            }
+            
+            @media print {
+              body {
+                background: white;
+                padding: 0;
+                display: block;
+              }
+              
+              .print-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              
+              .print-actions {
+                display: none;
+              }
+            }
+            
+            @page {
+              size: A5 landscape;
+              margin: 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-actions">
+            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+              📄 HP Print - A5 - ${pledgeNo}
+            </p>
+            <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
+              A5 Pre-Printed Form Template + Data Overlay (Landscape)
+            </p>
+            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+          </div>
+          
+          <div class="print-container">
+            ${frontHtml}
+          </div>
+
+          ${backHtml
+          ? `<div class="print-container" style="margin-top: 20px;">
+                  ${backHtml}
+                 </div>`
+          : ""
+        }
+          
+          <script>
+            window.onload = function() { 
+              document.querySelector('.print-btn').focus(); 
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: "Pre-printed form with data generated",
+        }),
+      );
     } catch (error) {
       console.error("Print error:", error);
       dispatch(
