@@ -1075,61 +1075,65 @@ HTML;
         return $this->numberToMalayWords($number);
     }
 
-    private function numberToMalayWords(float $number): string
+    /**
+     * Convert an integer to Malay words (no currency suffix).
+     * Used internally by numberToMalayWords for recursion.
+     */
+    private function convertIntegerToMalayWords(int $number): string
     {
         $ones = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'lapan', 'sembilan'];
         $tens = ['', 'sepuluh', 'dua puluh', 'tiga puluh', 'empat puluh', 'lima puluh', 'enam puluh', 'tujuh puluh', 'lapan puluh', 'sembilan puluh'];
         $teens = ['sepuluh', 'sebelas', 'dua belas', 'tiga belas', 'empat belas', 'lima belas', 'enam belas', 'tujuh belas', 'lapan belas', 'sembilan belas'];
+
+        $words = '';
+
+        if ($number >= 1000000) {
+            $m = intval($number / 1000000);
+            $words .= ($m == 1 ? 'sejuta' : $this->convertIntegerToMalayWords($m) . ' juta');
+            $number %= 1000000;
+            if ($number > 0)
+                $words .= ' ';
+        }
+        if ($number >= 1000) {
+            $t = intval($number / 1000);
+            $words .= ($t == 1 ? 'seribu' : $this->convertIntegerToMalayWords($t) . ' ribu');
+            $number %= 1000;
+            if ($number > 0)
+                $words .= ' ';
+        }
+        if ($number >= 100) {
+            $h = intval($number / 100);
+            $words .= ($h == 1 ? 'seratus' : $ones[$h] . ' ratus');
+            $number %= 100;
+            if ($number > 0)
+                $words .= ' ';
+        }
+        if ($number >= 20) {
+            $words .= $tens[intval($number / 10)];
+            $number %= 10;
+            if ($number > 0)
+                $words .= ' ' . $ones[$number];
+        } elseif ($number >= 10) {
+            $words .= $teens[$number - 10];
+        } elseif ($number > 0) {
+            $words .= $ones[$number];
+        }
+
+        return $words ?: 'sifar';
+    }
+
+    private function numberToMalayWords(float $number): string
+    {
         $ringgit = intval($number);
         $sen = round(($number - $ringgit) * 100);
-        $words = '';
-        if ($ringgit >= 1000000) {
-            $m = intval($ringgit / 1000000);
-            $words .= ($m == 1 ? 'sejuta' : $this->numberToMalayWords($m) . ' juta');
-            $ringgit %= 1000000;
-            if ($ringgit > 0)
-                $words .= ' ';
-        }
-        if ($ringgit >= 1000) {
-            $t = intval($ringgit / 1000);
-            $words .= ($t == 1 ? 'seribu' : $this->numberToMalayWords($t) . ' ribu');
-            $ringgit %= 1000;
-            if ($ringgit > 0)
-                $words .= ' ';
-        }
-        if ($ringgit >= 100) {
-            $h = intval($ringgit / 100);
-            $words .= ($h == 1 ? 'seratus' : $ones[$h] . ' ratus');
-            $ringgit %= 100;
-            if ($ringgit > 0)
-                $words .= ' ';
-        }
-        if ($ringgit >= 20) {
-            $words .= $tens[intval($ringgit / 10)];
-            $ringgit %= 10;
-            if ($ringgit > 0)
-                $words .= ' ' . $ones[$ringgit];
-        } elseif ($ringgit >= 10) {
-            $words .= $teens[$ringgit - 10];
-        } elseif ($ringgit > 0) {
-            $words .= $ones[$ringgit];
-        }
-        $words = $words ?: 'sifar';
+
+        $words = $this->convertIntegerToMalayWords($ringgit);
         $words .= ' ringgit';
+
         if ($sen > 0) {
-            $words .= ' dan ';
-            if ($sen >= 20) {
-                $words .= $tens[intval($sen / 10)];
-                $sen %= 10;
-                if ($sen > 0)
-                    $words .= ' ' . $ones[$sen];
-            } elseif ($sen >= 10) {
-                $words .= $teens[$sen - 10];
-            } else {
-                $words .= $ones[$sen];
-            }
-            $words .= ' sen';
+            $words .= ' dan ' . $this->convertIntegerToMalayWords((int) $sen) . ' sen';
         }
+
         return ucfirst(trim($words));
     }
 
