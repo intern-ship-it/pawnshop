@@ -1761,7 +1761,7 @@ HTML;
         </div>
         <div class="pp-cust-row full-width">
             <div class="pp-cust-col">
-                <span class="pp-cust-lbl">Catatan :</span>
+                <span class="pp-cust-lbl" >Catatan :</span>
                 <span class="pp-cust-val"></span>
             </div>
         </div>
@@ -2136,43 +2136,43 @@ HTML;
 /* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
 .ppo-ic {
     position: absolute;
-    top: 78mm;
-    left: 30mm;
+    top: 80.5mm;
+    left: 28mm;
     font-size: 12px;
     width: 55mm;
 }
 .ppo-name {
     position: absolute;
-    top: 76.5mm;
-    left: 85mm;
+    top: 77.3mm;
+    left: 83mm;
     font-size: 12px;
     width: 55mm;
 }
 .ppo-nationality {
     position: absolute;
-    top: 76.5mm;
-    left: 157mm;
+    top: 77.5mm;
+    left: 156mm;
     font-size: 12px;
 }
 
 /* ROW 2: Tahun Lahir | Jantina */
 .ppo-birthyear {
     position: absolute;
-    top: 85.5mm;
-    left: 30mm;
+    top: 86.9mm;
+    left: 28mm;
     font-size: 12px;
 }
 .ppo-gender {
     position: absolute;
-    top: 86mm;
-    left: 87mm;
+   top: 86.6mm;
+    left: 86mm;
     font-size: 12px;
 }
 
 /* ROW 3: Alamat */
 .ppo-address {
     position: absolute;
-    top: 92mm;
+    top: 92.7mm;
     left: 21mm;
     width: 183mm;
     font-size: 11px;
@@ -2181,8 +2181,8 @@ HTML;
 /* ROW 4: Catatan */
 .ppo-catatan {
     position: absolute;
-    top: 98mm;
-    left: 24mm;
+    top: 103.5mm;
+    left: 22mm;
     width: 150mm;
     font-size: 11px;
 }
@@ -2190,7 +2190,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 104.5mm;
+    top: 110.9mm;
     left: 22mm;
     width: 160mm;
     font-size: 9px;
@@ -2199,14 +2199,14 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 111mm;
+    top: 118mm;
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 113mm;
+    top: 120mm;
     left: 178mm;
     width: 28mm;
     font-size: 13px;
@@ -2224,7 +2224,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 131mm;
+    top: 135mm;
     right: 13mm;
     font-size: 12px;
 }
@@ -2822,7 +2822,7 @@ HTMLSTART
         
         <!-- ROW 4: Catatan (full width) -->
         <div class="pp-cust-row full-width">
-            <span class="pp-cust-lbl">Catatan :</span>
+            <span class="pp-cust-lbl" style="margin-top:1.5rem" >Catatan :</span>
             <span class="pp-cust-val"></span>
         </div>
     </div>
@@ -3324,8 +3324,8 @@ HTML;
 }
 .ppo-name {
     position: absolute;
-    top: 76mm;
-    left: 81mm;
+    top: 77.3mm;
+    left: 83mm;
     font-size: 12px;
     width: 55mm;
 }

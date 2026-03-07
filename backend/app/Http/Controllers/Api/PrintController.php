@@ -421,8 +421,8 @@ class PrintController extends Controller
 
         return [
             'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
-            'company_name_chinese' => $settingsMap['name_chinese'] ?? '',
-            'company_name_tamil' => $settingsMap['name_tamil'] ?? '',
+            'company_name_chinese' => $settingsMap['name_chinese'] ?? '新泰當',
+            'company_name_tamil' => $settingsMap['name_tamil'] ?? 'அடகு கடை',
             'registration_no' => $settingsMap['registration_no'] ?? '',
             'license_no' => $settingsMap['license_no'] ?? $branch->license_no ?? '',
             'established_year' => $settingsMap['established_year'] ?? '1966',
@@ -450,6 +450,29 @@ class PrintController extends Controller
         $generator = new BarcodeGeneratorPNG();
         $png = $generator->getBarcode($value, $generator::TYPE_CODE_128, 2, 60);
         return 'data:image/png;base64,' . base64_encode($png);
+    }
+
+    /**
+     * Get multilang text (Chinese/Tamil) as a PNG image data URI.
+     * Uses a pre-rendered static image because:
+     * - dompdf's DejaVu Sans doesn't support CJK/Tamil
+     * - PHP GD doesn't support complex Tamil script shaping (கு ligature)
+     * The static image was rendered via browser (HarfBuzz) for correct shaping.
+     */
+    private function generateMultilangImageUri(string $chineseName, string $tamilName): ?string
+    {
+        if (empty($chineseName) && empty($tamilName)) {
+            return null;
+        }
+
+        // Use pre-rendered static image (browser-rendered with correct Tamil shaping)
+        $staticImage = storage_path('fonts/multilang_header.png');
+        if (file_exists($staticImage)) {
+            $mime = mime_content_type($staticImage);
+            return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($staticImage));
+        }
+
+        return null;
     }
 
     /**
@@ -482,14 +505,18 @@ class PrintController extends Controller
             'printed_at' => now(),
             'printed_by' => $request->user()->name,
             'barcode_data_uri' => $this->generateBarcodeDataUri($pledge->pledge_no),
+            'multilang_image_uri' => $this->generateMultilangImageUri(
+                $settings['company_name_chinese'] ?? '',
+                $settings['company_name_tamil'] ?? ''
+            ),
         ];
 
         $pdf = Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
-        $pdf->setPaper([0, 0, 700, 420], 'landscape');
+        $pdf->setPaper('a5', 'landscape');
 
         $filename = "Pledge-Receipt-{$pledge->pledge_no}.pdf";
         return response($pdf->output(), 200, [
-            'Content-Type' => 'application/octet-stream',
+            'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
     }

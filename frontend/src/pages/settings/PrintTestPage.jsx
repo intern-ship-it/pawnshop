@@ -732,8 +732,20 @@ export default function PrintTestPage() {
       if (!response.ok) throw new Error("Failed to generate PDF");
 
       const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `Pledge-Receipt-${selectedPledge.pledge_no || selectedPledge.id}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+        if (match) filename = match[1];
+      }
+
       const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
 
       logResult(
         "PDF",
