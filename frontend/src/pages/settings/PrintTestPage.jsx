@@ -830,10 +830,11 @@ export default function PrintTestPage() {
     }
   };
 
-  // Download Renewal PDF — looks up the latest renewal for the selected pledge first
+  // Download Renewal PDF — expects a renewal ID
+  const [renewalIdInput, setRenewalIdInput] = useState("16");
   const testDownloadRenewalPdf = async () => {
-    if (!selectedPledge) {
-      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+    if (!renewalIdInput) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please enter a renewal ID first" }));
       return;
     }
 
@@ -844,31 +845,9 @@ export default function PrintTestPage() {
     try {
       const token = getToken();
 
-      // Fetch full pledge details (includes renewals relationship)
-      const pledgeResponse = await fetch(
-        `${apiUrl}/pledges/${selectedPledge.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (!pledgeResponse.ok) throw new Error("Failed to fetch pledge details");
-      const pledgeData = await pledgeResponse.json();
-      const renewals = pledgeData.data?.pledge?.renewals || [];
-
-      if (renewals.length === 0) {
-        throw new Error("No renewals found for this pledge");
-      }
-
-      // Take the latest renewal (last in array)
-      const latestRenewal = renewals[renewals.length - 1];
-
-      // Download the renewal PDF
+      // Download the renewal PDF directly using the provided ID
       const response = await fetch(
-        `${apiUrl}/print/pdf/renewal/${latestRenewal.id}`,
+        `${apiUrl}/print/pdf/renewal/${renewalIdInput}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -882,7 +861,7 @@ export default function PrintTestPage() {
 
       const blob = await response.blob();
       const contentDisposition = response.headers.get("Content-Disposition");
-      let filename = `Renewal-${latestRenewal.renewal_no || latestRenewal.id}.pdf`;
+      let filename = `Renewal-${renewalIdInput}.pdf`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?(.+?)"?$/);
         if (match) filename = match[1];
@@ -3817,24 +3796,35 @@ export default function PrintTestPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="font-medium text-orange-800">Renewal Receipt PDF</p>
-                      <p className="text-xs text-orange-600">Downloads latest renewal of selected pledge</p>
+                      <p className="text-xs text-orange-600">Downloads renewal by ID</p>
                     </div>
                     <Badge className="bg-orange-500 text-white">PDF</Badge>
                   </div>
+                  
+                  <div className="flex gap-2 mb-2">
+                    <Input
+                      type="number"
+                      placeholder="Renewal ID"
+                      value={renewalIdInput}
+                      onChange={(e) => setRenewalIdInput(e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+
                   <Button
                     variant="outline"
                     size="sm"
                     leftIcon={FileDown}
                     onClick={testDownloadRenewalPdf}
                     loading={printing && previewType === "Renewal PDF Download"}
-                    disabled={!selectedPledge || printing}
+                    disabled={!renewalIdInput || printing}
                     fullWidth
                     className="border-orange-500 text-orange-700 hover:bg-orange-100"
                   >
                     Download Renewal PDF
                   </Button>
                   <p className="text-xs text-orange-400 mt-2">
-                    ⚠️ Only works if this pledge has renewals
+                    🔗 GET /print/pdf/renewal/{renewalIdInput || "..."}
                   </p>
                 </div>
 

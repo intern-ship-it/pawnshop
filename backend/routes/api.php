@@ -63,6 +63,37 @@ Route::get('/preview/pledge-receipt/{pledge}', function (\App\Models\Pledge $ple
     ]);
 });
 
+Route::get('/preview/renewal-receipt/{renewal}', function (\App\Models\Renewal $renewal) {
+    $renewal->load([
+        'pledge.customer',
+        'pledge.items.category',
+        'pledge.items.purity',
+        'pledge.branch',
+    ]);
+
+    $printController = app(\App\Http\Controllers\Api\PrintController::class);
+    $settings = (new \ReflectionMethod($printController, 'getCompanySettings'))->invoke($printController, $renewal->pledge->branch);
+
+    $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
+    $barcodeDataUri = 'data:image/png;base64,' . base64_encode($generator->getBarcode($renewal->pledge->pledge_no, $generator::TYPE_CODE_128, 2, 60));
+
+    $multilangUri = (new \ReflectionMethod($printController, 'generateMultilangImageUri'))->invoke(
+        $printController,
+        $settings['company_name_chinese'] ?? '',
+        $settings['company_name_tamil'] ?? ''
+    );
+
+    return view('pdf.renewal-receipt-preprinted', [
+        'renewal' => $renewal,
+        'copy_type' => request('copy_type', 'customer'),
+        'settings' => $settings,
+        'printed_at' => now(),
+        'printed_by' => 'DEV-PREVIEW',
+        'barcode_data_uri' => $barcodeDataUri,
+        'multilang_image_uri' => $multilangUri,
+    ]);
+});
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
 

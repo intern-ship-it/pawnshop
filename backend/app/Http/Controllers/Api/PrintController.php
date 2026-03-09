@@ -16,6 +16,12 @@ use App\Http\Controllers\Api\DotMatrixPrintController;
 
 class PrintController extends Controller
 {
+    public function __construct()
+    {
+        // Increase execution time & memory for slow PDF rendering on battery
+        set_time_limit(120);
+        ini_set('memory_limit', '512M');
+    }
 
     /**
      * Print pledge receipt
@@ -583,7 +589,7 @@ class PrintController extends Controller
         ];
 
         $pdf = Pdf::loadView('pdf.renewal-receipt-preprinted', $data);
-        $pdf->setPaper([0, 0, 710, 450]); // Custom size matching blade template
+        $pdf->setPaper([0, 0, 710, 500]); // Custom size matching blade template
 
         $filename = "Renewal-{$renewal->renewal_no}.pdf";
         return response($pdf->output(), 200, [

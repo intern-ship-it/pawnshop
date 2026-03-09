@@ -5,7 +5,7 @@
     <title>Resit Pembaharuan - {{ $renewal->renewal_no ?? $pledge->pledge_no }}</title>
     <style>
         @page {
-            size:710pt 450pt;
+            size:710pt 550pt;
             margin: 0;
         }
         * {
@@ -19,7 +19,7 @@
             color: #1a4a7a;
             background: #fff;
             width: 710pt;
-            height: 450pt;
+            height: 550pt;
         }
 
         /* ═══ PAGE ═══ */
@@ -28,20 +28,6 @@
             padding: 10pt 8pt 6pt 14pt;
             overflow: visible;
             position: relative;
-        }
-
-        /* ═══ WATERMARK ═══ */
-        .watermark {
-            position: fixed;
-            top: 150pt;
-            left: 100pt;
-            font-size: 55pt;
-            font-weight: bold;
-            color: rgba(200, 200, 200, 0.25);
-            transform: rotate(-30deg);
-            white-space: nowrap;
-            z-index: 0;
-            letter-spacing: 3pt;
         }
 
         /* ═══ HEADER ═══ */
@@ -61,8 +47,8 @@
             width: 200pt;
         }
         .logo {
-            width: 90pt;
-            max-width: 90pt;
+            width: 100pt;
+            max-width: 100pt;
             vertical-align: top;
         }
         .company-name {
@@ -79,7 +65,7 @@
             margin-top: 1pt;
         }
         .company-address {
-            font-size: 7.5pt;
+            font-size: 11.5pt;
             color: #1a4a7a;
             margin-top: 1pt;
         }
@@ -128,12 +114,13 @@
         .type-badge {
             background: #d42027;
             color: #fff;
-            padding: 1.5pt 8pt;
-            font-size: 7pt;
+            padding: 2pt 10pt;
+            font-size: 7.5pt;
             font-weight: bold;
             display: inline-block;
             letter-spacing: 0.5pt;
             border-radius: 2pt;
+            margin-bottom: 2pt;
         }
 
         /* ═══ MID SECTION ═══ */
@@ -277,7 +264,7 @@
             border-collapse: collapse;
         }
         .cust-grid td {
-            padding: 0.5pt 2pt;
+            padding: 1.5pt 2pt;
             vertical-align: bottom;
         }
         .cl {
@@ -292,6 +279,38 @@
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
             color: #000;
             white-space: nowrap;
+        }
+
+        /* ═══ RENEWAL PAYMENT SUMMARY ═══ */
+        .renewal-summary {
+            width: 100%;
+            border: 1.5pt solid #d42027;
+            border-collapse: collapse;
+            margin-bottom: 2pt;
+        }
+        .renewal-summary td {
+            padding: 1.5pt 6pt;
+            border-bottom: 0.5pt solid #eee;
+            vertical-align: middle;
+        }
+        .renewal-summary .rs-label {
+            font-size: 7pt;
+            font-weight: bold;
+            color: #1a4a7a;
+            width: 50%;
+        }
+        .renewal-summary .rs-value {
+            font-size: 8pt;
+            font-weight: 900;
+            font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
+            color: #000;
+            text-align: right;
+        }
+        .renewal-summary .rs-total {
+            background: #fff3e0;
+            font-size: 9pt;
+            font-weight: 900;
+            color: #e65100;
         }
 
         /* ═══ AMOUNT ═══ */
@@ -366,30 +385,17 @@
             color: #000;
             margin-bottom: 3pt;
         }
-
-        /* ═══ INTEREST BREAKDOWN ROW ═══ */
-        .interest-row {
-            width: 100%;
-            border-collapse: collapse;
-            border: 1.5pt solid #d42027;
-            border-top: none;
-        }
-        .interest-row td {
-            border: 1.5pt solid #d42027;
-            padding: 2pt 6pt;
-            vertical-align: middle;
-        }
-        .int-lbl {
-            font-size: 6.5pt;
+        .date-new-label {
+            font-size: 6pt;
             font-weight: bold;
-            color: #1a4a7a;
-            white-space: nowrap;
+            color: #e65100;
         }
-        .int-val {
-            font-size: 8pt;
-            font-weight: bold;
+        .date-new-value {
+            font-size: 9pt;
+            font-weight: 800;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
-            color: #000;
+            color: #e65100;
+            margin-bottom: 1pt;
         }
 
         /* ═══ FOOTER ═══ */
@@ -433,6 +439,7 @@
 </head>
 <body>
     @php
+        $pledge = $renewal->pledge;
         $companyName = $settings['company_name'] ?? 'PAJAK GADAI SDN BHD';
         $chineseName = $settings['company_name_chinese'] ?? '';
         $tamilName = $settings['company_name_tamil'] ?? '';
@@ -447,43 +454,37 @@
         $interestRateOverdue = $settings['interest_rate_overdue'] ?? '2.0';
         $logoUrl = $settings['logo_url'] ?? null;
 
-        // ─── RENEWAL-SPECIFIC: get pledge from renewal ───
-        $pledge = $renewal->pledge;
         $customer = $pledge->customer;
         $loanAmount = $pledge->loan_amount ?? 0;
 
-        // ─── RENEWAL AMOUNTS ───
+        // Renewal-specific amounts
         $interestAmount = $renewal->interest_amount ?? 0;
         $handlingFee = $renewal->handling_fee ?? 0;
-        $totalPaid = $renewal->total_payable ?? $renewal->total_amount ?? ($interestAmount + $handlingFee);
+        $totalPayable = $renewal->total_payable ?? ($interestAmount + $handlingFee);
         $renewalMonths = $renewal->renewal_months ?? 1;
-
-        // ─── PAYMENT DETAILS ───
-        $paymentMethod = ucfirst($renewal->payment_method ?? 'cash');
-        $cashAmount = $renewal->cash_amount ?? 0;
-        $transferAmount = $renewal->transfer_amount ?? 0;
-        $bankName = $renewal->bank->name ?? '';
-        $referenceNo = $renewal->reference_no ?? '';
+        $renewalCount = $renewal->renewal_count ?? 1;
 
         $totalWeight = 0;
         foreach ($pledge->items as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
-        // ─── RENEWAL DATES ───
+        // Renewal date
         $renewalDate = $renewal->created_at ?? now();
         if (is_string($renewalDate)) $renewalDate = \Carbon\Carbon::parse($renewalDate);
 
+        // Previous due date
         $previousDueDate = $renewal->previous_due_date ?? $pledge->due_date;
         if (is_string($previousDueDate)) $previousDueDate = \Carbon\Carbon::parse($previousDueDate);
 
-        $newDueDate = $renewal->new_due_date ?? $pledge->due_date;
+        // New due date
+        $newDueDate = $renewal->new_due_date;
         if (is_string($newDueDate)) $newDueDate = \Carbon\Carbon::parse($newDueDate);
 
+        // Original pledge date
         $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
         if (is_string($pledgeDate)) $pledgeDate = \Carbon\Carbon::parse($pledgeDate);
 
-        // ─── CUSTOMER FORMATTING (same as pledge) ───
         $ic = preg_replace('/[^0-9]/', '', $customer->ic_number ?? '');
         $icFormatted = strlen($ic) === 12
             ? substr($ic, 0, 6) . '-' . substr($ic, 6, 2) . '-' . substr($ic, 8, 4)
@@ -526,13 +527,13 @@
             }
         }
 
-        // ─── AMOUNT WORDS = TOTAL PAID (interest+fees), not loan amount ───
+        // Amount in words for total payable (renewal payment)
         $amountWords = '';
         try {
-            $amountWords = strtoupper(app(\App\Http\Controllers\Api\DotMatrixPrintController::class)->numberToMalayWordsPublic($totalPaid) ?? '');
+            $amountWords = strtoupper(app(\App\Http\Controllers\Api\DotMatrixPrintController::class)->numberToMalayWordsPublic($totalPayable) ?? '');
         } catch (\Exception $e) {}
         if (empty($amountWords)) {
-            $amountWords = strtoupper(number_format($totalPaid, 2));
+            $amountWords = strtoupper(number_format($totalPayable, 2));
         }
 
         $barcodeUrl = $barcode_data_uri ?? '';
@@ -541,9 +542,6 @@
 
     <div class="page">
 
-        {{-- ═══ WATERMARK ═══ --}}
-        <div class="watermark">PEMBAHARUAN / RENEWAL</div>
-
         {{-- ═══ HEADER ═══ --}}
         <table class="header-table">
             <tr>
@@ -551,14 +549,14 @@
                     <table style="border-collapse: collapse;">
                         <tr>
                             @if($logoUrl)
-                                <td style="vertical-align: top; padding-right: 4pt; width: 94pt;">
+                                <td style="vertical-align: top; width: 100pt;">
                                     <img src="{{ $logoUrl }}" class="logo" alt="Logo">
                                 </td>
                             @endif
                             <td style="vertical-align: top;">
                                 <div class="company-name">{{ $companyName }}</div>
                                 @if(($chineseName || $tamilName) && !empty($multilang_image_uri ?? null))
-                                    <div class="company-multilang"><img src="{{ $multilang_image_uri }}" style="height: 28pt; width: auto;" alt="{{ $chineseName }} {{ $tamilName }}"></div>
+                                    <div class="company-multilang"><img src="{{ $multilang_image_uri }}" style="height: 33pt; width: auto;" alt="{{ $chineseName }} {{ $tamilName }}"></div>
                                 @elseif($chineseName || $tamilName)
                                     <div class="company-multilang">{{ $chineseName }}&nbsp; {{ $tamilName }}</div>
                                 @endif
@@ -568,7 +566,7 @@
                     </table>
                 </td>
                 <td class="header-right">
-                    {{-- ─── Renewal badge top-right ─── --}}
+                    {{-- Renewal badge top-right --}}
                     <span class="type-badge">PEMBAHARUAN / RENEWAL</span>
                     <table style="margin-left: auto; border-collapse: collapse; margin-top: 2pt;">
                         <tr>
@@ -576,7 +574,7 @@
                                 <span class="phone-box">&#9742; {{ $phone }}@if($phone2)<br>{{ $phone2 }}@endif</span>
                             </td>
                             @if($estYear)
-                                <td style="vertical-align: middle;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
+                                <td style="vertical-align: middle; margin-right:3pt;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
                             @endif
                         </tr>
                     </table>
@@ -616,26 +614,24 @@
                     <div class="barcode-text">{{ $pledge->pledge_no }}</div>
                 </td>
                 <td class="right-col">
-                    {{-- ─── Pledge ticket number (unchanged on renewal) ─── --}}
                     <div class="ticket-box">
                         <div class="ticket-label">NO. TIKET:</div>
                         <div class="ticket-number">{{ $pledge->pledge_no }}</div>
                     </div>
-                    {{-- ─── Renewal number ─── --}}
+                    {{-- Renewal number sub-box --}}
                     <div class="renewal-no-box">
-                        <div class="renewal-no-label">NO. PEMBAHARUAN:</div>
+                        <div class="renewal-no-label">NO. PEMBAHARUAN / RENEWAL NO:</div>
                         <div class="renewal-no-value">{{ $renewal->renewal_no }}</div>
                     </div>
-                    {{-- ─── "TEMPOH TAMAT BARU" ─── --}}
                     <div class="rate-section">
-                        <div class="rate-label">TEMPOH TAMAT BARU</div>
-                        <div class="rate-value">{{ $redemptionPeriod }}</div>
+                        <div class="rate-label">TEMPOH TAMAT BARU / NEW DUE DATE</div>
+                        <div class="rate-value">{{ $newDueDate ? $newDueDate->format('d/m/Y') : '-' }}</div>
                     </div>
                     <div class="kadar-section">
                         <div class="kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                         <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
-                        <div class="kadar-line"> <span style="font-weight: bold;color:black;"> 2.</span> {{ $interestRateNormal }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
-                        <div class="kadar-line"> <span style="font-weight: bold;color:black;"> 3.</span> {{ $interestRateOverdue }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> 1.5% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
                     </div>
                 </td>
             </tr>
@@ -670,74 +666,35 @@
             </table>
         </div>
 
-        {{-- ═══ AMOUNT (shows total paid in words) ═══ --}}
+        {{-- ═══ RENEWAL PAYMENT SUMMARY ═══ --}}
+        <table class="renewal-summary">
+            <tr>
+                <td class="rs-label">Faedah / Interest :</td>
+                <td class="rs-value">RM {{ number_format($interestAmount, 2) }}</td>
+                <td class="rs-label rs-total">JUMLAH BAYARAN / TOTAL PAID :</td>
+                <td class="rs-value rs-total">RM {{ number_format($totalPayable, 2) }}</td>
+            </tr>
+        </table>
+
+        {{-- ═══ AMOUNT IN WORDS ═══ --}}
         <div class="amount-box">
-            <span class="amount-label">Amaun Dibayar</span>&nbsp;&nbsp;
+            <span class="amount-label">Jumlah Bayaran (Amaun)</span>&nbsp;&nbsp;
             <span class="amount-words">{{ $amountWords }} SAHAJA</span>
         </div>
 
-        {{-- ═══ BOTTOM (loan stays same, date = renewal date) ═══ --}}
+        {{-- ═══ BOTTOM ═══ --}}
         <table class="bottom-table">
             <tr>
                 <td class="pinjaman-cell">
-                    <span class="pinjaman-label">Pinjaman Asal</span>
+                    <span class="pinjaman-label">Pinjaman</span>
                     <span class="pinjaman-rm">RM</span>
                     <span class="pinjaman-amount">{{ number_format($loanAmount, 2) }}</span>
                     <span class="pinjaman-stars">***</span>
                 </td>
                 <td class="date-cell">
-                    <div class="date-label">Tarikh Pembaharuan</div>
-                    <div class="date-value">{{ $renewalDate->format('d/m/Y') }}</div>
+                    <div class="date-new-label">Tarikh Tamat Baru / New Due Date</div>
+                    <div class="date-new-value">{{ $newDueDate ? $newDueDate->format('d/m/Y') : '-' }}</div>
                 </td>
-            </tr>
-        </table>
-
-        {{-- ═══ Interest + Payment breakdown row ═══ --}}
-        <table class="interest-row">
-            <tr>
-                <td>
-                    <span class="int-lbl">Faedah ({{ $renewalMonths }} bln):</span>
-                    <span class="int-val">RM {{ number_format($interestAmount, 2) }}</span>
-                </td>
-                @if($handlingFee > 0)
-                    <td>
-                        <span class="int-lbl">Yuran:</span>
-                        <span class="int-val">RM {{ number_format($handlingFee, 2) }}</span>
-                    </td>
-                @endif
-                <td>
-                    <span class="int-lbl">Jumlah Dibayar:</span>
-                    <span class="int-val" style="color: #d42027; font-size: 9pt;">RM {{ number_format($totalPaid, 2) }}</span>
-                </td>
-                <td>
-                    <span class="int-lbl">Kaedah:</span>
-                    <span class="int-val">{{ $paymentMethod }}</span>
-                    @if($transferAmount > 0 && $bankName)
-                        <span class="int-lbl" style="padding-left: 4pt;">{{ $bankName }}</span>
-                    @endif
-                </td>
-            </tr>
-            <tr>
-                <td>
-                    <span class="int-lbl">Tarikh Pajak Asal:</span>
-                    <span class="int-val">{{ $pledgeDate->format('d/m/Y') }}</span>
-                </td>
-                <td>
-                    <span class="int-lbl">Tarikh Tamat Lama:</span>
-                    <span class="int-val">{{ $previousDueDate->format('d/m/Y') }}</span>
-                </td>
-                <td style="background: #e8f5e9;" colspan="{{ $handlingFee > 0 ? 1 : 2 }}">
-                    <span class="int-lbl" style="color: #2e7d32;">Tarikh Tamat Baru:</span>
-                    <span class="int-val" style="color: #2e7d32; font-size: 9pt;">{{ $newDueDate->format('d/m/Y') }}</span>
-                </td>
-                @if($handlingFee > 0)
-                    <td>
-                        @if($referenceNo)
-                            <span class="int-lbl">Rujukan:</span>
-                            <span class="int-val">{{ $referenceNo }}</span>
-                        @endif
-                    </td>
-                @endif
             </tr>
         </table>
 
@@ -745,7 +702,7 @@
         <table class="footer-table">
             <tr>
                 <td class="footer-left">
-                    <div>Sila simpan resit ini sebagai bukti pembayaran faedah dan pembaharuan gadaian anda.</div>
+                    <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
                     <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
                     <div class="copy-label">{{ $copyLabel }}</div>
                 </td>

@@ -47,8 +47,8 @@
             width: 200pt;
         }
         .logo {
-            width: 110pt;
-            max-width: 110pt;
+            width: 100pt;
+            max-width: 100pt;
             vertical-align: top;
         }
         .company-name {
@@ -65,7 +65,7 @@
             margin-top: 1pt;
         }
         .company-address {
-            font-size: 7.5pt;
+            font-size: 8.5pt;
             color: #1a4a7a;
             margin-top: 1pt;
         }
@@ -454,14 +454,14 @@
                     <table style="border-collapse: collapse;">
                         <tr>
                             @if($logoUrl)
-                                <td style="vertical-align: top; padding-right: 4pt; width: 114pt;">
+                                <td style="vertical-align: top; width: 100pt;">
                                     <img src="{{ $logoUrl }}" class="logo" alt="Logo">
                                 </td>
                             @endif
                             <td style="vertical-align: top;">
                                 <div class="company-name">{{ $companyName }}</div>
                                 @if(($chineseName || $tamilName) && !empty($multilang_image_uri ?? null))
-                                    <div class="company-multilang"><img src="{{ $multilang_image_uri }}" style="height: 28pt; width: auto;" alt="{{ $chineseName }} {{ $tamilName }}"></div>
+                                    <div class="company-multilang"><img src="{{ $multilang_image_uri }}" style="height: 33pt; width: auto;" alt="{{ $chineseName }} {{ $tamilName }}"></div>
                                 @elseif($chineseName || $tamilName)
                                     <div class="company-multilang">{{ $chineseName }}&nbsp; {{ $tamilName }}</div>
                                 @endif
@@ -477,7 +477,7 @@
                                 <span class="phone-box">&#9742; {{ $phone }}@if($phone2)<br>{{ $phone2 }}@endif</span>
                             </td>
                             @if($estYear)
-                                <td style="vertical-align: middle;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
+                                <td style="vertical-align: middle; margin-right:3pt;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
                             @endif
                         </tr>
                     </table>
