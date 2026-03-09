@@ -3211,46 +3211,54 @@ HTML;
     private function generatePrePrintedRenewalOverlay(Renewal $renewal, Pledge $pledge, array $settings): string
     {
         $customer = $pledge->customer;
-        $interestAmount = $renewal->interest_amount ?? 0;
-        $handlingFee = $renewal->handling_fee ?? 0;
-        $totalPaid = $renewal->total_amount ?? ($interestAmount + $handlingFee);
         $loanAmount = $pledge->loan_amount ?? 0;
 
-        $renewalDate = $renewal->created_at ?? now();
-        if (is_string($renewalDate))
-            $renewalDate = Carbon::parse($renewalDate);
-
-        $newDueDate = $renewal->new_due_date;
-        if (is_string($newDueDate))
-            $newDueDate = Carbon::parse($newDueDate);
-
-        $icNumber = $this->formatIC($customer->ic_number ?? '');
-        $birthYear = $this->extractBirthYear($customer);
-        $gender = $this->getGender($customer);
-        $nationality = $this->getCitizenship($customer);
-        $address = $this->formatCustomerAddress($customer);
-
-        // Build items text
-        $itemsText = '';
-        $itemNumber = 1;
-        foreach ($pledge->items as $item) {
-            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
-            $purity = $item->purity->code ?? '';
-            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
-            $itemNumber++;
-        }
-
+        // Calculate total weight
         $totalWeight = 0;
         foreach ($pledge->items as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
-        $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
+        // Format dates
+        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+        if (is_string($pledgeDate))
+            $pledgeDate = Carbon::parse($pledgeDate);
+        $dueDate = $pledge->due_date;
+        if (is_string($dueDate))
+            $dueDate = Carbon::parse($dueDate);
 
-        // Catatan for renewal - show renewal info (labels black, values blue)
-        $renewalCount = $renewal->renewal_count ?? 1;
-        $catatan = "SAMBUNGAN; Asal: <span class='ppo-val'>{$pledge->pledge_no}</span>; Faedah Dibayar: <span class='ppo-val'>RM " . $this->formatNumber($interestAmount) . "</span>";
+        // Customer details
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
+       $interestAmount = $renewal->interest_amount ?? 0;
+$catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this->formatNumber($interestAmount);
+// Remove or skip the foreach that appends item descriptions to $catatan
+
+        // Build items text
+        $itemsText = '';
+        $itemNumber = 1;
+        $usedDescriptions = [];
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $desc = $item->description ?? '';
+            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
+                if ($catatan)
+                    $catatan .= "; ";
+                $catatan .= $desc;
+                $usedDescriptions[] = $desc;
+            }
+            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $itemNumber++;
+        }
+
+        // Format amounts
+        $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
+        $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
 
         return <<<HTML
 <style>
@@ -3263,7 +3271,7 @@ HTML;
     margin: 0;
     position: relative;
     font-family: 'Courier New', 'Courier', monospace;
-    font-weight: normal;
+    font-weight: bolder;
     letter-spacing: 0.5px;
     color: #000;
     background: transparent !important;
@@ -3273,24 +3281,10 @@ HTML;
 }
 .ppo-page * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TRANSACTION TYPE BANNER Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-type-banner {
-    position: absolute;
-    top: 16mm;
-    right: 58mm;
-    font-size: 15px;
-    font-weight: 900;
-    color: #d42027;
-    font-family: Arial, Helvetica, sans-serif;
-    letter-spacing: 1px;
-    text-align: right;
-    white-space: nowrap;
-}
-
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TICKET NUMBER - Inside NO. TIKET yellow box Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ticket {
     position: absolute;
-    top: 31mm;
+    top: 30mm;
     right: 7mm;
     width: 40mm;
     text-align: center;
@@ -3309,17 +3303,19 @@ HTML;
     top: 32mm;
     left: 7mm;
     width: 120mm;
-    font-size: 9px;
+    font-size: 12px;
     line-height: 1.4;
+    font-weight: bold;
 }
 .ppo-item { margin-bottom: 1mm; }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
+/* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
 .ppo-ic {
     position: absolute;
-    top: 77mm;
-    left: 24mm;
-    font-size: 11px;
+    top: 80.5mm;
+    left: 28mm;
+    font-size: 12px;
     width: 55mm;
 }
 .ppo-name {
@@ -3331,126 +3327,159 @@ HTML;
 }
 .ppo-nationality {
     position: absolute;
-    top: 76mm;
-    left: 152mm;
-    font-size: 10px;
+    top: 77.5mm;
+    left: 156mm;
+    font-size: 12px;
 }
 
+/* ROW 2: Tahun Lahir | Jantina */
 .ppo-birthyear {
     position: absolute;
-    top: 85mm;
-    left: 24mm;
-    font-size: 11px;
+    top: 86.9mm;
+    left: 28mm;
+    font-size: 12px;
 }
 .ppo-gender {
     position: absolute;
-    top: 85mm;
-    left: 83mm;
-    font-size: 11px;
+   top: 86.6mm;
+    left: 86mm;
+    font-size: 12px;
 }
 
+/* ROW 3: Alamat */
 .ppo-address {
     position: absolute;
-    top: 92mm;
+    top: 92.7mm;
     left: 21mm;
-    width: 150mm;
-    font-size: 10px;
+    width: 183mm;
+    font-size: 11px;
 }
 
+/* ROW 4: Catatan */
 .ppo-catatan {
     position: absolute;
-    top: 98mm;
-    left: 24mm;
+    top: 103.5mm;
+    left: 22mm;
     width: 150mm;
     font-size: 11px;
-    color: #000;
-    font-weight: bold;
-}
-.ppo-val {
-    color: #003399;
 }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 105mm;
+    top: 110.9mm;
     left: 22mm;
-    width: 150mm;
+    width: 160mm;
     font-size: 9px;
 }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 113mm;
+    top: 118mm;
     left: 48mm;
-    font-size: 18px;
+    font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 115mm;
-    left: 150mm;
+    top: 120mm;
+    left: 178mm;
     width: 28mm;
-    font-size: 12px;
+    font-size: 13px;
     text-align: center;
 }
-.ppo-due-date {
+/* .ppo-due-date {
     position: absolute;
     top: 115mm;
     left: 176mm;
     width: 28mm;
     font-size: 12px;
     text-align: center;
-}
+} */
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 123mm;
-    right: 5mm;
-    font-size: 10px;
+    top: 135mm;
+    right: 13mm;
+    font-size: 12px;
+}
+
+/* â•â•â• BARCODE â•â•â• */
+.ppo-barcode {
+    position: absolute;
+    top: 38mm;
+    left: 88mm;
+    width: 56mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 @media print {
     .ppo-page { page-break-after: always; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
+
+
+/* WATERMARK */
+.ppo-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    font-size: 60px;
+    font-weight: bold;
+    color: rgba(212, 32, 39, 0.12);
+    letter-spacing: 10px;
+    z-index: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    font-family: Arial, Helvetica, sans-serif;
+}
 </style>
 
 <div class="ppo-page">
-    <!-- TRANSACTION TYPE BANNER -->
-    <div class="ppo-type-banner">SAMBUNGAN / RENEWAL</div>
 
+<!-- WATERMARK -->
+<div class="ppo-watermark">SAMBUNGAN</div>
     <!-- TICKET NUMBER -->
-    <div class="ppo-ticket">{$renewal->renewal_no}</div>
-
+   <div class="ppo-ticket">{$renewal->renewal_no}</div>
+    
     <!-- ITEMS LIST -->
-    <div class="ppo-items">{$itemsText}</div>
-
+      <div class="ppo-items">{$itemsText}</div>
+    
+    <!-- BARCODE -->
+    <div class="ppo-barcode">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$renewal->renewal_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:18mm;width:auto;max-width:55mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$renewal->renewal_no}</div>
+    </div>
+    
     <!-- ROW 1: IC | NAME | NATIONALITY -->
     <div class="ppo-ic">{$icNumber}</div>
     <div class="ppo-name">{$customer->name}</div>
     <div class="ppo-nationality">{$nationality}</div>
-
+    
     <!-- ROW 2: BIRTH YEAR | GENDER -->
     <div class="ppo-birthyear">{$birthYear}</div>
     <div class="ppo-gender">{$gender}</div>
-
-    <!-- ROW 3: ADDRESS --> 
+    
+    <!-- ROW 3: ADDRESS -->
     <div class="ppo-address">{$address}</div>
-
-    <!-- ROW 4: CATATAN (Renewal Info) -->
+    
+    <!-- ROW 4: CATATAN -->
     <div class="ppo-catatan">{$catatan}</div>
-
+    
     <!-- AMOUNT IN WORDS -->
     <div class="ppo-amount-words">{$amountWords} SAHAJA</div>
-
+    
     <!-- BOTTOM ROW -->
-    <div class="ppo-loan-amount">{$this->formatNumber($loanAmount, 2)}</div>
-    <div class="ppo-pledge-date">{$renewalDate->format('d/m/Y')}</div>
-    <div class="ppo-due-date">{$newDueDate->format('d/m/Y')}</div>
-
+    <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
+    <div class="ppo-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
+    <!-- <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div> -->
+    
     <!-- WEIGHT -->
     <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
 </div>
@@ -4145,7 +4174,7 @@ HTML;
 }
 .pp-data-layer {
     position: absolute;
-    top: 0;
+    top: 13px;
     left: 0;
     width: 100%;
     height: 100%;

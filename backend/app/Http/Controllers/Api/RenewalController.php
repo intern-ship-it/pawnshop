@@ -518,4 +518,315 @@ class RenewalController extends Controller
             ],
         ], 'Receipt data retrieved');
     }
+
+    /**
+     * Send renewal details via WhatsApp
+     */
+    public function sendWhatsApp(Request $request, Renewal $renewal): JsonResponse
+    {
+        // Extend time limit for PDF generation + WhatsApp sending
+        set_time_limit(120);
+
+        try {
+            // Check branch access
+            if ($renewal->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            // Load relationships
+            $renewal->load(['pledge.customer', 'pledge.branch']);
+
+            // Get WhatsApp configuration
+            $config = \App\Models\WhatsAppConfig::where('branch_id', $renewal->branch_id)
+                ->where('is_enabled', true)
+                ->first();
+
+            if (!$config) {
+                return $this->error('WhatsApp not configured for this branch', 400);
+            }
+
+            // Build message
+            $message = $this->buildRenewalWhatsAppMessage($renewal);
+
+            // Get customer phone with correct country code from database
+            $phone = preg_replace('/[^0-9]/', '', $renewal->pledge->customer->phone);
+            $countryCode = preg_replace('/[^0-9]/', '', $renewal->pledge->customer->country_code ?? '60');
+
+            // Remove leading 0 from phone if present
+            if (substr($phone, 0, 1) === '0') {
+                $phone = substr($phone, 1);
+            }
+
+            // Add country code 
+            $phone = $countryCode . $phone;
+
+            // Send text message via configured provider
+            $result = $this->sendViaProvider($config, $phone, $message);
+
+            if ($result['success']) {
+                // Log the message immediately
+                \App\Models\WhatsAppLog::create([
+                    'branch_id' => $renewal->branch_id,
+                    'recipient_phone' => $phone,
+                    'recipient_name' => $renewal->pledge->customer->name,
+                    'message_content' => $message,
+                    'status' => 'sent',
+                    'related_type' => 'renewal',
+                    'related_id' => $renewal->id,
+                    'sent_at' => now(),
+                    'sent_by' => $request->user()->id,
+                ]);
+
+                // Schedule PDF sending to happen AFTER the response is sent to client
+                app()->terminating(function () use ($config, $phone, $renewal) {
+                    set_time_limit(90);
+                    try {
+                        Log::info('Starting PDF receipt generation for renewal ' . $renewal->renewal_no);
+                        $pdfResult = $this->sendPdfReceipt($config, $phone, $renewal);
+                        Log::info('PDF receipt result: ' . json_encode($pdfResult));
+                        if (!$pdfResult['success']) {
+                            Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
+                        }
+                    }
+                    catch (\Exception $pdfError) {
+                        Log::warning('PDF attachment error: ' . $pdfError->getMessage());
+                    }
+                });
+
+                return $this->success([
+                    'message' => 'WhatsApp sent successfully to ' . $phone,
+                ]);
+            }
+            else {
+                return $this->error($result['message'] ?? 'Failed to send WhatsApp', 500);
+            }
+
+        }
+        catch (\Exception $e) {
+            Log::error('WhatsApp sending failed: ' . $e->getMessage());
+            return $this->error('Failed to send WhatsApp: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Build WhatsApp message for renewal
+     */
+    private function buildRenewalWhatsAppMessage(Renewal $renewal): string
+    {
+        $message = "🏦 *RENEWAL RECEIPT*\n";
+        $message .= "━━━━━━━━━━━━━━━━━━\n\n";
+        $message .= "📋 *Renewal No:* {$renewal->renewal_no}\n";
+        $message .= "🔖 *Pledge No:* {$renewal->pledge->pledge_no}\n";
+        $message .= "📅 *Date:* {$renewal->created_at->format('d/m/Y')}\n\n";
+        
+        $message .= "*Customer:* {$renewal->pledge->customer->name}\n";
+        $message .= "*IC:* {$renewal->pledge->customer->ic_number}\n\n";
+        
+        $message .= "💰 *Loan Amount:* RM " . number_format($renewal->pledge->loan_amount, 2) . "\n";
+        $message .= "⏱️ *Extended:* {$renewal->renewal_months} Month(s)\n";
+        $message .= "💵 *Total Paid:* RM " . number_format($renewal->total_payable, 2) . "\n\n";
+        
+        $message .= "📅 *New Due Date:* {$renewal->new_due_date->format('d/m/Y')}\n\n";
+        
+        $message .= "━━━━━━━━━━━━━━━━━━\n";
+        $message .= "_Thank you for your business!_\n";
+        $message .= "_{$renewal->pledge->branch->name}_";
+
+        return $message;
+    }
+
+    /**
+     * Send message via configured provider
+     */
+    private function sendViaProvider($config, string $phone, string $message): array
+    {
+        switch ($config->provider) {
+            case 'ultramsg':
+                return $this->sendViaUltramsg($config, $phone, $message);
+            case 'twilio':
+                return $this->sendViaTwilio($config, $phone, $message);
+            case 'wati':
+                return $this->sendViaWati($config, $phone, $message);
+            default:
+                return ['success' => false, 'message' => 'Unknown provider'];
+        }
+    }
+
+    private function sendViaUltramsg($config, string $phone, string $message): array
+    {
+        try {
+            // Disable SSL verification for development (Windows SSL cert issue)
+            $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->post(
+                "https://api.ultramsg.com/{$config->instance_id}/messages/chat",
+            [
+                'token' => $config->api_token,
+                'to' => $phone,
+                'body' => $message,
+            ]
+            );
+
+            $data = $response->json();
+
+            if ($response->successful()) {
+                if (isset($data['sent']) && $data['sent'] === 'true') {
+                    return ['success' => true];
+                }
+                return ['success' => false, 'message' => $data['message'] ?? 'Failed to send'];
+            }
+
+            // Extract descriptive error from response body
+            $errorMessage = $data['error'] ?? $data['message'] ?? ('API request failed: ' . $response->status());
+            return ['success' => false, 'message' => $errorMessage];
+        }
+        catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    private function sendViaTwilio($config, string $phone, string $message): array
+    {
+        return ['success' => false, 'message' => 'Twilio not yet implemented'];
+    }
+
+    private function sendViaWati($config, string $phone, string $message): array
+    {
+        return ['success' => false, 'message' => 'WATI not yet implemented'];
+    }
+
+    /**
+     * Send PDF receipt via WhatsApp
+     */
+    private function sendPdfReceipt($config, string $phone, Renewal $renewal): array
+    {
+        // Extend time limit for PDF generation + upload
+        set_time_limit(90);
+
+        try {
+            // Get company settings
+            $settingsMap = [];
+            try {
+                $companySettings = \App\Models\Setting::where('category', 'company')->get();
+                $receiptSettings = \App\Models\Setting::where('category', 'receipt')->get();
+                foreach ($companySettings as $setting) {
+                    $settingsMap[$setting->key_name] = $setting->value;
+                }
+                foreach ($receiptSettings as $setting) {
+                    $settingsMap['receipt_' . $setting->key_name] = $setting->value;
+                }
+            }
+            catch (\Exception $e) {
+                // Settings table may not exist
+            }
+
+            // Resolve logo as base64 data URI
+            $logoUrl = $settingsMap['logo'] ?? $settingsMap['logo_url'] ?? $settingsMap['company_logo'] ?? null;
+            if ($logoUrl && !str_starts_with($logoUrl, 'data:')) {
+                $logoPath = $logoUrl;
+                if (str_starts_with($logoPath, 'http')) {
+                    $parsed = parse_url($logoPath);
+                    $logoPath = ltrim($parsed['path'] ?? '', '/');
+                }
+                $logoPath = ltrim($logoPath, '/');
+                $localPath = str_starts_with($logoPath, 'storage/')
+                    ? storage_path('app/public/' . substr($logoPath, 8))
+                    : public_path($logoPath);
+                if (file_exists($localPath)) {
+                    $mime = mime_content_type($localPath);
+                    $logoUrl = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($localPath));
+                } else {
+                    $logoUrl = null;
+                }
+            }
+
+            $settings = [
+                'company_name' => $settingsMap['name'] ?? $renewal->pledge->branch->name ?? 'PAJAK GADAI SDN BHD',
+                'company_name_chinese' => $settingsMap['name_chinese'] ?? '',
+                'company_name_tamil' => $settingsMap['name_tamil'] ?? '',
+                'registration_no' => $settingsMap['registration_no'] ?? '',
+                'license_no' => $settingsMap['license_no'] ?? $renewal->pledge->branch->license_no ?? '',
+                'established_year' => $settingsMap['established_year'] ?? '',
+                'address' => $settingsMap['address'] ?? $renewal->pledge->branch->address ?? '',
+                'phone' => $settingsMap['phone'] ?? $renewal->pledge->branch->phone ?? '',
+                'phone2' => $settingsMap['phone2'] ?? '',
+                'fax' => $settingsMap['fax'] ?? '',
+                'business_hours' => $settingsMap['business_hours'] ?? '8.30AM - 6.00PM',
+                'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
+                'closed_days' => $settingsMap['closed_days'] ?? '',
+                'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
+                'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
+                'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
+                'logo_url' => $logoUrl,
+            ];
+
+            $terms = [];
+            try {
+                $terms = \App\Models\TermsCondition::getForActivity('pledge', $renewal->branch_id) ?? [];
+            }
+            catch (\Exception $e) {
+                $terms = [];
+            }
+
+            // Load relationships for receipt
+            $renewal->load([
+                'pledge.customer',
+                'pledge.items.category',
+                'pledge.branch',
+                'interestBreakdown',
+                'bank',
+                'createdBy:id,name'
+            ]);
+
+            $data = [
+                'renewal' => $renewal,
+                'pledge' => $renewal->pledge,
+                'copy_type' => 'customer',
+                'settings' => $settings,
+                'terms' => $terms,
+                'printed_at' => now(),
+                'printed_by' => 'WhatsApp',
+            ];
+
+            // Generate PDF
+            Log::info('Generating PDF for renewal ' . $renewal->renewal_no . ' using view pdf.renewal-receipt-preprinted');
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.renewal-receipt-preprinted', $data);
+            $pdf->setPaper([0.0, 0.0, 710.0, 450.0]); 
+            $pdfContent = $pdf->output();
+            $pdfBase64 = base64_encode($pdfContent);
+
+            Log::info('PDF generated successfully for renewal. Size: ' . strlen($pdfContent) . ' bytes');
+
+            // Send via Ultramsg document API
+            if ($config->provider === 'ultramsg') {
+                $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                    ->timeout(60)
+                    ->post(
+                    "https://api.ultramsg.com/{$config->instance_id}/messages/document",
+                [
+                    'token' => $config->api_token,
+                    'to' => $phone,
+                    'document' => 'data:application/pdf;base64,' . $pdfBase64,
+                    'fileName' => 'Renewal-Receipt-' . $renewal->renewal_no . '.pdf',
+                ]
+                );
+
+                $responseData = $response->json();
+
+                if ($response->successful()) {
+                    if (isset($responseData['sent']) && $responseData['sent'] === 'true') {
+                        return ['success' => true];
+                    }
+                    return ['success' => false, 'message' => $responseData['message'] ?? 'Failed to send PDF'];
+                }
+
+                $errorMessage = $responseData['error'] ?? $responseData['message'] ?? ('API request failed: ' . $response->status());
+                return ['success' => false, 'message' => $errorMessage];
+            }
+
+            return ['success' => false, 'message' => 'Provider not supported for PDF'];
+        }
+        catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
 }

@@ -761,7 +761,7 @@ export default function RenewalScreen() {
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed/renewal/${renewalId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/renewal/${renewalId}`,
         {
           method: "POST",
           headers: {
@@ -785,9 +785,9 @@ export default function RenewalScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>A4 Overlay Alignment - Renewal ${renewalId}</title>
+          <title>A5 Landscape Print - Renewal ${renewalId}</title>
           <style>
-            @page { size: A4 portrait; margin: 0; }
+            @page { size: A5 landscape; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>
@@ -850,7 +850,7 @@ export default function RenewalScreen() {
 
       // Use pre-printed overlay endpoint (data only for carbonless forms)
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed/renewal/${renewalResult.id}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/renewal/${renewalResult.id}`,
         {
           method: "POST",
           headers: {
@@ -890,9 +890,9 @@ export default function RenewalScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>A4 Overlay Alignment - Renewal ${renewalResult.id}</title>
+          <title>A5 Landscape Print - Renewal ${renewalResult.id}</title>
           <style>
-            @page { size: A4 portrait; margin: 0; }
+            @page { size: A5 landscape; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>
