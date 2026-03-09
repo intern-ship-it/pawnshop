@@ -512,7 +512,7 @@ class PrintController extends Controller
         ];
 
         $pdf = Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
-        $pdf->setPaper('a5', 'landscape');
+        $pdf->setPaper([0, 0, 710, 450]);
 
         $filename = "Pledge-Receipt-{$pledge->pledge_no}.pdf";
         return response($pdf->output(), 200, [
@@ -575,10 +575,15 @@ class PrintController extends Controller
             'printed_at' => now(),
             'printed_by' => $request->user()->name,
             'barcode_data_uri' => $this->generateBarcodeDataUri($renewal->pledge->pledge_no),
+            'multilang_image_uri' => $this->generateMultilangImageUri(
+                $settings['company_name_chinese'] ?? '',
+                $settings['company_name_tamil'] ?? ''
+            ),
+            'copy_type' => $request->input('copy_type', 'customer'),
         ];
 
         $pdf = Pdf::loadView('pdf.renewal-receipt-preprinted', $data);
-        $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+        $pdf->setPaper([0, 0, 710, 450]); // Custom size matching blade template
 
         $filename = "Renewal-{$renewal->renewal_no}.pdf";
         return response($pdf->output(), 200, [

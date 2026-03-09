@@ -1098,7 +1098,7 @@ class PledgeController extends Controller
             // Generate PDF
             Log::info('Generating PDF for pledge ' . $pledge->pledge_no . ' using view pdf.pledge-receipt-preprinted');
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
-            $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+            $pdf->setPaper([0, 0, 710, 450]); // Custom size matching blade template
             $pdfContent = $pdf->output();
             $pdfBase64 = base64_encode($pdfContent);
             Log::info('PDF generated successfully. Size: ' . strlen($pdfContent) . ' bytes, Base64 size: ' . strlen($pdfBase64));

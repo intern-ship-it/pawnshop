@@ -25,8 +25,8 @@
 
         /* ═══ PAGE ═══ */
         .page {
-            width: 670pt;
-            padding: 10pt 18pt 6pt 14pt;
+            width: 682pt;
+            padding: 10pt 8pt 6pt 14pt;
             overflow: visible;
         }
 
@@ -47,15 +47,12 @@
             width: 200pt;
         }
         .logo {
-            width: 70pt;
-            height: 70pt;
-            max-width: 70pt;
-            max-height: 70pt;
+            width: 110pt;
+            max-width: 110pt;
             vertical-align: top;
-            object-fit: cover;
         }
         .company-name {
-           font-size: 21pt;
+            font-size: 22pt;
             font-weight: bold;
             color: #1a4a7a;
             line-height: 1.15;
@@ -75,25 +72,25 @@
         .phone-box {
             background: #d42027;
             color: #fff;
-            padding: 11pt 8pt;
-            font-size: 8pt;
+            padding: 3mm 4mm;
+            font-size: 9pt;
             font-weight: bold;
             display: inline-block;
             text-align: center;
             line-height: 1.3;
             white-space: nowrap;
-            border-radius: 20pt;
+            border-radius: 3px;
         }
         .established {
             background: #d42027;
             color: #fff;
-            padding: 10pt 6pt;
-            font-size: 6.5pt;
+            padding: 8pt 6pt;
+            font-size: 7pt;
             font-weight: bold;
             display: inline-block;
             text-align: center;
             line-height: 1.2;
-            border-radius: 50%;
+            border-radius: 55%;
         }
         .hours-box {
             background: #f5c518;
@@ -123,7 +120,7 @@
         }
         .mid-section td {
             vertical-align: top;
-            border: 1.5pt solid #1a4a7a;
+            border-left: 1.5pt solid #1a4a7a;
         }
         .items-cell {
             padding: 4pt 6pt;
@@ -184,7 +181,7 @@
             font-size: 12pt;
             font-weight: bold;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
-            color: #d42027;
+            color: #000;
             padding: 1pt 0;
         }
         .rate-section {
@@ -301,7 +298,7 @@
             font-weight: 900;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
             color: #000;
-            padding-left: 8pt;
+            padding-left: 77pt;
         }
         .pinjaman-stars {
             font-size: 12pt;
@@ -457,7 +454,7 @@
                     <table style="border-collapse: collapse;">
                         <tr>
                             @if($logoUrl)
-                                <td style="vertical-align: top; padding-right: 6pt; width: 68pt;">
+                                <td style="vertical-align: top; padding-right: 4pt; width: 114pt;">
                                     <img src="{{ $logoUrl }}" class="logo" alt="Logo">
                                 </td>
                             @endif
@@ -480,7 +477,7 @@
                                 <span class="phone-box">&#9742; {{ $phone }}@if($phone2)<br>{{ $phone2 }}@endif</span>
                             </td>
                             @if($estYear)
-                                <td style="padding-right: 3pt; vertical-align: middle;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
+                                <td style="vertical-align: middle;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
                             @endif
                         </tr>
                     </table>
