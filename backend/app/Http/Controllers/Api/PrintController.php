@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Picqer\Barcode\BarcodeGeneratorPNG;
+use Picqer\Barcode\BarcodeGeneratorSVG;
 use App\Http\Controllers\Api\DotMatrixPrintController;
 
 class PrintController extends Controller
@@ -137,12 +138,12 @@ class PrintController extends Controller
             return $this->error('Unauthorized', 403);
         }
 
-        $generator = new BarcodeGeneratorPNG();
+        $generator = new BarcodeGeneratorSVG();
         $barcode = base64_encode($generator->getBarcode($pledgeItem->barcode, $generator::TYPE_CODE_128, 3, 80));
 
         return $this->success([
             'barcode' => $pledgeItem->barcode,
-            'image' => 'data:image/png;base64,' . $barcode,
+            'image' => 'data:image/svg+xml;base64,' . $barcode,
             'item' => [
                 'pledge_no' => $pledgeItem->pledge->pledge_no,
                 'category' => $pledgeItem->category->name_en,
@@ -163,11 +164,11 @@ class PrintController extends Controller
 
         $pledge->load(['items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot']);
 
-        $generator = new BarcodeGeneratorPNG();
+        $generator = new BarcodeGeneratorSVG();
 
         // One barcode per pledge
         $barcodeValue = $pledge->pledge_no;
-        $barcodeImage = 'data:image/png;base64,' . base64_encode(
+        $barcodeImage = 'data:image/svg+xml;base64,' . base64_encode(
             $generator->getBarcode($barcodeValue, $generator::TYPE_CODE_128, 3, 80)
         );
 
@@ -324,7 +325,7 @@ class PrintController extends Controller
         ]);
 
         $branchId = $request->user()->branch_id;
-        $generator = new BarcodeGeneratorPNG();
+        $generator = new BarcodeGeneratorSVG();
         $barcodes = [];
         $processedPledges = []; // Track pledges to avoid duplicate barcodes
 
@@ -352,7 +353,7 @@ class PrintController extends Controller
             $barcodeValue = $item->pledge->pledge_no;
             $barcodes[] = [
                 'barcode' => $barcodeValue,
-                'image' => 'data:image/png;base64,' . base64_encode(
+                'image' => 'data:image/svg+xml;base64,' . base64_encode(
                 $generator->getBarcode($barcodeValue, $generator::TYPE_CODE_128, 3, 80)
             ),
                 'pledge_no' => $item->pledge->pledge_no,
@@ -454,7 +455,8 @@ class PrintController extends Controller
     private function generateBarcodeDataUri(string $value): string
     {
         $generator = new BarcodeGeneratorPNG();
-        $png = $generator->getBarcode($value, $generator::TYPE_CODE_128, 2, 60);
+        // Higher resolution for better scan reliability (width factor 4, height 100)
+        $png = $generator->getBarcode($value, $generator::TYPE_CODE_128, 4, 100);
         return 'data:image/png;base64,' . base64_encode($png);
     }
 

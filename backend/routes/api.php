@@ -44,7 +44,7 @@ Route::get('/preview/pledge-receipt/{pledge}', function (\App\Models\Pledge $ple
     $settings = (new \ReflectionMethod($printController, 'getCompanySettings'))->invoke($printController, $pledge->branch);
 
     $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
-    $barcodeDataUri = 'data:image/png;base64,' . base64_encode($generator->getBarcode($pledge->pledge_no, $generator::TYPE_CODE_128, 2, 60));
+    $barcodeDataUri = 'data:image/png;base64,' . base64_encode($generator->getBarcode($pledge->pledge_no, $generator::TYPE_CODE_128, 4, 100));
 
     $multilangUri = (new \ReflectionMethod($printController, 'generateMultilangImageUri'))->invoke(
         $printController,
@@ -75,7 +75,7 @@ Route::get('/preview/renewal-receipt/{renewal}', function (\App\Models\Renewal $
     $settings = (new \ReflectionMethod($printController, 'getCompanySettings'))->invoke($printController, $renewal->pledge->branch);
 
     $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
-    $barcodeDataUri = 'data:image/png;base64,' . base64_encode($generator->getBarcode($renewal->pledge->pledge_no, $generator::TYPE_CODE_128, 2, 60));
+    $barcodeDataUri = 'data:image/png;base64,' . base64_encode($generator->getBarcode($renewal->pledge->pledge_no, $generator::TYPE_CODE_128, 4, 100));
 
     $multilangUri = (new \ReflectionMethod($printController, 'generateMultilangImageUri'))->invoke(
         $printController,
