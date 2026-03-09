@@ -42,20 +42,29 @@ class RenewalController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
-        // Search by pledge number (handle barcode scanner format without hyphens)
+        // Search by renewal number, pledge number, or customer name/IC
         if ($search = $request->get('search')) {
             // Normalize: remove hyphens and uppercase
             $searchNormalized = strtoupper(str_replace('-', '', $search));
 
-            $query->whereHas('pledge', function ($q) use ($search, $searchNormalized) {
-                $q->where(function ($q2) use ($search, $searchNormalized) {
-                    // Match with hyphens (original format)
-                    $q2->where('pledge_no', 'like', "%{$search}%")
-                        ->orWhere('receipt_no', 'like', "%{$search}%")
-                        // Match without hyphens (barcode scanner format)
-                        ->orWhereRaw("REPLACE(pledge_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
-                        ->orWhereRaw("REPLACE(receipt_no, '-', '') LIKE ?", ["%{$searchNormalized}%"]);
-                });
+            $query->where(function ($q) use ($search, $searchNormalized) {
+                // Search by renewal_no (with and without hyphens)
+                $q->where('renewal_no', 'like', "%{$search}%")
+                    ->orWhereRaw("REPLACE(renewal_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
+                    // Search by pledge_no / receipt_no on related pledge
+                    ->orWhereHas('pledge', function ($pq) use ($search, $searchNormalized) {
+                        $pq->where(function ($pq2) use ($search, $searchNormalized) {
+                            $pq2->where('pledge_no', 'like', "%{$search}%")
+                                ->orWhere('receipt_no', 'like', "%{$search}%")
+                                ->orWhereRaw("REPLACE(pledge_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
+                                ->orWhereRaw("REPLACE(receipt_no, '-', '') LIKE ?", ["%{$searchNormalized}%"]);
+                        });
+                    })
+                    // Search by customer name or IC number
+                    ->orWhereHas('pledge.customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%")
+                            ->orWhere('ic_number', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -131,7 +140,7 @@ class RenewalController extends Controller
             $query->whereBetween('due_date', [$today, $today->copy()->addDays($days)]);
         }
 
-        // Search by IC number, pledge_no, or receipt_no (Issue 1 fix)
+        // Search by IC number, pledge_no, receipt_no, or renewal_no (Issue 1 fix + renewal_no support)
         if ($search = $request->get('search')) {
             $searchTerm = trim($search);
             $searchNormalized = strtoupper(str_replace('-', '', $searchTerm));
@@ -143,6 +152,11 @@ class RenewalController extends Controller
                     ->orWhere('receipt_no', 'like', "%{$searchTerm}%")
                     ->orWhereRaw("REPLACE(pledge_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
                     ->orWhereRaw("REPLACE(receipt_no, '-', '') LIKE ?", ["%{$searchNormalized}%"])
+                    // Match renewal_no via renewals relationship
+                    ->orWhereHas('renewals', function ($rq) use ($searchTerm, $searchNormalized) {
+                        $rq->where('renewal_no', 'like', "%{$searchTerm}%")
+                            ->orWhereRaw("REPLACE(renewal_no, '-', '') LIKE ?", ["%{$searchNormalized}%"]);
+                    })
                     // Match customer IC number
                     ->orWhereHas('customer', function ($cq) use ($searchTerm, $cleanIC) {
                         $cq->where('ic_number', 'like', "%{$searchTerm}%")
