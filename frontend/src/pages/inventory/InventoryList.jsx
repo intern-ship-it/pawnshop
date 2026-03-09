@@ -521,56 +521,63 @@ export default function InventoryList() {
             box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
           }
           .label { 
-            width: 50mm; 
-            height: 50mm;
-            padding: 2mm 3mm; 
-            background: white; 
-            display: flex; 
-            flex-direction: column; 
-            overflow: hidden;
-            border-bottom: 1px dashed #ccc;
-          }
-          .label:last-child { border-bottom: none; }
-          .label-header { 
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 0.3mm solid #333;
-            padding-bottom: 1mm;
-            margin-bottom: 1mm;
-          }
-          .pledge-no { font-size: 8pt; font-weight: bold; }
-          .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-          .barcode-container { 
-            flex: 1;
-            text-align: center; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 1mm 0;
-          }
-          .barcode-container svg { 
-            width: 44mm; 
-            height: 18mm; 
-          }
-          .barcode-text { 
-            font-family: 'Courier New', monospace;
-            font-size: 9pt; 
-            margin-top: 1mm;
-            font-weight: bold;
-            letter-spacing: 0.5px;
-          }
-          .label-footer { 
-            border-top: 0.3mm solid #333;
-            padding-top: 1mm;
-            font-size: 8pt; 
-            font-weight: bold;
-            text-align: center;
-          }
-          @media screen { 
-            body { padding: 20px; } 
-          }
+          width: 50mm; 
+          height: 50mm;
+          padding: 4mm 4mm 4mm 4mm; 
+          background: white; 
+          display: flex; 
+          flex-direction: column; 
+          justify-content: center;
+          overflow: hidden;
+          border-bottom: 1px dashed #ccc;
+        }
+        .label:last-child { border-bottom: none; }
+        .header-row { 
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 0.3mm solid #333;
+          padding-bottom: 1mm;
+          margin-bottom: 1mm;
+        }
+        .pledge-no { font-size: 8pt; font-weight: bold; }
+        .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+        .barcode-section { 
+          text-align: center; 
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 1mm 2mm;
+          width: 100%;
+        }
+        .barcode-section svg { 
+          max-width: 36mm; 
+          width: 36mm;
+          height: 14mm; 
+          margin: 0 auto;
+        }
+        .footer-row { 
+          padding-top: 1mm;
+          font-size: 7.5pt; 
+          font-weight: bold;
+          flex-direction: column;
+          text-align: center;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .storage-loc {
+          font-size: 8pt;
+          font-weight: 600;
+          color: #333;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          max-width: 92%;
+        }
+        @media screen { 
+          body { padding: 0px; } 
+        }  }
         </style>
       </head>
       <body>
@@ -585,18 +592,26 @@ export default function InventoryList() {
             .map((item, index) => {
               const catName = getCategoryName(item.category);
               const purName = getPurityName(item.purity);
+              const storageLocationParts = [];
+              if (item.vault) storageLocationParts.push(typeof item.vault === 'object' ? item.vault.name || item.vault.code : item.vault);
+              if (item.box) storageLocationParts.push('Box ' + (typeof item.box === 'object' ? item.box.box_number || item.box.name : item.box));
+              if (item.slot) storageLocationParts.push('Slot ' + (typeof item.slot === 'object' ? item.slot.slot_number || item.slot.name : item.slot));
+              const storageLocation = storageLocationParts.join(' › ');
+
               return `
             <div class="label">
-              <div class="label-header">
-                <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
-                <span class="category">${catName}</span>
-              </div>
-              <div class="barcode-container">
-                <svg id="barcode-${index}"></svg>
-                <div class="barcode-text">${item.barcode || "N/A"}</div>
-              </div>
-              <div class="label-footer">${purName} • ${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
+            <div class="header-row">
+              <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
+              <span class="category">${catName}</span>
             </div>
+            <div class="barcode-section">
+              <svg id="barcode-${index}"></svg>
+            </div>
+            <div class="footer-row">
+              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
+              <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
+            </div>
+          </div>
           `;
             })
             .join("")}
@@ -834,6 +849,12 @@ export default function InventoryList() {
       .replace(/[^A-Z0-9]/gi, "")
       .substring(0, 20);
 
+    const storageLocationParts = [];
+    if (item.vault) storageLocationParts.push(typeof item.vault === 'object' ? item.vault.name || item.vault.code : item.vault);
+    if (item.box) storageLocationParts.push('Box ' + (typeof item.box === 'object' ? item.box.box_number || item.box.name : item.box));
+    if (item.slot) storageLocationParts.push('Slot ' + (typeof item.slot === 'object' ? item.slot.slot_number || item.slot.name : item.slot));
+    const storageLocation = storageLocationParts.join(' › ');
+
     const printContent = `
       <!DOCTYPE html>
       <html>
@@ -894,13 +915,16 @@ export default function InventoryList() {
           .label { 
             width: 50mm; 
             height: 50mm;
-            padding: 4mm 3mm; 
+            padding: 4mm 4mm 4mm 4mm; 
             background: white; 
             display: flex; 
             flex-direction: column; 
+            justify-content: center;
             overflow: hidden;
+            border-bottom: 1px dashed #ccc;
           }
-          .label-header { 
+          .label:last-child { border-bottom: none; }
+          .header-row { 
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -910,35 +934,41 @@ export default function InventoryList() {
           }
           .pledge-no { font-size: 8pt; font-weight: bold; }
           .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-          .barcode-container { 
-            flex: 1;
+          .barcode-section { 
             text-align: center; 
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 1mm 0;
+            padding: 1mm 2mm;
+            width: 100%;
           }
-          .barcode-container svg { 
-            width: 44mm; 
-            height: 18mm; 
+          .barcode-section svg { 
+            max-width: 36mm; 
+            width: 36mm;
+            height: 14mm; 
+            margin: 0 auto;
           }
-          .barcode-text { 
-            font-family: 'Courier New', monospace;
-            font-size: 9pt; 
-            margin-top: 1mm;
-            font-weight: bold;
-            letter-spacing: 0.5px;
-          }
-          .label-footer { 
-            border-top: 0.3mm solid #333;
+          .footer-row { 
             padding-top: 1mm;
-            font-size: 8pt; 
+            font-size: 7.5pt; 
             font-weight: bold;
+            flex-direction: column;
             text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .storage-loc {
+            font-size: 8pt;
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            max-width: 92%;
           }
           @media screen { 
-            body { padding: 20px; } 
+            body { padding: 0px; } 
           }
         </style>
       </head>
@@ -951,15 +981,17 @@ export default function InventoryList() {
         </div>
         <div class="labels-wrapper">
           <div class="label">
-            <div class="label-header">
+            <div class="header-row">
               <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
               <span class="category">${catName}</span>
             </div>
-            <div class="barcode-container">
+            <div class="barcode-section">
               <svg id="single-barcode"></svg>
-              <div class="barcode-text">${item.barcode || "N/A"}</div>
             </div>
-            <div class="label-footer">${purName} • ${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
+            <div class="footer-row">
+              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
+              <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
+            </div>
           </div>
         </div>
         <script>

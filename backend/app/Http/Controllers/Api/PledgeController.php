@@ -41,12 +41,10 @@ class PledgeController extends Controller
             $q->select('id', 'pledge_id')->latest()->limit(1);
         }])
             ->with(['redemption' => function ($q) {
-            $q->select('id', 'pledge_id')->latest()->limit(1);
+            $q->select('id', 'pledge_id', 'redemption_no')->latest()->limit(1);
         }])
-            // Only count items that have NOT been redeemed/released
-            ->withCount(['items as items_count' => function ($q) {
-            $q->whereNotIn('status', ['redeemed', 'released']);
-        }]);
+            // Count all items in the pledge
+            ->withCount('items as items_count');
 
         if ($request->boolean('with_items')) {
             // Only load items that have NOT been redeemed/released
@@ -64,8 +62,10 @@ class PledgeController extends Controller
                     ->orWhereHas('customer', function ($cq) use ($search) {
                     $cq->where('name', 'like', "%{$search}%")
                         ->orWhere('ic_number', 'like', "%{$search}%");
-                }
-                );
+                    })
+                    ->orWhereHas('redemption', function ($rq) use ($search) {
+                    $rq->where('redemption_no', 'like', "%{$search}%");
+                    });
             });
         }
 

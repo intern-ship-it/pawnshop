@@ -120,6 +120,7 @@ export default function PledgeList() {
         renewalCount: pledge.renewal_count || 0,
         latestRenewalId: pledge.renewals?.[0]?.id || null,
         latestRedemptionId: pledge.redemption?.[0]?.id || null,
+        latestRedemptionNo: pledge.redemption?.[0]?.redemption_no || null,
         itemsCount: pledge.items?.length || pledge.items_count || 0,
         items: pledge.items || [],
         createdAt: pledge.created_at,
@@ -745,7 +746,8 @@ export default function PledgeList() {
         const query = searchQuery.toLowerCase();
         const matchId =
           pledge.pledgeNo?.toLowerCase().includes(query) ||
-          pledge.receiptNo?.toLowerCase().includes(query);
+          pledge.receiptNo?.toLowerCase().includes(query) ||
+          pledge.latestRedemptionNo?.toLowerCase().includes(query);
         const matchName = pledge.customerName?.toLowerCase().includes(query);
         const matchIC = pledge.customerIC
           ?.replace(/[-\s]/g, "")

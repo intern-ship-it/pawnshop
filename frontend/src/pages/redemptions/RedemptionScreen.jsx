@@ -693,98 +693,9 @@ export default function RedemptionScreen() {
   const autoTriggerPostRedemption = async (redemptionId) => {
     const token = getToken();
     const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    // Auto-print receipt removed
 
-    // Auto-print receipt
-    try {
-      await handlePrintReceiptAuto(redemptionId);
-    } catch (error) {
-      console.error("Auto-print failed:", error);
-    }
-
-    // Auto-print barcode label (same as NewPledge / RenewalScreen)
-    if (pledge?.id && token) {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const response = await fetch(`${apiUrl}/print/barcodes/${pledge.id}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.data) {
-            const barcodeImage = data.data.items?.[0]?.image || "";
-            const totalWeight = data.data.items?.reduce(
-              (sum, item) => sum + (parseFloat(item.net_weight) || 0),
-              0,
-            ) || 0;
-            const storageLocation = data.data.storage_location || data.data.items?.[0]?.storage_location || "";
-            const pledgeNo = data.data.pledge_no || pledge.pledgeNo;
-
-            const barcodeWindow = window.open("", "_blank", "width=400,height=600");
-            if (barcodeWindow) {
-              barcodeWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                  <title>Barcode Label - ${pledgeNo}</title>
-                  <style>
-                    @page { size: 50mm 50mm; margin: 0 !important; }
-                    @media print {
-                      html, body { width: 50mm !important; height: 50mm !important; margin: 0 !important; padding: 0 !important; }
-                      .controls { display: none !important; }
-                      .labels-wrapper { width: 50mm !important; margin: 0 !important; box-shadow: none !important; }
-                    }
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
-                    .labels-wrapper { width: 50mm; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-                    .label { 
-                      width: 50mm; height: 50mm; padding: 4mm 4mm 4mm 4mm; background: white; 
-                      display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-bottom: 1px dashed #ccc;
-                    }
-                    .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
-                    .pledge-no { font-size: 8pt; font-weight: bold; }
-                    .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-                    .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
-                    .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: inherit; margin: 0 auto; }
-                    .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; }
-                    .storage-loc { font-size: 8pt; font-weight: 600; color: #333; white-space: nowrap; text-overflow: ellipsis; max-width: 92%; }
-                  </style>
-                </head>
-                <body>
-                  <div class="labels-wrapper">
-                    <div class="label">
-                      <div class="header-row">
-                        <span class="pledge-no">${pledgeNo}</span>
-                        <span class="category">${data.data.category || (data.data.items?.length || 1) + " item(s)"}</span>
-                      </div>
-                      <div class="barcode-section">
-                        ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
-                      </div>
-                      <div class="footer-row">
-                        ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
-                        <div>${parseFloat(totalWeight).toFixed(2)}g</div>
-                      </div>
-                    </div>
-                  </div>
-                  <script>
-                    window.onload = function() { window.print(); };
-                    window.onafterprint = function() { window.close(); };
-                  <\/script>
-                </body>
-                </html>
-              `);
-              barcodeWindow.document.close();
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Auto-barcode failed:", error);
-      }
-    }
+    // Barcode label printing is not needed after redemption.
 
     // Auto-send WhatsApp if customer has phone
     if (pledge?.customerPhone) {
@@ -2207,9 +2118,9 @@ export default function RedemptionScreen() {
           <h3 className="text-xl font-bold text-zinc-800 mb-2">
             Items Released!
           </h3>
-          <p className="text-zinc-500 mb-4">
-            ID:{" "}
-            <span className="font-mono font-bold">
+          <p className="text-zinc-600 mb-4 text-sm font-medium">
+            Redemption No:{" "}
+            <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
               {redemptionResult?.redemptionId}
             </span>
           </p>
@@ -2220,6 +2131,12 @@ export default function RedemptionScreen() {
                 <span className="text-zinc-500">Pledge</span>
                 <span className="font-medium">
                   {redemptionResult?.pledgeId}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Redemption No</span>
+                <span className="font-medium text-emerald-700 font-mono">
+                  {redemptionResult?.redemptionId}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -2258,10 +2175,11 @@ export default function RedemptionScreen() {
           </div>
 
           {/* Auto-trigger status */}
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-            <p>✓ Receipt sent to printer automatically</p>
-            {whatsAppSent && <p>✓ WhatsApp notification sent</p>}
-          </div>
+          {whatsAppSent && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+              <p>✓ WhatsApp notification sent</p>
+            </div>
+          )}
 
           {/* Issue 2: Show partial vs full redemption status */}
           <div className="p-3 bg-green-50 rounded-lg mb-6">
@@ -2297,15 +2215,6 @@ export default function RedemptionScreen() {
           </div>
 
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              fullWidth
-              leftIcon={Printer}
-              onClick={handlePrintReceipt}
-              loading={isPrintingReceipt}
-            >
-              Reprint Receipt
-            </Button>
             <Button
               variant="outline"
               fullWidth

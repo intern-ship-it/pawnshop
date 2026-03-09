@@ -887,10 +887,12 @@ export default function PrintTestPage() {
     }
   };
 
-  // Download Redemption PDF — searches for the latest redemption of the selected pledge
+  const [redemptionIdInput, setRedemptionIdInput] = useState("16");
+  
+  // Download Redemption PDF — downloads redemption by ID
   const testDownloadRedemptionPdf = async () => {
-    if (!selectedPledge) {
-      dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
+    if (!redemptionIdInput) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Please enter a redemption ID first" }));
       return;
     }
 
@@ -901,38 +903,9 @@ export default function PrintTestPage() {
     try {
       const token = getToken();
 
-      // Search redemptions by pledge number
-      const redemptionsResponse = await fetch(
-        `${apiUrl}/redemptions?search=${encodeURIComponent(selectedPledge.pledge_no)}&per_page=5`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (!redemptionsResponse.ok) throw new Error("Failed to fetch redemptions");
-      const redemptionsData = await redemptionsResponse.json();
-      const redemptionsList = redemptionsData.data?.data || redemptionsData.data || [];
-
-      // Filter to only redemptions that match this exact pledge
-      const matching = redemptionsList.filter(
-        (r) =>
-          r.pledge_id === selectedPledge.id ||
-          r.pledge?.id === selectedPledge.id ||
-          r.pledge?.pledge_no === selectedPledge.pledge_no,
-      );
-
-      if (matching.length === 0) {
-        throw new Error("No redemptions found for this pledge");
-      }
-
-      const latestRedemption = matching[0]; // Already sorted by created_at desc
-
-      // Download the redemption PDF
+      // Download the redemption PDF directly using the provided ID
       const response = await fetch(
-        `${apiUrl}/print/pdf/redemption/${latestRedemption.id}`,
+        `${apiUrl}/print/pdf/redemption/${redemptionIdInput}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -946,7 +919,7 @@ export default function PrintTestPage() {
 
       const blob = await response.blob();
       const contentDisposition = response.headers.get("Content-Disposition");
-      let filename = `Redemption-${latestRedemption.redemption_no || latestRedemption.id}.pdf`;
+      let filename = `Redemption-${redemptionIdInput}.pdf`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?(.+?)"?$/);
         if (match) filename = match[1];
@@ -3833,24 +3806,35 @@ export default function PrintTestPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="font-medium text-rose-800">Redemption Receipt PDF</p>
-                      <p className="text-xs text-rose-600">Downloads latest redemption of selected pledge</p>
+                      <p className="text-xs text-rose-600">Downloads redemption by ID</p>
                     </div>
                     <Badge className="bg-rose-500 text-white">PDF</Badge>
                   </div>
+                  
+                  <div className="flex gap-2 mb-2">
+                    <Input
+                      type="number"
+                      placeholder="Redemption ID"
+                      value={redemptionIdInput}
+                      onChange={(e) => setRedemptionIdInput(e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+
                   <Button
                     variant="outline"
                     size="sm"
                     leftIcon={FileDown}
                     onClick={testDownloadRedemptionPdf}
                     loading={printing && previewType === "Redemption PDF Download"}
-                    disabled={!selectedPledge || printing}
+                    disabled={!redemptionIdInput || printing}
                     fullWidth
                     className="border-rose-500 text-rose-700 hover:bg-rose-100"
                   >
                     Download Redemption PDF
                   </Button>
                   <p className="text-xs text-rose-400 mt-2">
-                    ⚠️ Only works if this pledge has been redeemed
+                    🔗 GET /print/pdf/redemption/{redemptionIdInput || "..."}
                   </p>
                 </div>
               </div>

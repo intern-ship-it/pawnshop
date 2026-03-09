@@ -134,8 +134,8 @@ const tabs = [
   { id: "terms", label: "Terms & Conditions", icon: FileText },
   { id: "racks", label: "Racks", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
-  { id: "printSettings", label: "Print Settings", icon: Printer },
-  { id: "printTest", label: "Print Test", icon: Printer, route: "/settings/print-test" },  // Hidden - uncomment to re-enable
+  // { id: "printSettings", label: "Print Settings", icon: Printer }, // Hidden
+  { id: "printTest", label: "Print Test", icon: Printer, route: "/settings/print-test" },
 ];
 
 export default function SettingsScreen() {

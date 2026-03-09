@@ -770,16 +770,28 @@ class RedemptionController extends Controller
                 'logo_url' => $logoUrl,
             ];
 
+            $printController = app(\App\Http\Controllers\Api\PrintController::class);
+            $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
+            $barcodeDataUri = 'data:image/png;base64,' . base64_encode($generator->getBarcode($redemption->pledge->pledge_no, $generator::TYPE_CODE_128, 4, 100));
+
+            $multilangUri = (new \ReflectionMethod($printController, 'generateMultilangImageUri'))->invoke(
+                $printController,
+                $settings['company_name_chinese'] ?? '',
+                $settings['company_name_tamil'] ?? ''
+            );
+
             $data = [
                 'redemption' => $redemption,
                 'settings' => $settings,
                 'printed_at' => now(),
                 'printed_by' => 'WhatsApp',
+                'barcode_data_uri' => $barcodeDataUri,
+                'multilang_image_uri' => $multilangUri,
             ];
 
             // Generate PDF using pre-printed redemption template
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.redemption-receipt-preprinted', $data);
-            $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+            $pdf->setPaper([0, 0, 710, 550]); // Match blade layout
             $pdfContent = $pdf->output();
             $pdfBase64 = base64_encode($pdfContent);
 

@@ -520,7 +520,7 @@ class PrintController extends Controller
         ];
 
         $pdf = Pdf::loadView('pdf.pledge-receipt-preprinted', $data);
-        $pdf->setPaper([0, 0, 710, 450]);
+        $pdf->setPaper([0.0, 0.0, 710.0, 450.0]);
 
         $filename = "Pledge-Receipt-{$pledge->pledge_no}.pdf";
         return response($pdf->output(), 200, [
@@ -591,7 +591,7 @@ class PrintController extends Controller
         ];
 
         $pdf = Pdf::loadView('pdf.renewal-receipt-preprinted', $data);
-        $pdf->setPaper([0, 0, 710, 500]); // Custom size matching blade template
+        $pdf->setPaper([0.0, 0.0, 710.0, 500.0]); // Custom size matching blade template
 
         $filename = "Renewal-{$renewal->renewal_no}.pdf";
         return response($pdf->output(), 200, [
@@ -624,10 +624,14 @@ class PrintController extends Controller
             'printed_at' => now(),
             'printed_by' => $request->user()->name,
             'barcode_data_uri' => $this->generateBarcodeDataUri($redemption->pledge->pledge_no),
+            'multilang_image_uri' => $this->generateMultilangImageUri(
+                $settings['company_name_chinese'] ?? '',
+                $settings['company_name_tamil'] ?? ''
+            ),
         ];
 
         $pdf = Pdf::loadView('pdf.redemption-receipt-preprinted', $data);
-        $pdf->setPaper([0, 0, 595.28, 419.53], 'landscape'); // A5 landscape
+        $pdf->setPaper([0.0, 0.0, 710.0, 550.0]); // Match blade layout
 
         $filename = "Redemption-{$redemption->redemption_no}.pdf";
         return response($pdf->output(), 200, [
