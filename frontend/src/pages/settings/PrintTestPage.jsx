@@ -1197,7 +1197,7 @@ export default function PrintTestPage() {
         }
         .footer-row { 
           padding-top: 1mm; 
-          font-size: 7pt; 
+          font-size: 7.5pt; 
           font-weight: bold; 
           flex-direction: column;
           text-align: center;
@@ -1206,12 +1206,12 @@ export default function PrintTestPage() {
           align-items: center;
         }
         .storage-loc {
-          font-size: 6.5pt;
+          font-size: 8pt;
           font-weight: 600;
           color: #333;
           white-space: nowrap;
           text-overflow: ellipsis;
-          max-width: 83%;
+          max-width: 92%;
         }
         @media screen { 
           body { padding: 0px; } 
@@ -1222,7 +1222,7 @@ export default function PrintTestPage() {
       <div class="labels-wrapper">${barcodeLabels}</div>
       <script>
         window.onload = function() { 
-         window.print(); 
+          window.print(); 
         };
         window.onafterprint = function() {
            window.close();
