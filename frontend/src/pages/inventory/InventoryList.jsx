@@ -566,18 +566,21 @@ export default function InventoryList() {
           display: flex;
           justify-content: space-between;
           align-items: center;
+          width: 100%;
         }
         .storage-loc {
           font-size: 8pt;
           font-weight: 600;
           color: #333;
           white-space: nowrap;
+          overflow: hidden;
           text-overflow: ellipsis;
-          max-width: 92%;
+          max-width: 100%;
+          width: 100%;
         }
         @media screen { 
           body { padding: 0px; } 
-        }  }
+        }
         </style>
       </head>
       <body>
@@ -958,14 +961,17 @@ export default function InventoryList() {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            width: 100%;
           }
           .storage-loc {
             font-size: 8pt;
             font-weight: 600;
             color: #333;
             white-space: nowrap;
+            overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 92%;
+            max-width: 100%;
+            width: 100%;
           }
           @media screen { 
             body { padding: 0px; } 
