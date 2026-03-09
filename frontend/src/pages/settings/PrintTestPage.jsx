@@ -1180,7 +1180,6 @@ export default function PrintTestPage() {
           width: 100%;
         }
         .storage-loc {
-          font-size: 8pt;
           font-weight: 600;
           color: #333;
           white-space: nowrap;

@@ -569,7 +569,6 @@ export default function InventoryList() {
           width: 100%;
         }
         .storage-loc {
-          font-size: 8pt;
           font-weight: 600;
           color: #333;
           white-space: nowrap;
@@ -964,7 +963,6 @@ export default function InventoryList() {
             width: 100%;
           }
           .storage-loc {
-            font-size: 8pt;
             font-weight: 600;
             color: #333;
             white-space: nowrap;
