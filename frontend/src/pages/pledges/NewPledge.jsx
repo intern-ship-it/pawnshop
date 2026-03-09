@@ -1648,9 +1648,13 @@ export default function NewPledge() {
   const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo) => {
     // Extract barcode data - use pledge-level barcode, not item-level
     const barcodeImage = pledgeData.barcode_image || pledgeData.image || "";
-    const totalItems = pledgeData.total_items || pledgeData.items_count || 1;
+    // Note: Thanks to recent backend update, 'total_items' might contain the "category" if we map correctly,
+    // but the API now returns 'category' property containing "BANGLE" instead of "1 item(s)" under data.data.category.
+    // For triggerAutoPrint it fetches data where we passed exactly what api returns.
+    const categoryName = pledgeData.category || "Item"; 
     const totalWeight = pledgeData.total_weight || "0";
     const storageLocation = pledgeData.storage_location || "";
+    const purityName = pledgeData.purity || "916";
 
     return `
       <!DOCTYPE html>
@@ -1658,11 +1662,11 @@ export default function NewPledge() {
       <head>
         <title>Barcode Label - ${receiptNo || pledgeNo || "Pledge"}</title>
         <style>
-       @page { 
+          @page { 
             size: 50mm 50mm; 
             margin: 0 !important; 
           }
-       @media print {
+          @media print {
             html, body {
               width: 50mm !important;
               height: 50mm !important;
@@ -1696,7 +1700,6 @@ export default function NewPledge() {
             padding: 15px; 
             background: linear-gradient(135deg, #1f2937 0%, #374151 100%); 
             margin-bottom: 15px;
-            width: 100%;
             max-width: 400px;
             margin-left: auto;
             margin-right: auto;
@@ -1710,7 +1713,8 @@ export default function NewPledge() {
             cursor: pointer; 
             border-radius: 8px; 
             margin: 0 5px; 
-            font-weight: bold; 
+            font-weight: bold;
+            font-size: 14px;
           }
           .controls button.close { background: #6b7280; }
           .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
@@ -1721,16 +1725,18 @@ export default function NewPledge() {
             background: white; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
           }
-        .label { 
+          .label { 
             width: 50mm; 
             height: 50mm;
-           padding: 8mm 4mm 9mm 6mm;
+            padding: 4mm 4mm 4mm 4mm; 
             background: white; 
             display: flex; 
             flex-direction: column; 
             justify-content: center;
             overflow: hidden; 
+            border-bottom: 1px dashed #ccc;
           }
+          .label:last-child { border-bottom: none; }
           .header-row { 
             display: flex; 
             justify-content: space-between; 
@@ -1740,8 +1746,8 @@ export default function NewPledge() {
             margin-bottom: 1mm; 
           }
           .pledge-no { font-size: 8pt; font-weight: bold; }
-          .items-count { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-         .barcode-section { 
+          .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+          .barcode-section { 
             text-align: center; 
             display: flex; 
             flex-direction: column; 
@@ -1754,58 +1760,58 @@ export default function NewPledge() {
             max-width: 36mm; 
             width: 36mm;
             height: 14mm; 
-            object-fit: contain;
+            object-fit: inherit;
             margin: 0 auto;
           }
-           .footer-row { 
-          padding-top: 1mm; 
-          font-size: 7pt; 
-          font-weight: bold; 
-          flex-direction: column;
-          text-align: center;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
+          .footer-row { 
+            padding-top: 1mm; 
+            font-size: 7.5pt; 
+            font-weight: bold; 
+            flex-direction: column;
+            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
           }
           .storage-loc {
-            font-size: 6.5pt;
+            font-size: 8pt;
             font-weight: 600;
+            color: #e91e63; /* Use pink color directly for marker styling if no emoji used natively, but we use the emoji */
             color: #333;
             white-space: nowrap;
             text-overflow: ellipsis;
-            max-width: 83%;
+            max-width: 92%;
           }
           @media screen { 
-            body { padding: 20px; width: auto; } 
-            .labels-wrapper { box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+            body { padding: 0px; } 
           }
         </style>
       </head>
       <body>
-        <div class="controls">
-          <button onclick="window.print()">🏷️ Print Barcode Label</button>
-          <button class="close" onclick="window.close()">✕ Close</button>
-          <p class="info">Label Size: <strong>50mm × 50mm</strong> | <strong>1 Label per Pledge</strong></p>
-          <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
-        </div>
         <div class="labels-wrapper">
           <div class="label">
             <div class="header-row">
               <span class="pledge-no">${pledgeNo || receiptNo || ""}</span>
-              <span class="items-count">${totalItems} Item${totalItems > 1 ? "s" : ""}</span>
+              <span class="category">${categoryName}</span>
             </div>
             <div class="barcode-section">
               ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
             </div>
             <div class="footer-row">
-              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : ""}
-              <div>Total: ${parseFloat(totalWeight).toFixed(2)}g</div>
+              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${purityName}</div>`}
+              <div>${parseFloat(totalWeight).toFixed(2)}g</div>
             </div>
           </div>
         </div>
-        <script>window.onload = function() { document.querySelector('button').focus(); };</script>
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+          window.onafterprint = function() { window.close(); };
+        </script>
       </body>
-      </html>`;
+      </html>
+    `;
   };
   // Manual retry function for failed jobs
   const retryPrintJob = async (jobKey) => {

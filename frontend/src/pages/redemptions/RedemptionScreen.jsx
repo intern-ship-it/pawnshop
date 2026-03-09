@@ -741,14 +741,17 @@ export default function RedemptionScreen() {
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
                     .labels-wrapper { width: 50mm; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-                    .label { width: 50mm; height: 50mm; padding: 4mm; background: white; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+                    .label { 
+                      width: 50mm; height: 50mm; padding: 4mm 4mm 4mm 4mm; background: white; 
+                      display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-bottom: 1px dashed #ccc;
+                    }
                     .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
                     .pledge-no { font-size: 8pt; font-weight: bold; }
                     .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
                     .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
                     .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: inherit; margin: 0 auto; }
-                    .footer-row { padding-top: 1mm; font-size: 7pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; }
-                    .storage-loc { font-size: 6.5pt; font-weight: 600; color: #333; white-space: nowrap; text-overflow: ellipsis; max-width: 83%; }
+                    .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; }
+                    .storage-loc { font-size: 8pt; font-weight: 600; color: #333; white-space: nowrap; text-overflow: ellipsis; max-width: 92%; }
                   </style>
                 </head>
                 <body>
@@ -756,14 +759,14 @@ export default function RedemptionScreen() {
                     <div class="label">
                       <div class="header-row">
                         <span class="pledge-no">${pledgeNo}</span>
-                        <span class="category">${data.data.items?.length || 1} item(s)</span>
+                        <span class="category">${data.data.category || (data.data.items?.length || 1) + " item(s)"}</span>
                       </div>
                       <div class="barcode-section">
                         ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
                       </div>
                       <div class="footer-row">
-                        ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : ""}
-                        <div>${totalWeight ? parseFloat(totalWeight).toFixed(2) + "g" : ""}</div>
+                        ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
+                        <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                       </div>
                     </div>
                   </div>
