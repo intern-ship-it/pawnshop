@@ -1072,8 +1072,23 @@ export default function NewPledge() {
 
     if (!token || !pledgeId) return;
 
+    // Helper to wait for a window to close
+    const waitForWindowClose = (win) => {
+      return new Promise((resolve) => {
+        if (!win || win.closed) {
+          resolve();
+          return;
+        }
+        const checkInterval = setInterval(() => {
+          if (win.closed) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 500);
+      });
+    };
+
     let officeWindow = null;
-    let barcodeWindow = null;
 
     // 1. A5 Landscape Pre-Printed Form with Data
     updateJobStatus("dotMatrixOffice", "running", "Printing receipt...");
@@ -1173,16 +1188,19 @@ export default function NewPledge() {
                   ${frontHtml}
                 </div>
 
-                ${backHtml
-              ? '<div class="print-container" style="margin-top: 20px;">' + backHtml + "</div>"
-              : ""
-            }
+                ${
+                  backHtml
+                    ? '<div class="print-container" style="margin-top: 20px;">' +
+                      backHtml +
+                      "</div>"
+                    : ""
+                }
 
                 <script>
                   window.onload = function() {
                     document.querySelector('.print-btn').focus();
                   };
-                <\/script>
+                </script>
               </body>
               </html>
             `);
@@ -1206,7 +1224,13 @@ export default function NewPledge() {
       );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Wait for the A5 receipt window to be closed before proceeding
+    if (officeWindow) {
+      await waitForWindowClose(officeWindow);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500)); // Small buffer
+
+    let barcodeWindow = null;
 
     // 2. Barcode Label (Thermal Printer) - ONE barcode per pledge
     updateJobStatus("barcode", "running", "Generating barcode label...");
@@ -1273,7 +1297,11 @@ export default function NewPledge() {
       );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Wait for the Barcode window to be closed before proceeding
+    if (barcodeWindow) {
+      await waitForWindowClose(barcodeWindow);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500)); // Small buffer
 
     // 3. WhatsApp Message
     if (!customer?.phone) {
