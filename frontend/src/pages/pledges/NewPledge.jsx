@@ -1534,7 +1534,7 @@ export default function NewPledge() {
       switch (jobKey) {
         case "dotMatrixOffice": {
           const response = await fetch(
-            `${apiUrl}/print/dot-matrix/pre-printed-a4/pledge/${createdPledgeId}`,
+            `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${createdPledgeId}`,
             {
               method: "POST",
               headers: {
