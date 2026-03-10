@@ -625,13 +625,16 @@ export default function WhatsAppSettings() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <RouterLink
+            to="/settings/whatsapp/reminders"
+            className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 text-sm font-semibold border border-amber-200 transition-colors"
+          >
+            <Bell className="w-4 h-4" />
+            Due Date Reminders
+          </RouterLink>
           <Badge variant={config.enabled ? "success" : "secondary"}>
             {config.enabled ? "Enabled" : "Disabled"}
           </Badge>
-          <RouterLink to="/settings/whatsapp/reminders" className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 text-sm font-medium border border-amber-200">
-            <Bell className="w-4 h-4" />
-            Reminder Test
-          </RouterLink>
           <Button
             variant="accent"
             leftIcon={Save}
