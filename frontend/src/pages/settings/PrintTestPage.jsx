@@ -2433,7 +2433,7 @@ export default function PrintTestPage() {
                 <div class="pp-cust-row"><span class="pp-cust-lbl">Kerakyatan :</span><span class="pp-cust-sp-s"></span><span class="pp-cust-lbl-s">Tahun Lahir :</span><span class="pp-cust-sp-s"></span><span class="pp-cust-lbl-s">Jantina :</span><span class="pp-cust-sp-s"></span></div>
                 <div class="pp-cust-row"><span class="pp-cust-lbl">Alamat :</span><span class="pp-cust-sp"></span></div>
               </div>
-              <div class="pp-amt-row"><span class="pp-amt-lbl">Amaun</span></div>
+              <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah</span></div>
               <div class="pp-bot">
                 <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
                 <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div>

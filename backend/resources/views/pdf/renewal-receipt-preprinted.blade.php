@@ -669,7 +669,7 @@
 
         {{-- ═══ AMOUNT IN WORDS ═══ --}}
         <div class="amount-box">
-            <span class="amount-label">Jumlah Bayaran (Amaun)</span>&nbsp;&nbsp;
+            <span class="amount-label">Jumlah Bayaran (Jumlah)</span>&nbsp;&nbsp;
             <span class="amount-words">{{ $amountWords }} SAHAJA</span>
         </div>
 

@@ -745,7 +745,7 @@ HTML;
     </div>
 
     <div class="amount-section">
-        <div class="amount-words">Amaun: {$amountWords} SAHAJA</div>
+        <div class="amount-words">Jumlah: {$amountWords} SAHAJA</div>
         <div class="amount-row">
             <div class="amount-figure">Pinjaman RM {$this->formatNumber($loanAmount, 0)}***</div>
             <div class="date-box"><div class="date-label">Tarikh Dipajak</div><div class="date-value">{$pledgeDate->format('d/m/Y')}</div></div>
@@ -851,7 +851,7 @@ HTML;
             $termsHtml = <<<FALLBACK
 <div class="term-item"><b>1.</b> Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.</div>
 <div class="term-item"><b>2.</b> Kadar untung adalah tidak melebihi <u>dua peratus (2%)</u> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <u>lima puluh sen (50Ã‚Â¢)</u> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.</div>
-<div class="term-item"><b>3.</b> Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amoun pampasan adalah satu per empat <u>(25%)</u> lebih daripada jumlah pinjaman.</div>
+<div class="term-item"><b>3.</b> Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka jumlah pampasan adalah satu per empat <u>(25%)</u> lebih daripada jumlah pinjaman.</div>
 <div class="term-item"><b>4.</b> Mana-mana sandaran hendaklah ditebus dalam masa <u>enam bulan</u> dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.</div>
 <div class="term-item"><b>5.</b> Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.</div>
 <div class="term-item"><b>6.</b> Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.</div>
@@ -1769,7 +1769,7 @@ HTML;
 
     <!-- AMOUNT SECTION -->
     <div class="pp-amt-row">
-        <span class="pp-amt-lbl">Amaun</span>
+        <span class="pp-amt-lbl">Jumlah</span>
     </div>
 
     <div class="pp-bot">
@@ -1844,7 +1844,7 @@ HTML;
             $termsItems = [
                 'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
                 'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Ã‚Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
-                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
+                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka jumlah pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
                 'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.',
                 'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.',
                 'Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
@@ -2827,7 +2827,7 @@ HTMLSTART
         </div>
     </div>
 
-    <div class="pp-amt-row"><span class="pp-amt-lbl">Amaun</span></div>
+    <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah</span></div>
 
     <div class="pp-bot">
         <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
@@ -2882,8 +2882,8 @@ HTML;
             $termsItems = [
                 'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
                 'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Ã‚Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
-                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
-                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u>Setelah membayar amaun keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran amaun keuntungan.</u></b>',
+                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka jumlah pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
+                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u>Setelah membayar jumlah keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran jumlah keuntungan.</u></b>',
                 'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong. Dia berhak, atas permintaan, kepada apa-apa lebihan jika ada selepas potongan keuntungan yang kena di bayar ke atas sandaran itu dan kos lelong.',
                 'Apa-apa pertanyaan boleh dialamatkan kepada:<br>Pendaftar Pemegang Pajak Gadai,<br>Kementerian Perumahan dan Kerajaan Tempatan, BKKK.<br>Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
                 'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
@@ -3645,7 +3645,7 @@ HTML;
     </div>
 
     <div class="ppp-amount-section">
-        <div class="ppp-amount-words">Amaun :</div>
+        <div class="ppp-amount-words">Jumlah :</div>
         <div class="ppp-amount-row">
             <div class="ppp-loan-cell">
                 <span class="ppp-loan-lbl">Pinjaman</span>
@@ -4242,8 +4242,8 @@ HTML;
             $termsItems = [
                 'Seseorang pemajak gadai adalah berhak mendapat satu salinan tiket pajak gadai pada masa pajak gadaian. Jika hilang, satu salinan catatan di dalam buku pemegang pajak gadai boleh diberi dengan percuma.',
                 'Kadar untung adalah tidak melebihi <b>dua peratus (2%)</b> sebulan atau sebahagian daripadanya campur caj pengendalian sebanyak <b>lima puluh sen (50Â¢)</b> bagi mana-mana pinjaman yang melebihi sepuluh ringgit.',
-                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka amaun pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
-                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u>Setelah membayar amaun keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran amaun keuntungan.</u></b>',
+                'Jika mana-mana sandaran hilang atau musnah disebabkan atau dalam kebakaran, kecuaian, kecurian, rompakan atau selainnya, maka jumlah pampasan adalah satu per empat <b>(25%)</b> lebih daripada jumlah pinjaman.',
+                'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.<br><b><u>Setelah membayar jumlah keuntungan yang ditetapkan, maka seseorang pemajak gadai boleh mendapat tempoh lanjutan enam (6) bulan lagi dari tarikh pembayaran jumlah keuntungan.</u></b>',
                 'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong. Dia berhak, atas permintaan, kepada apa-apa lebihan jika ada selepas potongan keuntungan yang kena di bayar ke atas sandaran itu dan kos lelong.',
                 'Apa-apa pertanyaan boleh dialamatkan kepada:<br>Pendaftar Pemegang Pajak Gadai,<br>Kementerian Perumahan dan Kerajaan Tempatan, BKKK.<br>Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
                 'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',

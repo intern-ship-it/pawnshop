@@ -566,7 +566,7 @@
 
         {{-- ═══ AMOUNT ═══ --}}
         <div class="amount-box">
-            <span class="amount-label">Amaun</span>&nbsp;&nbsp;
+            <span class="amount-label">Jumlah</span>&nbsp;&nbsp;
             <span class="amount-words">{{ $amountWords }} SAHAJA</span>
         </div>
 
