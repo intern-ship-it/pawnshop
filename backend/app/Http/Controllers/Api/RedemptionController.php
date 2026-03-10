@@ -606,22 +606,18 @@ class RedemptionController extends Controller
                     'sent_by' => $request->user()->id,
                 ]);
 
-                // Schedule PDF sending to happen AFTER the response is sent to client
-                // This way the user gets instant success instead of waiting for PDF generation
-                app()->terminating(function () use ($config, $phone, $redemption) {
-                    set_time_limit(90);
-                    try {
-                        Log::info('Starting PDF receipt generation for redemption ' . $redemption->redemption_no);
-                        $pdfResult = $this->sendRedemptionPdfReceipt($config, $phone, $redemption);
-                        Log::info('PDF receipt result: ' . json_encode($pdfResult));
-                        if (!$pdfResult['success']) {
-                            Log::warning('Redemption PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
-                        }
+                // Send PDF receipt inline (app()->terminating doesn't fire reliably on all servers)
+                try {
+                    Log::info('Starting PDF receipt generation for redemption ' . $redemption->redemption_no);
+                    $pdfResult = $this->sendRedemptionPdfReceipt($config, $phone, $redemption);
+                    Log::info('PDF receipt result: ' . json_encode($pdfResult));
+                    if (!$pdfResult['success']) {
+                        Log::warning('Redemption PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
                     }
-                    catch (\Exception $pdfError) {
-                        Log::warning('Redemption PDF attachment error: ' . $pdfError->getMessage());
-                    }
-                });
+                }
+                catch (\Exception $pdfError) {
+                    Log::warning('Redemption PDF attachment error: ' . $pdfError->getMessage());
+                }
 
                 return $this->success([
                     'message' => 'Redemption WhatsApp sent successfully to ' . $phone,
@@ -815,10 +811,12 @@ class RedemptionController extends Controller
                 $responseData = $response->json();
 
                 if ($response->successful()) {
-                    if (isset($responseData['sent']) && $responseData['sent'] === 'true') {
+                    // Ultramsg may return sent as string "true" or boolean true
+                    $sent = $responseData['sent'] ?? null;
+                    if ($sent === 'true' || $sent === true || isset($responseData['id'])) {
                         return ['success' => true];
                     }
-                    return ['success' => false, 'message' => $responseData['message'] ?? 'Document send failed'];
+                    return ['success' => false, 'message' => $responseData['message'] ?? $responseData['error'] ?? 'Document send failed: ' . json_encode($responseData)];
                 }
 
                 // Extract descriptive error from response body

@@ -1165,7 +1165,7 @@ export default function PrintTestPage() {
           max-width: 36mm; 
           width: 36mm;
           height: 14mm; 
-          object-fit: inherit;
+          object-fit: contain;
           margin: 0 auto;
         }
         .footer-row { 

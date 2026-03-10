@@ -1490,7 +1490,7 @@ export default function NewPledge() {
           .pledge-no { font-size: 8pt; font-weight: bold; }
           .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
           .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
-          .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: inherit; margin: 0 auto; }
+          .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
           .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; }
           .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
           @media screen { body { padding: 0px; } }

@@ -889,22 +889,18 @@ class PledgeController extends Controller
                     'sent_by' => $request->user()->id,
                 ]);
 
-                // Schedule PDF sending to happen AFTER the response is sent to client
-                // This way the user gets instant success instead of waiting for PDF generation
-                app()->terminating(function () use ($config, $phone, $pledge) {
-                    set_time_limit(90);
-                    try {
-                        Log::info('Starting PDF receipt generation for pledge ' . $pledge->pledge_no);
-                        $pdfResult = $this->sendPdfReceipt($config, $phone, $pledge);
-                        Log::info('PDF receipt result: ' . json_encode($pdfResult));
-                        if (!$pdfResult['success']) {
-                            Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
-                        }
+                // Send PDF receipt inline (app()->terminating doesn't fire reliably on all servers)
+                try {
+                    Log::info('Starting PDF receipt generation for pledge ' . $pledge->pledge_no);
+                    $pdfResult = $this->sendPdfReceipt($config, $phone, $pledge);
+                    Log::info('PDF receipt result: ' . json_encode($pdfResult));
+                    if (!$pdfResult['success']) {
+                        Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
                     }
-                    catch (\Exception $pdfError) {
-                        Log::warning('PDF attachment error: ' . $pdfError->getMessage());
-                    }
-                });
+                }
+                catch (\Exception $pdfError) {
+                    Log::warning('PDF attachment error: ' . $pdfError->getMessage());
+                }
 
                 return $this->success([
                     'message' => 'WhatsApp sent successfully to ' . $phone,
@@ -1086,6 +1082,21 @@ class PledgeController extends Controller
                 $terms = [];
             }
 
+            // Generate barcode data URI
+            $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
+            $barcodeDataUri = 'data:image/png;base64,' . base64_encode(
+                $generator->getBarcode($pledge->pledge_no, $generator::TYPE_CODE_128, 4, 100)
+            );
+
+            // Generate multilang image URI (Chinese/Tamil company name)
+            // Always load static image if it exists — settings may default to empty strings
+            $multilangUri = null;
+            $staticImage = storage_path('fonts/multilang_header.png');
+            if (file_exists($staticImage)) {
+                $mime = mime_content_type($staticImage);
+                $multilangUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($staticImage));
+            }
+
             $data = [
                 'pledge' => $pledge,
                 'copy_type' => 'customer',
@@ -1093,6 +1104,8 @@ class PledgeController extends Controller
                 'terms' => $terms,
                 'printed_at' => now(),
                 'printed_by' => 'WhatsApp',
+                'barcode_data_uri' => $barcodeDataUri,
+                'multilang_image_uri' => $multilangUri,
             ];
 
             // Generate PDF
@@ -1123,10 +1136,12 @@ class PledgeController extends Controller
                 $responseData = $response->json();
 
                 if ($response->successful()) {
-                    if (isset($responseData['sent']) && $responseData['sent'] === 'true') {
+                    // Ultramsg may return sent as string "true" or boolean true
+                    $sent = $responseData['sent'] ?? null;
+                    if ($sent === 'true' || $sent === true || isset($responseData['id'])) {
                         return ['success' => true];
                     }
-                    return ['success' => false, 'message' => $responseData['message'] ?? 'Document send failed'];
+                    return ['success' => false, 'message' => $responseData['message'] ?? $responseData['error'] ?? 'Document send failed: ' . json_encode($responseData)];
                 }
 
                 // Extract descriptive error from response body
