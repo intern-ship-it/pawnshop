@@ -748,11 +748,11 @@ class RedemptionController extends Controller
             $branch = $redemption->pledge->branch;
             $settings = [
                 'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
-                'company_name_chinese' => $settingsMap['name_chinese'] ?? '',
-                'company_name_tamil' => $settingsMap['name_tamil'] ?? '',
+                'company_name_chinese' => $settingsMap['name_chinese'] ?? '新泰當',
+                'company_name_tamil' => $settingsMap['name_tamil'] ?? 'அடகு கடை',
                 'registration_no' => $settingsMap['registration_no'] ?? '',
                 'license_no' => $settingsMap['license_no'] ?? $branch->license_no ?? '',
-                'established_year' => $settingsMap['established_year'] ?? '',
+                'established_year' => $settingsMap['established_year'] ?? '1966',
                 'address' => $settingsMap['address'] ?? $branch->address ?? '',
                 'phone' => $settingsMap['phone'] ?? $branch->phone ?? '',
                 'phone2' => $settingsMap['phone2'] ?? '',
