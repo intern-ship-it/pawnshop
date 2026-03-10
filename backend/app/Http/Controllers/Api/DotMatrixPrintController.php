@@ -3246,12 +3246,6 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
             $desc = $item->description ?? '';
-            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
-                if ($catatan)
-                    $catatan .= "; ";
-                $catatan .= $desc;
-                $usedDescriptions[] = $desc;
-            }
             $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
             $itemNumber++;
         }

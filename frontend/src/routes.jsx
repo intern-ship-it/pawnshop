@@ -62,6 +62,7 @@ const AuditLogScreen = lazy(() => import("@/pages/settings/AuditLogScreen"));
 const WhatsAppSettings = lazy(
   () => import("@/pages/settings/WhatsAppSettings"),
 );
+const WhatsAppReminderTest = lazy(() => import("@/pages/settings/WhatsAppReminderTest"));
 const HardwareIntegration = lazy(
   () => import("@/pages/settings/HardwareIntegration"),
 );
@@ -149,6 +150,7 @@ export const router = createBrowserRouter([
       { path: "settings/users/:id/edit", element: withPermission(UserForm, "users.edit") },
       { path: "settings/audit-log", element: withPermission(AuditLogScreen, "audit.view") },
       { path: "settings/whatsapp", element: withPermission(WhatsAppSettings, "whatsapp.view") },
+      { path: "settings/whatsapp/reminders", element: withPermission(WhatsAppReminderTest, "whatsapp.view") },
       { path: "settings/hardware", element: withPermission(HardwareIntegration, "settings.view") },
       { path: "settings/print-test", element: withPermission(PrintTestPage, "settings.view") },
     ],

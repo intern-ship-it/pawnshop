@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\WhatsAppController;
+use App\Http\Controllers\Api\WhatsAppReminderController;
 use App\Http\Controllers\Api\PrintController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\GoldPriceController;
@@ -599,6 +600,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/config', [WhatsAppController::class , 'config']);
                 Route::get('/templates', [WhatsAppController::class , 'templates']);
                 Route::get('/logs', [WhatsAppController::class , 'logs']);
+                Route::get('/reminders/preview', [WhatsAppReminderController::class, 'preview']);
+                Route::get('/reminders/logs', [WhatsAppReminderController::class, 'logs']);
             }
             );
 
@@ -616,6 +619,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 function () {
                 Route::post('/send', [WhatsAppController::class , 'send']);
                 Route::post('/logs/{whatsAppLog}/resend', [WhatsAppController::class , 'resend']);
+                Route::post('/reminders/send', [WhatsAppReminderController::class, 'send']);
             }
             );
         }

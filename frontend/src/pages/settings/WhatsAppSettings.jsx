@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link as RouterLink } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { getStorageItem, setStorageItem } from "@/utils/localStorage";
@@ -627,6 +628,10 @@ export default function WhatsAppSettings() {
           <Badge variant={config.enabled ? "success" : "secondary"}>
             {config.enabled ? "Enabled" : "Disabled"}
           </Badge>
+          <RouterLink to="/settings/whatsapp/reminders" className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 text-sm font-medium border border-amber-200">
+            <Bell className="w-4 h-4" />
+            Reminder Test
+          </RouterLink>
           <Button
             variant="accent"
             leftIcon={Save}

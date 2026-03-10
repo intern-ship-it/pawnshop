@@ -517,15 +517,6 @@
         $customerAddress = implode(', ', $addrParts) ?: '-';
 
         $catatan = $pledge->reference_no ?? $pledge->notes ?? '';
-        $usedDescriptions = [];
-        foreach ($pledge->items as $item) {
-            $desc = $item->description ?? '';
-            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
-                if ($catatan) $catatan .= '; ';
-                $catatan .= $desc;
-                $usedDescriptions[] = $desc;
-            }
-        }
 
         // Amount in words for total payable (renewal payment)
         $amountWords = '';
