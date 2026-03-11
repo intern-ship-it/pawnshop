@@ -1343,10 +1343,10 @@ export default function RackMap({ embedded = false }) {
           />
           <Input
             label="Box Number"
-            placeholder="e.g., 1, 2, 3 or B01"
+            placeholder="e.g., A1, A2, B4"
             value={newBoxCode}
             onChange={(e) => setNewBoxCode(e.target.value)}
-            helperText="Unique box number (required)"
+            helperText="Alphanumeric box label (required)"
           />
           <Input
             label="Number of Slots"

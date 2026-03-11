@@ -183,7 +183,7 @@ class StorageController extends Controller
     {
         $validated = $request->validate([
             'vault_id' => 'required|exists:vaults,id',
-            'box_number' => 'nullable|integer|min:1',
+            'box_number' => 'nullable|string|max:20',
             'name' => 'nullable|string|max:50',
             'total_slots' => 'required|integer|min:1|max:100',
             'description' => 'nullable|string|max:255',
@@ -197,11 +197,8 @@ class StorageController extends Controller
 
         // Auto-generate box_number if not provided
         if (empty($validated['box_number'])) {
-            $lastBox = Box::where('vault_id', $validated['vault_id'])
-                ->orderBy('box_number', 'desc')
-                ->first();
-
-            $validated['box_number'] = $lastBox ? ($lastBox->box_number + 1) : 1;
+            $boxCount = Box::where('vault_id', $validated['vault_id'])->count();
+            $validated['box_number'] = (string) ($boxCount + 1);
         }
 
         // Check unique box number
@@ -378,7 +375,7 @@ class StorageController extends Controller
         return $this->success([
             'slot' => $slot,
             'location_string' => sprintf(
-                '%s / Box %d / Slot %d',
+                '%s / Box %s / Slot %d',
                 $slot->box->vault->name,
                 $slot->box->box_number,
                 $slot->slot_number

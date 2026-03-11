@@ -1512,6 +1512,7 @@ function RacksTab({ settings, updateSettings }) {
   const [boxFormData, setBoxFormData] = useState({
     vault_id: "",
     name: "",
+    box_number: "",
     total_slots: 20,
     description: "",
   });
@@ -1641,6 +1642,7 @@ function RacksTab({ settings, updateSettings }) {
       const response = await storageService.createBox({
         vault_id: parseInt(targetVaultId),
         name: boxFormData.name,
+        box_number: boxFormData.box_number || undefined,
         total_slots: 20,
         description: boxFormData.description || null,
       });
@@ -1653,6 +1655,7 @@ function RacksTab({ settings, updateSettings }) {
         setBoxFormData({
           vault_id: "",
           name: "",
+          box_number: "",
           total_slots: 20,
           description: "",
         });
@@ -1975,6 +1978,7 @@ function RacksTab({ settings, updateSettings }) {
                 setBoxFormData({
                   vault_id: selectedVault?.id || "",
                   name: "",
+                  box_number: "",
                   total_slots: 20,
                   description: "",
                 });
@@ -2220,6 +2224,15 @@ function RacksTab({ settings, updateSettings }) {
             }
             placeholder="e.g. BOX-1, Shelf A"
             required
+          />
+          <Input
+            label="Box Number"
+            value={boxFormData.box_number}
+            onChange={(e) =>
+              setBoxFormData({ ...boxFormData, box_number: e.target.value })
+            }
+            placeholder="e.g., A1, A2, B4"
+            helperText="Alphanumeric box label (optional, auto-generated if empty)"
           />
 
           {/* Fixed 20 slots - read only display */}
