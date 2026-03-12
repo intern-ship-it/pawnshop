@@ -881,6 +881,7 @@ export default function RenewalScreen() {
         </head>
         <body>
           ${data.data.front_html}
+          ${data.data.back_html || ''}
           <script>
             window.onload = function() {
               window.print();
@@ -986,6 +987,7 @@ export default function RenewalScreen() {
         </head>
         <body>
           ${data.data.front_html}
+           ${data.data.back_html || ''}
           <script>
             window.onload = function() {
               window.print();

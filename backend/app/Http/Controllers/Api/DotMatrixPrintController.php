@@ -1770,7 +1770,7 @@ HTML;
 
     <!-- AMOUNT SECTION -->
     <div class="pp-amt-row">
-        <span class="pp-amt-lbl">Jumlah</span>
+        <span class="pp-amt-lbl">Jumlah :</span>
     </div>
 
     <div class="pp-bot">
@@ -2828,7 +2828,7 @@ HTMLSTART
         </div>
     </div>
 
-    <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah</span></div>
+    <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah :</span></div>
 
     <div class="pp-bot">
         <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
@@ -4193,7 +4193,7 @@ HTML;
 
             return $this->success([
                 'front_html' => $combinedHtml,
-                'back_html' => '',
+                'back_html' => $this->generatePrePrintedBackPage($settings),
                 'renewal_no' => $renewal->renewal_no,
                 'pledge_no' => $pledge->pledge_no,
                 'orientation' => 'landscape',
