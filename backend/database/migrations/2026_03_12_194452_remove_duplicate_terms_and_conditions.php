@@ -29,7 +29,7 @@ return new class extends Migration
         }
 
         // Ensuring the seeder runs in live to apply the 'jumlah' update
-        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'TermsConditionSeeder']);
+        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'TermsConditionSeeder', '--force' => true]);
     }
 
     /**
