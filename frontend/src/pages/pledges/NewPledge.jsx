@@ -3052,8 +3052,8 @@ export default function NewPledge() {
           <details className="mb-4">
             <summary className="cursor-pointer text-sm font-medium text-zinc-600 hover:text-zinc-800 flex items-center gap-2 py-2"><Printer className="w-4 h-4" />Manual Print Options</summary>
             <div className="mt-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" leftIcon={Copy} onClick={handlePrintBothCopies} loading={isPrinting} disabled={isPrinting}>PDF Copies</Button>
+              <div className="grid grid-cols-1 gap-2">
+                {/* <Button variant="outline" size="sm" leftIcon={Copy} onClick={handlePrintBothCopies} loading={isPrinting} disabled={isPrinting}>PDF Copies</Button> */}
                 <Button variant="outline" size="sm" leftIcon={Barcode} onClick={handlePrintBarcodes} loading={isPrinting} disabled={isPrinting}>Barcodes</Button>
               </div>
               <Button variant="outline" size="sm" leftIcon={FileText} onClick={handleHPPrintA5} loading={isPrinting} disabled={isPrinting} className="w-full">HP Print - A5</Button>
