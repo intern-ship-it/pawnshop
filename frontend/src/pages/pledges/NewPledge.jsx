@@ -3012,7 +3012,7 @@ export default function NewPledge() {
                     {printJobStatus.dotMatrixOffice.status === "running" && <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />}
                     {printJobStatus.dotMatrixOffice.status === "pending" && <Clock className="w-4 h-4 text-zinc-400" />}
                   </div>
-                  <div><p className="font-medium text-sm text-zinc-800">🖨️ Dot Matrix - Office Copy</p><p className="text-xs text-zinc-500">{printJobStatus.dotMatrixOffice.message || "Waiting..."}</p></div>
+                  <div><p className="font-medium text-sm text-zinc-800">🖨️ HP Printer</p><p className="text-xs text-zinc-500">{printJobStatus.dotMatrixOffice.message || "Waiting..."}</p></div>
                 </div>
                 {printJobStatus.dotMatrixOffice.status === "failed" && <Button size="sm" variant="outline" leftIcon={RefreshCw} onClick={() => retryPrintJob("dotMatrixOffice")}>Retry</Button>}
               </div>
