@@ -652,6 +652,7 @@ HTML;
             'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
             'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
             'branch_code' => $branch->code ?? 'HQ',
+            'insurance_policy_no' => $settingsMap['insurance_policy_no'] ?? '',
             'logo_url' => $logoUrl, // Logo URL or null - shows only if exists
         ];
     }
@@ -755,7 +756,7 @@ HTML;
 
     <div class="footer">
         <div class="footer-text">Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
-        <div class="footer-text">Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No:</div>
+        <div class="footer-text">Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <b>polisi No: {$settings['insurance_policy_no']}</b></div>
         <div class="footer-bottom"><div class="copy-label">{$copyLabel}</div><div class="weight-info">Berat (Emas, Batu): <b>{$this->formatNumber($totalWeight, 2)}g</b></div></div>
     </div>
 </div>
@@ -1793,7 +1794,7 @@ HTML;
     <div class="pp-ftr">
         <div class="pp-ftr-left">
             <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
-            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <b>polisi No : {$settings['insurance_policy_no']}</b></div>
         </div>
         <div class="pp-ftr-right">
             <div class="pp-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>
@@ -2715,8 +2716,8 @@ HTML;
 .pp-dt-yel { background: #f5c518; }
 
 /* Footer */
-.pp-ftr { font-size: 12px; line-height: 1.3; margin-top: 1.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
-.pp-ftr-left { flex: 1; position: relative; top: 1mm; }
+.pp-ftr { font-size: 11px; line-height: 1.3; margin-top: 1.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
+.pp-ftr-left { flex: 1; position: relative;}
 .pp-ftr-right { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 30mm; }
 .pp-ftr-label { font-size: 11px; line-height: 1.3; margin-bottom: 1mm; }
 .pp-ftr-weight-area { font-size: 10px; font-weight: bold; min-height: 5mm; }
@@ -2838,7 +2839,7 @@ HTMLSTART
     <div class="pp-ftr">
         <div class="pp-ftr-left">
             <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
-            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <b>polisi No : {$settings['insurance_policy_no']}</b></div>
         </div>
         <div class="pp-ftr-right">
             <div class="pp-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>
@@ -3661,7 +3662,7 @@ HTML;
     <div class="ppp-footer">
         <div class="ppp-footer-left">
             <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
-            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <b>polisi No : {$settings['insurance_policy_no']}</b></div>
         </div>
         <div class="ppp-footer-right">
             <div class="ppp-footer-label">Termasuk Emas, Batu<br>dan lain-lain</div>

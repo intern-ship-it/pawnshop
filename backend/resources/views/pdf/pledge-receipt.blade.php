@@ -646,6 +646,7 @@
     <div class="footer">
         <strong>{{ $pledge->receipt_no }}</strong><br>
         Dicetak / Printed: {{ $printed_at->format('d/m/Y H:i:s') }} oleh {{ $printed_by }}<br>
+        @if(!empty($settings['insurance_policy_no']))Lindungan insuran di bawah polisi No : <strong>{{ $settings['insurance_policy_no'] }}</strong><br>@endif
         {{ $footerText }}<br>
         <em>PawnSys - KPKT Compliant Pawn Management System</em>
     </div>

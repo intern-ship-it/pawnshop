@@ -445,6 +445,7 @@ class PrintController extends Controller
             'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
             'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
             'branch_code' => $branch->code ?? 'HQ',
+            'insurance_policy_no' => $settingsMap['insurance_policy_no'] ?? '',
             'logo_url' => $logoUrl,
         ];
     }

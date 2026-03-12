@@ -19,6 +19,7 @@ class DefaultSettingsSeeder extends Seeder
             ['category' => 'company', 'key_name' => 'phone', 'value' => '03-21234567', 'value_type' => 'string'],
             ['category' => 'company', 'key_name' => 'email', 'value' => 'info@dsara.com', 'value_type' => 'string'],
             ['category' => 'company', 'key_name' => 'website', 'value' => 'www.dsara.com', 'value_type' => 'string'],
+            ['category' => 'company', 'key_name' => 'insurance_policy_no', 'value' => 'JB001Q6209-26.', 'value_type' => 'string'],
         ];
 
         // Pledge Settings

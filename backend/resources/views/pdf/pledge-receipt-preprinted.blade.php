@@ -591,7 +591,7 @@
             <tr>
                 <td class="footer-left">
                     <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
-                    <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah polisi No :</div>
+                    <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <strong>polisi No : {{ $settings['insurance_policy_no'] ?? '' }}</strong></div>
                     <div class="copy-label">{{ $copyLabel }}</div>
                 </td>
                 <td class="footer-right">

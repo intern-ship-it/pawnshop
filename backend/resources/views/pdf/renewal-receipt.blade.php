@@ -229,6 +229,7 @@
 
     <div class="footer">
         Dicetak pada / Printed: {{ $printed_at->format('d/m/Y H:i:s') }} oleh {{ $printed_by }}<br>
+        @if(!empty($settings['insurance_policy_no']))Lindungan insuran di bawah polisi No : <strong>{{ $settings['insurance_policy_no'] }}</strong><br>@endif
         Sila tebus atau sambung pajakan sebelum tarikh tamat untuk mengelakkan pelupusan.
     </div>
 </body>

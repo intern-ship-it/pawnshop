@@ -734,6 +734,7 @@
                 <td class="footer-left">
                     <div>Saya mengaku telah menerima semua barang gadaian seperti yang dinyatakan di atas.</div>
                     <div>I acknowledge receipt of all pledged items as listed above.</div>
+                    <div>Lindungan insuran di bawah polisi No : <strong>{{ $settings['insurance_policy_no'] ?? '' }}</strong></div>
                     <div class="copy-label">{{ $copyLabel }}</div>
                 </td>
                 <td class="footer-right">

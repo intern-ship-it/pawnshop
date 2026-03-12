@@ -767,6 +767,7 @@ class RenewalController extends Controller
                 'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
                 'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
                 'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
+                'insurance_policy_no' => $settingsMap['insurance_policy_no'] ?? '',
                 'logo_url' => $logoUrl,
             ];
 

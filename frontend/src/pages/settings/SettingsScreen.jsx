@@ -68,6 +68,7 @@ const defaultSettings = {
     receiptHeader: "PAJAK GADAI BERLESEN",
     receiptFooter: "Terima kasih atas sokongan anda",
     establishedYear: "1966",
+    insurancePolicyNo: "",
   },
   goldPrice: {
     source: "api", // 'api' or 'manual'
@@ -264,6 +265,9 @@ export default function SettingsScreen() {
         establishedYear:
           companyMap.established_year ||
           defaultSettings.company.establishedYear,
+        insurancePolicyNo:
+          companyMap.insurance_policy_no ||
+          defaultSettings.company.insurancePolicyNo,
       };
     }
 
@@ -372,6 +376,11 @@ export default function SettingsScreen() {
           category: "company",
           key_name: "established_year",
           value: settings.company.establishedYear,
+        },
+        {
+          category: "company",
+          key_name: "insurance_policy_no",
+          value: settings.company.insurancePolicyNo || "",
         },
       );
     }
@@ -897,6 +906,12 @@ function CompanyTab({ settings, updateSettings }) {
           value={company.establishedYear}
           onChange={(e) => handleChange("establishedYear", e.target.value)}
           placeholder="YYYY"
+        />
+        <Input
+          label="Insurance Policy No"
+          value={company.insurancePolicyNo || ""}
+          onChange={(e) => handleChange("insurancePolicyNo", e.target.value)}
+          placeholder="e.g. JB001Q6209-26."
         />
         <div className="md:col-span-2">
           <Input
