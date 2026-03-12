@@ -221,4 +221,116 @@ class WhatsAppReminderController extends Controller
             'logs' => $logs,
         ]);
     }
+
+    /**
+     * TEMPORARY: Set a pledge's due date for testing reminders.
+     * POST /api/whatsapp/reminders/test-due-date
+     * Remove this method before production!
+     */
+    public function setTestDueDate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'pledge_id' => 'required|exists:pledges,id',
+            'reminder_type' => 'required|in:7days,3days,1day,overdue,restore',
+        ]);
+
+        $branchId = $request->user()->branch_id;
+        $pledge = Pledge::where('id', $validated['pledge_id'])
+            ->where('branch_id', $branchId)
+            ->first();
+
+        if (!$pledge) {
+            return $this->error('Pledge not found in your branch', 404);
+        }
+
+        $today = Carbon::today();
+        $originalDueDate = $pledge->due_date->format('Y-m-d');
+
+        switch ($validated['reminder_type']) {
+            case '7days':
+                $newDate = $today->copy()->addDays(7)->toDateString();
+                break;
+            case '3days':
+                $newDate = $today->copy()->addDays(3)->toDateString();
+                break;
+            case '1day':
+                $newDate = $today->copy()->addDays(1)->toDateString();
+                break;
+            case 'overdue':
+                $newDate = $today->copy()->subDays(1)->toDateString();
+                break;
+            case 'restore':
+                // Restore from stored original or use current
+                $storedOriginal = cache()->get("test_original_due_date_{$pledge->id}");
+                if ($storedOriginal) {
+                    $pledge->due_date = $storedOriginal;
+                    $pledge->save();
+                    cache()->forget("test_original_due_date_{$pledge->id}");
+                    return $this->success([
+                        'pledge_no' => $pledge->pledge_no,
+                        'new_due_date' => $storedOriginal,
+                        'message' => "Restored due date to {$storedOriginal}",
+                    ]);
+                }
+                return $this->error('No original date stored to restore', 422);
+            default:
+                return $this->error('Invalid reminder type', 422);
+        }
+
+        // Store original due date before changing
+        cache()->put("test_original_due_date_{$pledge->id}", $originalDueDate, now()->addHours(24));
+
+        $pledge->due_date = $newDate;
+        $pledge->save();
+
+        return $this->success([
+            'pledge_no' => $pledge->pledge_no,
+            'original_due_date' => $originalDueDate,
+            'new_due_date' => $newDate,
+            'reminder_type' => $validated['reminder_type'],
+            'message' => "Due date set to {$newDate} for {$validated['reminder_type']} testing",
+        ]);
+    }
+
+    /**
+     * TEMPORARY: Get active pledges with customer info for testing.
+     * GET /api/whatsapp/reminders/test-pledges
+     */
+    public function getTestPledges(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        $search = $request->get('search', '');
+
+        $query = Pledge::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->with(['customer:id,name,phone,ic_number']);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pledge_no', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $pledges = $query->orderBy('created_at', 'desc')->limit(20)->get();
+
+        $result = $pledges->map(function ($pledge) {
+            $storedOriginal = cache()->get("test_original_due_date_{$pledge->id}");
+            return [
+                'id' => $pledge->id,
+                'pledge_no' => $pledge->pledge_no,
+                'customer_name' => $pledge->customer->name ?? 'N/A',
+                'customer_phone' => $pledge->customer->phone ?? null,
+                'loan_amount' => (float) $pledge->loan_amount,
+                'due_date' => $pledge->due_date->format('Y-m-d'),
+                'due_date_display' => $pledge->due_date->format('d/m/Y'),
+                'has_test_override' => $storedOriginal !== null,
+                'original_due_date' => $storedOriginal,
+            ];
+        });
+
+        return $this->success($result);
+    }
 }

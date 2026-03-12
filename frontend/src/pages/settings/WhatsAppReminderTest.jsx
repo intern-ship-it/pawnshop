@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useAppDispatch } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -38,6 +38,8 @@ import {
   ArrowLeft,
   FileText,
   Activity,
+  Search,
+  Undo2,
   Shield,
 } from "lucide-react";
 import { Link } from "react-router";
@@ -49,6 +51,10 @@ const reminderApi = {
     api.post("/whatsapp/reminders/send", { dry_run: dryRun }),
   logs: (date) =>
     api.get("/whatsapp/reminders/logs", { params: { date } }),
+  testPledges: (search = "") =>
+    api.get("/whatsapp/reminders/test-pledges", { params: { search } }),
+  setTestDueDate: (pledgeId, reminderType) =>
+    api.post("/whatsapp/reminders/test-due-date", { pledge_id: pledgeId, reminder_type: reminderType }),
 };
 
 // ─── Reminder Type Config ────────────────────────────────────────────
@@ -94,6 +100,9 @@ const REMINDER_CONFIG = {
 // ─── Main Component ──────────────────────────────────────────────────
 export default function WhatsAppReminderTest() {
   const dispatch = useAppDispatch();
+  const { role: currentUserRole } = useAppSelector((state) => state.auth);
+  const currentRoleSlug = currentUserRole?.slug || currentUserRole || "";
+  const isSuperAdmin = currentRoleSlug === "superadmin" || currentRoleSlug === "super-admin";
 
   // State
   const [preview, setPreview] = useState(null);
@@ -106,6 +115,12 @@ export default function WhatsAppReminderTest() {
   const [activeTab, setActiveTab] = useState("preview"); // preview, logs, output
   const [expandedSections, setExpandedSections] = useState({});
   const [showConfirmSend, setShowConfirmSend] = useState(false);
+
+  // Test due date state
+  const [testPledges, setTestPledges] = useState([]);
+  const [testSearch, setTestSearch] = useState("");
+  const [loadingTestPledges, setLoadingTestPledges] = useState(false);
+  const [settingDueDate, setSettingDueDate] = useState(null);
 
   // ─── Load Preview ────────────────────────────────────────────
   const loadPreview = useCallback(async () => {
@@ -214,13 +229,82 @@ export default function WhatsAppReminderTest() {
     setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // ─── Test Due Date Functions ─────────────────────────────────
+  const loadTestPledges = async (search = "") => {
+    setLoadingTestPledges(true);
+    try {
+      const response = await reminderApi.testPledges(search);
+      const data = response.data?.data || response.data || [];
+      setTestPledges(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Test pledges error:", error);
+    } finally {
+      setLoadingTestPledges(false);
+    }
+  };
+
+  const handleSetTestDueDate = async (pledgeId, reminderType) => {
+    setSettingDueDate(`${pledgeId}-${reminderType}`);
+    try {
+      const response = await reminderApi.setTestDueDate(pledgeId, reminderType);
+      const data = response.data?.data || response.data;
+      dispatch(
+        addToast({
+          type: "success",
+          title: reminderType === "restore" ? "Restored" : "Due Date Changed",
+          message: data.message || "Done",
+        })
+      );
+      loadTestPledges(testSearch);
+      loadPreview();
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.response?.data?.message || "Failed to change due date",
+        })
+      );
+    } finally {
+      setSettingDueDate(null);
+    }
+  };
+
   // ─── Initial Load ────────────────────────────────────────────
   useEffect(() => {
     loadPreview();
     loadLogs();
+    loadTestPledges();
   }, [loadPreview, loadLogs]);
 
   // ─── Render ──────────────────────────────────────────────────
+  if (!isSuperAdmin) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/settings"
+            className="p-2 hover:bg-zinc-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-zinc-500" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-900">
+              WhatsApp Reminders
+            </h1>
+          </div>
+        </div>
+        <Card className="p-12 border-dashed border-red-200 bg-red-50 flex flex-col items-center justify-center text-center">
+          <Shield className="w-12 h-12 text-red-500 mb-4" />
+          <h2 className="text-lg font-bold text-red-800 mb-2">Access Denied</h2>
+          <p className="text-red-600 max-w-sm">
+            Only System Administrators can access the WhatsApp Reminders testing and scheduling tools.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -404,6 +488,7 @@ export default function WhatsAppReminderTest() {
           { key: "preview", label: "Preview", icon: Eye },
           { key: "logs", label: "Today's Logs", icon: Activity },
           { key: "output", label: "Command Output", icon: FileText },
+          { key: "test", label: "🧪 Test Due Date", icon: AlertTriangle },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -482,6 +567,130 @@ export default function WhatsAppReminderTest() {
             ) : (
               <EmptyState text="Run a dry run or send to see output here" />
             )}
+          </motion.div>
+        )}
+
+        {/* Test Due Date Tab */}
+        {activeTab === "test" && (
+          <motion.div
+            key="test"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <Card className="p-4 border-dashed border-amber-300 bg-amber-50/30">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-semibold text-amber-800">🧪 Temporary Testing Controls</span>
+                </div>
+                <span className="text-xs text-amber-600">Change pledge due dates to trigger reminders</span>
+              </div>
+
+              {/* Search */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by pledge no or customer name..."
+                    value={testSearch}
+                    onChange={(e) => setTestSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && loadTestPledges(testSearch)}
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-300 rounded-lg focus:ring-2 focus:ring-amber-300 focus:border-amber-400 outline-none bg-white"
+                  />
+                </div>
+                <button
+                  onClick={() => loadTestPledges(testSearch)}
+                  className="px-3 py-2 text-sm bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition font-medium"
+                >
+                  Search
+                </button>
+              </div>
+
+              {/* Pledge List */}
+              {loadingTestPledges ? (
+                <div className="text-center py-8 text-sm text-zinc-400">Loading pledges...</div>
+              ) : testPledges.length > 0 ? (
+                <div className="overflow-x-auto bg-white rounded-xl border border-zinc-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-zinc-50 text-xs text-zinc-500 uppercase border-b border-zinc-200">
+                        <th className="text-left px-4 py-3 font-medium">Pledge</th>
+                        <th className="text-left px-4 py-3 font-medium">Customer</th>
+                        <th className="text-center px-4 py-3 font-medium">Current Due Date</th>
+                        <th className="text-center px-4 py-3 font-medium">Status</th>
+                        <th className="text-center px-4 py-3 font-medium">Set Due Date For</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100">
+                      {testPledges.map((p) => (
+                        <tr key={p.id} className={cn("hover:bg-zinc-50/80 transition-colors", p.has_test_override && "bg-amber-50/50 hover:bg-amber-50")}>
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-amber-700">{p.pledge_no}</td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm text-zinc-900 font-medium">{p.customer_name}</div>
+                            <div className="text-xs text-zinc-500">{p.customer_phone || "No phone"}</div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={cn("text-xs font-medium px-2 py-1 rounded-full", p.has_test_override ? "bg-amber-100 text-amber-800" : "bg-zinc-100 text-zinc-700")}>
+                              {p.due_date_display}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {p.has_test_override ? (
+                              <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium inline-flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" /> Modified
+                              </span>
+                            ) : (
+                              <span className="text-xs px-2 py-0.5 bg-zinc-100 text-zinc-500 rounded-full">Original</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              {["7days", "3days", "1day", "overdue"].map((type) => (
+                                <button
+                                  key={type}
+                                  onClick={() => handleSetTestDueDate(p.id, type)}
+                                  disabled={settingDueDate === `${p.id}-${type}`}
+                                  className={cn(
+                                    "px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer",
+                                    type === "7days" && "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100",
+                                    type === "3days" && "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100",
+                                    type === "1day" && "bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100",
+                                    type === "overdue" && "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100",
+                                    settingDueDate === `${p.id}-${type}` && "opacity-50 cursor-wait"
+                                  )}
+                                >
+                                  {settingDueDate === `${p.id}-${type}` ? "..." : type.replace("days", "d").replace("day", "d")}
+                                </button>
+                              ))}
+                              {p.has_test_override && (
+                                <div className="pl-2 ml-1 border-l border-amber-200">
+                                  <button
+                                    onClick={() => handleSetTestDueDate(p.id, "restore")}
+                                    disabled={settingDueDate === `${p.id}-restore`}
+                                    className="px-2.5 py-1 text-xs rounded-md font-semibold bg-green-500 text-white hover:bg-green-600 transition flex items-center gap-1.5 shadow-sm"
+                                  >
+                                    <Undo2 className="w-3 h-3" />
+                                    Restore
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-zinc-500 text-sm bg-white rounded-xl border border-zinc-200">
+                  <Search className="w-8 h-8 mx-auto mb-2 text-zinc-300" />
+                  <p>No pledges found.</p>
+                  <p className="text-xs text-zinc-400 mt-1">Try searching by pledge number or customer name.</p>
+                </div>
+              )}
+            </Card>
           </motion.div>
         )}
       </AnimatePresence>

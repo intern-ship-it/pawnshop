@@ -602,6 +602,9 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/logs', [WhatsAppController::class , 'logs']);
                 Route::get('/reminders/preview', [WhatsAppReminderController::class, 'preview']);
                 Route::get('/reminders/logs', [WhatsAppReminderController::class, 'logs']);
+                // TEMPORARY: Test due date routes (remove before production)
+                Route::get('/reminders/test-pledges', [WhatsAppReminderController::class, 'getTestPledges']);
+                Route::post('/reminders/test-due-date', [WhatsAppReminderController::class, 'setTestDueDate']);
             }
             );
 

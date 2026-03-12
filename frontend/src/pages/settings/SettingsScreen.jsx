@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useAppDispatch } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { Upload, Image as ImageIcon } from "lucide-react";
 import {
@@ -143,6 +143,10 @@ const tabs = [
 export default function SettingsScreen() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { role: currentUserRole } = useAppSelector((state) => state.auth);
+  const currentRoleSlug = currentUserRole?.slug || currentUserRole || "";
+  const isSuperAdmin = currentRoleSlug === "superadmin" || currentRoleSlug === "super-admin";
+
   const [activeTab, setActiveTab] = useState("company");
   const [settings, setSettings] = useState(() => {
     const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
@@ -518,7 +522,9 @@ export default function SettingsScreen() {
         <div className="lg:w-64 flex-shrink-0 lg:sticky lg:top-4 lg:self-start">
           <Card className="p-2">
             <nav className="space-y-1">
-              {tabs.map((tab) => {
+              {tabs
+                .filter((t) => t.id !== "printSettings" && (isSuperAdmin || t.id !== "whatsappReminder"))
+                .map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <button
