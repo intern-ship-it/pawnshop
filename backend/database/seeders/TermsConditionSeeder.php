@@ -194,7 +194,13 @@ class TermsConditionSeeder extends Seeder
         ];
 
         foreach ($terms as $term) {
-            TermsCondition::create($term);
+            TermsCondition::updateOrCreate(
+                [
+                    'activity_type' => $term['activity_type'],
+                    'title' => $term['title'],
+                ],
+                $term
+            );
         }
     }
 }
