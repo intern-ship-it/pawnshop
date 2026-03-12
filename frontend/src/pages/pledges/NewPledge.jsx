@@ -1269,6 +1269,8 @@ export default function NewPledge() {
               data.data.storage_location ||
               data.data.items?.[0]?.storage_location ||
               "",
+            category:
+              data.data.items?.[0]?.category || "",
           };
           barcodeWindow.document.write(
             generateBarcodeHTML(
@@ -2011,6 +2013,8 @@ export default function NewPledge() {
         barcode: data.data.barcode || data.data.pledge_barcode || data.data.pledge_no,
         total_items: data.data.items?.length || data.data.total_items || 1,
         total_weight: data.data.total_weight || data.data.items?.reduce((sum, item) => sum + (parseFloat(item.net_weight) || 0), 0) || 0,
+        storage_location: data.data.storage_location || data.data.items?.[0]?.storage_location || "",
+        category: data.data.items?.[0]?.category || "",
       };
 
       const printWindow = window.open("", "_blank", "width=400,height=600");
