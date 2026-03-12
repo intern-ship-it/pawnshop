@@ -135,6 +135,7 @@ const tabs = [
   { id: "terms", label: "Terms & Conditions", icon: FileText },
   { id: "racks", label: "Racks", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+  { id: "whatsappReminder", label: "WhatsApp Reminder", icon: MessageCircle, route: "/settings/whatsapp/reminders" },
   // { id: "printSettings", label: "Print Settings", icon: Printer }, // Hidden
   { id: "printTest", label: "Print Test", icon: Printer, route: "/settings/print-test" },
 ];
