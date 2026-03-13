@@ -357,9 +357,9 @@ export default function Login() {
           className="mb-8"
         >
           <h2 className="text-5xl font-bold leading-tight">
-            Streamline Your
+            Work Smarter
             <br />
-            <span className="text-amber-500">Pawn Business</span>
+            <span className="text-amber-500">Manage Better</span>
           </h2>
         </motion.div>
 
