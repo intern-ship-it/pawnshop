@@ -244,11 +244,15 @@ export default function InventoryList() {
   const formatLocation = (item) => {
     // API returns vault, box, slot as separate objects (not nested)
     if (item.vault && item.box && item.slot) {
-      return `${item.vault.name || item.vault.code} → Box ${item.box.box_number || item.box.name} → Slot ${item.slot.slot_number}`;
+      const safeName = item.vault.name || item.vault.code;
+      const drawerLetter = item.box.box_number || item.box.name;
+      return `${safeName} → ${drawerLetter}${item.slot.slot_number}`;
     }
     // Fallback: check for nested structure (in case some APIs return it nested)
     if (item.slot?.box?.vault) {
-      return `${item.slot.box.vault.name} → ${item.slot.box.name} → Slot ${item.slot.slot_number}`;
+      const safeName = item.slot.box.vault.name || item.slot.box.vault.code;
+      const drawerLetter = item.slot.box.box_number || item.slot.box.name;
+      return `${safeName} → ${drawerLetter}${item.slot.slot_number}`;
     }
     if (item.storage_location) {
       return item.storage_location;
@@ -594,11 +598,16 @@ export default function InventoryList() {
             .map((item, index) => {
               const catName = getCategoryName(item.category);
               const purName = getPurityName(item.purity);
-              const storageLocationParts = [];
-              if (item.vault) storageLocationParts.push(typeof item.vault === 'object' ? item.vault.name || item.vault.code : item.vault);
-              if (item.box) storageLocationParts.push('Box ' + (typeof item.box === 'object' ? item.box.box_number || item.box.name : item.box));
-              if (item.slot) storageLocationParts.push('Slot ' + (typeof item.slot === 'object' ? item.slot.slot_number || item.slot.name : item.slot));
-              const storageLocation = storageLocationParts.join(' › ');
+              let storageLocation = "N/A";
+              if (item.vault || item.box || item.slot) {
+                const vaultName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
+                const safeLetter = vaultName.trim().slice(-1);
+                
+                const boxNum = typeof item.box === 'object' ? (item.box?.box_number || item.box?.name || "") : String(item.box || "");
+                const slotNum = typeof item.slot === 'object' ? (item.slot?.slot_number || item.slot?.name || "") : String(item.slot || "");
+                
+                storageLocation = `${safeLetter}-${boxNum}${slotNum}`;
+              }
 
               return `
             <div class="label">
@@ -851,11 +860,16 @@ export default function InventoryList() {
       .replace(/[^A-Z0-9]/gi, "")
       .substring(0, 20);
 
-    const storageLocationParts = [];
-    if (item.vault) storageLocationParts.push(typeof item.vault === 'object' ? item.vault.name || item.vault.code : item.vault);
-    if (item.box) storageLocationParts.push('Box ' + (typeof item.box === 'object' ? item.box.box_number || item.box.name : item.box));
-    if (item.slot) storageLocationParts.push('Slot ' + (typeof item.slot === 'object' ? item.slot.slot_number || item.slot.name : item.slot));
-    const storageLocation = storageLocationParts.join(' › ');
+    let storageLocation = "N/A";
+    if (item.vault || item.box || item.slot) {
+      const vaultName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
+      const safeLetter = vaultName.trim().slice(-1);
+      
+      const boxNum = typeof item.box === 'object' ? (item.box?.box_number || item.box?.name || "") : String(item.box || "");
+      const slotNum = typeof item.slot === 'object' ? (item.slot?.slot_number || item.slot?.name || "") : String(item.slot || "");
+      
+      storageLocation = `${safeLetter}-${boxNum}${slotNum}`;
+    }
 
     const printContent = `
       <!DOCTYPE html>

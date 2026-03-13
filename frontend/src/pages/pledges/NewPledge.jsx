@@ -2114,14 +2114,14 @@ export default function NewPledge() {
     exit: { opacity: 0, x: -50 },
   };
 
-  // Get vault/box names for display
+  // Get safe/drawer names for display
   const getVaultName = (vaultId) =>
-    vaults.find((v) => v.id === vaultId)?.name || `Vault ${vaultId}`;
+    vaults.find((v) => v.id === vaultId)?.name || `Safe ${vaultId}`;
   const getBoxName = (boxId) => {
     const box = boxes.find((b) => b.id === boxId);
     return box?.name || box?.box_number
-      ? `Box ${box.box_number}`
-      : `Box ${boxId}`;
+      ? `Drawer ${box.box_number}`
+      : `Drawer ${boxId}`;
   };
 
   // Calculate available slots count
@@ -2721,42 +2721,42 @@ export default function NewPledge() {
                 </div>
               )}
 
-              {/* Vault & Box Selection */}
+              {/* Safe & Drawer Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Vault</label>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Safe</label>
                   {loadingVaults ? (
-                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg"><Loader2 className="w-4 h-4 animate-spin text-amber-500" /><span className="text-sm text-zinc-500">Loading vaults...</span></div>
+                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg"><Loader2 className="w-4 h-4 animate-spin text-amber-500" /><span className="text-sm text-zinc-500">Loading safes...</span></div>
                   ) : vaults.length === 0 ? (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No vaults available. Please create vaults in Settings.</p></div>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No safes available. Please create safes in Settings.</p></div>
                   ) : (
-                    <Select value={selectedVault || ""} onChange={(e) => handleVaultChange(e.target.value)} options={[{ value: "", label: "Select Vault..." }, ...vaults.map((v) => ({ value: v.id, label: v.name || `Vault ${v.code}` }))]} />
+                    <Select value={selectedVault || ""} onChange={(e) => handleVaultChange(e.target.value)} options={[{ value: "", label: "Select Safe..." }, ...vaults.map((v) => ({ value: v.id, label: v.name || `Safe ${v.code}` }))]} />
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Box</label>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Drawer</label>
                   {loadingBoxes ? (
-                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg"><Loader2 className="w-4 h-4 animate-spin text-amber-500" /><span className="text-sm text-zinc-500">Loading boxes...</span></div>
+                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg"><Loader2 className="w-4 h-4 animate-spin text-amber-500" /><span className="text-sm text-zinc-500">Loading drawers...</span></div>
                   ) : !selectedVault ? (
-                    <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg"><p className="text-sm text-zinc-500">Select a vault first</p></div>
+                    <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg"><p className="text-sm text-zinc-500">Select a safe first</p></div>
                   ) : boxes.length === 0 ? (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No boxes in this vault.</p></div>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No drawers in this safe.</p></div>
                   ) : (
-                    <Select
+                      <Select
                       value={selectedBox || ""}
                       onChange={(e) => {
                         if (selectedSlot) {
-                          if (!window.confirm("Changing box will clear the current slot assignment. Continue?")) { return; }
+                          if (!window.confirm("Changing drawer will clear the current slot assignment. Continue?")) { return; }
                         }
                         handleBoxChange(e.target.value);
                       }}
-                      options={[{ value: "", label: "Select Box..." }, ...boxes.map((b) => ({ value: b.id, label: `${b.name || `Box ${b.box_number}`} (${(b.total_slots || 0) - (b.occupied_slots || 0)} available)` }))]}
+                      options={[{ value: "", label: "Select Drawer..." }, ...boxes.map((b) => ({ value: b.id, label: `${b.name || `Drawer ${b.box_number}`} (${(b.total_slots || 0) - (b.occupied_slots || 0)} available)` }))]}
                     />
                   )}
                 </div>
               </div>
 
-              {/* Box Summary */}
+              {/* Drawer Summary */}
               {selectedBox && !loadingSlots && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl mb-6">
                   <div className="flex items-center justify-between">
@@ -2782,7 +2782,7 @@ export default function NewPledge() {
                   {loadingSlots ? (
                     <div className="flex items-center justify-center p-8 bg-zinc-50 rounded-xl"><Loader2 className="w-6 h-6 animate-spin text-amber-500" /><span className="ml-2 text-zinc-500">Loading slots...</span></div>
                   ) : slots.length === 0 ? (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl"><p className="text-amber-700">No slots configured for this box.</p></div>
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl"><p className="text-amber-700">No slots configured for this drawer.</p></div>
                   ) : (
                     <>
                       <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">

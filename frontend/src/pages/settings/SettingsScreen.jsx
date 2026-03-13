@@ -133,7 +133,7 @@ const tabs = [
   { id: "stoneDeduction", label: "Stone Deduction", icon: Scale },
   { id: "handling", label: "Handling Charges", icon: Banknote },
   { id: "terms", label: "Terms & Conditions", icon: FileText },
-  { id: "racks", label: "Racks", icon: Grid3X3 },
+  { id: "racks", label: "Safes", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "whatsappReminder", label: "WhatsApp Reminder", icon: MessageCircle, route: "/settings/whatsapp/reminders" },
   // { id: "printSettings", label: "Print Settings", icon: Printer }, // Hidden
@@ -1535,7 +1535,7 @@ function RacksTab({ settings, updateSettings }) {
     vault_id: "",
     name: "",
     box_number: "",
-    total_slots: 20,
+    total_slots: 9,
     description: "",
   });
   const [vaults, setVaults] = useState([]);
@@ -1545,6 +1545,7 @@ function RacksTab({ settings, updateSettings }) {
   const [isAdding, setIsAdding] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState(null);
+  const dispatch = useAppDispatch();
 
   // Fetch vaults from API on mount
   useEffect(() => {
@@ -1665,7 +1666,7 @@ function RacksTab({ settings, updateSettings }) {
         vault_id: parseInt(targetVaultId),
         name: boxFormData.name,
         box_number: boxFormData.box_number || undefined,
-        total_slots: 20,
+        total_slots: parseInt(boxFormData.total_slots) || 9,
         description: boxFormData.description || null,
       });
 
@@ -1678,7 +1679,7 @@ function RacksTab({ settings, updateSettings }) {
           vault_id: "",
           name: "",
           box_number: "",
-          total_slots: 20,
+          total_slots: 9,
           description: "",
         });
         setShowAddBoxModal(false);
@@ -1700,7 +1701,7 @@ function RacksTab({ settings, updateSettings }) {
         addToast({
           type: "error",
           title: "Cannot Delete",
-          message: `"${vault.name}" has ${vault.boxes_count} boxes. Delete boxes first.`,
+          message: `"${vault.name}" has ${vault.boxes_count} drawers. Delete drawers first.`,
         }),
       );
       return;
@@ -1817,7 +1818,7 @@ function RacksTab({ settings, updateSettings }) {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-zinc-800 flex items-center gap-2">
           <Grid3X3 className="w-5 h-5 text-amber-500" />
-          Rack / Locker Setup
+          Safe / Drawer Setup
         </h2>
         <Button
           variant="ghost"
@@ -1851,11 +1852,11 @@ function RacksTab({ settings, updateSettings }) {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="p-4 bg-zinc-50 rounded-xl">
-          <p className="text-sm text-zinc-500">Total Vaults</p>
+          <p className="text-sm text-zinc-500">Total Safes</p>
           <p className="text-2xl font-bold text-zinc-800">{vaults.length}</p>
         </div>
         <div className="p-4 bg-amber-50 rounded-xl">
-          <p className="text-sm text-amber-600">Total Boxes</p>
+          <p className="text-sm text-amber-600">Total Drawers</p>
           <p className="text-2xl font-bold text-amber-600">{totalBoxes}</p>
         </div>
         <div className="p-4 bg-emerald-50 rounded-xl">
@@ -1876,7 +1877,7 @@ function RacksTab({ settings, updateSettings }) {
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-medium text-zinc-800 flex items-center gap-2">
               <Package className="w-4 h-4 text-zinc-500" />
-              Vaults / Racks
+              Safes
             </h3>
             <Button
               variant="outline"
@@ -1884,20 +1885,20 @@ function RacksTab({ settings, updateSettings }) {
               leftIcon={Plus}
               onClick={() => setShowAddVaultModal(true)}
             >
-              Add Vault
+              Add Safe
             </Button>
           </div>
 
           {vaults.length === 0 ? (
             <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
               <Package className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
-              <p className="text-sm">No vaults configured</p>
+              <p className="text-sm">No safes configured</p>
               <Button
                 variant="link"
                 size="sm"
                 onClick={() => setShowAddVaultModal(true)}
               >
-                Add your first vault
+                Add your first safe
               </Button>
             </div>
           ) : (
@@ -1942,7 +1943,7 @@ function RacksTab({ settings, updateSettings }) {
                         <p className="text-sm font-semibold text-zinc-800">
                           {vault.boxes_count}
                         </p>
-                        <p className="text-xs text-zinc-500">boxes</p>
+                        <p className="text-xs text-zinc-500">drawers</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-amber-600">
@@ -1964,8 +1965,8 @@ function RacksTab({ settings, updateSettings }) {
                         )}
                         title={
                           vault.boxes_count > 0
-                            ? "Delete boxes first"
-                            : "Delete vault"
+                            ? "Delete drawers first"
+                            : "Delete safe"
                         }
                       >
                         {deletingId === `vault-${vault.id}` ? (
@@ -1987,7 +1988,7 @@ function RacksTab({ settings, updateSettings }) {
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-medium text-zinc-800 flex items-center gap-2">
               <Grid3X3 className="w-4 h-4 text-zinc-500" />
-              Boxes in{" "}
+              Drawers in{" "}
               <span className="text-amber-600">
                 {selectedVault?.name || "..."}
               </span>
@@ -2001,36 +2002,36 @@ function RacksTab({ settings, updateSettings }) {
                   vault_id: selectedVault?.id || "",
                   name: "",
                   box_number: "",
-                  total_slots: 20,
+                  total_slots: 9,
                   description: "",
                 });
                 setShowAddBoxModal(true);
               }}
             >
-              Add Box
+              Add Drawer
             </Button>
           </div>
 
           {!selectedVault ? (
             <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
               <ChevronRight className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
-              <p className="text-sm">Select a vault to manage boxes</p>
+              <p className="text-sm">Select a safe to manage drawers</p>
             </div>
           ) : isLoadingBoxes ? (
             <div className="text-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-amber-500 mx-auto" />
-              <p className="text-sm text-zinc-500 mt-2">Loading boxes...</p>
+              <p className="text-sm text-zinc-500 mt-2">Loading drawers...</p>
             </div>
           ) : boxes.length === 0 ? (
             <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
               <Grid3X3 className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
-              <p className="text-sm">No boxes in this vault</p>
+              <p className="text-sm">No drawers in this safe</p>
               <Button
                 variant="link"
                 size="sm"
                 onClick={() => setShowAddBoxModal(true)}
               >
-                Add your first box
+                Add your first drawer
               </Button>
             </div>
           ) : (
@@ -2098,7 +2099,7 @@ function RacksTab({ settings, updateSettings }) {
                         title={
                           box.occupied_slots > 0
                             ? "Has items - relocate first"
-                            : "Delete box"
+                            : "Delete drawer"
                         }
                       >
                         {deletingId === `box-${box.id}` ? (
@@ -2120,12 +2121,12 @@ function RacksTab({ settings, updateSettings }) {
       <Modal
         isOpen={showAddVaultModal}
         onClose={() => setShowAddVaultModal(false)}
-        title="Add Vault"
+        title="Add Safe"
         size="sm"
       >
         <div className="p-5 space-y-4">
           <Input
-            label="Vault Name"
+            label="Safe Name"
             value={vaultFormData.name}
             onChange={(e) => {
               const name = e.target.value;
@@ -2169,7 +2170,7 @@ function RacksTab({ settings, updateSettings }) {
           {/* NEW: Number of Boxes Field */}
           <div>
             <Input
-              label="Number of Boxes"
+              label="Number of Drawers"
               type="number"
               min="0"
               max="100"
@@ -2181,13 +2182,13 @@ function RacksTab({ settings, updateSettings }) {
                 })
               }
               placeholder="0"
-              helperText="Each box will have 20 slots"
+              helperText="Each drawer will have 9 slots"
             />
             {vaultFormData.number_of_boxes > 0 && (
               <p className="text-sm text-amber-600 mt-2 flex items-center gap-1">
                 <Info className="w-4 h-4" />
-                Total: {vaultFormData.number_of_boxes * 20} slots (
-                {vaultFormData.number_of_boxes} boxes × 20 slots)
+                Total: {vaultFormData.number_of_boxes * 9} slots (
+                {vaultFormData.number_of_boxes} drawers × 9 slots)
               </p>
             )}
           </div>
@@ -2208,7 +2209,7 @@ function RacksTab({ settings, updateSettings }) {
               loading={isAdding}
               disabled={!vaultFormData.name}
             >
-              Add Vault
+              Add Safe
             </Button>
           </div>
         </div>
@@ -2218,51 +2219,58 @@ function RacksTab({ settings, updateSettings }) {
       <Modal
         isOpen={showAddBoxModal}
         onClose={() => setShowAddBoxModal(false)}
-        title="Add New Box"
+        title="Add New Drawer"
         size="sm"
       >
         <div className="p-5 space-y-4">
           <Select
-            label="Select Vault"
+            label="Select Safe"
             value={boxFormData.vault_id || selectedVault?.id || ""}
             onChange={(e) =>
               setBoxFormData({ ...boxFormData, vault_id: e.target.value })
             }
             options={[
-              { value: "", label: "Select vault..." },
+              { value: "", label: "Select safe..." },
               ...vaults.map((v) => ({
                 value: v.id,
-                label: `${v.name} (${v.boxes_count} boxes, ${v.total_slots || 0
-                  } slots)`,
+                label: `${v.name} (${v.boxes_count} drawers, ${v.total_slots || 0} slots)`,
               })),
             ]}
             required
           />
           <Input
-            label="Box Name"
+            label="Drawer Name"
             value={boxFormData.name}
             onChange={(e) =>
               setBoxFormData({ ...boxFormData, name: e.target.value })
             }
-            placeholder="e.g. BOX-1, Shelf A"
+            placeholder="e.g. DRAWER A, DRAWER B"
             required
           />
           <Input
-            label="Box Number"
+            label="Drawer Number"
             value={boxFormData.box_number}
             onChange={(e) =>
               setBoxFormData({ ...boxFormData, box_number: e.target.value })
             }
-            placeholder="e.g., A1, A2, B4"
-            helperText="Alphanumeric box label (optional, auto-generated if empty)"
+            placeholder="e.g., A, B, C, D"
+            helperText="Single alphanumeric character drawer label"
           />
 
-          {/* Fixed 20 slots - read only display */}
-          <div className="p-3 bg-zinc-50 rounded-lg">
-            <p className="text-sm text-zinc-600">
-              <span className="font-medium">Slots per box:</span> 20 (fixed)
-            </p>
-          </div>
+          <Input
+            label="Slots per drawer"
+            type="number"
+            min="1"
+            max="100"
+            value={boxFormData.total_slots}
+            onChange={(e) =>
+              setBoxFormData({
+                ...boxFormData,
+                total_slots: parseInt(e.target.value) || 9,
+              })
+            }
+            required
+          />
 
           <Input
             label="Description (Optional)"
@@ -2290,7 +2298,7 @@ function RacksTab({ settings, updateSettings }) {
                 !boxFormData.name || (!boxFormData.vault_id && !selectedVault)
               }
             >
-              Add Box
+              Add Drawer
             </Button>
           </div>
         </div>

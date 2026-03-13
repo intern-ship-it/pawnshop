@@ -141,9 +141,18 @@ class PrintController extends Controller
         $generator = new BarcodeGeneratorSVG();
         $barcode = base64_encode($generator->getBarcode($pledgeItem->barcode, $generator::TYPE_CODE_128, 3, 80));
 
+        $storageLocation = '';
+        if ($pledgeItem->vault && $pledgeItem->box && $pledgeItem->slot) {
+            $safeLetter = substr(trim($pledgeItem->vault->name), -1);
+            $drawerLetter = $pledgeItem->box->box_number;
+            $slotNumber = $pledgeItem->slot->slot_number;
+            $storageLocation = "{$safeLetter}-{$drawerLetter}{$slotNumber}";
+        }
+
         return $this->success([
             'barcode' => $pledgeItem->barcode,
             'image' => 'data:image/svg+xml;base64,' . $barcode,
+            'storage_location' => $storageLocation,
             'item' => [
                 'pledge_no' => $pledgeItem->pledge->pledge_no,
                 'category' => $pledgeItem->category->name_en,
@@ -180,12 +189,11 @@ class PrintController extends Controller
         // Build storage location string from first item (all items in a pledge share the same vault)
         $storageLocation = '';
         $firstItem = $pledge->items->first();
-        if ($firstItem) {
-            $parts = [];
-            if ($firstItem->vault) $parts[] = $firstItem->vault->name ?? $firstItem->vault->code ?? '';
-            if ($firstItem->box) $parts[] = 'Box ' . ($firstItem->box->box_number ?? $firstItem->box->name ?? '');
-            if ($firstItem->slot) $parts[] = 'Slot ' . ($firstItem->slot->slot_number ?? $firstItem->slot->name ?? '');
-            $storageLocation = implode(' › ', array_filter($parts));
+        if ($firstItem && $firstItem->vault && $firstItem->box && $firstItem->slot) {
+            $safeLetter = substr(trim($firstItem->vault->name), -1);
+            $drawerLetter = $firstItem->box->box_number;
+            $slotNumber = $firstItem->slot->slot_number;
+            $storageLocation = "{$safeLetter}-{$drawerLetter}{$slotNumber}";
         }
 
         $items = [[
@@ -344,11 +352,13 @@ class PrintController extends Controller
             $processedPledges[] = $pledgeId;
 
             // Build storage location string
-            $parts = [];
-            if ($item->vault) $parts[] = $item->vault->name ?? $item->vault->code ?? '';
-            if ($item->box) $parts[] = 'Box ' . ($item->box->box_number ?? $item->box->name ?? '');
-            if ($item->slot) $parts[] = 'Slot ' . ($item->slot->slot_number ?? $item->slot->name ?? '');
-            $storageLocation = implode(' › ', array_filter($parts));
+            $storageLocation = '';
+            if ($item->vault && $item->box && $item->slot) {
+                $safeLetter = substr(trim($item->vault->name), -1);
+                $drawerLetter = $item->box->box_number;
+                $slotNumber = $item->slot->slot_number;
+                $storageLocation = "{$safeLetter}-{$drawerLetter}{$slotNumber}";
+            }
 
             $barcodeValue = $item->pledge->pledge_no;
             $barcodes[] = [

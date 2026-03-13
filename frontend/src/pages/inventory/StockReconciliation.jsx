@@ -178,11 +178,11 @@ export default function StockReconciliation() {
               purity: purityName,  // Now a string
               storage_location:
                 item.vault && item.box && item.slot
-                  ? `${item.vault.code || item.vault.name} / ${item.box.box_number || item.box.name} / Slot ${item.slot.slot_number}`
+                  ? `${item.vault.name || item.vault.code} → ${item.box.box_number || item.box.name}${item.slot.slot_number}`
                   : item.vault && item.box
-                    ? `${item.vault.code || item.vault.name} / ${item.box.box_number || item.box.name}`
+                    ? `${item.vault.name || item.vault.code} → ${item.box.box_number || item.box.name}`
                     : item.vault
-                      ? item.vault.code || item.vault.name
+                      ? item.vault.name || item.vault.code
                       : "Not assigned",
               customer_name: pledge.customer?.name || "Unknown",
               customer_ic: pledge.customer?.ic_number || "",

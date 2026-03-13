@@ -70,7 +70,7 @@ class StorageController extends Controller
 
         try {
             $numberOfBoxes = $validated['number_of_boxes'] ?? 0;
-            $slotsPerBox = 20; // Fixed 20 slots per box
+            $slotsPerBox = 9; // Default 9 slots per drawer
 
             $vault = Vault::create([
                 'branch_id' => $branchId,
@@ -85,7 +85,7 @@ class StorageController extends Controller
                 $box = Box::create([
                     'vault_id' => $vault->id,
                     'box_number' => $boxNum,
-                    'name' => 'Box ' . $boxNum,
+                    'name' => 'Drawer ' . $boxNum,
                     'total_slots' => $slotsPerBox,
                 ]);
 
@@ -102,7 +102,7 @@ class StorageController extends Controller
 
             return $this->success(
                 $vault->load('boxes'),
-                'Vault created successfully with ' . $numberOfBoxes . ' boxes',
+                'Safe created successfully with ' . $numberOfBoxes . ' drawers',
                 201
             );
 
@@ -216,7 +216,7 @@ class StorageController extends Controller
             $box = Box::create([
                 'vault_id' => $validated['vault_id'],
                 'box_number' => $validated['box_number'],
-                'name' => $validated['name'] ?? ('Box ' . $validated['box_number']),
+                'name' => $validated['name'] ?? ('Drawer ' . $validated['box_number']),
                 'total_slots' => $validated['total_slots'],
                 'description' => $validated['description'] ?? null,
             ]);
@@ -375,7 +375,7 @@ class StorageController extends Controller
         return $this->success([
             'slot' => $slot,
             'location_string' => sprintf(
-                '%s / Box %s / Slot %d',
+                '%s → %s%d',
                 $slot->box->vault->name,
                 $slot->box->box_number,
                 $slot->slot_number

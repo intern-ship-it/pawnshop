@@ -1714,8 +1714,8 @@ export default function RenewalScreen() {
                           (item.slot_id ? `S${item.slot_id}` : "");
 
                         let location = vaultCode;
-                        if (boxNum) location += ` / Box ${boxNum}`;
-                        if (slotNum) location += ` / Slot ${slotNum}`;
+                        if (boxNum) location += ` → ${boxNum}`;
+                        if (slotNum) location += `${slotNum}`;
                         return location;
                       }
                       return null;

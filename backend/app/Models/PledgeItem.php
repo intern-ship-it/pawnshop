@@ -96,11 +96,11 @@ class PledgeItem extends Model
 
     public function getLocationStringAttribute(): string
     {
-        if (!$this->vault_id) {
+        if (!$this->vault_id || !$this->vault || !$this->box || !$this->slot) {
             return 'Not Assigned';
         }
-        return sprintf('%s / Box %d / Slot %d',
-            $this->vault->code,
+        return sprintf('%s → %s%d',
+            $this->vault->name ?? $this->vault->code,
             $this->box->box_number,
             $this->slot->slot_number
         );

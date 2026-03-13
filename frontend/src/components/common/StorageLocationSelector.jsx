@@ -120,7 +120,7 @@ export default function StorageLocationSelector({
 
   // Format vault options
   const vaultOptions = [
-    { value: "", label: "Select Vault" },
+    { value: "", label: "Select Safe" },
     ...vaults.map((vault) => ({
       value: vault.id.toString(),
       label: `${vault.name || vault.code}${
@@ -133,10 +133,10 @@ export default function StorageLocationSelector({
 
   // Format box options
   const boxOptions = [
-    { value: "", label: "Select Box" },
+    { value: "", label: "Select Drawer" },
     ...boxes.map((box) => ({
       value: box.id.toString(),
-      label: `Box ${box.box_number || box.name}${
+      label: `Drawer ${box.box_number || box.name}${
         showAvailability && box.available_slots !== undefined
           ? ` (${box.available_slots} available)`
           : ""
@@ -164,7 +164,7 @@ export default function StorageLocationSelector({
           label={
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-amber-500" />
-              <span>Vault / Safe Room</span>
+              <span>Safe</span>
             </div>
           }
           value={value.vault_id}
@@ -185,7 +185,7 @@ export default function StorageLocationSelector({
           label={
             <div className="flex items-center gap-2">
               <Package className="w-4 h-4 text-amber-500" />
-              <span>Box / Container</span>
+              <span>Drawer</span>
             </div>
           }
           value={value.box_id}
@@ -229,21 +229,11 @@ export default function StorageLocationSelector({
           </p>
           <p className="text-sm font-semibold text-amber-900">
             {vaults.find((v) => v.id.toString() === value.vault_id)?.name ||
-              "Vault"}{" "}
+              "Safe"}{" "}
             →{" "}
-            {boxes.find((b) => b.id.toString() === value.box_id)?.box_number
-              ? `Box ${
-                  boxes.find((b) => b.id.toString() === value.box_id)
-                    ?.box_number
-                }`
-              : "Box"}{" "}
-            →{" "}
-            {slots.find((s) => s.id.toString() === value.slot_id)?.slot_number
-              ? `Slot ${
-                  slots.find((s) => s.id.toString() === value.slot_id)
-                    ?.slot_number
-                }`
-              : "Slot"}
+            {boxes.find((b) => b.id.toString() === value.box_id)?.box_number ||
+             boxes.find((b) => b.id.toString() === value.box_id)?.name || ""}
+            {slots.find((s) => s.id.toString() === value.slot_id)?.slot_number || ""}
           </p>
         </div>
       )}

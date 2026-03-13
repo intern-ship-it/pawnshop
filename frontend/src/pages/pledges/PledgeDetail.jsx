@@ -153,7 +153,7 @@ export default function PledgeDetail() {
             location:
               item.location_string ||
               (item.vault
-                ? `${item.vault.code} / Box ${item.box?.box_number} / Slot ${item.slot?.slot_number}`
+                ? `${item.vault.name || item.vault.code} → ${item.box?.box_number || item.box?.name}${item.slot?.slot_number}`
                 : "Not Assigned"),
           })),
           payments: (data.payments || []).map((payment) => ({

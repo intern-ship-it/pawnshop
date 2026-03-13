@@ -62,7 +62,7 @@ export default function RackMap({ embedded = false }) {
   const [newVaultDescription, setNewVaultDescription] = useState("");
   const [newBoxName, setNewBoxName] = useState("");
   const [newBoxCode, setNewBoxCode] = useState("");
-  const [newBoxSlots, setNewBoxSlots] = useState(20);
+  const [newBoxSlots, setNewBoxSlots] = useState(9);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingSlotItems, setIsLoadingSlotItems] = useState(false);
 
@@ -352,7 +352,7 @@ export default function RackMap({ embedded = false }) {
         vault_id: selectedVault,
         name: newBoxName,
         box_number: newBoxCode,
-        total_slots: parseInt(newBoxSlots) || 20,
+        total_slots: parseInt(newBoxSlots) || 9,
       });
 
       if (response.success) {
@@ -366,7 +366,7 @@ export default function RackMap({ embedded = false }) {
         setShowAddBoxModal(false);
         setNewBoxName("");
         setNewBoxCode("");
-        setNewBoxSlots(20);
+        setNewBoxSlots(9);
         fetchBoxes(selectedVault);
       } else {
         dispatch(
@@ -478,7 +478,7 @@ export default function RackMap({ embedded = false }) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Rack Map - ${currentVault?.name || "All Vaults"}</title>
+        <title>Safe Map - ${currentVault?.name || "All Safes"}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; padding: 20px; }
@@ -511,14 +511,14 @@ export default function RackMap({ embedded = false }) {
       </head>
       <body>
         <div class="header">
-          <h1>🗄️ Rack / Locker Map</h1>
+          <h1>🗄️ Safe Map</h1>
           <p>Printed on: ${new Date().toLocaleString("en-MY")}</p>
         </div>
         
         <div class="stats">
           <div class="stat">
             <div class="stat-value">${overallStats.totalVaults}</div>
-            <div class="stat-label">Total Vaults</div>
+            <div class="stat-label">Total Safes</div>
           </div>
           <div class="stat">
             <div class="stat-value">${overallStats.totalItems}</div>
@@ -592,7 +592,7 @@ export default function RackMap({ embedded = false }) {
               .join("")}
           </div>
         `
-            : '<p style="text-align: center; color: #999;">No vault selected</p>'
+            : '<p style="text-align: center; color: #999;">No safe selected</p>'
         }
 
         <div class="legend">
@@ -632,7 +632,7 @@ export default function RackMap({ embedded = false }) {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
-          <p className="text-zinc-500">Loading rack map...</p>
+          <p className="text-zinc-500">Loading safe map...</p>
         </div>
       </div>
     );
@@ -648,7 +648,7 @@ export default function RackMap({ embedded = false }) {
               <Grid3X3 className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Total Vaults</p>
+              <p className="text-xs text-zinc-500">Total Safes</p>
               <p className="text-xl font-bold text-zinc-800">
                 {overallStats.totalVaults}
               </p>
@@ -719,7 +719,7 @@ export default function RackMap({ embedded = false }) {
           {/* Vaults */}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-zinc-800">Vaults / Racks</h3>
+              <h3 className="font-semibold text-zinc-800">Safes</h3>
               <Button
                 variant="ghost"
                 size="sm"
@@ -732,14 +732,14 @@ export default function RackMap({ embedded = false }) {
             {vaults.length === 0 ? (
               <div className="text-center py-8">
                 <Grid3X3 className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
-                <p className="text-sm text-zinc-500">No vaults configured</p>
+                <p className="text-sm text-zinc-500">No safes configured</p>
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3"
                   onClick={() => setShowAddVaultModal(true)}
                 >
-                  Add Vault
+                  Add Safe
                 </Button>
               </div>
             ) : (
@@ -760,7 +760,7 @@ export default function RackMap({ embedded = false }) {
                         {vault.name}
                       </span>
                       <Badge variant="default" size="sm">
-                        {vault.total_boxes || 0} boxes
+                        {vault.total_boxes || 0} drawers
                       </Badge>
                     </div>
                     {vault.description && (
@@ -778,7 +778,7 @@ export default function RackMap({ embedded = false }) {
           {selectedVault && (
             <Card className="p-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-zinc-800">Boxes</h3>
+                <h3 className="font-semibold text-zinc-800">Drawers</h3>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -795,7 +795,7 @@ export default function RackMap({ embedded = false }) {
               ) : boxes.length === 0 ? (
                 <div className="text-center py-4">
                   <Box className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
-                  <p className="text-sm text-zinc-500">No boxes</p>
+                  <p className="text-sm text-zinc-500">No drawers</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -814,7 +814,7 @@ export default function RackMap({ embedded = false }) {
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium text-zinc-800">
-                            {box.name}
+                            {currentVault?.name} → {box.name}
                           </span>
                           <Badge
                             variant={
@@ -895,7 +895,7 @@ export default function RackMap({ embedded = false }) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-lg font-semibold text-zinc-800">
-                  {currentVault?.name || "Select a Vault"}{" "}
+                  {currentVault?.name || "Select a Safe"}{" "}
                   {currentBox ? `→ ${currentBox.name}` : ""}
                 </h3>
                 {currentBox && (
@@ -973,13 +973,13 @@ export default function RackMap({ embedded = false }) {
             ) : currentBox ? (
               <div className="text-center py-12">
                 <Grid3X3 className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
-                <p className="text-zinc-500">No slots in this box</p>
+                <p className="text-zinc-500">No slots in this drawer</p>
               </div>
             ) : (
               <div className="text-center py-12">
                 <Grid3X3 className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
                 <p className="text-zinc-500">
-                  Select a vault and box to view slots
+                  Select a safe and drawer to view slots
                 </p>
               </div>
             )}
@@ -1283,19 +1283,19 @@ export default function RackMap({ embedded = false }) {
       <Modal
         isOpen={showAddVaultModal}
         onClose={() => setShowAddVaultModal(false)}
-        title="Add New Vault / Rack"
+        title="Add New Safe"
         size="sm"
       >
         <div className="p-5 space-y-4">
           <Input
-            label="Vault Name"
-            placeholder="e.g., Safe Room, Vault A"
+            label="Safe Name"
+            placeholder="e.g., Safe Room, Safe A"
             value={newVaultName}
             onChange={(e) => setNewVaultName(e.target.value)}
           />
           <Input
-            label="Vault Code"
-            placeholder="e.g., SAFE-01, VAULT-A"
+            label="Safe Code"
+            placeholder="e.g., SAFE-01, SAFE-A"
             value={newVaultCode}
             onChange={(e) => setNewVaultCode(e.target.value)}
             helperText="Unique identifier code (required)"
@@ -1321,7 +1321,7 @@ export default function RackMap({ embedded = false }) {
               onClick={handleAddVault}
               loading={isSaving}
             >
-              Add Vault
+              Add Safe
             </Button>
           </div>
         </div>
@@ -1331,22 +1331,22 @@ export default function RackMap({ embedded = false }) {
       <Modal
         isOpen={showAddBoxModal}
         onClose={() => setShowAddBoxModal(false)}
-        title="Add New Box"
+        title="Add New Drawer"
         size="sm"
       >
         <div className="p-5 space-y-4">
           <Input
-            label="Box Name"
-            placeholder="e.g., Box 01, Drawer A"
+            label="Drawer Name"
+            placeholder="e.g. DRAWER A, DRAWER B"
             value={newBoxName}
             onChange={(e) => setNewBoxName(e.target.value)}
           />
           <Input
-            label="Box Number"
-            placeholder="e.g., A1, A2, B4"
+            label="Drawer Number"
+            placeholder="e.g., A, B, C, D"
             value={newBoxCode}
             onChange={(e) => setNewBoxCode(e.target.value)}
-            helperText="Alphanumeric box label (required)"
+            helperText="Single alphanumeric character drawer label"
           />
           <Input
             label="Number of Slots"
@@ -1371,7 +1371,7 @@ export default function RackMap({ embedded = false }) {
               onClick={handleAddBox}
               loading={isSaving}
             >
-              Add Box
+              Add Drawer
             </Button>
           </div>
         </div>
@@ -1383,7 +1383,7 @@ export default function RackMap({ embedded = false }) {
 
   return (
     <PageWrapper
-      title="Rack / Locker Map"
+      title="Safe Map"
       subtitle="Visual storage location management"
       actions={
         <div className="flex items-center gap-2">
@@ -1395,7 +1395,7 @@ export default function RackMap({ embedded = false }) {
             leftIcon={Plus}
             onClick={() => setShowAddVaultModal(true)}
           >
-            Add Vault
+            Add Safe
           </Button>
         </div>
       }
