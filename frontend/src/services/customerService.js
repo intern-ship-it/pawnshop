@@ -10,6 +10,9 @@ const fieldMapping = {
   ic_front_image: 'ic_front_photo',
   ic_back_image: 'ic_back_photo',
   profile_photo: 'selfie_photo',
+  remove_ic_front_image: 'remove_ic_front_photo',
+  remove_ic_back_image: 'remove_ic_back_photo',
+  remove_profile_photo: 'remove_selfie_photo',
   address: 'address_line1',
 }
 

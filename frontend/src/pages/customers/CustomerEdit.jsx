@@ -7,7 +7,7 @@ import {
 } from "@/features/customers/customersSlice";
 import { addToast } from "@/features/ui/uiSlice";
 import { customerService } from "@/services";
-import { getStorageUrl } from "@/utils/helpers";
+import { getStorageUrl, compressImage } from "@/utils/helpers";
 import { validateIC, validatePhone, validateEmail } from "@/utils/validators";
 import { formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
@@ -265,7 +265,7 @@ export default function CustomerEdit() {
   };
 
   // Handle image upload
-  const handleImageUpload = (e, type) => {
+  const handleImageUpload = async (e, type) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -280,53 +280,56 @@ export default function CustomerEdit() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    try {
+      // Compress the image before processing
+      const compressedFile = await compressImage(file, { maxWidth: 1600, maxHeight: 1600, quality: 0.8 });
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result;
+
+        switch (type) {
+          case "icFront":
+            setIcFrontImage(base64);
+            setIcFrontFile(compressedFile);
+            setImagesChanged((prev) => ({ ...prev, icFront: true }));
+            break;
+          case "icBack":
+            setIcBackImage(base64);
+            setIcBackFile(compressedFile);
+            setImagesChanged((prev) => ({ ...prev, icBack: true }));
+            break;
+          case "profile":
+            setProfilePhoto(base64);
+            setProfilePhotoFile(compressedFile);
+            setImagesChanged((prev) => ({ ...prev, profile: true }));
+            break;
+        }
+
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Image Added",
+            message: `${type === "icFront"
+              ? "IC Front"
+              : type === "icBack"
+                ? "IC Back"
+                : "Profile Photo"
+              } optimized and ready`,
+          })
+        );
+      };
+      reader.readAsDataURL(compressedFile);
+    } catch (error) {
+      console.error("Image processing error:", error);
       dispatch(
         addToast({
           type: "error",
-          title: "File Too Large",
-          message: "Image must be less than 5MB",
+          title: "Processing Failed",
+          message: "Could not optimize the image",
         })
       );
-      return;
     }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result;
-
-      switch (type) {
-        case "icFront":
-          setIcFrontImage(base64);
-          setIcFrontFile(file);
-          setImagesChanged((prev) => ({ ...prev, icFront: true }));
-          break;
-        case "icBack":
-          setIcBackImage(base64);
-          setIcBackFile(file);
-          setImagesChanged((prev) => ({ ...prev, icBack: true }));
-          break;
-        case "profile":
-          setProfilePhoto(base64);
-          setProfilePhotoFile(file);
-          setImagesChanged((prev) => ({ ...prev, profile: true }));
-          break;
-      }
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Image Updated",
-          message: `${type === "icFront"
-            ? "IC Front"
-            : type === "icBack"
-              ? "IC Back"
-              : "Profile Photo"
-            } updated`,
-        })
-      );
-    };
-    reader.readAsDataURL(file);
   };
 
   // Remove image
@@ -463,14 +466,26 @@ export default function CustomerEdit() {
       };
 
       // Only add files if they were changed
-      if (imagesChanged.icFront && icFrontFile) {
-        customerData.ic_front_image = icFrontFile;
+      if (imagesChanged.icFront) {
+        if (icFrontFile) {
+          customerData.ic_front_image = icFrontFile;
+        } else {
+          customerData.remove_ic_front_image = true;
+        }
       }
-      if (imagesChanged.icBack && icBackFile) {
-        customerData.ic_back_image = icBackFile;
+      if (imagesChanged.icBack) {
+        if (icBackFile) {
+          customerData.ic_back_image = icBackFile;
+        } else {
+          customerData.remove_ic_back_image = true;
+        }
       }
-      if (imagesChanged.profile && profilePhotoFile) {
-        customerData.profile_photo = profilePhotoFile;
+      if (imagesChanged.profile) {
+        if (profilePhotoFile) {
+          customerData.profile_photo = profilePhotoFile;
+        } else {
+          customerData.remove_profile_photo = true;
+        }
       }
 
       const response = await customerService.update(id, customerData);

@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class CustomerController extends Controller
 {
@@ -235,6 +236,9 @@ class CustomerController extends Controller
             'ic_front_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
             'ic_back_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
             'selfie_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
+            'remove_ic_front_photo' => 'nullable|boolean',
+            'remove_ic_back_photo' => 'nullable|boolean',
+            'remove_selfie_photo' => 'nullable|boolean',
         ]);
 
         // Calculate age if DOB changed
@@ -249,6 +253,11 @@ class CustomerController extends Controller
                 \Storage::disk('public')->delete($customer->ic_front_photo);
             }
             $validated['ic_front_photo'] = $request->file('ic_front_photo')->store('customers/ic', 'public');
+        } elseif ($request->boolean('remove_ic_front_photo')) {
+            if ($customer->ic_front_photo) {
+                \Storage::disk('public')->delete($customer->ic_front_photo);
+            }
+            $validated['ic_front_photo'] = null;
         }
 
         if ($request->hasFile('ic_back_photo')) {
@@ -256,6 +265,11 @@ class CustomerController extends Controller
                 \Storage::disk('public')->delete($customer->ic_back_photo);
             }
             $validated['ic_back_photo'] = $request->file('ic_back_photo')->store('customers/ic', 'public');
+        } elseif ($request->boolean('remove_ic_back_photo')) {
+            if ($customer->ic_back_photo) {
+                \Storage::disk('public')->delete($customer->ic_back_photo);
+            }
+            $validated['ic_back_photo'] = null;
         }
 
         if ($request->hasFile('selfie_photo')) {
@@ -263,7 +277,17 @@ class CustomerController extends Controller
                 \Storage::disk('public')->delete($customer->selfie_photo);
             }
             $validated['selfie_photo'] = $request->file('selfie_photo')->store('customers/selfie', 'public');
+        } elseif ($request->boolean('remove_selfie_photo')) {
+            if ($customer->selfie_photo) {
+                \Storage::disk('public')->delete($customer->selfie_photo);
+            }
+            $validated['selfie_photo'] = null;
         }
+
+        // Clean up boolean flags from validated data before updating
+        unset($validated['remove_ic_front_photo']);
+        unset($validated['remove_ic_back_photo']);
+        unset($validated['remove_selfie_photo']);
 
         $oldValues = $customer->only(['name', 'phone', 'address_line1']);
         $customer->update($validated);

@@ -8,6 +8,7 @@ import {
   setStorageItem,
   STORAGE_KEYS,
 } from "@/utils/localStorage";
+import { getStorageUrl, compressImage } from "@/utils/helpers";
 import { validateIC, validatePhone, validateEmail } from "@/utils/validators";
 import { formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
@@ -389,7 +390,7 @@ export default function CustomerCreate() {
   };
 
   // Handle image upload
-  const handleImageUpload = (e, type) => {
+  const handleImageUpload = async (e, type) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -405,54 +406,56 @@ export default function CustomerCreate() {
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    try {
+      // Compress the image before processing
+      const compressedFile = await compressImage(file, { maxWidth: 1600, maxHeight: 1600, quality: 0.8 });
+
+      // Convert to base64 for preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result;
+
+        switch (type) {
+          case "icFront":
+            setIcFrontImage(base64);
+            setIcFrontFile(compressedFile); // ADD: Store file object
+            setErrors((prev) => ({ ...prev, icFront: null }));
+            break;
+          case "icBack":
+            setIcBackImage(base64);
+            setIcBackFile(compressedFile); // ADD: Store file object
+            setErrors((prev) => ({ ...prev, icBack: null }));
+            break;
+          case "profile":
+            setProfilePhoto(base64);
+            setProfilePhotoFile(compressedFile); // ADD: Store file object
+            break;
+        }
+
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Image Uploaded",
+            message: `${type === "icFront"
+                ? "IC Front"
+                : type === "icBack"
+                  ? "IC Back"
+                  : "Profile Photo"
+              } uploaded and optimized successfully`,
+          })
+        );
+      };
+      reader.readAsDataURL(compressedFile);
+    } catch (error) {
+      console.error("Image processing error:", error);
       dispatch(
         addToast({
           type: "error",
-          title: "File Too Large",
-          message: "Image must be less than 5MB",
+          title: "Processing Failed",
+          message: "Could not optimize the image",
         })
       );
-      return;
     }
-
-    // Convert to base64 for preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result;
-
-      switch (type) {
-        case "icFront":
-          setIcFrontImage(base64);
-          setIcFrontFile(file); // ADD: Store file object
-          setErrors((prev) => ({ ...prev, icFront: null }));
-          break;
-        case "icBack":
-          setIcBackImage(base64);
-          setIcBackFile(file); // ADD: Store file object
-          setErrors((prev) => ({ ...prev, icBack: null }));
-          break;
-        case "profile":
-          setProfilePhoto(base64);
-          setProfilePhotoFile(file); // ADD: Store file object
-          break;
-      }
-
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Image Uploaded",
-          message: `${type === "icFront"
-              ? "IC Front"
-              : type === "icBack"
-                ? "IC Back"
-                : "Profile Photo"
-            } uploaded successfully`,
-        })
-      );
-    };
-    reader.readAsDataURL(file);
   };
   // Remove image
   const removeImage = (type) => {
