@@ -2116,7 +2116,7 @@ export default function NewPledge() {
 
   // Get safe/drawer names for display
   const getVaultName = (vaultId) =>
-    vaults.find((v) => v.id === vaultId)?.name || `Safe ${vaultId}`;
+    vaults.find((v) => v.id === vaultId)?.name || `Locker ${vaultId}`;
   const getBoxName = (boxId) => {
     const box = boxes.find((b) => b.id === boxId);
     return box?.name || box?.box_number
@@ -2724,13 +2724,13 @@ export default function NewPledge() {
               {/* Safe & Drawer Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Safe</label>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Locker</label>
                   {loadingVaults ? (
-                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg"><Loader2 className="w-4 h-4 animate-spin text-amber-500" /><span className="text-sm text-zinc-500">Loading safes...</span></div>
+                    <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg"><Loader2 className="w-4 h-4 animate-spin text-amber-500" /><span className="text-sm text-zinc-500">Loading lockers...</span></div>
                   ) : vaults.length === 0 ? (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No safes available. Please create safes in Settings.</p></div>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No lockers available. Please create lockers in Settings.</p></div>
                   ) : (
-                    <Select value={selectedVault || ""} onChange={(e) => handleVaultChange(e.target.value)} options={[{ value: "", label: "Select Safe..." }, ...vaults.map((v) => ({ value: v.id, label: v.name || `Safe ${v.code}` }))]} />
+                    <Select value={selectedVault || ""} onChange={(e) => handleVaultChange(e.target.value)} options={[{ value: "", label: "Select Locker..." }, ...vaults.map((v) => ({ value: v.id, label: v.name || `Locker ${v.code}` }))]} />
                   )}
                 </div>
                 <div>
@@ -2738,9 +2738,9 @@ export default function NewPledge() {
                   {loadingBoxes ? (
                     <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg"><Loader2 className="w-4 h-4 animate-spin text-amber-500" /><span className="text-sm text-zinc-500">Loading drawers...</span></div>
                   ) : !selectedVault ? (
-                    <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg"><p className="text-sm text-zinc-500">Select a safe first</p></div>
+                    <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg"><p className="text-sm text-zinc-500">Select a locker first</p></div>
                   ) : boxes.length === 0 ? (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No drawers in this safe.</p></div>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No drawers in this locker.</p></div>
                   ) : (
                       <Select
                       value={selectedBox || ""}

@@ -244,15 +244,15 @@ export default function InventoryList() {
   const formatLocation = (item) => {
     // API returns vault, box, slot as separate objects (not nested)
     if (item.vault && item.box && item.slot) {
-      const safeName = item.vault.name || item.vault.code;
+      const lockerName = item.vault.name || item.vault.code;
       const drawerLetter = item.box.box_number || item.box.name;
-      return `${safeName} → ${drawerLetter}${item.slot.slot_number}`;
+      return `${lockerName} → ${drawerLetter}${item.slot.slot_number}`;
     }
     // Fallback: check for nested structure (in case some APIs return it nested)
     if (item.slot?.box?.vault) {
-      const safeName = item.slot.box.vault.name || item.slot.box.vault.code;
+      const lockerName = item.slot.box.vault.name || item.slot.box.vault.code;
       const drawerLetter = item.slot.box.box_number || item.slot.box.name;
-      return `${safeName} → ${drawerLetter}${item.slot.slot_number}`;
+      return `${lockerName} → ${drawerLetter}${item.slot.slot_number}`;
     }
     if (item.storage_location) {
       return item.storage_location;
@@ -601,12 +601,12 @@ export default function InventoryList() {
               let storageLocation = "N/A";
               if (item.vault || item.box || item.slot) {
                 const vaultName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
-                const safeLetter = vaultName.trim().slice(-1);
+                const lockerLetter = vaultName.trim().slice(-1);
                 
                 const boxNum = typeof item.box === 'object' ? (item.box?.box_number || item.box?.name || "") : String(item.box || "");
                 const slotNum = typeof item.slot === 'object' ? (item.slot?.slot_number || item.slot?.name || "") : String(item.slot || "");
                 
-                storageLocation = `${safeLetter}-${boxNum}${slotNum}`;
+                storageLocation = `${lockerLetter}-${boxNum}${slotNum}`;
               }
 
               return `
@@ -863,12 +863,12 @@ export default function InventoryList() {
     let storageLocation = "N/A";
     if (item.vault || item.box || item.slot) {
       const vaultName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
-      const safeLetter = vaultName.trim().slice(-1);
+      const lockerLetter = vaultName.trim().slice(-1);
       
       const boxNum = typeof item.box === 'object' ? (item.box?.box_number || item.box?.name || "") : String(item.box || "");
       const slotNum = typeof item.slot === 'object' ? (item.slot?.slot_number || item.slot?.name || "") : String(item.slot || "");
       
-      storageLocation = `${safeLetter}-${boxNum}${slotNum}`;
+      storageLocation = `${lockerLetter}-${boxNum}${slotNum}`;
     }
 
     const printContent = `

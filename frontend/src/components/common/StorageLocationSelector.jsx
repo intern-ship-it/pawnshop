@@ -120,7 +120,7 @@ export default function StorageLocationSelector({
 
   // Format vault options
   const vaultOptions = [
-    { value: "", label: "Select Safe" },
+    { value: "", label: "Select Locker" },
     ...vaults.map((vault) => ({
       value: vault.id.toString(),
       label: `${vault.name || vault.code}${
@@ -164,7 +164,7 @@ export default function StorageLocationSelector({
           label={
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-amber-500" />
-              <span>Safe</span>
+              <span>Locker</span>
             </div>
           }
           value={value.vault_id}
@@ -229,7 +229,7 @@ export default function StorageLocationSelector({
           </p>
           <p className="text-sm font-semibold text-amber-900">
             {vaults.find((v) => v.id.toString() === value.vault_id)?.name ||
-              "Safe"}{" "}
+              "Locker"}{" "}
             →{" "}
             {boxes.find((b) => b.id.toString() === value.box_id)?.box_number ||
              boxes.find((b) => b.id.toString() === value.box_id)?.name || ""}

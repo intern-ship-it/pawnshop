@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 class FixStorageStructure extends Command
 {
     protected $signature = 'storage:fix-structure';
-    protected $description = 'Clean up old storage data and set up SAFE A/B structure';
+    protected $description = 'Clean up old storage data and set up LOCKER A/B structure';
 
     public function handle()
     {
@@ -41,7 +41,7 @@ class FixStorageStructure extends Command
             ]);
 
             // 3. Delete existing storage structure
-            $this->info('Deleting old slots, drawers, and safes...');
+            $this->info('Deleting old slots, drawers, and lockers...');
             Slot::query()->delete();
             Box::query()->delete();
             Vault::query()->delete();
@@ -51,8 +51,8 @@ class FixStorageStructure extends Command
             $branchId = $user ? $user->branch_id : 1;
 
             $safes = [
-                ['name' => 'SAFE A', 'code' => 'SAFE-A'],
-                ['name' => 'SAFE B', 'code' => 'SAFE-B'],
+                ['name' => 'LOCKER A', 'code' => 'LOCKER-A'],
+                ['name' => 'LOCKER B', 'code' => 'LOCKER-B'],
             ];
 
             $drawers = ['A', 'B', 'C', 'D'];

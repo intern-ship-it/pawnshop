@@ -133,7 +133,7 @@ const tabs = [
   { id: "stoneDeduction", label: "Stone Deduction", icon: Scale },
   { id: "handling", label: "Handling Charges", icon: Banknote },
   { id: "terms", label: "Terms & Conditions", icon: FileText },
-  { id: "racks", label: "Safes", icon: Grid3X3 },
+  { id: "racks", label: "Lockers", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "whatsappReminder", label: "WhatsApp Reminder", icon: MessageCircle, route: "/settings/whatsapp/reminders" },
   // { id: "printSettings", label: "Print Settings", icon: Printer }, // Hidden
@@ -1818,7 +1818,7 @@ function RacksTab({ settings, updateSettings }) {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-zinc-800 flex items-center gap-2">
           <Grid3X3 className="w-5 h-5 text-amber-500" />
-          Safe / Drawer Setup
+          Locker / Drawer Setup
         </h2>
         <Button
           variant="ghost"
@@ -1852,7 +1852,7 @@ function RacksTab({ settings, updateSettings }) {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="p-4 bg-zinc-50 rounded-xl">
-          <p className="text-sm text-zinc-500">Total Safes</p>
+          <p className="text-sm text-zinc-500">Total Lockers</p>
           <p className="text-2xl font-bold text-zinc-800">{vaults.length}</p>
         </div>
         <div className="p-4 bg-amber-50 rounded-xl">
@@ -1877,7 +1877,7 @@ function RacksTab({ settings, updateSettings }) {
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-medium text-zinc-800 flex items-center gap-2">
               <Package className="w-4 h-4 text-zinc-500" />
-              Safes
+              Lockers
             </h3>
             <Button
               variant="outline"
@@ -1885,20 +1885,20 @@ function RacksTab({ settings, updateSettings }) {
               leftIcon={Plus}
               onClick={() => setShowAddVaultModal(true)}
             >
-              Add Safe
+              Add Locker
             </Button>
           </div>
 
           {vaults.length === 0 ? (
             <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
               <Package className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
-              <p className="text-sm">No safes configured</p>
+              <p className="text-sm">No lockers configured</p>
               <Button
                 variant="link"
                 size="sm"
                 onClick={() => setShowAddVaultModal(true)}
               >
-                Add your first safe
+                Add your first locker
               </Button>
             </div>
           ) : (
@@ -1966,7 +1966,7 @@ function RacksTab({ settings, updateSettings }) {
                         title={
                           vault.boxes_count > 0
                             ? "Delete drawers first"
-                            : "Delete safe"
+                            : "Delete locker"
                         }
                       >
                         {deletingId === `vault-${vault.id}` ? (
@@ -2015,7 +2015,7 @@ function RacksTab({ settings, updateSettings }) {
           {!selectedVault ? (
             <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
               <ChevronRight className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
-              <p className="text-sm">Select a safe to manage drawers</p>
+              <p className="text-sm">Select a locker to manage drawers</p>
             </div>
           ) : isLoadingBoxes ? (
             <div className="text-center py-8">
@@ -2025,7 +2025,7 @@ function RacksTab({ settings, updateSettings }) {
           ) : boxes.length === 0 ? (
             <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-200 rounded-xl">
               <Grid3X3 className="w-10 h-10 mx-auto mb-2 text-zinc-300" />
-              <p className="text-sm">No drawers in this safe</p>
+              <p className="text-sm">No drawers in this locker</p>
               <Button
                 variant="link"
                 size="sm"
@@ -2121,12 +2121,12 @@ function RacksTab({ settings, updateSettings }) {
       <Modal
         isOpen={showAddVaultModal}
         onClose={() => setShowAddVaultModal(false)}
-        title="Add Safe"
+        title="Add Locker"
         size="sm"
       >
         <div className="p-5 space-y-4">
           <Input
-            label="Safe Name"
+            label="Locker Name"
             value={vaultFormData.name}
             onChange={(e) => {
               const name = e.target.value;
@@ -2140,7 +2140,7 @@ function RacksTab({ settings, updateSettings }) {
                 code: autoCode,
               });
             }}
-            placeholder="e.g. Safe Room, High Value Storage"
+            placeholder="e.g. Locker Room, High Value Storage"
             required
           />
           <Input
@@ -2209,7 +2209,7 @@ function RacksTab({ settings, updateSettings }) {
               loading={isAdding}
               disabled={!vaultFormData.name}
             >
-              Add Safe
+              Add Locker
             </Button>
           </div>
         </div>
@@ -2224,13 +2224,13 @@ function RacksTab({ settings, updateSettings }) {
       >
         <div className="p-5 space-y-4">
           <Select
-            label="Select Safe"
+            label="Select Locker"
             value={boxFormData.vault_id || selectedVault?.id || ""}
             onChange={(e) =>
               setBoxFormData({ ...boxFormData, vault_id: e.target.value })
             }
             options={[
-              { value: "", label: "Select safe..." },
+              { value: "", label: "Select locker..." },
               ...vaults.map((v) => ({
                 value: v.id,
                 label: `${v.name} (${v.boxes_count} drawers, ${v.total_slots || 0} slots)`,

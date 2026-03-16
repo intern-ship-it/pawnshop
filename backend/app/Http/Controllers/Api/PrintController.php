@@ -143,10 +143,10 @@ class PrintController extends Controller
 
         $storageLocation = '';
         if ($pledgeItem->vault && $pledgeItem->box && $pledgeItem->slot) {
-            $safeLetter = substr(trim($pledgeItem->vault->name), -1);
+            $lockerLetter = substr(trim($pledgeItem->vault->name), -1);
             $drawerLetter = $pledgeItem->box->box_number;
             $slotNumber = $pledgeItem->slot->slot_number;
-            $storageLocation = "{$safeLetter}-{$drawerLetter}{$slotNumber}";
+            $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotNumber}";
         }
 
         return $this->success([
@@ -190,10 +190,10 @@ class PrintController extends Controller
         $storageLocation = '';
         $firstItem = $pledge->items->first();
         if ($firstItem && $firstItem->vault && $firstItem->box && $firstItem->slot) {
-            $safeLetter = substr(trim($firstItem->vault->name), -1);
+            $lockerLetter = substr(trim($firstItem->vault->name), -1);
             $drawerLetter = $firstItem->box->box_number;
             $slotNumber = $firstItem->slot->slot_number;
-            $storageLocation = "{$safeLetter}-{$drawerLetter}{$slotNumber}";
+            $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotNumber}";
         }
 
         $items = [[
@@ -354,10 +354,10 @@ class PrintController extends Controller
             // Build storage location string
             $storageLocation = '';
             if ($item->vault && $item->box && $item->slot) {
-                $safeLetter = substr(trim($item->vault->name), -1);
+                $lockerLetter = substr(trim($item->vault->name), -1);
                 $drawerLetter = $item->box->box_number;
                 $slotNumber = $item->slot->slot_number;
-                $storageLocation = "{$safeLetter}-{$drawerLetter}{$slotNumber}";
+                $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotNumber}";
             }
 
             $barcodeValue = $item->pledge->pledge_no;

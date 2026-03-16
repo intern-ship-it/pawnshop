@@ -478,7 +478,7 @@ export default function RackMap({ embedded = false }) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Safe Map - ${currentVault?.name || "All Safes"}</title>
+        <title>Locker Map - ${currentVault?.name || "All Lockers"}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; padding: 20px; }
@@ -511,14 +511,14 @@ export default function RackMap({ embedded = false }) {
       </head>
       <body>
         <div class="header">
-          <h1>🗄️ Safe Map</h1>
+          <h1>🗄️ Locker Map</h1>
           <p>Printed on: ${new Date().toLocaleString("en-MY")}</p>
         </div>
         
         <div class="stats">
           <div class="stat">
             <div class="stat-value">${overallStats.totalVaults}</div>
-            <div class="stat-label">Total Safes</div>
+            <div class="stat-label">Total Lockers</div>
           </div>
           <div class="stat">
             <div class="stat-value">${overallStats.totalItems}</div>
@@ -592,7 +592,7 @@ export default function RackMap({ embedded = false }) {
               .join("")}
           </div>
         `
-            : '<p style="text-align: center; color: #999;">No safe selected</p>'
+            : '<p style="text-align: center; color: #999;">No locker selected</p>'
         }
 
         <div class="legend">
@@ -632,7 +632,7 @@ export default function RackMap({ embedded = false }) {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
-          <p className="text-zinc-500">Loading safe map...</p>
+          <p className="text-zinc-500">Loading locker map...</p>
         </div>
       </div>
     );
@@ -648,7 +648,7 @@ export default function RackMap({ embedded = false }) {
               <Grid3X3 className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Total Safes</p>
+              <p className="text-xs text-zinc-500">Total Lockers</p>
               <p className="text-xl font-bold text-zinc-800">
                 {overallStats.totalVaults}
               </p>
@@ -719,7 +719,7 @@ export default function RackMap({ embedded = false }) {
           {/* Vaults */}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-zinc-800">Safes</h3>
+              <h3 className="font-semibold text-zinc-800">Lockers</h3>
               <Button
                 variant="ghost"
                 size="sm"
@@ -732,14 +732,14 @@ export default function RackMap({ embedded = false }) {
             {vaults.length === 0 ? (
               <div className="text-center py-8">
                 <Grid3X3 className="w-12 h-12 text-zinc-300 mx-auto mb-2" />
-                <p className="text-sm text-zinc-500">No safes configured</p>
+                <p className="text-sm text-zinc-500">No lockers configured</p>
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3"
                   onClick={() => setShowAddVaultModal(true)}
                 >
-                  Add Safe
+                  Add Locker
                 </Button>
               </div>
             ) : (
@@ -895,7 +895,7 @@ export default function RackMap({ embedded = false }) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-lg font-semibold text-zinc-800">
-                  {currentVault?.name || "Select a Safe"}{" "}
+                  {currentVault?.name || "Select a Locker"}{" "}
                   {currentBox ? `→ ${currentBox.name}` : ""}
                 </h3>
                 {currentBox && (
@@ -979,7 +979,7 @@ export default function RackMap({ embedded = false }) {
               <div className="text-center py-12">
                 <Grid3X3 className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
                 <p className="text-zinc-500">
-                  Select a safe and drawer to view slots
+                  Select a locker and drawer to view slots
                 </p>
               </div>
             )}
@@ -1283,19 +1283,19 @@ export default function RackMap({ embedded = false }) {
       <Modal
         isOpen={showAddVaultModal}
         onClose={() => setShowAddVaultModal(false)}
-        title="Add New Safe"
+        title="Add New Locker"
         size="sm"
       >
         <div className="p-5 space-y-4">
           <Input
-            label="Safe Name"
-            placeholder="e.g., Safe Room, Safe A"
+            label="Locker Name"
+            placeholder="e.g., Locker Room, Locker A"
             value={newVaultName}
             onChange={(e) => setNewVaultName(e.target.value)}
           />
           <Input
-            label="Safe Code"
-            placeholder="e.g., SAFE-01, SAFE-A"
+            label="Locker Code"
+            placeholder="e.g., LOCKER-01, LOCKER-A"
             value={newVaultCode}
             onChange={(e) => setNewVaultCode(e.target.value)}
             helperText="Unique identifier code (required)"
@@ -1321,7 +1321,7 @@ export default function RackMap({ embedded = false }) {
               onClick={handleAddVault}
               loading={isSaving}
             >
-              Add Safe
+              Add Locker
             </Button>
           </div>
         </div>
@@ -1383,7 +1383,7 @@ export default function RackMap({ embedded = false }) {
 
   return (
     <PageWrapper
-      title="Safe Map"
+      title="Locker Map"
       subtitle="Visual storage location management"
       actions={
         <div className="flex items-center gap-2">
@@ -1395,7 +1395,7 @@ export default function RackMap({ embedded = false }) {
             leftIcon={Plus}
             onClick={() => setShowAddVaultModal(true)}
           >
-            Add Safe
+            Add Locker
           </Button>
         </div>
       }
