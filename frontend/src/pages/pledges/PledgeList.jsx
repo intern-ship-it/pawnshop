@@ -596,7 +596,7 @@ export default function PledgeList() {
                       ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
                     </div>
                     <div class="footer-row">
-                      ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
+                      ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
                       <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                     </div>
                   </div>

@@ -1053,7 +1053,7 @@ export default function PrintTestPage() {
           ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
         </div>
         <div class="footer-row">
-          ${item.storage_location ? `<div class="storage-loc">📍 ${item.storage_location}</div>` : `<div>${item.purity || "916"}</div>`}
+          ${item.storage_location ? `<div class="storage-loc">${item.storage_location}</div>` : `<div>${item.purity || "916"}</div>`}
           <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
         </div>
       </div>

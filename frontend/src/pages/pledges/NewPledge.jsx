@@ -1537,7 +1537,7 @@ export default function NewPledge() {
               ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
             </div>
             <div class="footer-row">
-              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${purityName}</div>`}
+              ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purityName}</div>`}
               <div>${parseFloat(totalWeight).toFixed(2)}g</div>
             </div>
           </div>

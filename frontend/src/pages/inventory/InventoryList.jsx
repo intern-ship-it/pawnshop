@@ -619,7 +619,7 @@ export default function InventoryList() {
               <svg id="barcode-${index}"></svg>
             </div>
             <div class="footer-row">
-              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
+              ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
               <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
             </div>
           </div>
@@ -1007,7 +1007,7 @@ export default function InventoryList() {
               <svg id="single-barcode"></svg>
             </div>
             <div class="footer-row">
-              ${storageLocation ? `<div class="storage-loc">📍 ${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
+              ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
               <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
             </div>
           </div>
