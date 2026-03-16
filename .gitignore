@@ -116,4 +116,7 @@ backend/public/assets/
 backend/public/build/
 backend/public/*.js
 backend/public/*.css
+backend/public/index.html
+backend/public/version.json
+backend/public/vite.svg
 !backend/public/.htaccess
