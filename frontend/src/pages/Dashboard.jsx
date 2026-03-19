@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { motion } from "framer-motion";
 import { useAppSelector, useAppDispatch } from "@/app/hooks";
 import {
   fetchAllDashboardData,
@@ -393,13 +394,87 @@ export default function Dashboard() {
 
       {/* Summary Cards - ENHANCED with animated counting */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <EnhancedSummaryCard
-          title="Total Active Pledges"
-          value={summary?.totalPledges || 0}
-          icon={Package}
-          preset="light"
-          delay={0}
-        />
+        {/* Total Pledges with Status Breakdown */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0, duration: 0.4 }}
+          whileHover={{
+            y: -4,
+            scale: 1.02,
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+          }}
+          onClick={() => navigate("/pledges")}
+          className="bg-gradient-to-br from-amber-50/50 via-white to-amber-50/30 rounded-xl p-5 relative overflow-hidden cursor-pointer border border-amber-200/50"
+        >
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-3">
+              <Package className="w-6 h-6 text-amber-600" />
+              <span className="text-sm font-semibold uppercase tracking-wider text-zinc-600">
+                Pledge Overview
+              </span>
+            </div>
+
+            {/* Total count */}
+            <div className="flex items-baseline gap-2 mb-4">
+              <p className="text-4xl font-extrabold tabular-nums tracking-tight text-zinc-900">
+                {summary?.pledgeBreakdown?.total || summary?.totalPledges || 0}
+              </p>
+              <span className="text-sm text-zinc-500 font-medium">total pledges</span>
+            </div>
+
+            {/* Status breakdown */}
+            {summary?.pledgeBreakdown && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                {summary.pledgeBreakdown.active > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span className="text-zinc-600">Active</span>
+                    </div>
+                    <span className="font-bold text-emerald-600">{summary.pledgeBreakdown.active}</span>
+                  </div>
+                )}
+                {summary.pledgeBreakdown.redeemed > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span className="text-zinc-600">Redeemed</span>
+                    </div>
+                    <span className="font-bold text-blue-600">{summary.pledgeBreakdown.redeemed}</span>
+                  </div>
+                )}
+                {summary.pledgeBreakdown.cancelled > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-zinc-400" />
+                      <span className="text-zinc-600">Cancelled</span>
+                    </div>
+                    <span className="font-bold text-zinc-500">{summary.pledgeBreakdown.cancelled}</span>
+                  </div>
+                )}
+                {summary.pledgeBreakdown.forfeited > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="text-zinc-600">Forfeited</span>
+                    </div>
+                    <span className="font-bold text-amber-600">{summary.pledgeBreakdown.forfeited}</span>
+                  </div>
+                )}
+                {summary.pledgeBreakdown.auctioned > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" />
+                      <span className="text-zinc-600">Auctioned</span>
+                    </div>
+                    <span className="font-bold text-purple-600">{summary.pledgeBreakdown.auctioned}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </motion.div>
 
         <EnhancedSummaryCard
           title="Total Outstanding"

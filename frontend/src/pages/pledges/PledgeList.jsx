@@ -95,7 +95,7 @@ export default function PledgeList() {
         setLoading(true);
       }
 
-      const response = await pledgeService.getAll();
+      const response = await pledgeService.getAll({ per_page: 9999 });
       const data = response.data?.data || response.data || [];
 
       // Transform snake_case to camelCase and add computed fields

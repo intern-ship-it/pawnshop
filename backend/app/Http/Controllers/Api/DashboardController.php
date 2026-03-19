@@ -38,10 +38,20 @@ class DashboardController extends Controller
             ->selectRaw('COUNT(*) as count, COALESCE(SUM(total_payable), 0) as total')
             ->first();
 
+        // Pledge status breakdown
+        $pledgeBreakdown = Pledge::where('branch_id', $branchId)
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN status = 'redeemed' THEN 1 ELSE 0 END) as redeemed,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
+                SUM(CASE WHEN status = 'forfeited' THEN 1 ELSE 0 END) as forfeited,
+                SUM(CASE WHEN status = 'auctioned' THEN 1 ELSE 0 END) as auctioned
+            ")
+            ->first();
+
         // Active pledges
-        $activePledges = Pledge::where('branch_id', $branchId)
-            ->where('status', 'active')
-            ->count();
+        $activePledges = (int) $pledgeBreakdown->active;
 
         // Overdue pledges
         $overduePledges = Pledge::where('branch_id', $branchId)
@@ -70,6 +80,14 @@ class DashboardController extends Controller
             'active_pledges' => $activePledges,
             'overdue_pledges' => $overduePledges,
             'total_customers' => $totalCustomers,
+            'pledge_breakdown' => [
+                'total' => (int) $pledgeBreakdown->total,
+                'active' => (int) $pledgeBreakdown->active,
+                'redeemed' => (int) $pledgeBreakdown->redeemed,
+                'cancelled' => (int) $pledgeBreakdown->cancelled,
+                'forfeited' => (int) $pledgeBreakdown->forfeited,
+                'auctioned' => (int) $pledgeBreakdown->auctioned,
+            ],
         ]);
     }
 

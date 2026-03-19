@@ -39,6 +39,7 @@ export const fetchDashboardSummary = createAsyncThunk(
           (data.today?.redemptions?.total || 0),
         monthlyGrowth: data.monthly_growth || 0,
         today: data.today || {},
+        pledgeBreakdown: data.pledge_breakdown || null,
       }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch dashboard summary')
