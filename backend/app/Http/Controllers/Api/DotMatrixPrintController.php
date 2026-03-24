@@ -2592,7 +2592,6 @@ HTML;
     padding: 3mm 5mm;
     font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
     background: #fff !important; overflow: hidden; box-sizing: border-box;
-    page-break-after: always; break-after: page;
 }
 .pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2625,7 +2624,7 @@ HTML;
 
 /* Items split - left items + right barcode (A5) */
 .pp-items-split { display: flex; flex: 1; min-height: 26mm; }
-.pp-barcode-area { width: 81mm; min-width: 45mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; flex-shrink: 0; }
+.pp-barcode-area { width: 81mm; min-width: 45mm; height: 32mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; margin-bottom: 3mm; flex-shrink: 0; }
 .pp-barcode-space { width: 90%; height: 26mm; border: 1px solid #ccc; }
 .pp-barcode-lbl { font-size: 5px; color: #999; margin-top: 0.5mm; }
 
@@ -2723,7 +2722,7 @@ HTML;
 .pp-ftr-weight-area { font-size: 10px; font-weight: bold; min-height: 5mm; }
 
 @media print {
-    .pp-front { page-break-after: always; break-after: page; }
+    /* page-break-after removed: no back page since client pre-prints it */
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 </style>
@@ -3096,6 +3095,9 @@ HTML;
     height: 148mm;
     margin: 0;
     padding: 0;
+    overflow: hidden;
+    page-break-inside: avoid;
+    page-break-after: avoid;
 }
 .pp-blank-layer {
     position: absolute;
@@ -3104,6 +3106,7 @@ HTML;
     width: 100%;
     height: 100%;
     z-index: 1;
+    overflow: hidden;
 }
 .pp-data-layer {
     position: absolute;
@@ -3112,10 +3115,13 @@ HTML;
     width: 100%;
     height: 100%;
     z-index: 2;
+    overflow: hidden;
 }
 @media print {
-    .pp-combined-container { page-break-after: always; }
+    /* Prevent page breaks - single page only */
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+    .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
 }
 </style>
 
@@ -3133,7 +3139,9 @@ HTML;
 
             // Back page is blank for data (redeemer info filled at redemption)
             // Generate back page (Terms & Conditions)
-            $backHtml = $this->generatePrePrintedBackPage($settings);
+            // COMMENTED OUT: Back page will be pre-printed by client
+            // $backHtml = $this->generatePrePrintedBackPage($settings);
+            $backHtml = '';
 
             // Record print
             $pledge->update([
@@ -4158,6 +4166,9 @@ HTML;
     height: 148mm;
     margin: 0;
     padding: 0;
+    overflow: hidden;
+    page-break-inside: avoid;
+    page-break-after: avoid;
 }
 .pp-blank-layer {
     position: absolute;
@@ -4166,6 +4177,7 @@ HTML;
     width: 100%;
     height: 100%;
     z-index: 1;
+    overflow: hidden;
 }
 .pp-data-layer {
     position: absolute;
@@ -4174,10 +4186,13 @@ HTML;
     width: 100%;
     height: 100%;
     z-index: 2;
+    overflow: hidden;
 }
 @media print {
-    .pp-combined-container { page-break-after: always; }
+    /* Prevent page breaks - single page only */
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+    .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
 }
 </style>
 
@@ -4193,7 +4208,9 @@ HTML;
 
             return $this->success([
                 'front_html' => $combinedHtml,
-                'back_html' => $this->generatePrePrintedBackPage($settings),
+                // COMMENTED OUT: Back page will be pre-printed by client
+                // 'back_html' => $this->generatePrePrintedBackPage($settings),
+                'back_html' => '',
                 'renewal_no' => $renewal->renewal_no,
                 'pledge_no' => $pledge->pledge_no,
                 'orientation' => 'landscape',
@@ -4516,6 +4533,9 @@ HTML;
     height: 148mm;
     margin: 0;
     padding: 0;
+    overflow: hidden;
+    page-break-inside: avoid;
+    page-break-after: avoid;
 }
 .pp-blank-layer {
     position: absolute;
@@ -4524,6 +4544,7 @@ HTML;
     width: 100%;
     height: 100%;
     z-index: 1;
+    overflow: hidden;
 }
 .pp-data-layer {
     position: absolute;
@@ -4532,10 +4553,13 @@ HTML;
     width: 100%;
     height: 100%;
     z-index: 2;
+    overflow: hidden;
 }
 @media print {
-    .pp-combined-container { page-break-after: always; }
+    /* Prevent page breaks - single page only */
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+    .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
 }
 </style>
 
