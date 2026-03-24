@@ -1445,6 +1445,25 @@ export default function RenewalScreen() {
                         const customerPhotoUrl = item.customer?.selfie_photo
                           ? getStorageUrl(item.customer.selfie_photo)
                           : null;
+                        
+                        // Calculate specific status
+                        const now = new Date();
+                        now.setHours(0, 0, 0, 0);
+                        const due = new Date(item.due_date);
+                        due.setHours(0, 0, 0, 0);
+                        const daysUntilDue = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+                        
+                        let statusVariant = "success";
+                        let statusLabel = "Active";
+                        
+                        if (isOverdue) {
+                          statusVariant = "error";
+                          statusLabel = "Overdue";
+                        } else if (daysUntilDue <= 7) {
+                          statusVariant = "warning";
+                          statusLabel = "Due";
+                        }
+
                         return (
                           <tr
                             key={item.id}
@@ -1493,10 +1512,10 @@ export default function RenewalScreen() {
                             </td>
                             <td className="py-3 px-2 text-center">
                               <Badge
-                                variant={isOverdue ? "error" : "warning"}
+                                variant={statusVariant}
                                 size="sm"
                               >
-                                {isOverdue ? "Overdue" : "Due"}
+                                {statusLabel}
                               </Badge>
                             </td>
                             <td className="py-3 px-2 text-center">
