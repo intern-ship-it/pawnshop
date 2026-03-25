@@ -2412,7 +2412,7 @@ export default function PrintTestPage() {
                     <div class="pp-phone-box"><span class="pp-phone-icon">☎</span><div class="pp-phone-nums">03-12345678</div></div>
                     <div class="pp-sejak"><span class="pp-sejak-lbl">SEJAK</span><span class="pp-sejak-yr">1966</span></div>
                   </div>
-                  <div class="pp-hrs-box"><div class="pp-hrs-title">BUKA 7 HARI</div><div class="pp-hrs-line">ISNIN - AHAD : 8.30AM - 6.00PM</div></div>
+                  <div class="pp-hrs-box"><div class="pp-hrs-title">BUKA 7 HARI</div><div class="pp-hrs-line">ISNIN - AHAD : 9.00AM - 6.00PM</div></div>
                 </div>
               </div>
               <div class="pp-mid">

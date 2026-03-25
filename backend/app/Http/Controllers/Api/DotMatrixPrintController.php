@@ -644,7 +644,7 @@ HTML;
             'phone' => $settingsMap['phone'] ?? $branch->phone ?? '03-12345678',
             'phone2' => $settingsMap['phone2'] ?? '',
             'fax' => $settingsMap['fax'] ?? '',
-            'business_hours' => $settingsMap['business_hours'] ?? '8.30AM - 6.00PM',
+            'business_hours' => $settingsMap['business_hours'] ?? '9.00AM - 6.00PM',
             'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
             'closed_days' => $settingsMap['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA',
             'handling_fee' => $settingsMap['receipt_handling_fee'] ?? $settingsMap['handling_fee'] ?? '50 SEN',
@@ -1733,7 +1733,7 @@ HTML;
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                 <div class="pp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
-                <div class="pp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
+                <div class="pp-kadar-ln">1.0% Sebulan : Dalam tempoh 6 bulan</div>
                 <div class="pp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
             </div>
         </div>
@@ -2249,8 +2249,8 @@ HTML;
 .ppo-barcode {
     position: absolute;
     top: 36mm;
-    left: 88mm;
-    width: 56mm;
+    left: 84mm;
+    width: 104mm;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2272,7 +2272,7 @@ HTML;
     
     <!-- BARCODE -->
     <div class="ppo-barcode">
-        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:18mm;width:auto;max-width:55mm;">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:16mm;width:auto;max-width:25mm;">
         <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
     </div>
     
@@ -2627,19 +2627,19 @@ HTML;
 .pp-sejak { background: #d42027; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }
 .pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; }
 .pp-sejak-yr { font-size: 11px; font-weight: bold; line-height: 1; }
-.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 48mm; text-align: center; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 45.4mm; text-align: center; }
 .pp-hrs-title { font-size: 12px; font-weight: bold; text-align: center; }
 .pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
 
 /* Middle section */
 .pp-mid { display: flex; border: 1px solid #1a4a7a; }
-.pp-items-sec { flex: 1; padding: 1.5mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
+.pp-items-sec { flex: 1; padding: 1.5mm 1mm 1mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
 .pp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
 .pp-items-area { min-height: 16mm; padding-left: 2mm; flex: 1; }
 
 /* Items split - left items + right barcode (A5) */
 .pp-items-split { display: flex; flex: 1; min-height: 26mm; }
-.pp-barcode-area { width: 81mm; min-width: 45mm; height: 32mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; margin-bottom: 3mm; flex-shrink: 0; }
+.pp-barcode-area { width: 42mm; min-width: 45mm; height: 32mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; margin-bottom: 3mm; flex-shrink: 0; }
 .pp-barcode-space { width: 90%; height: 26mm; border: 1px solid #ccc; }
 .pp-barcode-lbl { font-size: 5px; color: #999; margin-top: 0.5mm; }
 
@@ -2789,7 +2789,7 @@ HTMLSTART
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                 <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.5% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.0% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
                 <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
             </div>
         </div>
@@ -3461,8 +3461,8 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 .ppo-barcode {
     position: absolute;
     top: 38mm;
-    left: 88mm;
-    width: 56mm;
+    left: 84mm;
+    width: 104mm;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -3676,7 +3676,7 @@ HTML;
             <div class="ppp-kadar">
                 <div class="ppp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                 <div class="ppp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
-                <div class="ppp-kadar-ln">1.5% Sebulan : Dalam tempoh 6 bulan</div>
+                <div class="ppp-kadar-ln">1.0% Sebulan : Dalam tempoh 6 bulan</div>
                 <div class="ppp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
             </div>
         </div>
