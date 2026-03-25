@@ -1015,7 +1015,22 @@ HTML;
     private function getCitizenship($customer): string
     {
         $n = strtoupper($customer->nationality ?? '');
-        return str_contains($n, 'MALAYSIA') ? 'MALAYSIA' : ($n ?: 'WARGANEGARA');
+        $citizenship = str_contains($n, 'MALAYSIA') ? 'MALAYSIA' : ($n ?: 'WARGANEGARA');
+        
+        // Append race if available (e.g., MALAYSIA (INDIA))
+        $race = strtoupper(trim($customer->race ?? ''));
+        if ($race) {
+            // Map race names to Malay display
+            $raceMap = [
+                'INDIAN' => 'INDIA',
+                'MALAY' => 'MELAYU',
+                'CHINESE' => 'CINA',
+            ];
+            $raceDisplay = $raceMap[$race] ?? $race;
+            $citizenship .= ' (' . $raceDisplay . ')';
+        }
+        
+        return $citizenship;
     }
     private function getRace($customer): string
     {

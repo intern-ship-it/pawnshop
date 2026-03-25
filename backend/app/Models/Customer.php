@@ -21,6 +21,7 @@ class Customer extends Model
         'date_of_birth',
         'age',
         'nationality',
+        'race',
         'occupation',
         'phone',
         'country_code',

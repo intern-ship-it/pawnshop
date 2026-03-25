@@ -58,6 +58,8 @@ export default function CustomerCreate() {
     state: "",
     postcode: "",
     nationality: "Malaysian",
+    race: "",
+    raceOther: "",
     dateOfBirth: "",
     gender: "",
     occupation: "",
@@ -95,6 +97,14 @@ export default function CustomerCreate() {
     "Chinese",
     "Bangladeshi",
     "Myanmar",
+    "Other",
+  ];
+
+  // Race options
+  const raceOptions = [
+    "Indian",
+    "Malay",
+    "Chinese",
     "Other",
   ];
   // Image states
@@ -584,6 +594,7 @@ export default function CustomerCreate() {
         state: formData.state || null,
         postcode: formData.postcode.trim() || null,
         nationality: formData.nationality || "Malaysian",
+        race: formData.race === "Other" ? (formData.raceOther.trim() || "Other") : (formData.race || null),
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
         occupation: formData.occupation.trim() || null,
@@ -942,6 +953,36 @@ export default function CustomerCreate() {
                       ]}
                     />
                   </div>
+
+                  {/* Race */}
+                  <div>
+                    <Select
+                      label="Race"
+                      name="race"
+                      value={formData.race}
+                      onChange={handleChange}
+                      options={[
+                        { value: "", label: "Select Race" },
+                        ...raceOptions.map((r) => ({
+                          value: r,
+                          label: r,
+                        })),
+                      ]}
+                    />
+                  </div>
+
+                  {/* Race Other - Manual Input */}
+                  {formData.race === "Other" && (
+                    <div>
+                      <Input
+                        label="Specify Race"
+                        name="raceOther"
+                        placeholder="Enter race"
+                        value={formData.raceOther}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>

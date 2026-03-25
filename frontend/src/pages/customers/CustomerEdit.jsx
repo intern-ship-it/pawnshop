@@ -70,6 +70,14 @@ const nationalityOptions = [
   "Other",
 ];
 
+// Race options
+const raceOptions = [
+  "Indian",
+  "Malay",
+  "Chinese",
+  "Other",
+];
+
 export default function CustomerEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -97,6 +105,8 @@ export default function CustomerEdit() {
     state: "",
     postcode: "",
     nationality: "Malaysian",
+    race: "",
+    raceOther: "",
     dateOfBirth: "",
     gender: "",
     occupation: "",
@@ -147,6 +157,8 @@ export default function CustomerEdit() {
           state: customer.state || "",
           postcode: customer.postcode || "",
           nationality: customer.nationality || "Malaysian",
+          race: ["Indian", "Malay", "Chinese"].includes(customer.race) ? customer.race : (customer.race ? "Other" : ""),
+          raceOther: ["Indian", "Malay", "Chinese"].includes(customer.race) ? "" : (customer.race || ""),
           dateOfBirth: customer.date_of_birth
             ? customer.date_of_birth.split("T")[0]
             : "",
@@ -371,6 +383,8 @@ export default function CustomerEdit() {
       state: originalCustomer.state || "",
       postcode: originalCustomer.postcode || "",
       nationality: originalCustomer.nationality || "Malaysian",
+      race: ["Indian", "Malay", "Chinese"].includes(originalCustomer.race) ? originalCustomer.race : (originalCustomer.race ? "Other" : ""),
+      raceOther: ["Indian", "Malay", "Chinese"].includes(originalCustomer.race) ? "" : (originalCustomer.race || ""),
       dateOfBirth: originalCustomer.date_of_birth
         ? originalCustomer.date_of_birth.split("T")[0]
         : "",
@@ -460,6 +474,7 @@ export default function CustomerEdit() {
         state: formData.state || null,
         postcode: formData.postcode.trim() || null,
         nationality: formData.nationality || "Malaysian",
+        race: formData.race === "Other" ? (formData.raceOther.trim() || "Other") : (formData.race || null),
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
         occupation: formData.occupation.trim() || null,
@@ -819,6 +834,36 @@ export default function CustomerEdit() {
                       ]}
                     />
                   </div>
+
+                  {/* Race */}
+                  <div>
+                    <Select
+                      label="Race"
+                      name="race"
+                      value={formData.race}
+                      onChange={handleChange}
+                      options={[
+                        { value: "", label: "Select Race" },
+                        ...raceOptions.map((r) => ({
+                          value: r,
+                          label: r,
+                        })),
+                      ]}
+                    />
+                  </div>
+
+                  {/* Race Other - Manual Input */}
+                  {formData.race === "Other" && (
+                    <div>
+                      <Input
+                        label="Specify Race"
+                        name="raceOther"
+                        placeholder="Enter race"
+                        value={formData.raceOther}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>

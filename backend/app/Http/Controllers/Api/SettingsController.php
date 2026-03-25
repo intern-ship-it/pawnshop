@@ -483,9 +483,11 @@ class SettingsController extends Controller
 
     public function updateInterestRate(Request $request, InterestRate $interestRate): JsonResponse
     {
-        $branchId = $request->user()->branch_id;
+        $user = $request->user();
+        $isSuperAdmin = $user->isSuperAdmin();
+        $branchId = $user->branch_id;
 
-        if ($interestRate->branch_id && $interestRate->branch_id !== $branchId) {
+        if (!$isSuperAdmin && !empty($interestRate->branch_id) && $interestRate->branch_id != $branchId) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -497,8 +499,8 @@ class SettingsController extends Controller
             'is_active' => 'sometimes|boolean',
         ]);
 
-        // If updating global rate, create branch-specific copy
-        if (!$interestRate->branch_id) {
+        // If updating global rate AND user is not super admin, create branch-specific copy
+        if (empty($interestRate->branch_id) && !$isSuperAdmin) {
             $interestRate = InterestRate::create(array_merge(
                 $interestRate->toArray(),
                 $validated,
@@ -513,9 +515,11 @@ class SettingsController extends Controller
 
     public function deleteInterestRate(InterestRate $interestRate): JsonResponse
     {
-        $branchId = request()->user()->branch_id;
+        $user = request()->user();
+        $isSuperAdmin = $user->isSuperAdmin();
+        $branchId = $user->branch_id;
 
-        if ($interestRate->branch_id !== $branchId) {
+        if (!$isSuperAdmin && $interestRate->branch_id != $branchId) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -574,9 +578,11 @@ class SettingsController extends Controller
 
     public function updateTermsCondition(Request $request, TermsCondition $termsCondition): JsonResponse
     {
-        $branchId = $request->user()->branch_id;
+        $user = $request->user();
+        $isSuperAdmin = $user->isSuperAdmin();
+        $branchId = $user->branch_id;
 
-        if ($termsCondition->branch_id && $termsCondition->branch_id !== $branchId) {
+        if (!$isSuperAdmin && !empty($termsCondition->branch_id) && $termsCondition->branch_id != $branchId) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -592,8 +598,8 @@ class SettingsController extends Controller
             'sort_order' => 'nullable|integer|min:0',
         ]);
 
-        // If updating global T&C, create branch-specific copy
-        if (!$termsCondition->branch_id) {
+        // If updating global T&C AND user is not super admin, create branch-specific copy
+        if (empty($termsCondition->branch_id) && !$isSuperAdmin) {
             $termsCondition = TermsCondition::create(array_merge(
                 $termsCondition->toArray(),
                 $validated,
@@ -609,9 +615,11 @@ class SettingsController extends Controller
 
     public function deleteTermsCondition(TermsCondition $termsCondition): JsonResponse
     {
-        $branchId = request()->user()->branch_id;
+        $user = request()->user();
+        $isSuperAdmin = $user->isSuperAdmin();
+        $branchId = $user->branch_id;
 
-        if ($termsCondition->branch_id !== $branchId) {
+        if (!$isSuperAdmin && $termsCondition->branch_id != $branchId) {
             return $this->error('Unauthorized', 403);
         }
 
