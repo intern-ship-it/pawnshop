@@ -90,8 +90,8 @@ class TermsConditionSeeder extends Seeder
             [
                 'activity_type' => 'pledge',
                 'title' => 'Pelupusan Sandaran',
-                'content_ms' => 'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu: (a) Jika dipajak gadai untuk wang berjumlah dua ratus ringgit dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu. (b) Jika dipajak gadai untuk wang berjumlah lebih daripada dua ratus ringgit hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
-                'content_en' => 'If a pledge is not redeemed within six months: (a) If pledged for two hundred ringgit or below, it shall become the property of the pawnbroker. (b) If pledged for more than two hundred ringgit, it shall be sold by a licensed auctioneer according to the Auction Act.',
+                'content_ms' => "Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:\n(a) Jika dipajak gadai untuk wang berjumlah dua ratus ringgit dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.\n(b) Jika dipajak gadai untuk wang berjumlah lebih daripada dua ratus ringgit hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.",
+                'content_en' => "If a pledge is not redeemed within six months:\n(a) If pledged for two hundred ringgit or below, it shall become the property of the pawnbroker.\n(b) If pledged for more than two hundred ringgit, it shall be sold by a licensed auctioneer according to the Auction Act.",
                 'print_with_receipt' => true,
                 'require_consent' => true,
                 'show_on_screen' => true,

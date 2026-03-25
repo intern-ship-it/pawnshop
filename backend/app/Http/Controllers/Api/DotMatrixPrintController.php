@@ -2940,7 +2940,7 @@ HTML;
 }
 .pp-terms-h { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 3mm; }
 .pp-terms-content { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-.pp-tm { font-size: 10.5px; line-height: 1.45; text-align: justify; font-weight: 600;}
+.pp-tm { font-size: 10.5px; line-height: 1.35; text-align: justify; font-weight: 600;}
 .pp-notice {
     border: 2.5px solid #d42027; padding: 3mm 5mm; margin-top: 2mm; color: #d42027;
     text-align: center; font-size: 11px; font-weight: bold; line-height: 1.4;
