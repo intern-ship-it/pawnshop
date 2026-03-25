@@ -3102,6 +3102,7 @@ HTML;
             $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
 
             // Combine them - data overlay on top of blank form
+            // Generate TWO copies: Original Copy (page 1) + Customer Copy (page 2)
             $combinedHtml = <<<HTML
 <style>
 .pp-combined-container {
@@ -3112,6 +3113,9 @@ HTML;
     padding: 0;
     overflow: hidden;
     page-break-inside: avoid;
+    page-break-after: always;
+}
+.pp-combined-container:last-child {
     page-break-after: avoid;
 }
 .pp-blank-layer {
@@ -3132,14 +3136,31 @@ HTML;
     z-index: 2;
     overflow: hidden;
 }
+.pp-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    z-index: 3;
+    font-size: 60px;
+    font-weight: bold;
+    font-family: Arial, Helvetica, sans-serif;
+    color: rgba(26, 74, 122, 0.13);
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    pointer-events: none;
+    white-space: nowrap;
+    user-select: none;
+}
 @media print {
-    /* Prevent page breaks - single page only */
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+    .pp-combined-container { page-break-inside: avoid !important; overflow: hidden !important; }
     .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
+    .pp-watermark { color: rgba(26, 74, 122, 0.13) !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 </style>
 
+<!-- Page 1: Original Copy (Office) -->
 <div class="pp-combined-container">
     <div class="pp-blank-layer">
         {$blankFrontHtml}
@@ -3147,6 +3168,18 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    <div class="pp-watermark">Original Copy</div>
+</div>
+
+<!-- Page 2: Customer Copy -->
+<div class="pp-combined-container">
+    <div class="pp-blank-layer">
+        {$blankFrontHtml}
+    </div>
+    <div class="pp-data-layer">
+        {$dataOverlayHtml}
+    </div>
+    <div class="pp-watermark">Customer Copy</div>
 </div>
 HTML;
 
