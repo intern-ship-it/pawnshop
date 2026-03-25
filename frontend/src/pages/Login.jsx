@@ -21,13 +21,7 @@ import { motion } from "framer-motion";
 import { getPublicCompanyInfo } from "@/services/api";
 import authService from "@/services/authService";
 
-const demoAccounts = [
-  { username: "superadmin", password: "password123", role: "Super Admin" },
-  { username: "admin", password: "password123", role: "Administrator" },
-  // { username: "manager", password: "password123", role: "Manager" },
-  // { username: "cashier", password: "password123", role: "Cashier" },
-  // { username: "auditor", password: "password123", role: "Auditor" },
-];
+
 
 const features = [
   "KPKT Malaysia Compliant",
@@ -273,11 +267,7 @@ export default function Login() {
     }
   };
 
-  const handleDemoLogin = (account) => {
-    setFormData({ username: account.username, password: account.password });
-    setErrors({});
-    dispatch(clearError());
-  };
+
 
   // Show loading screen while checking for existing auth session
   if (checkingAuth) {
@@ -556,32 +546,7 @@ export default function Login() {
               </Button>
             </form>
 
-            {/* Demo Accounts */}
 
-            {demoAccounts.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-zinc-200">
-                <p className="text-xs text-zinc-500 text-center mb-3">
-                  Demo Accounts (Click to autofill)
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {demoAccounts.map((account) => (
-                    <button
-                      key={account.username}
-                      type="button"
-                      onClick={() => handleDemoLogin(account)}
-                      className={cn(
-                        "px-3 py-2 rounded-lg border text-sm font-medium transition-all",
-                        "border-zinc-200 hover:border-amber-300 hover:bg-amber-50",
-                        formData.username === account.username &&
-                        "border-amber-400 bg-amber-50"
-                      )}
-                    >
-                      <span className="text-zinc-700">{account.role}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </motion.div>
 
           <motion.p
