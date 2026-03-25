@@ -196,7 +196,6 @@ export default function NewPledge() {
 
   // Step 2: Items state
   const [items, setItems] = useState([{ ...emptyItem, id: "item-1" }]);
-  const [commonItemDescription, setCommonItemDescription] = useState("");
 
   // Handle global camera capture
   const { capturedImage, contextId } = useAppSelector(
@@ -650,21 +649,21 @@ export default function NewPledge() {
   const categoryOptions =
     backendCategories.length > 0
       ? backendCategories.map((cat) => ({
-          value: cat.code || cat.slug || cat.name_en,
-          label: `${cat.name_en}${cat.name_ms ? ` (${cat.name_ms})` : ""}`,
-        }))
+        value: cat.code || cat.slug || cat.name_en,
+        label: `${cat.name_en}${cat.name_ms ? ` (${cat.name_ms})` : ""}`,
+      }))
       : itemCategories;
 
   // Compute purity options from backend data (with fallback to hardcoded)
   const dynamicPurityOptions =
     backendPurities.length > 0
       ? backendPurities.map((purity) => ({
-          value: purity.code,
-          label: `${purity.code}${purity.karat ? ` (${purity.karat})` : ""}`,
-          priceKey: `price${purity.code}`,
-          karat: purity.karat || "",
-          percentage: purity.percentage || 0,
-        }))
+        value: purity.code,
+        label: `${purity.code}${purity.karat ? ` (${purity.karat})` : ""}`,
+        priceKey: `price${purity.code}`,
+        karat: purity.karat || "",
+        percentage: purity.percentage || 0,
+      }))
       : purityOptions;
 
   const fetchGoldPrices = async () => {
@@ -1188,13 +1187,12 @@ export default function NewPledge() {
                   ${frontHtml}
                 </div>
 
-                ${
-                  backHtml
-                    ? '<div class="print-container" style="margin-top: 20px;">' +
-                      backHtml +
-                      "</div>"
-                    : ""
-                }
+                ${backHtml
+              ? '<div class="print-container" style="margin-top: 20px;">' +
+              backHtml +
+              "</div>"
+              : ""
+            }
 
                 <script>
                   window.onload = function() {
@@ -1853,7 +1851,7 @@ export default function NewPledge() {
             gross_weight: parseFloat(item.weight),
             stone_deduction_type: item.stoneDeductionType || "amount",
             stone_deduction_value: parseFloat(item.stoneDeduction) || 0,
-            description: commonItemDescription || item.description || null,
+            description: item.description || null,
             photo: item.photo || null,
           };
 
@@ -2042,7 +2040,7 @@ export default function NewPledge() {
       iframe.style.display = "none";
       iframe.src = pdfUrl;
       document.body.appendChild(iframe);
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch (e) {} }, 60000);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch (e) { } }, 60000);
       dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF receipt download started" }));
     } catch (error) {
       console.error("PDF download error:", error);
@@ -2361,6 +2359,9 @@ export default function NewPledge() {
                           <Select value={item.stoneDeductionType} onChange={(e) => updateItem(item.id, "stoneDeductionType", e.target.value)} options={[{ value: "amount", label: "RM" }, { value: "percentage", label: "%" }, { value: "grams", label: "g" }]} className="w-24" />
                         </div>
                       </div>
+                      <div className="col-span-2 md:col-span-3 lg:col-span-5 xl:col-span-6">
+                        <Input label="Description / Remarks" placeholder="e.g., gold chain with pendant" value={item.description || ""} onChange={(e) => updateItem(item.id, "description", e.target.value)} />
+                      </div>
                     </div>
 
                     <div className="mt-4">
@@ -2395,9 +2396,7 @@ export default function NewPledge() {
                 ))}
               </div>
 
-              <div className="mt-4">
-                <Input label="Description / Remarks (for all items)" placeholder="e.g., 916 Gold Chain with pendant" value={commonItemDescription} onChange={(e) => setCommonItemDescription(e.target.value)} />
-              </div>
+
 
               <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -2742,7 +2741,7 @@ export default function NewPledge() {
                   ) : boxes.length === 0 ? (
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p className="text-sm text-amber-700">No drawers in this locker.</p></div>
                   ) : (
-                      <Select
+                    <Select
                       value={selectedBox || ""}
                       onChange={(e) => {
                         if (selectedSlot) {
@@ -2906,7 +2905,7 @@ export default function NewPledge() {
                             </div>
                             {storage && <span className="flex items-center gap-1 text-blue-600"><MapPin className="w-3 h-3" />Slot {storage.slotNumber}</span>}
                           </div>
-                          {(commonItemDescription || item.description) && <p className="text-[10px] text-zinc-400 ml-7 mt-1 line-clamp-1" title={commonItemDescription || item.description}>{commonItemDescription || item.description}</p>}
+                          {item.description && <p className="text-[10px] text-zinc-400 ml-7 mt-1 line-clamp-1" title={item.description}>{item.description}</p>}
                           {val.deduction > 0 && <p className="text-[10px] text-red-500 ml-7 mt-0.5">Stone deduction: -{formatCurrency(val.deduction)}</p>}
                         </div>
                       );
@@ -3086,7 +3085,6 @@ export default function NewPledge() {
               setCreatedReceiptNo(null);
               setIsPrinting(false);
               setIsSendingWhatsApp(false);
-              setCommonItemDescription("");
               setPrintJobStatus({
                 dotMatrixOffice: { status: "pending", message: "" },
                 dotMatrixCustomer: { status: "pending", message: "" },

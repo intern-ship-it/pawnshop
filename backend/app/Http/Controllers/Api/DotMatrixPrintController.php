@@ -2084,14 +2084,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $desc = $item->description ?? '';
-            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
-                if ($catatan)
-                    $catatan .= "; ";
-                $catatan .= $desc;
-                $usedDescriptions[] = $desc;
-            }
-            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -2141,12 +2136,12 @@ HTML;
     position: absolute;
     top: 32mm;
     left: 7mm;
-    width: 120mm;
+    width: 102mm;
     font-size: 12px;
     line-height: 1.4;
     font-weight: bold;
 }
-.ppo-item { margin-bottom: 1mm; }
+.ppo-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 /* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
@@ -2206,7 +2201,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 110.9mm;
+    top: 99.9mm;
     left: 22mm;
     width: 160mm;
     font-size: 9px;
@@ -2215,14 +2210,14 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 118mm;
+    top: 106mm;
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 120mm;
+    top: 109mm;
     left: 178mm;
     width: 28mm;
     font-size: 13px;
@@ -2347,14 +2342,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $desc = $item->description ?? '';
-            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
-                if ($catatan)
-                    $catatan .= "; ";
-                $catatan .= $desc;
-                $usedDescriptions[] = $desc;
-            }
-            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -2408,11 +2398,11 @@ HTML;
     position: absolute;
     top: 34mm;
     left: 11mm;
-    width: 120mm;
+    width: 84mm;
     font-size: 9px;
     line-height: 1.4;
 }
-.ppoa-item { margin-bottom: 1mm; }
+.ppoa-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 
 /* â•â•â• CUSTOMER SECTION â•â•â• */
 /* ROW 1: IC | Nama | Kerakyatan */
@@ -2836,10 +2826,10 @@ HTMLSTART
         </div>
         
         <!-- ROW 4: Catatan (full width) -->
-        <div class="pp-cust-row full-width">
+        <!-- <div class="pp-cust-row full-width">
             <span class="pp-cust-lbl" style="margin-top:1.5rem" >Catatan :</span>
             <span class="pp-cust-val"></span>
-        </div>
+        </div> -->
     </div>
 
     <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah :</span></div>
@@ -3302,8 +3292,9 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $desc = $item->description ?? '';
-            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -3353,12 +3344,12 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     position: absolute;
     top: 32mm;
     left: 7mm;
-    width: 120mm;
+    width: 75mm;
     font-size: 12px;
     line-height: 1.4;
     font-weight: bold;
 }
-.ppo-item { margin-bottom: 1mm; }
+.ppo-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 /* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
@@ -3959,7 +3950,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -4031,11 +4024,11 @@ HTML;
     position: absolute;
     top: 31mm;
     left: 7mm;
-    width: 120mm;
+    width: 81mm;
     font-size: 9px;
     line-height: 1.4;
 }
-.ppo-item { margin-bottom: 1mm; }
+.ppo-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-ic {
@@ -4720,14 +4713,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $desc = $item->description ?? '';
-            if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
-                if ($catatan)
-                    $catatan .= "; ";
-                $catatan .= $desc;
-                $usedDescriptions[] = $desc;
-            }
-            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -4780,11 +4768,11 @@ HTML;
     position: absolute;
     top: 34mm;
     left: 11mm;
-    width: 120mm;
+    width: 84mm;
     font-size: 9px;
     line-height: 1.4;
 }
-.ppoa-item_new { margin-bottom: 1mm; }
+.ppoa-item_new { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 
 /* â•â•â• CUSTOMER SECTION â•â•â• */
 .ppoa-ic_new {
@@ -5099,7 +5087,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -5117,8 +5107,8 @@ HTML;
 .ppoa-page { width: 210mm; height: 148mm; padding: 0; top: 1rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
 .ppoa-page * { box-sizing: border-box; margin: 0; padding: 0; }
 .ppoa-ticket { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
-.ppoa-items { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
-.ppoa-item { margin-bottom: 1mm; }
+.ppoa-items { position: absolute; top: 34mm; left: 11mm; width: 84mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 .ppoa-ic { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
 .ppoa-name { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
 .ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
@@ -5188,7 +5178,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -5206,8 +5198,8 @@ HTML;
 .ppoa-page_new { width: 210mm; height: 148mm; padding: 0; top: 1.5rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
 .ppoa-page_new * { box-sizing: border-box; margin: 0; padding: 0; }
 .ppoa-ticket_new { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
-.ppoa-items_new { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
-.ppoa-item_new { margin-bottom: 1mm; }
+.ppoa-items_new { position: absolute; top: 34mm; left: 11mm; width: 84mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item_new { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 .ppoa-ic_new { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
 .ppoa-name_new { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
 .ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
@@ -5276,7 +5268,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppoa-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -5290,8 +5284,8 @@ HTML;
 .ppoa-page { width: 210mm; height: 148mm; padding: 0; top: 1rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
 .ppoa-page * { box-sizing: border-box; margin: 0; padding: 0; }
 .ppoa-ticket { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
-.ppoa-items { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
-.ppoa-item { margin-bottom: 1mm; }
+.ppoa-items { position: absolute; top: 34mm; left: 11mm; width: 84mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 .ppoa-ic { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
 .ppoa-name { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
 .ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
@@ -5361,7 +5355,9 @@ HTML;
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g</div>";
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppoa-item_new\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -5375,8 +5371,8 @@ HTML;
 .ppoa-page_new { width: 210mm; height: 148mm; padding: 0; top: 1.5rem; right: 3.9rem; margin: 0; position: relative; font-family: 'Courier New', 'Courier', monospace; font-weight: normal; letter-spacing: 0.5px; color: #000; background: transparent !important; overflow: hidden; box-sizing: border-box; page-break-after: avoid; }
 .ppoa-page_new * { box-sizing: border-box; margin: 0; padding: 0; }
 .ppoa-ticket_new { position: absolute; top: 30mm; right: 9mm; width: 40mm; text-align: center; font-size: 14px; font-weight: bold; font-family: 'Courier New', monospace; display: flex; align-items: center; justify-content: center; height: 10mm; }
-.ppoa-items_new { position: absolute; top: 34mm; left: 11mm; width: 120mm; font-size: 9px; line-height: 1.4; }
-.ppoa-item_new { margin-bottom: 1mm; }
+.ppoa-items_new { position: absolute; top: 34mm; left: 11mm; width: 84mm; font-size: 9px; line-height: 1.4; }
+.ppoa-item_new { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
 .ppoa-ic_new { position: absolute; top: 69.5mm; left: 31mm; font-size: 11px; width: 55mm; }
 .ppoa-name_new { position: absolute; top: 69.5mm; left: 85mm; font-size: 11px; width: 55mm; }
 .ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
