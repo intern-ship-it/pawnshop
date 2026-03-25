@@ -293,6 +293,9 @@ export default function CustomerCreate() {
     }
   }, [formData.icNumber]);
 
+  // Fields that should NOT be auto-uppercased (dropdowns need internal values to match exactly)
+  const noUppercaseFields = ["email", "gender", "state", "nationality", "race"];
+
   // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -313,7 +316,9 @@ export default function CustomerCreate() {
 
       setFormData((prev) => ({ ...prev, [name]: formatted }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      // Auto-uppercase all fields except email
+      const finalValue = noUppercaseFields.includes(name) ? value : value.toUpperCase();
+      setFormData((prev) => ({ ...prev, [name]: finalValue }));
     }
 
     // Clear error on change
@@ -776,9 +781,9 @@ export default function CustomerCreate() {
                       value={formData.gender}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select Gender" },
-                        { value: "male", label: "Male" },
-                        { value: "female", label: "Female" },
+                        { value: "", label: "Select an option" },
+                        { value: "male", label: "MALE" },
+                        { value: "female", label: "FEMALE" },
                       ]}
                     />
                   </div>
@@ -836,6 +841,7 @@ export default function CustomerCreate() {
                       required
                       placeholder="Enter phone number"
                       defaultCountry="MY"
+                      countryCallingCodeEditable={false}
                       helperText="Include country code (e.g., +60 for Malaysia)"
                     />
                   </div>
@@ -854,6 +860,7 @@ export default function CustomerCreate() {
                       disabled={sameAsPhone}
                       placeholder="Enter WhatsApp number"
                       defaultCountry="MY"
+                      countryCallingCodeEditable={false}
                     />
                     <label className="flex items-center gap-2 mt-2 cursor-pointer">
                       <input
@@ -931,8 +938,8 @@ export default function CustomerCreate() {
                       value={formData.state}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select State" },
-                        ...malaysianStates.map((s) => ({ value: s, label: s })),
+                        { value: "", label: "Select an option" },
+                        ...malaysianStates.map((s) => ({ value: s, label: s.toUpperCase() })),
                       ]}
                     />
                   </div>
@@ -945,10 +952,10 @@ export default function CustomerCreate() {
                       value={formData.nationality}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select Nationality" },
+                        { value: "", label: "Select an option" },
                         ...nationalityOptions.map((n) => ({
                           value: n,
-                          label: n,
+                          label: n.toUpperCase(),
                         })),
                       ]}
                     />
@@ -962,10 +969,10 @@ export default function CustomerCreate() {
                       value={formData.race}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select Race" },
+                        { value: "", label: "Select an option" },
                         ...raceOptions.map((r) => ({
                           value: r,
-                          label: r,
+                          label: r.toUpperCase(),
                         })),
                       ]}
                     />
@@ -1185,8 +1192,8 @@ export default function CustomerCreate() {
             <Card>
               <div className="p-5 border-b border-zinc-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <Camera className="w-5 h-5 text-purple-600" />
+                  <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center">
+                    <Camera className="w-5 h-5 text-sky-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-zinc-800">
@@ -1250,7 +1257,7 @@ export default function CustomerCreate() {
                       <button
                         type="button"
                         onClick={() => handleCameraCapture("profile")}
-                        className="w-full py-2.5 px-4 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                        className="w-full py-2.5 px-4 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
                       >
                         <Camera className="w-4 h-4" />
                         Take Selfie with Camera

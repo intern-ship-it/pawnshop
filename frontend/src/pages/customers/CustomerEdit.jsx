@@ -208,10 +208,15 @@ export default function CustomerEdit() {
     }
   }, [formData.phone, sameAsPhone]);
 
+  // Fields that should NOT be auto-uppercased (dropdowns need internal values to match exactly)
+  const noUppercaseFields = ["email", "gender", "state", "nationality", "race"];
+
   // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Auto-uppercase all fields except email
+    const finalValue = noUppercaseFields.includes(name) ? value : value.toUpperCase();
+    setFormData((prev) => ({ ...prev, [name]: finalValue }));
 
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
@@ -668,9 +673,9 @@ export default function CustomerEdit() {
                       value={formData.gender}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select Gender" },
-                        { value: "male", label: "Male" },
-                        { value: "female", label: "Female" },
+                        { value: "", label: "Select an option" },
+                        { value: "male", label: "MALE" },
+                        { value: "female", label: "FEMALE" },
                       ]}
                     />
                   </div>
@@ -726,6 +731,7 @@ export default function CustomerEdit() {
                       required
                       placeholder="Enter phone number"
                       defaultCountry="MY"
+                      countryCallingCodeEditable={false}
                     />
                   </div>
 
@@ -742,6 +748,7 @@ export default function CustomerEdit() {
                       disabled={sameAsPhone}
                       placeholder="Enter WhatsApp number"
                       defaultCountry="MY"
+                      countryCallingCodeEditable={false}
                     />
                     <label className="flex items-center gap-2 mt-2 cursor-pointer">
                       <input
@@ -813,8 +820,8 @@ export default function CustomerEdit() {
                       value={formData.state}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select State" },
-                        ...malaysianStates.map((s) => ({ value: s, label: s })),
+                        { value: "", label: "Select an option" },
+                        ...malaysianStates.map((s) => ({ value: s, label: s.toUpperCase() })),
                       ]}
                     />
                   </div>
@@ -826,10 +833,10 @@ export default function CustomerEdit() {
                       value={formData.nationality}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select Nationality" },
+                        { value: "", label: "Select an option" },
                         ...nationalityOptions.map((n) => ({
                           value: n,
-                          label: n,
+                          label: n.toUpperCase(),
                         })),
                       ]}
                     />
@@ -843,10 +850,10 @@ export default function CustomerEdit() {
                       value={formData.race}
                       onChange={handleChange}
                       options={[
-                        { value: "", label: "Select Race" },
+                        { value: "", label: "Select an option" },
                         ...raceOptions.map((r) => ({
                           value: r,
-                          label: r,
+                          label: r.toUpperCase(),
                         })),
                       ]}
                     />
@@ -1034,8 +1041,8 @@ export default function CustomerEdit() {
             <Card>
               <div className="p-5 border-b border-zinc-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <Camera className="w-5 h-5 text-purple-600" />
+                  <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center">
+                    <Camera className="w-5 h-5 text-sky-600" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-zinc-800">
