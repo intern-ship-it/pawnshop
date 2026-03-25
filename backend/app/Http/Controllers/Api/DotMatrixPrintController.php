@@ -2235,7 +2235,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 135mm;
+    top: 126mm;
     right: 13mm;
     font-size: 12px;
 }
