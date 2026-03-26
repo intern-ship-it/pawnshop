@@ -920,22 +920,6 @@ function CompanyTab({ settings, updateSettings }) {
           onChange={(e) => handleChange("insurancePolicyNo", e.target.value)}
           placeholder="e.g. JB001Q6209-26."
         />
-        <div className="md:col-span-2">
-          <Input
-            label="Receipt Header Text"
-            value={company.receiptHeader}
-            onChange={(e) => handleChange("receiptHeader", e.target.value)}
-            placeholder="Text shown at top of receipts"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <Input
-            label="Receipt Footer Text"
-            value={company.receiptFooter}
-            onChange={(e) => handleChange("receiptFooter", e.target.value)}
-            placeholder="Text shown at bottom of receipts"
-          />
-        </div>
       </div>
     </Card>
   );
