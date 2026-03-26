@@ -2210,14 +2210,14 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 106mm;
+    top: 108mm;
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 109mm;
+    top: 110mm;
     left: 178mm;
     width: 28mm;
     font-size: 13px;

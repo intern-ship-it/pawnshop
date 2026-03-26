@@ -1025,6 +1025,86 @@ export default function PrintTestPage() {
     }
   };
 
+  // Test Reprint Barcode - same as testBarcodePrint but labels show "REPRINT"
+  const testReprintBarcode = async () => {
+    if (!selectedPledge) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please select a pledge first",
+        }),
+      );
+      return;
+    }
+
+    setPrinting(true);
+    setPreviewType("Reprint Barcode Labels");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+      const pledgeResponse = await fetch(
+        `${apiUrl}/pledges/${selectedPledge.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        },
+      );
+      if (!pledgeResponse.ok) throw new Error("Failed to fetch pledge details");
+
+      const pledgeData = await pledgeResponse.json();
+      const items =
+        pledgeData.data?.pledge?.items || pledgeData.data?.items || [];
+      if (items.length === 0) throw new Error("No items found");
+
+      const barcodeResponse = await fetch(`${apiUrl}/print/barcodes/batch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ item_ids: items.map((item) => item.id) }),
+      });
+
+      const duration = Date.now() - startTime;
+      if (!barcodeResponse.ok) throw new Error("Failed to generate barcodes");
+
+      const barcodeData = await barcodeResponse.json();
+      const barcodes = barcodeData.data || [];
+
+      logResult("Reprint Barcode", true, `${barcodes.length} label(s)`, duration);
+      setPreviewText(
+        `Reprint Barcodes: ${barcodes.length}\n\n${barcodes.map((b, i) => `${i + 1}. ${b.barcode} (REPRINT)`).join("\n")}`,
+      );
+      setPreviewFormat("text");
+
+      if (barcodes.length > 0)
+        openReprintBarcodeWindow(barcodes, selectedPledge.pledge_no);
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: `${barcodes.length} reprint barcode(s) (${duration}ms)`,
+        }),
+      );
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Reprint Barcode", false, error.message, duration);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Reprint Barcode Error",
+          message: error.message,
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   // FIXED: Open barcode window with DYNAMIC paper sizing
   const openBarcodeWindow = (barcodeItems, pledgeNo) => {
     const printWindow = window.open("", "_blank", "width=400,height=600");
@@ -1178,6 +1258,209 @@ export default function PrintTestPage() {
           justify-content: space-between;
           align-items: center;
           width: 100%;
+        }
+        .storage-loc {
+          font-weight: 600;
+          color: #333;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+          width: 100%;
+        }
+        @media screen { 
+          body { padding: 0px; } 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="labels-wrapper">${barcodeLabels}</div>
+      <script>
+        window.onload = function() { 
+          window.print(); 
+        };
+        window.onafterprint = function() {
+           window.close();
+       };
+      </script>
+    </body>
+    </html>
+  `);
+
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
+  // Open REPRINT barcode window - same layout but with "REPRINT" text on each label
+  const openReprintBarcodeWindow = (barcodeItems, pledgeNo) => {
+    const printWindow = window.open("", "_blank", "width=400,height=600");
+    if (!printWindow) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Popup Blocked",
+          message: "Please allow popups",
+        }),
+      );
+      return;
+    }
+
+    const labelCount = barcodeItems.length;
+
+    const barcodeLabels = barcodeItems
+      .map(
+        (item) => `
+      <div class="label">
+        <div class="header-row">
+          <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
+          <span class="category">${item.category || "Item"}</span>
+        </div>
+        <div class="barcode-section">
+          ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
+        </div>
+        <div class="footer-row">
+          ${item.storage_location ? `<div class="storage-loc">${item.storage_location}</div>` : `<div>${item.purity || "916"}</div>`}
+          <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
+        </div>
+        <div class="reprint-badge">REPRINT</div>
+      </div>
+    `,
+      )
+      .join("");
+
+    printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Reprint Barcode Labels - ${pledgeNo || "Test"}</title>
+      <style>
+     @page { 
+          size: 50mm 50mm; 
+          margin: 0 !important; 
+        }
+        @media print {
+          html, body {
+            width: 50mm !important;
+            height: 50mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .controls { display: none !important; }
+          .labels-wrapper { 
+            width: 50mm !important; 
+            margin: 0 !important;
+            box-shadow: none !important;
+          }
+          .label {
+            page-break-after: always;
+            page-break-inside: avoid;
+            margin: 0 !important;
+          }
+          .label:last-child {
+            page-break-after: avoid;
+          }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: Arial, sans-serif; 
+          margin: 0; 
+          padding: 0; 
+          background: #f5f5f5;
+        }
+        .controls { 
+          text-align: center; 
+          padding: 15px; 
+          background: linear-gradient(135deg, #1f2937 0%, #374151 100%); 
+          margin-bottom: 15px;
+          max-width: 400px;
+          margin-left: auto;
+          margin-right: auto;
+          border-radius: 8px;
+        }
+        .controls button { 
+          background: linear-gradient(135deg, #d97706 0%, #b45309 100%); 
+          color: white; 
+          border: none; 
+          padding: 12px 25px; 
+          cursor: pointer; 
+          border-radius: 8px; 
+          margin: 0 5px; 
+          font-weight: bold;
+          font-size: 14px;
+        }
+        .controls button.close { background: #6b7280; }
+        .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
+        .controls .info strong { color: #fbbf24; }
+        .labels-wrapper { 
+          width: 50mm; 
+          margin: 0 auto; 
+          background: white; 
+          box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+        }
+      .label { 
+          width: 50mm; 
+          height: 50mm;
+        padding: 4mm 4mm 4mm 4mm; 
+          background: white; 
+          display: flex; 
+          flex-direction: column; 
+          justify-content: center;
+          overflow: hidden; 
+          border-bottom: 1px dashed #ccc;
+        }
+        .label:last-child { border-bottom: none; }
+        .header-row { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          border-bottom: 0.3mm solid #333; 
+          padding-bottom: 1mm; 
+          margin-bottom: 1mm; 
+          position: relative;
+          z-index: 10;
+        }
+        .pledge-no { font-size: 8pt; font-weight: bold; }
+        .reprint-badge {
+          display: block;
+          text-align: center;
+          font-size: 7pt;
+          font-weight: 900;
+          color: #000;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          padding-top: 1mm;
+        }
+        .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+     .barcode-section { 
+          text-align: center; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          justify-content: center;
+          padding: 1mm 2mm;
+          width: 100%;
+          position: relative;
+          z-index: 10;
+        }
+        .barcode-img { 
+          max-width: 36mm; 
+          width: 36mm;
+          height: 14mm; 
+          object-fit: contain;
+          margin: 0 auto;
+        }
+        .footer-row { 
+          padding-top: 1mm; 
+          font-size: 7.5pt; 
+          font-weight: bold; 
+          flex-direction: column;
+          text-align: center;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          width: 100%;
+          position: relative;
+          z-index: 10;
         }
         .storage-loc {
           font-weight: 600;
@@ -3394,6 +3677,29 @@ export default function PrintTestPage() {
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 Print Barcodes
+              </Button>
+            </div>
+
+            {/* Reprint Barcode */}
+            <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-medium text-red-800">Reprint Barcode</p>
+                  <p className="text-xs text-red-500">50mm × 50mm with REPRINT mark</p>
+                </div>
+                <Badge variant="danger">Reprint</Badge>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={RotateCcw}
+                onClick={testReprintBarcode}
+                loading={printing && previewType === "Reprint Barcode Labels"}
+                disabled={!selectedPledge || printing}
+                fullWidth
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Reprint Barcode
               </Button>
             </div>
 

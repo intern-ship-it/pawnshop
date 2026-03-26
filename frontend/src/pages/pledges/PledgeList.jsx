@@ -34,6 +34,7 @@ import {
   Loader2,
   Printer,
   ScanLine,
+  RotateCcw,
 } from "lucide-react";
 
 // Status badge config
@@ -578,6 +579,7 @@ export default function PledgeList() {
                   }
                   .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
                   .pledge-no { font-size: 8pt; font-weight: bold; }
+                  .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
                   .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
                   .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
                   .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
@@ -599,6 +601,7 @@ export default function PledgeList() {
                       ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
                       <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                     </div>
+                    <div class="reprint-badge">REPRINT</div>
                   </div>
                 </div>
                 <script>
@@ -1321,20 +1324,20 @@ export default function PledgeList() {
                             </Button>
                           )}
 
-                          {/* Print Barcode Button */}
+                          {/* Reprint Barcode Button */}
                           {canPrint && (
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               disabled={printingBarcodeId === pledge.id}
                               onClick={(e) => handlePrintBarcode(pledge, e)}
-                              title="Print Barcode Sticker"
-                              className="text-zinc-600 hover:text-zinc-700 hover:bg-zinc-100"
+                              title="Reprint Barcode Sticker"
+                              className="text-red-500 hover:text-red-600 hover:bg-red-50"
                             >
                               {printingBarcodeId === pledge.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
-                                <ScanLine className="w-4 h-4" />
+                                <RotateCcw className="w-4 h-4" />
                               )}
                             </Button>
                           )}
