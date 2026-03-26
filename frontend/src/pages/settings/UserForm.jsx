@@ -351,10 +351,10 @@ export default function UserForm() {
       newErrors.role_id = "Role is required";
     }
 
-    // Passkey validation (disabled - feature not yet integrated)
-    // if (formData.passkey && formData.passkey.length !== 6) {
-    //   newErrors.passkey = "Passkey must be exactly 6 digits";
-    // }
+    // Passkey validation
+    if (formData.passkey && formData.passkey.length !== 6) {
+      newErrors.passkey = "Passkey must be exactly 6 digits";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -396,10 +396,10 @@ export default function UserForm() {
         payload.password = formData.password;
       }
 
-      // Include passkey if provided (disabled - feature not yet integrated)
-      // if (formData.passkey) {
-      //   payload.passkey = formData.passkey;
-      // }
+      // Include passkey if provided
+      if (formData.passkey) {
+        payload.passkey = formData.passkey;
+      }
 
       let response;
       if (isEdit) {
@@ -719,10 +719,10 @@ export default function UserForm() {
                 </div>
               </div>
 
-              {/* Passkey (6-digit PIN) - Disabled: feature not yet integrated
+              {/* Passkey (6-digit PIN) */}
               <div className="mt-6">
                 <Input
-                  label="Passkey (6-digit PIN)"
+                  label="Set Passkey (6-digit PIN)"
                   type="password"
                   value={formData.passkey}
                   onChange={(e) => {
@@ -730,14 +730,13 @@ export default function UserForm() {
                     const value = e.target.value.replace(/\D/g, "").slice(0, 6);
                     handleChange("passkey", value);
                   }}
-                  placeholder="Enter 6-digit passkey"
+                  placeholder={isEdit ? "Leave blank to keep current passkey" : "Enter 6-digit passkey"}
                   leftIcon={Key}
                   maxLength={6}
                   error={errors.passkey}
-                  helperText="Used for sensitive actions (override, reprint, etc.)"
+                  helperText="Used for sensitive actions (override, reprint, downloading etc.)"
                 />
               </div>
-              */}
             </Card>
 
             {/* Role & Assignment */}

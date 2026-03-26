@@ -236,16 +236,17 @@ const authSlice = createSlice({
 
       // Verify Passkey
       .addCase(verifyPasskey.pending, (state) => {
-        state.loading = true
+        // Do not set global loading, it causes MainLayout to unmount children
+        state.passkeyLoading = true;
         state.error = null
       })
       .addCase(verifyPasskey.fulfilled, (state) => {
-        state.loading = false
+        state.passkeyLoading = false;
         state.passkeyVerified = true
         state.passkeyExpiry = Date.now() + (5 * 60 * 1000)
       })
       .addCase(verifyPasskey.rejected, (state, action) => {
-        state.loading = false
+        state.passkeyLoading = false;
         state.error = action.payload
         state.passkeyVerified = false
       })

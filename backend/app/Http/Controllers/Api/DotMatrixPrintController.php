@@ -2093,6 +2093,8 @@ HTML;
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
+        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML
 <style>
@@ -2218,10 +2220,17 @@ HTML;
 .ppo-pledge-date {
     position: absolute;
     top: 110mm;
-    left: 178mm;
-    width: 28mm;
-    font-size: 13px;
     text-align: center;
+    font-size: 12px;
+    right: 7mm;
+}
+.ppo-interest-note {
+    position: absolute;
+    top: 108.7mm;
+    left: 95mm;
+    width: 70mm;
+    font-size: 12px;
+    font-weight: bold;
 }
 /* .ppo-due-date {
     position: absolute;
@@ -2291,6 +2300,7 @@ HTML;
     
     <!-- BOTTOM ROW -->
     <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
+    <div class="ppo-interest-note">{$interestNote}</div>
     <div class="ppo-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
     <!-- <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div> -->
     
@@ -2351,6 +2361,8 @@ HTML;
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
+        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML
 
@@ -2476,13 +2488,15 @@ HTML;
     font-size: 18px;
     font-family: 'Courier New', monospace;
 }
-.ppoa-pledge-date {
-    position: absolute;
-    top: 105mm;
-    left: 145mm;
-    width: 28mm;
-    font-size: 12px;
     text-align: center;
+}
+.ppoa-interest-note {
+    position: absolute;
+    top: 103.5mm;
+    left: 102mm;
+    width: 65mm;
+    font-size: 10px;
+    font-weight: bold;
 }
 .ppoa-due-date {
     position: absolute;
@@ -2549,8 +2563,8 @@ HTML;
     <!-- AMOUNT IN WORDS -->
     <div class="ppoa-amount-words">{$amountWords} SAHAJA</div>
     
-    <!-- BOTTOM ROW -->
     <div class="ppoa-loan-amount">{$loanAmountFormatted}</div>
+    <div class="ppoa-interest-note">{$interestNote}</div>
     <div class="ppoa-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
     <div class="ppoa-due-date">{$dueDate->format('d/m/Y')}</div>
     
@@ -3426,6 +3440,8 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
+        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML
 <style>
@@ -3525,7 +3541,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 /* ROW 4: Catatan */
 .ppo-catatan {
     position: absolute;
-    top: 103.5mm;
+    top: 99.5mm;
     left: 22mm;
     width: 150mm;
     font-size: 11px;
@@ -3548,13 +3564,15 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     font-size: 24px;
     font-family: 'Courier New', monospace;
 }
-.ppo-pledge-date {
-    position: absolute;
-    top: 120mm;
-    left: 178mm;
-    width: 28mm;
-    font-size: 13px;
     text-align: center;
+}
+.ppo-interest-note {
+    position: absolute;
+    top: 118.5mm;
+    left: 105mm;
+    width: 65mm;
+    font-size: 11px;
+    font-weight: bold;
 }
 /* .ppo-due-date {
     position: absolute;
@@ -3620,7 +3638,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     
     <!-- BARCODE -->
     <div class="ppo-barcode">
-        <img src="https://barcode.tec-it.com/barcode.ashx?data={$renewal->renewal_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:18mm;width:auto;max-width:55mm;">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$renewal->renewal_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:16mm;width:auto;max-width:25mm;">
         <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$renewal->renewal_no}</div>
     </div>
     
@@ -3644,6 +3662,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     
     <!-- BOTTOM ROW -->
     <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
+    <div class="ppo-interest-note">{$interestNote}</div>
     <div class="ppo-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
     <!-- <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div> -->
     
@@ -5403,6 +5422,8 @@ HTML;
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
         $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this->formatNumber($interestAmount);
         $ticketNo = $renewal->renewal_no ?? $pledge->pledge_no;
+        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML
 <style>
@@ -5422,6 +5443,7 @@ HTML;
 .ppoa-loan-amount { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
 .ppoa-pledge-date { position: absolute; top: 105mm; left: 145mm; width: 28mm; font-size: 12px; text-align: center; }
 .ppoa-due-date { position: absolute; top: 105mm; left: 173mm; width: 28mm; font-size: 12px; text-align: center; }
+.ppoa-interest-note { position: absolute; top: 103.5mm; left: 102mm; width: 65mm; font-size: 10px; font-weight: bold; }
 .ppoa-weight { position: absolute; top: 115mm; right: 10mm; font-size: 6px; }
 @media print { .ppoa-page { page-break-after: avoid; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
 .ppoa-barcode { position: absolute; top: 34mm; left: 96mm; width: 58mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -5442,6 +5464,7 @@ HTML;
     <div class="ppoa-catatan">{$catatan}</div>
     <div class="ppoa-amount-words">{$amountWords} SAHAJA</div>
     <div class="ppoa-loan-amount">{$loanAmountFormatted}</div>
+    <div class="ppoa-interest-note">{$interestNote}</div>
     <div class="ppoa-pledge-date">{$renewalDate->format('d/m/Y')}</div>
     <div class="ppoa-due-date">{$newDueDate->format('d/m/Y')}</div>
     <div class="ppoa-weight">{$this->formatNumber($totalWeight, 2)}g</div>

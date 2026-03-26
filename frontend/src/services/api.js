@@ -115,7 +115,8 @@ api.interceptors.response.use(
 
     const isAuthEndpoint = originalRequest.url?.includes('auth/login') || 
                            originalRequest.url?.includes('auth/refresh') ||
-                           originalRequest.url?.includes('auth/logout')
+                           originalRequest.url?.includes('auth/logout') ||
+                           originalRequest.url?.includes('auth/verify-passkey')
 
     // If we're logging out, silently reject all 401 errors without logging
     if (isLoggingOut && error.response?.status === 401) {

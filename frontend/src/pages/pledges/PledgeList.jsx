@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import PasskeyModal from "@/components/common/PasskeyModal";
 import { usePermission } from "@/components/auth/PermissionGate";
 import {
   Plus,
@@ -71,6 +72,10 @@ export default function PledgeList() {
   const [pdfDownloadingId, setPdfDownloadingId] = useState(null);
   const [printingBarcodeId, setPrintingBarcodeId] = useState(null);
   const [reprintingId, setReprintingId] = useState(null);
+
+  // Passkey Modal State
+  const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
 
   // Cancel Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -152,6 +157,35 @@ export default function PledgeList() {
   useEffect(() => {
     fetchPledges();
   }, []);
+
+  const handleActionWithPasskey = (type, payload, e) => {
+    if (e) e.stopPropagation();
+    setPendingAction({ type, payload });
+    setPasskeyModalOpen(true);
+  };
+
+  const executePendingAction = () => {
+    if (!pendingAction) return;
+    const { type, payload } = pendingAction;
+
+    switch (type) {
+      case 'print':
+        handlePrint(payload.id);
+        break;
+      case 'reprint':
+        handleReprint(payload.id);
+        break;
+      case 'barcode':
+        handlePrintBarcode(payload.pledge);
+        break;
+      case 'download':
+        handleDownloadPdf(payload.pledge);
+        break;
+    }
+
+    // Reset state after execution
+    setPendingAction(null);
+  };
 
   // Handle print pre-printed form with data
   const handlePrint = async (pledgeId, e) => {
@@ -873,7 +907,7 @@ export default function PledgeList() {
       iframe.style.display = 'none';
       iframe.src = downloadUrl;
       document.body.appendChild(iframe);
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 60000);
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch (e) { } }, 60000);
 
       dispatch(addToast({ type: "success", title: "Downloaded", message: "PDF download started" }));
     } catch (error) {
@@ -1504,7 +1538,7 @@ export default function PledgeList() {
                               variant="ghost"
                               size="icon-sm"
                               disabled={printingId === pledge.id}
-                              onClick={(e) => handlePrint(pledge.id, e)}
+                              onClick={(e) => handleActionWithPasskey('print', { id: pledge.id }, e)}
                               title="A5 Landscape — Pre-Printed Form with Data"
                             >
                               {printingId === pledge.id ? (
@@ -1521,7 +1555,7 @@ export default function PledgeList() {
                               variant="ghost"
                               size="icon-sm"
                               disabled={reprintingId === pledge.id}
-                              onClick={(e) => handleReprint(pledge.id, e)}
+                              onClick={(e) => handleActionWithPasskey('reprint', { id: pledge.id }, e)}
                               title="A5 Landscape — Pre-Printed Form Reprint"
                               className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                             >
@@ -1558,7 +1592,7 @@ export default function PledgeList() {
                               variant="ghost"
                               size="icon-sm"
                               disabled={printingBarcodeId === pledge.id}
-                              onClick={(e) => handlePrintBarcode(pledge, e)}
+                              onClick={(e) => handleActionWithPasskey('barcode', { pledge }, e)}
                               title="Reprint Barcode Sticker"
                               className="text-red-500 hover:text-red-600 hover:bg-red-50"
                             >
@@ -1576,7 +1610,7 @@ export default function PledgeList() {
                               variant="ghost"
                               size="icon-sm"
                               disabled={pdfDownloadingId === pledge.id}
-                              onClick={(e) => handleDownloadPdf(pledge, e)}
+                              onClick={(e) => handleActionWithPasskey('download', { pledge }, e)}
                               title="Download PDF Receipt (A5 Landscape)"
                               className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                             >
@@ -1716,6 +1750,18 @@ export default function PledgeList() {
           </div>
         </div>
       </Modal>
+
+      {/* Passkey Modal */}
+      <PasskeyModal
+        isOpen={passkeyModalOpen}
+        onClose={() => {
+          setPasskeyModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={executePendingAction}
+        title="Verification Required"
+        message="Please enter your 6-digit passkey to authorize this action."
+      />
     </PageWrapper>
   );
 }

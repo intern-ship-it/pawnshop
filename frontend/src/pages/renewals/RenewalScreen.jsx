@@ -612,10 +612,11 @@ export default function RenewalScreen() {
                     .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
                     .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
                     .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
-                    .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; }
+                    .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; z-index: 10; }
                     .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
+                    .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
                   </style>
-                </head>
+                </head>a
                 <body>
                   <div class="labels-wrapper">
                     <div class="label">
@@ -630,6 +631,7 @@ export default function RenewalScreen() {
                         ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
                         <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                       </div>
+                      <div class="reprint-badge">REPRINT</div>
                     </div>
                   </div>
                   <script>
@@ -1172,8 +1174,9 @@ export default function RenewalScreen() {
                   .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
                   .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
                   .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
-                  .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; }
+                  .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; z-index: 10;}
                   .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
+                  .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
                 </style>
               </head>
               <body>
@@ -1190,6 +1193,7 @@ export default function RenewalScreen() {
                       ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
                       <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                     </div>
+                    <div class="reprint-badge">REPRINT</div>
                   </div>
                 </div>
                 <script>
@@ -1445,17 +1449,17 @@ export default function RenewalScreen() {
                         const customerPhotoUrl = item.customer?.selfie_photo
                           ? getStorageUrl(item.customer.selfie_photo)
                           : null;
-                        
+
                         // Calculate specific status
                         const now = new Date();
                         now.setHours(0, 0, 0, 0);
                         const due = new Date(item.due_date);
                         due.setHours(0, 0, 0, 0);
                         const daysUntilDue = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-                        
+
                         let statusVariant = "success";
                         let statusLabel = "Active";
-                        
+
                         if (isOverdue) {
                           statusVariant = "error";
                           statusLabel = "Overdue";

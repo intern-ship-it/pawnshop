@@ -13,6 +13,7 @@ import {
 } from "@/utils/formatters";
 import { getStorageUrl } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
+import PasskeyModal from "@/components/common/PasskeyModal";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Badge, Modal, Input } from "@/components/common";
@@ -75,6 +76,10 @@ export default function PledgeDetail() {
   // State
   const [pledge, setPledge] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Passkey Modal State
+  const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -247,6 +252,25 @@ export default function PledgeDetail() {
   };
 
   const interest = calculateInterest();
+
+  const handleActionWithPasskey = (type) => {
+    setPendingAction({ type });
+    setPasskeyModalOpen(true);
+  };
+
+  const executePendingAction = () => {
+    if (!pendingAction) return;
+    const { type } = pendingAction;
+
+    switch (type) {
+      case 'print':
+        handlePrint();
+        break;
+    }
+
+    setPendingAction(null);
+  };
+
   // Handle print - A5 Landscape Pre-Printed Form with Data
   const handlePrint = async () => {
     try {
@@ -557,7 +581,7 @@ export default function PledgeDetail() {
           <Button
             variant="outline"
             leftIcon={Printer}
-            onClick={() => handlePrint()}
+            onClick={() => handleActionWithPasskey('print')}
           >
             Print
           </Button>
@@ -1256,6 +1280,16 @@ export default function PledgeDetail() {
           )}
         </div>
       </Modal>
+
+      {/* Passkey Modal */}
+      <PasskeyModal
+        isOpen={passkeyModalOpen}
+        onClose={() => {
+          setPasskeyModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={executePendingAction}
+      />
     </PageWrapper>
   );
 }
