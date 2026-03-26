@@ -702,6 +702,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 // For document view / checking data alignment
                 Route::post('/pre-printed-with-form/pledge/{pledge}', [DotMatrixPrintController::class , 'prePrintedPledgeReceiptWithForm'])
                     ->middleware('check.permission:pledges,print');
+                Route::post('/pre-printed-with-form/pledge/{pledge}/reprint', [DotMatrixPrintController::class , 'prePrintedPledgeReceiptWithFormReprint'])
+                    ->middleware('check.permission:pledges,print');
                 Route::post('/pre-printed-with-form/renewal/{renewal}', [DotMatrixPrintController::class , 'prePrintedRenewalReceiptWithForm'])
                     ->middleware('check.permission:renewals,print');
                 Route::post('/pre-printed-with-form/redemption/{redemption}', [DotMatrixPrintController::class , 'prePrintedRedemptionReceiptWithForm'])

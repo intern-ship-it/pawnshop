@@ -35,6 +35,7 @@ import {
   Printer,
   ScanLine,
   RotateCcw,
+  Copy,
 } from "lucide-react";
 
 // Status badge config
@@ -69,6 +70,7 @@ export default function PledgeList() {
   const [dotPrintingId, setDotPrintingId] = useState(null);
   const [pdfDownloadingId, setPdfDownloadingId] = useState(null);
   const [printingBarcodeId, setPrintingBarcodeId] = useState(null);
+  const [reprintingId, setReprintingId] = useState(null);
 
   // Cancel Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -345,6 +347,203 @@ export default function PledgeList() {
       );
     } finally {
       setPrintingId(null);
+    }
+  };
+
+  // Handle print pre-printed form with data (REPRINT)
+  const handleReprint = async (pledgeId, e) => {
+    if (e) e.stopPropagation();
+
+    // Get token using the helper function
+    const token = getToken();
+    if (!token) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Please login again",
+        }),
+      );
+      return;
+    }
+
+    setReprintingId(pledgeId);
+
+    try {
+      const apiUrl =
+        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const response = await fetch(
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledgeId}/reprint`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate pre-printed reprint form");
+      }
+
+      const frontHtml = data.data.front_html || "";
+      let backHtml = data.data.back_html || "";
+      // Strip @page styles from backHtml to prevent overriding global margins
+      backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
+
+      const pledgeNo = data.data.pledge_no || "N/A";
+
+      // Create print window
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        throw new Error("Please allow popups to print");
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Pre-Printed Form (REPRINT) - ${pledgeNo}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              background: #f5f5f5;
+              padding: 20px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 20px;
+            }
+            
+            .print-container {
+              width: 210mm;
+              max-width: 210mm;
+              background: white;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              margin: 0;
+              padding: 0;
+              overflow: hidden;
+            }
+            
+            .print-actions {
+              width: 100%;
+              max-width: 210mm;
+              text-align: center;
+              padding: 15px;
+              background: #f8d7da;
+              border: 1px solid #f5c6cb;
+              border-radius: 4px;
+            }
+            
+            .print-btn {
+              background: #28a745;
+              color: white;
+              border: none;
+              padding: 10px 30px;
+              font-size: 16px;
+              border-radius: 4px;
+              cursor: pointer;
+              margin: 0 5px;
+            }
+            
+            .print-btn:hover {
+              background: #218838;
+            }
+            
+            .close-btn {
+              background: #dc3545;
+            }
+            
+            .close-btn:hover {
+              background: #c82333;
+            }
+            
+            @media print {
+              body {
+                background: white;
+                padding: 0;
+                display: block;
+              }
+              
+              .print-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              
+              .print-actions {
+                display: none;
+              }
+            }
+            
+            @page {
+              size: A5 landscape;
+              margin: 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-actions">
+           <p style="margin-bottom: 10px; font-weight: bold; color: #721c24;">
+  📄 HP Print - A5 - ${pledgeNo} (REPRINT)
+</p>
+<p style="margin-bottom: 15px; font-size: 14px; color: #721c24;">
+  A5 Pre-Printed Form Template + Data Overlay (REPRINT)
+</p>
+            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+          </div>
+          
+          <div class="print-container">
+            ${frontHtml}
+          </div>
+
+          ${backHtml
+          ? `<div class="print-container" style="margin-top: 20px;">
+                  ${backHtml}
+                 </div>`
+          : ""
+        }
+          
+          <script>
+            window.onload = function() { 
+              document.querySelector('.print-btn').focus(); 
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Success",
+          message: "Pre-printed reprint form generated",
+        }),
+      );
+    } catch (error) {
+      console.error("Print error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to generate pre-printed reprint form",
+        }),
+      );
+    } finally {
+      setReprintingId(null);
     }
   };
 
@@ -876,8 +1075,17 @@ export default function PledgeList() {
       }
 
       // Status filter
-      if (statusFilter !== "all" && pledge.status !== statusFilter)
-        return false;
+      if (statusFilter !== "all") {
+        if (statusFilter === "due_soon") {
+          if (pledge.status !== "active") return false;
+          const due = new Date(pledge.dueDate);
+          const now = new Date();
+          const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+          if (diffDays > 7 || diffDays < 0) return false;
+        } else if (pledge.status !== statusFilter) {
+          return false;
+        }
+      }
 
       // Date filter (From/To)
       if (dateFrom || dateTo) {
@@ -1055,8 +1263,9 @@ export default function PledgeList() {
               { value: "active", label: "Active" },
               { value: "overdue", label: "Overdue" },
               { value: "redeemed", label: "Redeemed" },
-              { value: "forfeited", label: "Forfeited" },
-              { value: "cancelled", label: "Cancelled" },
+              { value: "due_soon", label: "7 Days" },
+              // { value: "forfeited", label: "Forfeited" },
+              // { value: "cancelled", label: "Cancelled" },
             ]}
             className="w-40"
           />
@@ -1306,7 +1515,25 @@ export default function PledgeList() {
                             </Button>
                           )}
 
-                          {/* Dot Matrix Print Button */}
+                          {/* Reprint - Pre-Printed Form with Data */}
+                          {canPrint && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={reprintingId === pledge.id}
+                              onClick={(e) => handleReprint(pledge.id, e)}
+                              title="A5 Landscape — Pre-Printed Form Reprint"
+                              className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                            >
+                              {reprintingId === pledge.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
+
+                          {/* Dot Matrix Print Button (Hidden per request)
                           {canPrint && (
                             <Button
                               variant="ghost"
@@ -1323,6 +1550,7 @@ export default function PledgeList() {
                               )}
                             </Button>
                           )}
+                          */}
 
                           {/* Reprint Barcode Button */}
                           {canPrint && (
@@ -1360,7 +1588,7 @@ export default function PledgeList() {
                             </Button>
                           )}
 
-                          {/* Cancel Button - Only for active pledges with no renewals */}
+                          {/* Cancel Button - Only for active pledges with no renewals (Hidden per request)
                           {canDelete &&
                             pledge.status === "active" &&
                             pledge.renewalCount === 0 && (
@@ -1374,6 +1602,7 @@ export default function PledgeList() {
                                 <XCircle className="w-4 h-4" />
                               </Button>
                             )}
+                          */}
                         </div>
                       </td>
                     </tr>
