@@ -2235,7 +2235,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 126mm;
+    top: 128mm;
     right: 13mm;
     font-size: 12px;
 }
@@ -3126,31 +3126,28 @@ HTML;
     z-index: 2;
     overflow: hidden;
 }
-.pp-watermark {
+.pp-copy-label {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-35deg);
+    bottom: 12mm;
+    left: 5mm;
     z-index: 3;
-    font-size: 60px;
+    font-size: 12px;
     font-weight: bold;
     font-family: Arial, Helvetica, sans-serif;
-    color: rgba(26, 74, 122, 0.13);
-    letter-spacing: 8px;
-    text-transform: uppercase;
+    color: #d42027;
     pointer-events: none;
-    white-space: nowrap;
     user-select: none;
+    text-transform: uppercase;
 }
 @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     .pp-combined-container { page-break-inside: avoid !important; overflow: hidden !important; }
     .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
-    .pp-watermark { color: rgba(26, 74, 122, 0.13) !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .pp-copy-label { color: #d42027 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 </style>
 
-<!-- Page 1: Original Copy (Office) -->
+<!-- Page 1: Customer Copy (Salinan Pelanggan) -->
 <div class="pp-combined-container">
     <div class="pp-blank-layer">
         {$blankFrontHtml}
@@ -3158,10 +3155,10 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
-    <div class="pp-watermark">Original Copy</div>
+    <div class="pp-copy-label">SALINAN PELANGGAN</div>
 </div>
 
-<!-- Page 2: Customer Copy -->
+<!-- Page 2: Original (Asal) -->
 <div class="pp-combined-container">
     <div class="pp-blank-layer">
         {$blankFrontHtml}
@@ -3169,7 +3166,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
-    <div class="pp-watermark">Customer Copy</div>
+    <div class="pp-copy-label">ASAL</div>
 </div>
 HTML;
 
