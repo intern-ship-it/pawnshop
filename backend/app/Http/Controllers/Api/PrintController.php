@@ -145,8 +145,14 @@ class PrintController extends Controller
         if ($pledgeItem->vault && $pledgeItem->box && $pledgeItem->slot) {
             $lockerLetter = substr(trim($pledgeItem->vault->name), -1);
             $drawerLetter = $pledgeItem->box->box_number;
-            $slotNumber = $pledgeItem->slot->slot_number;
-            $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotNumber}";
+            $slotStr = $pledgeItem->slot->slot_number;
+            if ($pledgeItem->box->has_subslots) {
+                $subPerSlot = $pledgeItem->box->subslots_per_slot ?: 1;
+                $sNum = ceil($pledgeItem->slot->slot_number / $subPerSlot);
+                $subNum = (($pledgeItem->slot->slot_number - 1) % $subPerSlot) + 1;
+                $slotStr = sprintf('%d-%d', $sNum, $subNum);
+            }
+            $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotStr}";
         }
 
         return $this->success([
@@ -192,8 +198,14 @@ class PrintController extends Controller
         if ($firstItem && $firstItem->vault && $firstItem->box && $firstItem->slot) {
             $lockerLetter = substr(trim($firstItem->vault->name), -1);
             $drawerLetter = $firstItem->box->box_number;
-            $slotNumber = $firstItem->slot->slot_number;
-            $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotNumber}";
+            $slotStr = $firstItem->slot->slot_number;
+            if ($firstItem->box->has_subslots) {
+                $subPerSlot = $firstItem->box->subslots_per_slot ?: 1;
+                $sNum = ceil($firstItem->slot->slot_number / $subPerSlot);
+                $subNum = (($firstItem->slot->slot_number - 1) % $subPerSlot) + 1;
+                $slotStr = sprintf('%d-%d', $sNum, $subNum);
+            }
+            $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotStr}";
         }
 
         $items = [[
@@ -356,8 +368,14 @@ class PrintController extends Controller
             if ($item->vault && $item->box && $item->slot) {
                 $lockerLetter = substr(trim($item->vault->name), -1);
                 $drawerLetter = $item->box->box_number;
-                $slotNumber = $item->slot->slot_number;
-                $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotNumber}";
+                $slotStr = $item->slot->slot_number;
+                if ($item->box->has_subslots) {
+                    $subPerSlot = $item->box->subslots_per_slot ?: 1;
+                    $sNum = ceil($item->slot->slot_number / $subPerSlot);
+                    $subNum = (($item->slot->slot_number - 1) % $subPerSlot) + 1;
+                    $slotStr = sprintf('%d-%d', $sNum, $subNum);
+                }
+                $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotStr}";
             }
 
             $barcodeValue = $item->pledge->pledge_no;

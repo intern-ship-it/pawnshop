@@ -99,10 +99,18 @@ class PledgeItem extends Model
         if (!$this->vault_id || !$this->vault || !$this->box || !$this->slot) {
             return 'Not Assigned';
         }
-        return sprintf('%s → %s%d',
+        $slotStr = $this->slot->slot_number;
+        if ($this->box->has_subslots) {
+            $subslotsPerSlot = $this->box->subslots_per_slot ?: 1;
+            $slotNum = ceil($this->slot->slot_number / $subslotsPerSlot);
+            $subslotNum = (($this->slot->slot_number - 1) % $subslotsPerSlot) + 1;
+            $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+        }
+
+        return sprintf('%s → %s%s',
             $this->vault->name ?? $this->vault->code,
             $this->box->box_number,
-            $this->slot->slot_number
+            $slotStr
         );
     }
 

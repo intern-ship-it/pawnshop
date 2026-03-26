@@ -55,10 +55,18 @@ class Slot extends Model
 
     public function getLocationCodeAttribute(): string
     {
-        return sprintf('%s-B%d-S%d',
+        $slotStr = $this->slot_number;
+        if ($this->box->has_subslots) {
+            $subslotsPerSlot = $this->box->subslots_per_slot ?: 1;
+            $slotNum = ceil($this->slot_number / $subslotsPerSlot);
+            $subslotNum = (($this->slot_number - 1) % $subslotsPerSlot) + 1;
+            $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+        }
+
+        return sprintf('%s-B%s-S%s',
             $this->box->vault->code,
             $this->box->box_number,
-            $this->slot_number
+            $slotStr
         );
     }
 }

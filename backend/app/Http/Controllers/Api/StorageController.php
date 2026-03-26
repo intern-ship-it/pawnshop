@@ -186,6 +186,8 @@ class StorageController extends Controller
             'box_number' => 'nullable|string|max:20',
             'name' => 'nullable|string|max:50',
             'total_slots' => 'required|integer|min:1|max:100',
+            'has_subslots' => 'nullable|boolean',
+            'subslots_per_slot' => 'nullable|integer|min:1|max:100',
             'description' => 'nullable|string|max:255',
         ]);
 
@@ -213,16 +215,23 @@ class StorageController extends Controller
         DB::beginTransaction();
 
         try {
+            $hasSubslots = $validated['has_subslots'] ?? false;
+            $subslotsPerSlot = $hasSubslots ? ($validated['subslots_per_slot'] ?? 5) : 1;
+            
+            $actualTotalSlots = $validated['total_slots'] * $subslotsPerSlot;
+
             $box = Box::create([
                 'vault_id' => $validated['vault_id'],
                 'box_number' => $validated['box_number'],
                 'name' => $validated['name'] ?? ('Drawer ' . $validated['box_number']),
-                'total_slots' => $validated['total_slots'],
+                'total_slots' => $actualTotalSlots,
+                'has_subslots' => $hasSubslots,
+                'subslots_per_slot' => $subslotsPerSlot,
                 'description' => $validated['description'] ?? null,
             ]);
 
             // Create slots
-            for ($i = 1; $i <= $validated['total_slots']; $i++) {
+            for ($i = 1; $i <= $actualTotalSlots; $i++) {
                 Slot::create([
                     'box_id' => $box->id,
                     'slot_number' => $i,
@@ -372,13 +381,21 @@ class StorageController extends Controller
             return $this->error('No available slots', 404);
         }
 
+        $slotStr = $slot->slot_number;
+        if ($slot->box->has_subslots) {
+            $subslotsPerSlot = $slot->box->subslots_per_slot ?: 1;
+            $slotNum = ceil($slot->slot_number / $subslotsPerSlot);
+            $subslotNum = (($slot->slot_number - 1) % $subslotsPerSlot) + 1;
+            $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+        }
+
         return $this->success([
             'slot' => $slot,
             'location_string' => sprintf(
-                '%s → %s%d',
+                '%s → %s%s',
                 $slot->box->vault->name,
                 $slot->box->box_number,
-                $slot->slot_number
+                $slotStr
             ),
         ]);
     }

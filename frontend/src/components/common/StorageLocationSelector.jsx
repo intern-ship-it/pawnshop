@@ -147,13 +147,20 @@ export default function StorageLocationSelector({
   // Format slot options
   const slotOptions = [
     { value: "", label: "Select Slot" },
-    ...slots.map((slot) => ({
-      value: slot.id.toString(),
-      label: `Slot ${slot.slot_number}${
-        slot.is_occupied ? " (Occupied)" : " (Available)"
-      }`,
-      disabled: slot.is_occupied,
-    })),
+    ...slots.map((slot) => {
+      const parentBox = boxes.find((b) => b.id.toString() === value.box_id);
+      let slotLabel = `Slot ${slot.slot_number}`;
+      if (parentBox && parentBox.has_subslots) {
+        slotLabel = `Slot ${Math.ceil(slot.slot_number / (parentBox.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (parentBox.subslots_per_slot || 1)) + 1}`;
+      }
+      return {
+        value: slot.id.toString(),
+        label: `${slotLabel}${
+          slot.is_occupied ? " (Occupied)" : " (Available)"
+        }`,
+        disabled: slot.is_occupied,
+      };
+    }),
   ];
 
   return (
@@ -233,7 +240,15 @@ export default function StorageLocationSelector({
             →{" "}
             {boxes.find((b) => b.id.toString() === value.box_id)?.box_number ||
              boxes.find((b) => b.id.toString() === value.box_id)?.name || ""}
-            {slots.find((s) => s.id.toString() === value.slot_id)?.slot_number || ""}
+            -
+            {(() => {
+              const b = boxes.find((b) => b.id.toString() === value.box_id);
+              const s = slots.find((s) => s.id.toString() === value.slot_id);
+              if (s && b && b.has_subslots) {
+                return `S${Math.ceil(s.slot_number / (b.subslots_per_slot || 1))}-${((s.slot_number - 1) % (b.subslots_per_slot || 1)) + 1}`;
+              }
+              return s ? `S${s.slot_number}` : "";
+            })()}
           </p>
         </div>
       )}

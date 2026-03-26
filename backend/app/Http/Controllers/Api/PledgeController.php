@@ -195,11 +195,12 @@ class PledgeController extends Controller
             if ($stoneDeductionType === 'amount') {
                 $netValue = $grossValue - $deductionAmount;
                 $deductionAmountCalc = $deductionAmount;
-            }
-            else {
+            } else {
                 $netValue = $netWeight * $pricePerGram;
                 $deductionAmountCalc = $deductionWeight * $pricePerGram;
             }
+
+            $netValue = floor($netValue / 50) * 50;
 
             $itemsCalculated[] = [
                 'category_id' => $item['category_id'],
@@ -223,7 +224,8 @@ class PledgeController extends Controller
         }
 
         $loanPercentage = $validated['loan_percentage'];
-        $loanAmount = $totalNetValue * ($loanPercentage / 100);
+        $rawLoanAmount = $totalNetValue * ($loanPercentage / 100);
+        $loanAmount = floor($rawLoanAmount / 50) * 50;
 
         // Calculate interest breakdown
         $interestBreakdown = $this->interestService->calculateMonthlyBreakdown($loanAmount, 6);
@@ -348,6 +350,7 @@ class PledgeController extends Controller
                 $gv = $gw * $pricePerGram;
                 $da = $item['stone_deduction_type'] === 'amount' ? $deductionAmt : ($deductionWeight * $pricePerGram);
                 $nv = $gv - $da;
+                $nv = floor($nv / 50) * 50;
 
                 $totalWeight += $nw;
                 $grossValue += $gv;
@@ -355,7 +358,8 @@ class PledgeController extends Controller
                 $netValue += $nv;
             }
 
-            $loanAmount = $netValue * ($validated['loan_percentage'] / 100);
+            $rawLoanAmount = $netValue * ($validated['loan_percentage'] / 100);
+            $loanAmount = floor($rawLoanAmount / 50) * 50;
             $handlingFee = $validated['handling_fee'] ?? 0;
             $payoutAmount = max(0, $loanAmount - $handlingFee);
             $dueDate = Carbon::today()->addMonths(6);
@@ -416,6 +420,7 @@ class PledgeController extends Controller
                 $gv = $gw * $pricePerGram;
                 $da = $item['stone_deduction_type'] === 'amount' ? $deductionAmt : ($deductionWeight * $pricePerGram);
                 $nv = $gv - $da;
+                $nv = floor($nv / 50) * 50;
 
                 $pledgeItem = PledgeItem::create([
                     'pledge_id' => $pledge->id,

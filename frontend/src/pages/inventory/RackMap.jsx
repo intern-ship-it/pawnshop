@@ -15,7 +15,7 @@ import { getStorageUrl } from "@/utils/helpers"; // ISSUE 3 FIX: Import for imag
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { Card, Button, Input, Badge, Modal } from "@/components/common";
+import { Card, Button, Input, Badge, Modal, Select } from "@/components/common";
 import {
   Grid3X3,
   Package,
@@ -63,6 +63,8 @@ export default function RackMap({ embedded = false }) {
   const [newBoxName, setNewBoxName] = useState("");
   const [newBoxCode, setNewBoxCode] = useState("");
   const [newBoxSlots, setNewBoxSlots] = useState(9);
+  const [newBoxHasSubslots, setNewBoxHasSubslots] = useState(false);
+  const [newBoxSubslots, setNewBoxSubslots] = useState(5);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingSlotItems, setIsLoadingSlotItems] = useState(false);
 
@@ -206,7 +208,12 @@ export default function RackMap({ embedded = false }) {
       }
       // For longer queries, search across all fields
       const item = slot.current_item || slot.pledge_item;
+      let formattedSlotObj = String(slot.slot_number);
+      if (currentBox?.has_subslots) {
+         formattedSlotObj = `${Math.ceil(slot.slot_number / (currentBox.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1}`;
+      }
       return (
+        formattedSlotObj.includes(query) ||
         slot.slot_number?.toString().includes(query) ||
         item?.pledge?.pledge_no?.toLowerCase().includes(query) ||
         item?.pledge?.customer?.name?.toLowerCase().includes(query) ||
@@ -353,6 +360,8 @@ export default function RackMap({ embedded = false }) {
         name: newBoxName,
         box_number: newBoxCode,
         total_slots: parseInt(newBoxSlots) || 9,
+        has_subslots: newBoxHasSubslots,
+        subslots_per_slot: newBoxHasSubslots ? (parseInt(newBoxSubslots) || 5) : 1,
       });
 
       if (response.success) {
@@ -367,6 +376,8 @@ export default function RackMap({ embedded = false }) {
         setNewBoxName("");
         setNewBoxCode("");
         setNewBoxSlots(9);
+        setNewBoxHasSubslots(false);
+        setNewBoxSubslots(5);
         fetchBoxes(selectedVault);
       } else {
         dispatch(
@@ -571,9 +582,11 @@ export default function RackMap({ embedded = false }) {
                             : "occupied"
                           : "empty"
                       }">
-                        <span class="slot-number">${String(
-                          slot.slot_number,
-                        ).padStart(2, "0")}</span>
+                        <span class="slot-number">${
+                          box.has_subslots
+                            ? `${Math.ceil(slot.slot_number / (box.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (box.subslots_per_slot || 1)) + 1}`
+                            : String(slot.slot_number).padStart(2, "0")
+                        }</span>
                         ${
                           slot.is_occupied && slot.pledge_item
                             ? `<span class="slot-pledge">${
@@ -931,6 +944,62 @@ export default function RackMap({ embedded = false }) {
                 <p className="text-zinc-500">Loading slots...</p>
               </div>
             ) : currentBox && filteredSlots.length > 0 ? (
+              currentBox.has_subslots ? (
+                <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                  {Object.entries(
+                    filteredSlots.reduce((acc, slot) => {
+                      const slotNum = Math.ceil(slot.slot_number / (currentBox.subslots_per_slot || 1));
+                      if (!acc[slotNum]) acc[slotNum] = [];
+                      acc[slotNum].push(slot);
+                      return acc;
+                    }, {})
+                  ).map(([mainSlotNum, subslots]) => (
+                    <div key={mainSlotNum} className="border-2 border-zinc-200 rounded-xl p-3 bg-white shadow-sm hover:border-zinc-300 transition-colors">
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-100">
+                        <div className="flex items-center gap-2">
+                          <Grid3X3 className="w-4 h-4 text-zinc-400" />
+                          <h4 className="text-sm font-bold text-zinc-700">Slot {String(mainSlotNum).padStart(2, "0")}</h4>
+                        </div>
+                        <span className="text-[10px] font-medium text-zinc-500 px-2 py-0.5 bg-zinc-100 rounded-full">
+                          {subslots.filter(s => s.is_occupied).length}/{subslots.length} used
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {subslots.map((slot) => {
+                          const isOccupied = slot.is_occupied;
+                          const item = slot.current_item || slot.pledge_item;
+                          const hasOverdue = item?.pledge?.status === "overdue";
+                          const subslotNum = ((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1;
+
+                          return (
+                            <motion.button
+                              key={slot.id}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => handleSlotClick(slot)}
+                              title={item ? item.pledge?.pledge_no : `Subslot ${subslotNum} (Empty)`}
+                              className={cn(
+                                "aspect-square rounded flex items-center justify-center text-[11px] font-bold transition-all relative",
+                                isOccupied
+                                  ? hasOverdue
+                                    ? "bg-red-500 text-white shadow-sm border border-red-600"
+                                    : "bg-amber-400 text-amber-950 shadow-sm border border-amber-500"
+                                  : "bg-zinc-100/80 text-zinc-400 border border-zinc-200 hover:bg-zinc-200",
+                              )}
+                            >
+                              {subslotNum}
+                              {hasOverdue && (
+                                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white shadow-sm" />
+                              )}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
                 {filteredSlots.map((slot) => {
                   const isOccupied = slot.is_occupied;
@@ -953,7 +1022,9 @@ export default function RackMap({ embedded = false }) {
                       )}
                     >
                       <span className="text-xs font-mono font-medium">
-                        {String(slot.slot_number).padStart(2, "0")}
+                        {currentBox?.has_subslots
+                          ? `${Math.ceil(slot.slot_number / (currentBox.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1}`
+                          : String(slot.slot_number).padStart(2, "0")}
                       </span>
                       {isOccupied &&
                         (slot.current_item || slot.pledge_item) && (
@@ -970,6 +1041,7 @@ export default function RackMap({ embedded = false }) {
                   );
                 })}
               </div>
+              )
             ) : currentBox ? (
               <div className="text-center py-12">
                 <Grid3X3 className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
@@ -1020,7 +1092,9 @@ export default function RackMap({ embedded = false }) {
         onClose={() => setShowSlotModal(false)}
         title={`Slot ${
           selectedSlot?.slot_number
-            ? String(selectedSlot.slot_number).padStart(2, "0")
+            ? currentBox?.has_subslots
+              ? `${Math.ceil(selectedSlot.slot_number / (currentBox.subslots_per_slot || 1))}-${((selectedSlot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1}`
+              : String(selectedSlot.slot_number).padStart(2, "0")
             : ""
         }`}
         size="lg"
@@ -1348,14 +1422,40 @@ export default function RackMap({ embedded = false }) {
             onChange={(e) => setNewBoxCode(e.target.value)}
             helperText="Single alphanumeric character drawer label"
           />
-          <Input
+          <Select
             label="Number of Slots"
-            type="number"
-            min={1}
-            max={100}
-            value={newBoxSlots}
+            value={newBoxSlots.toString()}
             onChange={(e) => setNewBoxSlots(e.target.value)}
+            options={Array.from({ length: 100 }, (_, i) => ({
+              label: `${i + 1}`,
+              value: (i + 1).toString(),
+            }))}
+            placeholder="Select number of slots"
           />
+          <div className="flex items-center gap-2 mt-2">
+            <input
+              type="checkbox"
+              id="hasSubslots"
+              checked={newBoxHasSubslots}
+              onChange={(e) => setNewBoxHasSubslots(e.target.checked)}
+              className="w-4 h-4 text-amber-500 border-zinc-300 rounded focus:ring-amber-500"
+            />
+            <label htmlFor="hasSubslots" className="text-sm font-medium text-zinc-700">
+              Slots have subslots?
+            </label>
+          </div>
+          {newBoxHasSubslots && (
+            <Select
+              label="Number of Subslots per Slot"
+              value={newBoxSubslots.toString()}
+              onChange={(e) => setNewBoxSubslots(e.target.value)}
+              options={Array.from({ length: 50 }, (_, i) => ({
+                label: `${i + 1}`,
+                value: (i + 1).toString(),
+              }))}
+              placeholder="e.g. 5"
+            />
+          )}
           <div className="flex gap-3">
             <Button
               variant="outline"

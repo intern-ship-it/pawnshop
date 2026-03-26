@@ -439,7 +439,8 @@ export default function NewPledge() {
       totalNetValue += val.net;
     });
 
-    const currentLoanAmount = totalNetValue * (loanPercentage / 100);
+    const currentLoanAmountRaw = totalNetValue * (loanPercentage / 100);
+    const currentLoanAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
 
     let calculatedCharge = 0;
     if (handlingSettings.type === "percentage") {
@@ -463,7 +464,8 @@ export default function NewPledge() {
       const val = calculateItemValue(item);
       totalNetValue += val.net;
     });
-    const currentLoanAmount = totalNetValue * (loanPercentage / 100);
+    const currentLoanAmountRaw = totalNetValue * (loanPercentage / 100);
+    const currentLoanAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
     setNetPayoutAmount(currentLoanAmount);
   }, [handlingCharge, items, loanPercentage]);
 
@@ -570,18 +572,28 @@ export default function NewPledge() {
     }
 
     const slot = availableSlots[0];
+    const activeBox = boxes.find((b) => b.id === parseInt(selectedBox));
+    let displayNum = slot.slot_number;
+    
+    if (activeBox?.has_subslots) {
+      const subPerSlot = activeBox.subslots_per_slot || 1;
+      const sNum = Math.ceil(slot.slot_number / subPerSlot);
+      const subNum = ((slot.slot_number - 1) % subPerSlot) + 1;
+      displayNum = `${sNum}-${subNum}`;
+    }
+
     setSelectedSlot({
       vaultId: selectedVault,
       boxId: selectedBox,
       slotId: slot.id,
-      slotNumber: slot.slot_number,
+      slotNumber: displayNum,
     });
 
     dispatch(
       addToast({
         type: "success",
         title: "Slot Selected",
-        message: `All items assigned to Slot ${slot.slot_number}`,
+        message: `All items assigned to Slot ${displayNum}`,
       }),
     );
   };
@@ -802,10 +814,12 @@ export default function NewPledge() {
     }
 
     const grossValue = grossWeight * pricePerGram;
-    const netValue =
+    const netValueRaw =
       item.stoneDeductionType === "grams"
         ? netWeight * pricePerGram
         : Math.max(0, grossValue - deduction);
+
+    const netValue = Math.floor(netValueRaw / 50) * 50;
 
     return {
       gross: grossValue,
@@ -832,7 +846,8 @@ export default function NewPledge() {
   const effectivePercentage = useCustomPercentage
     ? parseFloat(customPercentage) || 0
     : loanPercentage;
-  const loanAmount = totals.netValue * (effectivePercentage / 100);
+  const rawLoanAmount = totals.netValue * (effectivePercentage / 100);
+  const loanAmount = Math.floor(rawLoanAmount / 50) * 50;
 
   // Customer search handler
   const performSearch = async (query = searchQuery) => {
@@ -1483,7 +1498,7 @@ export default function NewPledge() {
   };
 
   // Generate barcode print HTML - ONE BARCODE PER PLEDGE
-  const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo) => {
+  const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo, isReprint = false) => {
     const barcodeImage = pledgeData.barcode_image || pledgeData.image || "";
     const categoryName = pledgeData.category || "Item";
     const totalWeight = pledgeData.total_weight || "0";
@@ -1516,6 +1531,7 @@ export default function NewPledge() {
           .label:last-child { border-bottom: none; }
           .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
           .pledge-no { font-size: 8pt; font-weight: bold; }
+          .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
           .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
           .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
           .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
@@ -1538,6 +1554,7 @@ export default function NewPledge() {
               ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purityName}</div>`}
               <div>${parseFloat(totalWeight).toFixed(2)}g</div>
             </div>
+            ${isReprint ? '<div class="reprint-badge">REPRINT</div>' : ''}
           </div>
         </div>
         <script>
@@ -2017,7 +2034,7 @@ export default function NewPledge() {
 
       const printWindow = window.open("", "_blank", "width=400,height=600");
       if (!printWindow) { dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups for this site to print barcodes." })); return; }
-      printWindow.document.write(generateBarcodeHTML(pledgeBarcodeData, data.data.pledge_no || createdReceiptNo, data.data.receipt_no || createdReceiptNo));
+      printWindow.document.write(generateBarcodeHTML(pledgeBarcodeData, data.data.pledge_no || createdReceiptNo, data.data.receipt_no || createdReceiptNo, true));
       printWindow.document.close();
       printWindow.focus();
       dispatch(addToast({ type: "success", title: "Label Ready", message: "1 barcode label ready for printing." }));
@@ -2784,28 +2801,102 @@ export default function NewPledge() {
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl"><p className="text-amber-700">No slots configured for this drawer.</p></div>
                   ) : (
                     <>
-                      <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-                        {slots.map((slot) => {
-                          const isSelected = isSlotAssignedInPledge(slot.id);
-                          return (
-                            <button
-                              key={slot.id}
-                              type="button"
-                              disabled={slot.is_occupied}
-                              onClick={() => handleSlotSelect(slot)}
-                              className={cn(
-                                "w-10 h-10 rounded-lg text-xs font-bold transition-all",
-                                slot.is_occupied && "bg-red-100 text-red-400 cursor-not-allowed",
-                                !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
-                                isSelected && "bg-amber-500 text-white ring-2 ring-amber-300",
-                              )}
-                              title={slot.is_occupied ? "Occupied" : isSelected ? "Selected for this pledge (click to deselect)" : "Available - Click to select"}
-                            >
-                              {slot.slot_number}
-                            </button>
-                          );
-                        })}
-                      </div>
+                    {(() => {
+                      const activeBox = boxes.find((b) => b.id === parseInt(selectedBox));
+                      if (activeBox?.has_subslots) {
+                        const subPerSlot = activeBox.subslots_per_slot || 1;
+                        const groupedSlots = {};
+                        slots.forEach((slot) => {
+                          const sNum = Math.ceil(slot.slot_number / subPerSlot);
+                          const subNum = ((slot.slot_number - 1) % subPerSlot) + 1;
+                          if (!groupedSlots[sNum]) groupedSlots[sNum] = [];
+                          groupedSlots[sNum].push({ ...slot, subNum });
+                        });
+
+                        return (
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                            {Object.entries(groupedSlots).map(([sNum, subslots]) => (
+                              <div key={sNum} className="bg-white border text-center border-zinc-200 rounded-lg overflow-hidden shadow-sm">
+                                <div className="bg-zinc-100 py-1.5 border-b border-zinc-200">
+                                  <span className="text-xs font-semibold text-zinc-600">Slot {sNum}</span>
+                                </div>
+                                <div className="p-2 grid grid-cols-5 gap-1 justify-center align-middle place-items-center text-center">
+                                  {subslots.map((slot) => {
+                                    const isSelected = isSlotAssignedInPledge(slot.id);
+                                    return (
+                                      <button
+                                        key={slot.id}
+                                        type="button"
+                                        disabled={slot.is_occupied}
+                                        onClick={() => {
+                                          if (isSelected) {
+                                            setSelectedSlot(null);
+                                          } else {
+                                            setSelectedSlot({
+                                              slotId: slot.id,
+                                              vaultId: selectedVault,
+                                              boxId: selectedBox,
+                                              slotNumber: `${sNum}-${slot.subNum}`,
+                                              isOccupied: slot.is_occupied
+                                            });
+                                          }
+                                        }}
+                                        className={cn(
+                                          "w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-all",
+                                          slot.is_occupied && "bg-red-100 text-red-400 cursor-not-allowed",
+                                          !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                          isSelected && "bg-amber-500 text-white ring-2 ring-amber-300"
+                                        )}
+                                        title={slot.is_occupied ? "Occupied" : isSelected ? "Selected for this pledge" : "Available"}
+                                      >
+                                        {slot.subNum}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                          {slots.map((slot) => {
+                            const isSelected = isSlotAssignedInPledge(slot.id);
+                            return (
+                              <button
+                                key={slot.id}
+                                type="button"
+                                disabled={slot.is_occupied}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedSlot(null);
+                                  } else {
+                                    setSelectedSlot({
+                                      slotId: slot.id,
+                                      vaultId: selectedVault,
+                                      boxId: selectedBox,
+                                      slotNumber: slot.slot_number,
+                                      isOccupied: slot.is_occupied
+                                    });
+                                  }
+                                }}
+                                className={cn(
+                                  "w-10 h-10 rounded-lg text-xs font-bold transition-all",
+                                  slot.is_occupied && "bg-red-100 text-red-400 cursor-not-allowed",
+                                  !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                  isSelected && "bg-amber-500 text-white ring-2 ring-amber-300",
+                                )}
+                                title={slot.is_occupied ? "Occupied" : isSelected ? "Selected for this pledge (click to deselect)" : "Available - Click to select"}
+                              >
+                                {slot.slot_number}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                       <div className="flex gap-4 mt-2 text-xs">
                         <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-100 border border-emerald-300" /><span className="text-zinc-500">Available</span></div>
                         <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-red-100 border border-red-300" /><span className="text-zinc-500">Occupied</span></div>
@@ -3057,11 +3148,11 @@ export default function NewPledge() {
             <div className="mt-3 space-y-2">
               <div className="grid grid-cols-1 gap-2">
                 {/* <Button variant="outline" size="sm" leftIcon={Copy} onClick={handlePrintBothCopies} loading={isPrinting} disabled={isPrinting}>PDF Copies</Button> */}
-                <Button variant="outline" size="sm" leftIcon={Barcode} onClick={handlePrintBarcodes} loading={isPrinting} disabled={isPrinting}>Barcodes</Button>
+                <Button variant="outline" size="sm" leftIcon={RefreshCw} onClick={handlePrintBarcodes} loading={isPrinting} disabled={isPrinting}>Reprint Barcode</Button>
               </div>
-              <Button variant="outline" size="sm" leftIcon={FileText} onClick={handleHPPrintA5} loading={isPrinting} disabled={isPrinting} className="w-full">HP Print - A5</Button>
+              {/* <Button variant="outline" size="sm" leftIcon={FileText} onClick={handleHPPrintA5} loading={isPrinting} disabled={isPrinting} className="w-full">HP Print - A5</Button>
               <Button variant="outline" size="sm" leftIcon={FileDown} onClick={handleDownloadPdf} loading={isPrinting} disabled={isPrinting} className="w-full">Download PDF (A5)</Button>
-              <Button variant="outline" size="sm" fullWidth leftIcon={MessageSquare} onClick={handleSendWhatsApp} loading={isSendingWhatsApp} disabled={isSendingWhatsApp}>Send WhatsApp</Button>
+              <Button variant="outline" size="sm" fullWidth leftIcon={MessageSquare} onClick={handleSendWhatsApp} loading={isSendingWhatsApp} disabled={isSendingWhatsApp}>Send WhatsApp</Button> */}
             </div>
           </details>
 

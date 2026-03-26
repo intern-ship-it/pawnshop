@@ -1521,6 +1521,8 @@ function RacksTab({ settings, updateSettings }) {
     box_number: "",
     total_slots: 9,
     description: "",
+    has_subslots: false,
+    subslots_per_slot: 5,
   });
   const [vaults, setVaults] = useState([]);
   const [boxes, setBoxes] = useState([]);
@@ -1652,6 +1654,8 @@ function RacksTab({ settings, updateSettings }) {
         box_number: boxFormData.box_number || undefined,
         total_slots: parseInt(boxFormData.total_slots) || 9,
         description: boxFormData.description || null,
+        has_subslots: boxFormData.has_subslots,
+        subslots_per_slot: boxFormData.has_subslots ? (parseInt(boxFormData.subslots_per_slot) || 5) : 1,
       });
 
       if (response.success) {
@@ -1665,6 +1669,8 @@ function RacksTab({ settings, updateSettings }) {
           box_number: "",
           total_slots: 9,
           description: "",
+          has_subslots: false,
+          subslots_per_slot: 5,
         });
         setShowAddBoxModal(false);
       } else {
@@ -1988,6 +1994,8 @@ function RacksTab({ settings, updateSettings }) {
                   box_number: "",
                   total_slots: 9,
                   description: "",
+                  has_subslots: false,
+                  subslots_per_slot: 5,
                 });
                 setShowAddBoxModal(true);
               }}
@@ -2241,20 +2249,47 @@ function RacksTab({ settings, updateSettings }) {
             helperText="Single alphanumeric character drawer label"
           />
 
-          <Input
+          <Select
             label="Slots per drawer"
-            type="number"
-            min="1"
-            max="100"
-            value={boxFormData.total_slots}
+            value={boxFormData.total_slots.toString()}
             onChange={(e) =>
               setBoxFormData({
                 ...boxFormData,
                 total_slots: parseInt(e.target.value) || 9,
               })
             }
+            options={Array.from({ length: 100 }, (_, i) => ({
+              label: `${i + 1}`,
+              value: (i + 1).toString(),
+            }))}
+            placeholder="Select number of slots"
             required
           />
+
+          <div className="flex items-center gap-2 mt-2">
+            <input
+              type="checkbox"
+              id="hasSubslotsSettings"
+              checked={boxFormData.has_subslots}
+              onChange={(e) => setBoxFormData({...boxFormData, has_subslots: e.target.checked})}
+              className="w-4 h-4 text-amber-500 border-zinc-300 rounded focus:ring-amber-500"
+            />
+            <label htmlFor="hasSubslotsSettings" className="text-sm font-medium text-zinc-700">
+              Slots have subslots?
+            </label>
+          </div>
+          {boxFormData.has_subslots && (
+            <Select
+              label="Number of Subslots per Slot"
+              value={(boxFormData.subslots_per_slot || 5).toString()}
+              onChange={(e) => setBoxFormData({...boxFormData, subslots_per_slot: parseInt(e.target.value) || 5})}
+              options={Array.from({ length: 50 }, (_, i) => ({
+                label: `${i + 1}`,
+                value: (i + 1).toString(),
+              }))}
+              placeholder="e.g. 5"
+            />
+          )}
 
           <Input
             label="Description (Optional)"

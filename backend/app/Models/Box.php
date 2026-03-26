@@ -18,10 +18,14 @@ class Box extends Model
         'total_slots',
         'occupied_slots',
         'is_active',
+        'has_subslots',
+        'subslots_per_slot',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'has_subslots' => 'boolean',
+        'subslots_per_slot' => 'integer',
     ];
 
     public function vault(): BelongsTo
