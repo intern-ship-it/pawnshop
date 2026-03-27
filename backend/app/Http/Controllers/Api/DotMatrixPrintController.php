@@ -2228,7 +2228,7 @@ HTML;
     position: absolute;
     top: 108.7mm;
     left: 95mm;
-    width: 70mm;
+    width: 72mm;
     font-size: 12px;
     font-weight: bold;
 }
@@ -3563,9 +3563,9 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
-}
     text-align: center;
 }
+
 .ppo-interest-note {
     position: absolute;
     top: 118.5mm;
