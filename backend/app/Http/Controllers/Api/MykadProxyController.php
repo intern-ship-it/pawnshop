@@ -38,8 +38,8 @@ class MykadProxyController extends Controller
 		if ($record) {
 			$data = json_decode($record->data, true);
 			
-			// Delete the record after reading to consume it safely (Disabled temporarily for testing)
-			// DB::table('temp_card_data')->where('id', $record->id)->delete();
+			// Delete all records after reading to consume it safely
+			DB::table('temp_card_data')->truncate();
 			
 			return response()->json([
 				'status' => 'success',
