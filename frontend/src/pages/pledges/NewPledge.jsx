@@ -1284,6 +1284,7 @@ export default function NewPledge() {
               "",
             category:
               data.data.items?.[0]?.category || "",
+            description: data.data.items?.[0]?.description || "",
           };
           barcodeWindow.document.write(
             generateBarcodeHTML(
@@ -1504,6 +1505,7 @@ export default function NewPledge() {
     const totalWeight = pledgeData.total_weight || "0";
     const storageLocation = pledgeData.storage_location || "";
     const purityName = pledgeData.purity || "916";
+    const itemDescription = pledgeData.description || "";
 
     return `
       <!DOCTYPE html>
@@ -1534,7 +1536,7 @@ export default function NewPledge() {
           .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
           .remark-line { display: flex; align-items: baseline; gap: 1mm; margin-top: auto; padding-top: 1mm; width: 100%; }
           .remark-label { font-size: 6pt; font-weight: 700; color: #000; white-space: nowrap; }
-          .remark-space { flex: 1; border-bottom: 0.5px dotted #000; min-height: 3mm; }
+          .remark-space { flex: 1; border-bottom: 0.5px dotted #000; min-height: 3mm; font-size: 6pt; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
           .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
           .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
@@ -1557,7 +1559,7 @@ export default function NewPledge() {
               ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purityName}</div>`}
               <div>${parseFloat(totalWeight).toFixed(2)}g</div>
             </div>
-            ${isReprint ? '<div class="reprint-badge">REPRINT</div><div class="remark-line"><span class="remark-label">REMARK:</span><span class="remark-space"></span></div>' : ''}
+            ${isReprint ? `<div class="reprint-badge">REPRINT</div><div class="remark-line"><span class="remark-label">REMARK:</span><span class="remark-space">${itemDescription}</span></div>` : ''}
           </div>
         </div>
         <script>
@@ -1633,6 +1635,7 @@ export default function NewPledge() {
                 total_items: data.data.items?.length || data.data.total_items || 1,
                 total_weight: data.data.total_weight || data.data.items?.reduce((sum, item) => sum + (parseFloat(item.net_weight) || 0), 0) || 0,
                 storage_location: data.data.storage_location || data.data.items?.[0]?.storage_location || "",
+                description: data.data.items?.[0]?.description || "",
               };
               printWindow.document.write(
                 generateBarcodeHTML(pledgeBarcodeData, data.data.pledge_no, data.data.receipt_no),

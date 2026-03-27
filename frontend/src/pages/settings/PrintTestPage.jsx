@@ -1449,6 +1449,10 @@ export default function PrintTestPage() {
           flex: 1;
           border-bottom: 0.5px dotted #000;
           min-height: 3mm;
+          font-size: 6pt;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
      .barcode-section { 
