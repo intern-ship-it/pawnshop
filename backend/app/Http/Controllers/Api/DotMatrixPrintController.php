@@ -3542,18 +3542,18 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 }
 
 /* ROW 4: Catatan */
-.ppo-catatan {
+/* .ppo-catatan {
     position: absolute;
     top: 99.5mm;
     left: 22mm;
     width: 150mm;
     font-size: 11px;
-}
+} */
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 110.9mm;
+    top: 99.9mm;
     left: 22mm;
     width: 160mm;
     font-size: 9px;
@@ -3562,7 +3562,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 118mm;
+    top: 106mm;
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
@@ -3571,10 +3571,10 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 
 .ppo-interest-note {
     position: absolute;
-    top: 118.5mm;
-    left: 105mm;
-    width: 65mm;
-    font-size: 11px;
+    top: 108mm;
+    left: 96mm;
+    width: 68mm;
+    font-size: 12px;
     font-weight: bold;
 }
 /* .ppo-due-date {
@@ -3589,9 +3589,15 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 135mm;
+    top: 126mm;
     right: 13mm;
     font-size: 12px;
+}
+.ppo-pledge-date{
+    position: absolute;
+    bottom: 34mm;
+    right: 8mm;
+    font-size: 13px;
 }
 
 /* â•â•â• BARCODE â•â•â• */
@@ -3658,7 +3664,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     <div class="ppo-address">{$address}</div>
     
     <!-- ROW 4: CATATAN -->
-    <div class="ppo-catatan">{$catatan}</div>
+   
     
     <!-- AMOUNT IN WORDS -->
     <div class="ppo-amount-words">{$amountWords} SAHAJA</div>
@@ -4376,14 +4382,28 @@ HTML;
     z-index: 2;
     overflow: hidden;
 }
+.pp-copy-label {
+    position: absolute;
+    bottom: 12mm;
+    left: 5mm;
+    z-index: 3;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #d42027;
+    pointer-events: none;
+    user-select: none;
+    text-transform: uppercase;
+}
 @media print {
-    /* Prevent page breaks - single page only */
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+    .pp-combined-container { page-break-inside: avoid !important; overflow: hidden !important; }
     .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
+    .pp-copy-label { color: #d42027 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 </style>
 
+<!-- Page 1: Customer Copy (Salinan Pelanggan) -->
 <div class="pp-combined-container">
     <div class="pp-blank-layer">
         {$blankFrontHtml}
@@ -4391,6 +4411,18 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    <div class="pp-copy-label">SALINAN PELANGGAN</div>
+</div>
+
+<!-- Page 2: Original (Asal) -->
+<div class="pp-combined-container">
+    <div class="pp-blank-layer">
+        {$blankFrontHtml}
+    </div>
+    <div class="pp-data-layer">
+        {$dataOverlayHtml}
+    </div>
+    <div class="pp-copy-label">ORIGINAL</div>
 </div>
 HTML;
 
