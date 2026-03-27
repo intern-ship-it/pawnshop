@@ -1323,6 +1323,7 @@ export default function PrintTestPage() {
           <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
         </div>
         <div class="reprint-badge">REPRINT</div>
+        <div class="remark-line"><span class="remark-label">REMARK:</span><span class="remark-space">${item.description || ""}</span></div>
       </div>
     `,
       )
@@ -1429,6 +1430,25 @@ export default function PrintTestPage() {
           letter-spacing: 1.5px;
           text-transform: uppercase;
           padding-top: 1mm;
+        }
+        .remark-line {
+          display: flex;
+          align-items: baseline;
+          gap: 1mm;
+          margin-top: auto;
+          padding-top: 1mm;
+          width: 100%;
+        }
+        .remark-label {
+          font-size: 6pt;
+          font-weight: 700;
+          color: #000;
+          white-space: nowrap;
+        }
+        .remark-space {
+          flex: 1;
+          border-bottom: 0.5px dotted #000;
+          min-height: 3mm;
         }
         .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
      .barcode-section { 

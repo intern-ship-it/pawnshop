@@ -208,6 +208,11 @@ class PrintController extends Controller
             $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotStr}";
         }
 
+        // Collect descriptions/remarks from all items
+        $descriptions = $pledge->items->map(function ($item) {
+            return trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+        })->filter()->values()->implode(', ');
+
         $items = [[
                 'barcode' => $barcodeValue,
                 'item_code' => $barcodeValue,
@@ -218,6 +223,7 @@ class PrintController extends Controller
                 'net_weight' => $pledge->items->sum('net_weight'),
                 'item_summary' => $itemSummary,
                 'storage_location' => $storageLocation,
+                'description' => $descriptions,
             ]];
 
         return $this->success([
@@ -390,6 +396,7 @@ class PrintController extends Controller
                 'purity' => $item->purity->code,
                 'net_weight' => $item->net_weight,
                 'storage_location' => $storageLocation,
+                'description' => trim(($item->description ?? '') . ' ' . ($item->remarks ?? '')),
             ];
         }
 

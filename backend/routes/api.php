@@ -662,6 +662,9 @@ Route::middleware('auth:sanctum')->group(function () {
         }
         );
 
+        // MyKAD Data Fetch
+        Route::get('/mykad/data', [MykadProxyController::class, 'getData']);
+
         // Print
         Route::prefix('print')->group(
             function () {

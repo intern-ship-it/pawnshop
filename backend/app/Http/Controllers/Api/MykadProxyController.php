@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class MykadProxyController extends Controller
 {
@@ -16,8 +17,8 @@ class MykadProxyController extends Controller
 		]);
 
 		try {
-			\DB::table('temp_card_data')->truncate();
-			\DB::table('temp_card_data')->insert([
+			DB::table('temp_card_data')->truncate();
+			DB::table('temp_card_data')->insert([
 				'data'       => json_encode($request->input('data')),
 				'updated_at' => now(),
 			]);
@@ -27,5 +28,25 @@ class MykadProxyController extends Controller
 		}
 
 		return response()->json(['status' => 'success'], 200);
+	}
+
+	public function getData(): JsonResponse
+	{
+		/** @var object $record */
+		$record = DB::table('temp_card_data')->first();
+
+		if ($record) {
+			$data = json_decode($record->data, true);
+			
+			// Delete the record after reading to consume it safely (Disabled temporarily for testing)
+			// DB::table('temp_card_data')->where('id', $record->id)->delete();
+			
+			return response()->json([
+				'status' => 'success',
+				'data' => $data
+			], 200);
+		}
+
+		return response()->json(['status' => 'waiting', 'message' => 'No card data found'], 200);
 	}
 }

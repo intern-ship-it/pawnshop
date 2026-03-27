@@ -16,6 +16,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select, PhoneInput } from "@/components/common";
 import { customerService } from "@/services";
+import api from "@/services/api";
+import MyKadScanner from "./MyKadScanner";
 import {
   ArrowLeft,
   Save,
@@ -121,6 +123,12 @@ export default function CustomerCreate() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sameAsPhone, setSameAsPhone] = useState(true);
   const [currentCaptureType, setCurrentCaptureType] = useState(null); // 'icFront', 'icBack', or 'profile'
+
+  // Cardreader scan state
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanTimeLeft, setScanTimeLeft] = useState(0);
+  const scanIntervalRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
   // Get camera state from Redux
   const { capturedImage } = useAppSelector((state) => state.ui.camera);
@@ -452,10 +460,10 @@ export default function CustomerCreate() {
             type: "success",
             title: "Image Uploaded",
             message: `${type === "icFront"
-                ? "IC Front"
-                : type === "icBack"
-                  ? "IC Back"
-                  : "Profile Photo"
+              ? "IC Front"
+              : type === "icBack"
+                ? "IC Back"
+                : "Profile Photo"
               } uploaded and optimized successfully`,
           })
         );
@@ -499,6 +507,22 @@ export default function CustomerCreate() {
     dispatch(openCamera({ contextId: type }));
   };
 
+  // Handle MyKAD card reader scan data
+  const handleScanData = (data) => {
+    if (data.name) setFormData(prev => ({ ...prev, name: data.name }));
+    if (data.icNumber) setFormData(prev => ({ ...prev, icNumber: formatIC(data.icNumber) }));
+    if (data.address) setFormData(prev => ({ ...prev, address: data.address }));
+    if (data.gender) setFormData(prev => ({ ...prev, gender: data.gender.toLowerCase() }));
+    if (data.race) setFormData(prev => ({ ...prev, race: data.race }));
+    if (data.photo) {
+      setProfilePhoto(data.photo);
+      fetch(data.photo)
+        .then(r => r.blob())
+        .then(blob => setProfilePhotoFile(new File([blob], "mykad_photo.jpg", { type: "image/jpeg" })));
+    }
+    setErrors(prev => ({ ...prev, name: null, icNumber: null, address: null }));
+  };
+
   // Process captured image from camera
   useEffect(() => {
     if (capturedImage && currentCaptureType) {
@@ -533,10 +557,10 @@ export default function CustomerCreate() {
               type: "success",
               title: "Photo Captured",
               message: `${currentCaptureType === "icFront"
-                  ? "IC Front"
-                  : currentCaptureType === "icBack"
-                    ? "IC Back"
-                    : "Profile Photo"
+                ? "IC Front"
+                : currentCaptureType === "icBack"
+                  ? "IC Back"
+                  : "Profile Photo"
                 } captured successfully`,
             })
           );
@@ -691,35 +715,41 @@ export default function CustomerCreate() {
           Back to List
         </Button>
       }
+      fullWidth={true}
     >
       <form onSubmit={handleSubmit}>
         <motion.div
-          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+          className="grid grid-cols-1 lg:grid-cols-4 gap-6"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
         >
           {/* Main Form - Left Column */}
           <motion.div
-            className="lg:col-span-2 space-y-6"
+            className="lg:col-span-3 space-y-6"
             variants={itemVariants}
           >
             {/* Personal Information */}
             <Card>
-              <div className="p-5 border-b border-zinc-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                    <User className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-zinc-800">
-                      Personal Information
-                    </h3>
-                    <p className="text-sm text-zinc-500">
-                      Basic customer details
-                    </p>
-                  </div>
-                </div>
+              <div className="border-b border-gray-100 bg-gray-50/50 rounded-t-xl overflow-hidden">
+                <MyKadScanner 
+                  onDataReceived={handleScanData} 
+                  header={
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-900">
+                          Personal Information
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Basic customer details
+                        </p>
+                      </div>
+                    </div>
+                  }
+                />
               </div>
 
               <div className="p-5 space-y-4">
@@ -1011,7 +1041,7 @@ export default function CustomerCreate() {
                   </div>
                 </div>
               </div>
-
+           
               <div className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* IC Front */}

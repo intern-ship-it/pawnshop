@@ -843,6 +843,15 @@ HTML;
                 // Clean and format the content - preserve any HTML like <u> for underline
                 $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
 
+                // Dynamically format (a) and (b) if they exist to prevent overlapping
+                if (str_contains(strtolower($content), '(a)') && str_contains(strtolower($content), '(b)')) {
+                    $content = preg_replace('/(?:<br>)?\s*\(\s*a\s*\)/i', '<div style="padding-left: 4mm; margin-top: 1mm;"><div>(a)', $content, 1, $countA);
+                    if ($countA > 0) {
+                        $content = preg_replace('/(?:<br>)?\s*\(\s*b\s*\)/i', '</div><div style="margin-top: 0.5mm;">(b)', $content, 1);
+                        $content .= '</div></div>';
+                    }
+                }
+
                 // Build the term item with number
                 $termsHtml .= "<div class=\"term-item\"><b>{$termNumber}.</b> {$content}</div>\n";
                 $termNumber++;
@@ -856,7 +865,12 @@ HTML;
 <div class="term-item"><b>4.</b> Mana-mana sandaran hendaklah ditebus dalam masa <u>enam bulan</u> dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.</div>
 <div class="term-item"><b>5.</b> Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.</div>
 <div class="term-item"><b>6.</b> Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.</div>
-<div class="term-item"><b>7.</b> Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <u>dua ratus ringgit</u> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <u>dua ratus ringgit</u> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.</div>
+<div class="term-item"><b>7.</b> Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-
+    <div style="padding-left: 4mm; margin-top: 1mm;">
+        <div>(a) Jika dipajak gadai untuk wang berjumlah <u>dua ratus ringgit</u> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.</div>
+        <div style="margin-top: 0.5mm;">(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <u>dua ratus ringgit</u> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.</div>
+    </div>
+</div>
 <div class="term-item"><b>8.</b> Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai pejabat adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.</div>
 <div class="term-item"><b>9.</b> Sila maklumkan kami jika sekiranya anda menukarkan alamat.</div>
 <div class="term-item"><b>10.</b> Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.</div>
@@ -1849,6 +1863,16 @@ HTML;
                 foreach ($dbTerms as $term) {
                     $content = $term->content_ms ?? $term->content_en ?? '';
                     $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
+                    
+                    // Dynamically format (a) and (b) if they exist to prevent overlapping
+                    if (str_contains(strtolower($content), '(a)') && str_contains(strtolower($content), '(b)')) {
+                        $content = preg_replace('/(?:<br>)?\s*\(\s*a\s*\)/i', '<div style="padding-left: 4mm; margin-top: 1mm;"><div>(a)', $content, 1, $countA);
+                        if ($countA > 0) {
+                            $content = preg_replace('/(?:<br>)?\s*\(\s*b\s*\)/i', '</div><div style="margin-top: 0.5mm;">(b)', $content, 1);
+                            $content .= '</div></div>';
+                        }
+                    }
+
                     $termsItems[] = $content;
                 }
             }
@@ -1864,7 +1888,7 @@ HTML;
                 'Mana-mana sandaran hendaklah ditebus dalam masa enam bulan dari tarikh pajak gadaian atau dalam masa yang lebih panjang sebagaimana yang dipersetujui antara pemegang pajak gadai dengan pemajak gadai.',
                 'Seorang pemajak gadai berhak pada bila-bila masa dalam masa empat bulan selepas lelong untuk memeriksa catatan jualan dalam buku pemegang pajak gadai dan laporan yang dibuat oleh pelelong.',
                 'Apa-apa pertanyaan boleh dialamatkan kepada: Pendaftar Pemegang Pajak Gadai, Kementerian Perumahan dan Kerajaan Tempatan, Aras 22, No 51, Jalan Persiaran Perdana, Presint 4, 62100 Putrajaya.',
-                'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<br>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.<br>(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.',
+                'Jika sesuatu sandaran tidak ditebus di dalam enam bulan maka sandaran itu:-<div style="padding-left: 4mm; margin-top: 1mm;"><div>(a) Jika dipajak gadai untuk wang berjumlah <b>dua ratus ringgit</b> dan ke bawah, hendaklah menjadi harta pemegang pajak gadai itu.</div><div style="margin-top: 0.5mm;">(b) Jika dipajak gadai untuk wang berjumlah lebih daripada <b>dua ratus ringgit</b> hendaklah dijual oleh seorang pelelong berlesen mengikut Akta Pelelongan.</div></div>',
                 'Jika mana-mana surat berdaftar tidak sampai kepada pemajak gadai adalah tanggungjawab pejabat pos dan bukan pemegang pajak gadai.',
                 'Sila maklumkan kami jika sekiranya anda menukarkan alamat.',
                 'Jika tarikh tamat tempoh jatuh pada Cuti Am anda dinasihatkan datang menebus/melanjut sebelum Cuti Am.',
