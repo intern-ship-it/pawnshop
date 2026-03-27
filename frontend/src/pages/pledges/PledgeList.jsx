@@ -814,9 +814,7 @@ export default function PledgeList() {
                   .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
                   .pledge-no { font-size: 8pt; font-weight: bold; }
                   .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
-                  .remark-line { display: flex; align-items: baseline; gap: 1mm; margin-top: auto; padding-top: 1mm; width: 100%; }
-                  .remark-label { font-size: 6pt; font-weight: 700; color: #000; white-space: nowrap; }
-                  .remark-space { flex: 1; border-bottom: 0.5px dotted #000; min-height: 3mm; font-size: 6pt; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                  .remark-line { text-align: center; font-size: 8pt; font-weight: bold; text-transform: uppercase; margin-top: auto; color: #000; width: 100%; border-top: 0.1mm dashed #ccc; padding-top: 1mm; }
                   .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
                   .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
                   .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
@@ -839,7 +837,7 @@ export default function PledgeList() {
                       <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                     </div>
                     <div class="reprint-badge">REPRINT</div>
-                    <div class="remark-line"><span class="remark-label">REMARK:</span><span class="remark-space">${itemDescription}</span></div>
+                    <div class="remark-line">${itemDescription}</div>
                   </div>
                 </div>
                 <script>
