@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\GoldPriceController;
 use App\Http\Controllers\Api\DotMatrixPrintController;
 use App\Http\Controllers\Api\HardwareController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\MykadProxyController;
 
 /* |-------------------------------------------------------------------------- | API Routes |-------------------------------------------------------------------------- */
 
@@ -35,6 +36,9 @@ Route::post('/auth/login', [AuthController::class , 'login']);
 Route::post('/auth/forgot-password', [AuthController::class , 'forgotPassword']);
 Route::post('/auth/verify-reset-token', [AuthController::class , 'verifyResetToken']);
 Route::post('/auth/reset-password', [AuthController::class , 'resetPassword']);
+
+// MyKAD Hardware Integration
+Route::post('/mykad/store', [MykadProxyController::class, 'store']);
 
 
 // ── DEV ONLY: Public preview for CSS tweaking (no auth) ──
