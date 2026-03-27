@@ -244,6 +244,9 @@ class RenewalController extends Controller
 
         $principal = (float) $pledge->loan_amount;
         $handlingFee = 0;
+        
+        // Disabled handling fee calculation per user request
+        /*
         if ($type === 'percentage') {
             $handlingFee = $principal * ($value / 100);
             if ($handlingFee < $min)
@@ -252,6 +255,7 @@ class RenewalController extends Controller
             $handlingFee = $value;
         }
         $handlingFee = round($handlingFee, 2);
+        */
 
         $totalPayable = $calculation['total_interest'] + $handlingFee;
 
@@ -341,6 +345,9 @@ class RenewalController extends Controller
 
             $principal = (float) $pledge->loan_amount;
             $handlingFee = 0;
+            
+            // Disabled handling fee calculation per user request
+            /*
             if ($type === 'percentage') {
                 $handlingFee = $principal * ($value / 100);
                 if ($handlingFee < $min)
@@ -349,6 +356,7 @@ class RenewalController extends Controller
                 $handlingFee = $value;
             }
             $handlingFee = round($handlingFee, 2);
+            */
 
             $totalPayable = $calculation['total_interest'] + $handlingFee;
 

@@ -197,10 +197,9 @@ class DashboardController extends Controller
         $dueIn7Days = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
             ->whereBetween('due_date', [$today, $today->copy()->addDays(7)])
-            ->with(['customer:id,name,phone', 'items:id,pledge_id,category_id'])
+            ->with(['customer', 'items', 'items.category'])
             ->orderBy('due_date')
-            ->limit(20)
-            ->get(['id', 'pledge_no', 'receipt_no', 'customer_id', 'loan_amount', 'due_date']);
+            ->get();
 
         // Due in 3 days
         $dueIn3Days = Pledge::where('branch_id', $branchId)

@@ -1896,7 +1896,15 @@ export default function RenewalScreen() {
                       {formatCurrency(interestAmount)}
                     </span>
                   </div>
-                  {/* Handling Fee hidden from UI but still calculated in total */}
+                  {handlingFee > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Handling Fee</span>
+                      <span className="font-medium">
+                        {formatCurrency(handlingFee)}
+                      </span>
+                    </div>
+                  )}
+                  {/* Handling fee is now visible above */}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-zinc-200">
                     <span className="text-zinc-800">Total Payable</span>
                     <span className="text-amber-600">

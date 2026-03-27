@@ -2093,7 +2093,8 @@ HTML;
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
-        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
+        $monthlyInterest = $loanAmount * (floatval($rate) / 100);
         $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML
@@ -2361,7 +2362,8 @@ HTML;
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
-        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
+        $monthlyInterest = $loanAmount * (floatval($rate) / 100);
         $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML
@@ -3440,7 +3442,8 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
-        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
+        $monthlyInterest = $loanAmount * (floatval($rate) / 100);
         $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML
@@ -5422,7 +5425,8 @@ HTML;
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
         $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this->formatNumber($interestAmount);
         $ticketNo = $renewal->renewal_no ?? $pledge->pledge_no;
-        $monthlyInterest = $loanAmount * (floatval($settings['interest_rate_normal'] ?? 2) / 100);
+        $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
+        $monthlyInterest = $loanAmount * (floatval($rate) / 100);
         $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
         return <<<HTML

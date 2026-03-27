@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { useAppSelector, useAppDispatch } from "@/app/hooks";
@@ -35,8 +36,10 @@ import {
   Clock,
   CheckCircle,
   Calendar,
+  CalendarDays,
   Banknote,
   Building2,
+  X,
 } from "lucide-react";
 import GoldPriceCard from "@/components/dashboard/GoldPriceCard";
 import EnhancedStatsCard from "@/components/dashboard/EnhancedStatsCard";
@@ -123,6 +126,8 @@ export default function Dashboard() {
   const [localGoldPrices, setLocalGoldPrices] = useState(null);
 
   // Get dashboard state from Redux (connected to API)
+  const [showUpcomingModal, setShowUpcomingModal] = useState(false);
+
   const {
     summary,
     todayStats,
@@ -329,7 +334,7 @@ export default function Dashboard() {
       )}
 
       {/* Stats Cards Row - ENHANCED with animations and donut charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Today's Pledges */}
         <EnhancedStatsCard
           title="Today's New Pledges"
@@ -383,6 +388,18 @@ export default function Dashboard() {
           accentColor="red"
           linkText="View overdue items →"
           onClick={() => navigate("/pledges?status=overdue")}
+        />
+
+        {/* Upcoming Overdue (7 Days) */}
+        <EnhancedStatsCard
+          title="Upcoming Overdue"
+          value={(dueReminders?.sevenDays?.length || 0) + (dueReminders?.threeDays?.length || 0) + (dueReminders?.oneDay?.length || 0)}
+          subtitle="items in 7 days"
+          amount={null}
+          icon={CalendarDays}
+          accentColor="amber"
+          linkText="View upcoming items →"
+          onClick={() => setShowUpcomingModal(true)}
         />
       </div>
 
@@ -584,6 +601,99 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Upcoming Overdue Modal - Using Portal and high z-[9999] to cover entire screen over the layout nav bars */}
+      {showUpcomingModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 bg-amber-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 text-amber-600 rounded-lg">
+                  <CalendarDays className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-zinc-800">7 Days Until Due</h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                      {(dueReminders?.sevenDays?.length || 0) + (dueReminders?.threeDays?.length || 0) + (dueReminders?.oneDay?.length || 0)} items
+                    </span>
+                  </div>
+                  <p className="text-sm text-zinc-500">Pledges that need action within the next week</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUpcomingModal(false)}
+                className="p-2 hover:bg-black/5 text-zinc-400 hover:text-zinc-600 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden flex flex-col p-6 bg-zinc-50/50">
+              <div className="bg-white rounded-lg border border-zinc-200 shadow-sm flex flex-col flex-1 min-h-0">
+                <div className="overflow-auto flex-1 relative scrollbar-thin scrollbar-thumb-zinc-300 scrollbar-track-transparent">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-zinc-500 uppercase bg-zinc-100/95 backdrop-blur-sm border-b border-zinc-300 sticky top-0 z-10 shadow-sm">
+                      <tr>
+                        <th className="px-6 py-4 font-semibold whitespace-nowrap">Pledge / Receipt</th>
+                        <th className="px-6 py-4 font-semibold whitespace-nowrap">Customer Info</th>
+                        <th className="px-6 py-4 font-semibold whitespace-nowrap">Pledge Details</th>
+                        <th className="px-6 py-4 font-semibold text-right whitespace-nowrap">Loan Amount</th>
+                        <th className="px-6 py-4 font-semibold text-right whitespace-nowrap">Due Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 hover:divide-zinc-200 transition-colors">
+                      {[...(dueReminders?.oneDay || []), ...(dueReminders?.threeDays || []), ...(dueReminders?.sevenDays || [])]
+                        .sort((a, b) => new Date(a.due_date || a.dueDate) - new Date(b.due_date || b.dueDate))
+                        .map((pledge, idx) => (
+                        <tr key={pledge.id || idx} className="hover:bg-amber-50/30 transition-colors group">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="font-bold text-zinc-800">{pledge.pledge_no || pledge.pledgeNo}</div>
+                            {pledge.receipt_no && <div className="text-xs text-zinc-500">{pledge.receipt_no}</div>}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-zinc-800 truncate max-w-[200px]">{pledge.customer?.name || pledge.customerName || '-'}</div>
+                            <div className="text-xs text-zinc-500">{pledge.customer?.ic_number || '-'}</div>
+                            <div className="text-xs text-zinc-500">{pledge.customer?.phone || '-'}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            {pledge.items && pledge.items.length > 0 ? (
+                              <div className="text-xs text-zinc-600 max-w-[250px]">
+                                {pledge.items.map((item, i) => (
+                                  <div key={i} className="truncate">
+                                    • {item.category?.name_ms || item.category?.name_en || 'Item'} 
+                                    {item.net_weight ? ` (${item.net_weight}g)` : ''}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-zinc-400 italic">No items listed</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="font-bold text-zinc-800">{formatCurrency(pledge.loan_amount || pledge.amount)}</div>
+                          </td>
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                            <div className="font-semibold text-amber-600">{new Date(pledge.due_date || pledge.dueDate).toLocaleDateString()}</div>
+                          </td>
+                        </tr>
+                      ))}
+                      {(!dueReminders?.oneDay?.length && !dueReminders?.threeDays?.length && !dueReminders?.sevenDays?.length) && (
+                        <tr>
+                          <td colSpan="5" className="px-6 py-12 text-center text-zinc-500">
+                            No upcoming overdue items found for the next 7 days.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

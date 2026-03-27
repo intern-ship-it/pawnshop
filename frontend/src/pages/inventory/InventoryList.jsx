@@ -545,6 +545,16 @@ export default function InventoryList() {
           margin-bottom: 1mm;
         }
         .pledge-no { font-size: 8pt; font-weight: bold; }
+        .reprint-badge {
+          display: block;
+          text-align: center;
+          font-size: 7pt;
+          font-weight: 900;
+          color: #000;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          padding-top: 1mm;
+        }
         .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
         .barcode-section { 
           text-align: center; 
@@ -622,6 +632,7 @@ export default function InventoryList() {
               ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
               <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
             </div>
+            <div class="reprint-badge">REPRINT</div>
           </div>
           `;
             })
@@ -949,6 +960,16 @@ export default function InventoryList() {
             margin-bottom: 1mm;
           }
           .pledge-no { font-size: 8pt; font-weight: bold; }
+          .reprint-badge {
+            display: block;
+            text-align: center;
+            font-size: 7pt;
+            font-weight: 900;
+            color: #000;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding-top: 1mm;
+          }
           .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
           .barcode-section { 
             text-align: center; 
@@ -1010,6 +1031,7 @@ export default function InventoryList() {
               ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
               <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
             </div>
+            <div class="reprint-badge">REPRINT</div>
           </div>
         </div>
         <script>
@@ -1710,14 +1732,14 @@ export default function InventoryList() {
                                 >
                                   <Eye className="w-4 h-4" />
                                 </Button>
-                                <Button
+                                {/* <Button
                                   variant="ghost"
                                   size="icon-sm"
                                   title="Print Label"
                                   onClick={() => handlePrintSingleLabel(item)}
                                 >
                                   <Printer className="w-4 h-4" />
-                                </Button>
+                                </Button> */}
                                 {/* Only show location button for stored items */}
                                 {item.status !== "released" && (
                                   <Button
