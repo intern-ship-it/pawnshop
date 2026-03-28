@@ -1139,10 +1139,10 @@ export default function InventoryList() {
       Purity: getPurityName(item.purity),
       "Weight (g)": item.net_weight || item.weight || 0,
       "Value (RM)": item.net_value || item.estimated_value || 0,
-      Location: formatLocation(item) || "Unassigned",
+      Location: formatLocation(item) ? formatLocation(item).replace(/ → /g, ' - ').replace(/→/g, '-') : "Unassigned",
       "Item Status": item.status || "stored",
       "Pledge Status": item.pledge?.status || "",
-      "Due Date": item.pledge?.due_date || "",
+      "Due Date": item.pledge?.due_date ? String(item.pledge.due_date).split('T')[0].split(' ')[0] : "",
     }));
 
     const headers = Object.keys(csvData[0] || {});
@@ -1151,7 +1151,7 @@ export default function InventoryList() {
       ...csvData.map((row) => headers.map((h) => `"${row[h]}"`).join(",")),
     ].join("\n");
 
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

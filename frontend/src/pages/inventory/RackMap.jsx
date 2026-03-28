@@ -887,16 +887,16 @@ export default function RackMap({ embedded = false }) {
             <p className="text-xs font-medium text-zinc-500 mb-3">LEGEND</p>
             <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-zinc-100 border border-zinc-300" />
-                <span className="text-zinc-600">Empty Slot</span>
+                <div className="w-4 h-4 rounded bg-emerald-100 border border-emerald-200" />
+                <span className="text-zinc-600">Available</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-amber-500" />
+                <div className="w-4 h-4 rounded bg-amber-100 border border-amber-200" />
                 <span className="text-zinc-600">Occupied</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-red-500" />
-                <span className="text-zinc-600">Overdue Item</span>
+                <div className="w-4 h-4 rounded bg-red-100 border border-red-200" />
+                <span className="text-zinc-600">Overdue</span>
               </div>
             </div>
           </Card>
@@ -983,9 +983,9 @@ export default function RackMap({ embedded = false }) {
                                 "aspect-square rounded flex items-center justify-center text-[11px] font-bold transition-all relative",
                                 isOccupied
                                   ? hasOverdue
-                                    ? "bg-red-500 text-white shadow-sm border border-red-600"
-                                    : "bg-amber-400 text-amber-950 shadow-sm border border-amber-500"
-                                  : "bg-zinc-100/80 text-zinc-400 border border-zinc-200 hover:bg-zinc-200",
+                                    ? "bg-red-100 text-red-600 hover:bg-red-200"
+                                    : "bg-amber-100 text-amber-600 hover:bg-amber-200"
+                                  : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
                               )}
                             >
                               {subslotNum}
@@ -1016,9 +1016,9 @@ export default function RackMap({ embedded = false }) {
                         "aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-1 transition-all relative",
                         isOccupied
                           ? hasOverdue
-                            ? "bg-red-100 border-red-300 text-red-700"
-                            : "bg-amber-100 border-amber-300 text-amber-700"
-                          : "bg-zinc-50 border-zinc-200 text-zinc-400 hover:border-zinc-300",
+                            ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300"
+                            : "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 hover:border-amber-300"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300",
                       )}
                     >
                       <span className="text-xs font-mono font-medium">

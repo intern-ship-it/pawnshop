@@ -713,6 +713,8 @@ Route::middleware('auth:sanctum')->group(function () {
                     ->middleware('check.permission:pledges,print');
                 Route::post('/pre-printed-with-form/renewal/{renewal}', [DotMatrixPrintController::class , 'prePrintedRenewalReceiptWithForm'])
                     ->middleware('check.permission:renewals,print');
+                Route::post('/pre-printed-with-form/renewal/{renewal}/reprint', [DotMatrixPrintController::class , 'prePrintedRenewalReceiptWithFormReprint'])
+                    ->middleware('check.permission:renewals,print');
                 Route::post('/pre-printed-with-form/redemption/{redemption}', [DotMatrixPrintController::class , 'prePrintedRedemptionReceiptWithForm'])
                     ->middleware('check.permission:redemptions,print');
             }

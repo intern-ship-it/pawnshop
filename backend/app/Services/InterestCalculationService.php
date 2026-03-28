@@ -151,7 +151,7 @@ class InterestCalculationService
         $totalInterest = 0;
 
         for ($i = 0; $i < $renewalMonths; $i++) {
-            $month = $currentMonth + $i + 1;
+            $month = $currentMonth + $i;
             // Renewal always uses renewed rate (1.5%)
             $rate = $renewedRate;
             $monthlyInterest = $principal * ($rate / 100);

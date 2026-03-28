@@ -198,6 +198,7 @@ class RenewalController extends Controller
         $validated = $request->validate([
             'pledge_id' => 'required|exists:pledges,id',
             'renewal_months' => 'required|integer|min:1|max:6',
+            'interest_rate' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $branchId = $request->user()->branch_id;
@@ -221,13 +222,17 @@ class RenewalController extends Controller
         $monthsElapsed = $pledgeDate->diffInMonths($now);
         $currentMonth = max(1, $monthsElapsed);
 
+        // Get custom rate or default to pledge standard rate
+        $defaultRate = $pledge->interest_rate;
+        // User explicitly wants 1.0% when they renew after 6 months? Or use standard.
+        $customRate = $request->input('interest_rate', (float) $defaultRate);
+
         // Calculate renewal interest
         $calculation = $this->interestService->calculateRenewalInterest(
             (float) $pledge->loan_amount,
             $currentMonth,
             $renewalMonths,
-            (float) $pledge->interest_rate,
-            (float) $pledge->interest_rate_extended
+            (float) $customRate
         );
 
         // Fetch handling fee settings
@@ -295,6 +300,7 @@ class RenewalController extends Controller
             'reference_no' => 'nullable|string|max:50',
             'customer_signature' => 'nullable|string',
             'terms_accepted' => 'required|boolean',
+            'interest_rate' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $branchId = $request->user()->branch_id;
@@ -322,13 +328,14 @@ class RenewalController extends Controller
             $monthsElapsed = $pledgeDate->diffInMonths($now);
             $currentMonth = max(1, $monthsElapsed);
 
+            $customRate = isset($validated['interest_rate']) ? $validated['interest_rate'] : (float) $pledge->interest_rate;
+
             // Calculate interest
             $calculation = $this->interestService->calculateRenewalInterest(
                 (float) $pledge->loan_amount,
                 $currentMonth,
                 $renewalMonths,
-                (float) $pledge->interest_rate,
-                (float) $pledge->interest_rate_extended
+                (float) $customRate
             );
 
             // Fetch handling fee settings
@@ -380,7 +387,7 @@ class RenewalController extends Controller
                 'renewal_months' => $renewalMonths,
                 'previous_due_date' => $pledge->due_date,
                 'new_due_date' => $newDueDate,
-                'interest_rate' => $pledge->interest_rate,
+                'interest_rate' => $customRate,
                 'interest_amount' => $calculation['total_interest'],
                 'handling_fee' => $handlingFee,
                 'total_payable' => $totalPayable,

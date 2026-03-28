@@ -3512,7 +3512,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     position: absolute;
     top: 32mm;
     left: 7mm;
-    width: 75mm;
+    width: 92mm;
     font-size: 12px;
     line-height: 1.4;
     font-weight: bold;
@@ -3597,7 +3597,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     position: absolute;
     top: 108mm;
     left: 96mm;
-    width: 68mm;
+    width: 70mm;
     font-size: 12px;
     font-weight: bold;
 }
@@ -4469,6 +4469,130 @@ HTML;
         }
     }
 
+    /**
+     * Generate Renewal Receipt WITH Pre-Printed Form Template (REPRINT)
+     * Returns the complete form with "(REPRINT)" text on the copies
+     */
+    public function prePrintedRenewalReceiptWithFormReprint(Request $request, Renewal $renewal): JsonResponse
+    {
+        try {
+            $renewal->load([
+                'pledge.customer',
+                'pledge.items.category',
+                'pledge.items.purity',
+                'pledge.branch',
+            ]);
+
+            $pledge = $renewal->pledge;
+
+            if (!$pledge) {
+                return $this->error('Pledge not found', 404);
+            }
+
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
+
+            $settings = $this->getCompanySettings($pledge->branch);
+
+            // Generate BOTH blank form template AND renewal data overlay
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
+            $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
+
+            // Combine them - data overlay on top of blank form
+            $combinedHtml = <<<HTML
+<style>
+.pp-combined-container {
+    position: relative;
+    width: 210mm;
+    height: 148mm;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    page-break-inside: avoid;
+    page-break-after: always;
+}
+.pp-combined-container:last-child {
+    page-break-after: avoid;
+}
+.pp-blank-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    overflow: hidden;
+}
+.pp-data-layer {
+    position: absolute;
+    top: 13px;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    overflow: hidden;
+}
+.pp-copy-label {
+    position: absolute;
+    bottom: 12mm;
+    left: 5mm;
+    z-index: 3;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #d42027;
+    pointer-events: none;
+    user-select: none;
+    text-transform: uppercase;
+}
+@media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .pp-combined-container { page-break-inside: avoid !important; overflow: hidden !important; }
+    .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
+    .pp-copy-label { color: #d42027 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+
+<!-- Page 1: Customer Copy (Salinan Pelanggan) -->
+<div class="pp-combined-container">
+    <div class="pp-blank-layer">
+        {$blankFrontHtml}
+    </div>
+    <div class="pp-data-layer">
+        {$dataOverlayHtml}
+    </div>
+    <div class="pp-copy-label">SALINAN PELANGGAN (REPRINT)</div>
+</div>
+
+<!-- Page 2: Original (Asal) -->
+<div class="pp-combined-container">
+    <div class="pp-blank-layer">
+        {$blankFrontHtml}
+    </div>
+    <div class="pp-data-layer">
+        {$dataOverlayHtml}
+    </div>
+    <div class="pp-copy-label">ORIGINAL (REPRINT)</div>
+</div>
+HTML;
+
+            return $this->success([
+                'front_html' => $combinedHtml,
+                'back_html' => '',
+                'renewal_no' => $renewal->renewal_no,
+                'pledge_no' => $pledge->pledge_no,
+                'orientation' => 'landscape',
+                'format' => 'html',
+                'paper_size' => 'A5',
+                'type' => 'pre_printed_with_form_reprint',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Pre-Printed Renewal With Form Reprint Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
+    }
 
 
     /**

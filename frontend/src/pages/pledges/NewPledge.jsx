@@ -248,6 +248,7 @@ export default function NewPledge() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [storageError, setStorageError] = useState(null);
   const [storageBlocked, setStorageBlocked] = useState(false);
+  const [hoveredOccupiedSlot, setHoveredOccupiedSlot] = useState(null);
 
   // Step 6: Signature state
   const [signature, setSignature] = useState(null);
@@ -2820,41 +2821,69 @@ export default function NewPledge() {
                         return (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                             {Object.entries(groupedSlots).map(([sNum, subslots]) => (
-                              <div key={sNum} className="bg-white border text-center border-zinc-200 rounded-lg overflow-hidden shadow-sm">
-                                <div className="bg-zinc-100 py-1.5 border-b border-zinc-200">
+                              <div key={sNum} className="bg-white border text-center border-zinc-200 rounded-lg shadow-sm">
+                                <div className="bg-zinc-100 py-1.5 border-b border-zinc-200 rounded-t-[7px]">
                                   <span className="text-xs font-semibold text-zinc-600">Slot {sNum}</span>
                                 </div>
                                 <div className="p-2 grid grid-cols-5 gap-1 justify-center align-middle place-items-center text-center">
                                   {subslots.map((slot) => {
                                     const isSelected = isSlotAssignedInPledge(slot.id);
+                                    const occupiedItem = slot.is_occupied ? (slot.current_item || slot.pledge_item) : null;
                                     return (
-                                      <button
-                                        key={slot.id}
-                                        type="button"
-                                        disabled={slot.is_occupied}
-                                        onClick={() => {
-                                          if (isSelected) {
-                                            setSelectedSlot(null);
-                                          } else {
-                                            setSelectedSlot({
-                                              slotId: slot.id,
-                                              vaultId: selectedVault,
-                                              boxId: selectedBox,
-                                              slotNumber: `${sNum}-${slot.subNum}`,
-                                              isOccupied: slot.is_occupied
-                                            });
-                                          }
-                                        }}
-                                        className={cn(
-                                          "w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-all",
-                                          slot.is_occupied && "bg-red-100 text-red-400 cursor-not-allowed",
-                                          !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
-                                          isSelected && "bg-amber-500 text-white ring-2 ring-amber-300"
-                                        )}
-                                        title={slot.is_occupied ? "Occupied" : isSelected ? "Selected for this pledge" : "Available"}
+                                      <div 
+                                        key={slot.id} 
+                                        className="relative"
+                                        onMouseEnter={() => slot.is_occupied && occupiedItem && setHoveredOccupiedSlot(slot.id)}
+                                        onMouseLeave={() => setHoveredOccupiedSlot(null)}
                                       >
-                                        {slot.subNum}
-                                      </button>
+                                        <button
+                                          type="button"
+                                          disabled={slot.is_occupied}
+                                          onClick={() => {
+                                            if (isSelected) {
+                                              setSelectedSlot(null);
+                                            } else {
+                                              setSelectedSlot({
+                                                slotId: slot.id,
+                                                vaultId: selectedVault,
+                                                boxId: selectedBox,
+                                                slotNumber: `${sNum}-${slot.subNum}`,
+                                                isOccupied: slot.is_occupied
+                                              });
+                                            }
+                                          }}
+                                          className={cn(
+                                            "w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-all",
+                                            slot.is_occupied && "bg-red-100 text-red-400 cursor-help",
+                                            !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                            isSelected && "bg-amber-500 text-white ring-2 ring-amber-300"
+                                          )}
+                                          title=""
+                                        >
+                                          {slot.subNum}
+                                        </button>
+                                        {hoveredOccupiedSlot === slot.id && occupiedItem && (
+                                          <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white border border-zinc-200 rounded-lg shadow-xl p-3 text-left pointer-events-none" style={{ minWidth: '220px' }}>
+                                            <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-zinc-200 transform rotate-45" />
+                                            <p className="text-[11px] font-bold text-zinc-800 mb-1.5 flex items-center gap-1">
+                                              <Package className="w-3 h-3 text-amber-500" />
+                                              {occupiedItem.pledge?.pledge_no || 'N/A'}
+                                              <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", occupiedItem.pledge?.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600')}>
+                                                {occupiedItem.pledge?.status || 'active'}
+                                              </span>
+                                            </p>
+                                            {occupiedItem.pledge?.customer?.name && (
+                                              <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{occupiedItem.pledge.customer.name}</p>
+                                            )}
+                                            <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
+                                              <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
+                                              <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
+                                              <p className="text-[10px] text-zinc-600"><span className="font-medium">Weight:</span> {occupiedItem.net_weight || occupiedItem.gross_weight || '—'}g</p>
+                                              {occupiedItem.description && <p className="text-[10px] text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occupiedItem.description}</p>}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -2868,34 +2897,62 @@ export default function NewPledge() {
                         <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                           {slots.map((slot) => {
                             const isSelected = isSlotAssignedInPledge(slot.id);
+                            const occupiedItem = slot.is_occupied ? (slot.current_item || slot.pledge_item) : null;
                             return (
-                              <button
-                                key={slot.id}
-                                type="button"
-                                disabled={slot.is_occupied}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setSelectedSlot(null);
-                                  } else {
-                                    setSelectedSlot({
-                                      slotId: slot.id,
-                                      vaultId: selectedVault,
-                                      boxId: selectedBox,
-                                      slotNumber: slot.slot_number,
-                                      isOccupied: slot.is_occupied
-                                    });
-                                  }
-                                }}
-                                className={cn(
-                                  "w-10 h-10 rounded-lg text-xs font-bold transition-all",
-                                  slot.is_occupied && "bg-red-100 text-red-400 cursor-not-allowed",
-                                  !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
-                                  isSelected && "bg-amber-500 text-white ring-2 ring-amber-300",
-                                )}
-                                title={slot.is_occupied ? "Occupied" : isSelected ? "Selected for this pledge (click to deselect)" : "Available - Click to select"}
+                              <div 
+                                key={slot.id} 
+                                className="relative"
+                                onMouseEnter={() => slot.is_occupied && occupiedItem && setHoveredOccupiedSlot(slot.id)}
+                                onMouseLeave={() => setHoveredOccupiedSlot(null)}
                               >
-                                {slot.slot_number}
-                              </button>
+                                <button
+                                  type="button"
+                                  disabled={slot.is_occupied}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedSlot(null);
+                                    } else {
+                                      setSelectedSlot({
+                                        slotId: slot.id,
+                                        vaultId: selectedVault,
+                                        boxId: selectedBox,
+                                        slotNumber: slot.slot_number,
+                                        isOccupied: slot.is_occupied
+                                      });
+                                    }
+                                  }}
+                                  className={cn(
+                                    "w-10 h-10 rounded-lg text-xs font-bold transition-all",
+                                    slot.is_occupied && "bg-red-100 text-red-400 cursor-help",
+                                    !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                    isSelected && "bg-amber-500 text-white ring-2 ring-amber-300",
+                                  )}
+                                  title=""
+                                >
+                                  {slot.slot_number}
+                                </button>
+                                {hoveredOccupiedSlot === slot.id && occupiedItem && (
+                                  <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white border border-zinc-200 rounded-lg shadow-xl p-3 text-left pointer-events-none" style={{ minWidth: '220px' }}>
+                                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-zinc-200 transform rotate-45" />
+                                    <p className="text-[11px] font-bold text-zinc-800 mb-1.5 flex items-center gap-1">
+                                      <Package className="w-3 h-3 text-amber-500" />
+                                      {occupiedItem.pledge?.pledge_no || 'N/A'}
+                                      <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", occupiedItem.pledge?.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600')}>
+                                        {occupiedItem.pledge?.status || 'active'}
+                                      </span>
+                                    </p>
+                                    {occupiedItem.pledge?.customer?.name && (
+                                      <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{occupiedItem.pledge.customer.name}</p>
+                                    )}
+                                    <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
+                                      <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
+                                      <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
+                                      <p className="text-[10px] text-zinc-600"><span className="font-medium">Weight:</span> {occupiedItem.net_weight || occupiedItem.gross_weight || '—'}g</p>
+                                      {occupiedItem.description && <p className="text-[10px] text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occupiedItem.description}</p>}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
@@ -2903,7 +2960,7 @@ export default function NewPledge() {
                     })()}
                       <div className="flex gap-4 mt-2 text-xs">
                         <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-100 border border-emerald-300" /><span className="text-zinc-500">Available</span></div>
-                        <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-red-100 border border-red-300" /><span className="text-zinc-500">Occupied</span></div>
+                        <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-red-100 border border-red-300" /><span className="text-zinc-500">Occupied (hover to see items)</span></div>
                         <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-amber-500" /><span className="text-zinc-500">Selected (This Pledge)</span></div>
                       </div>
                     </>

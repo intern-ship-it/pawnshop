@@ -35,6 +35,7 @@ import {
   Modal,
   TermsConsentPanel,
 } from "@/components/common";
+import PasskeyModal from "@/components/common/PasskeyModal";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
   RefreshCw,
@@ -92,6 +93,7 @@ export default function RenewalScreen() {
 
   // Extension state
   const [extensionMonths, setExtensionMonths] = useState(1);
+  const [interestRate, setInterestRate] = useState("");
 
   // Calculation state (from API)
   const [calculation, setCalculation] = useState(null);
@@ -116,6 +118,35 @@ export default function RenewalScreen() {
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
+
+  // Passkey Modal State
+  const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+
+  // Passkey-protected action handler
+  const handleActionWithPasskey = (type) => {
+    setPendingAction({ type });
+    setPasskeyModalOpen(true);
+  };
+
+  const executePendingAction = () => {
+    if (!pendingAction) return;
+    const { type } = pendingAction;
+
+    switch (type) {
+      case 'reprintReceipt':
+        handlePrintReceipt();
+        break;
+      case 'reprintSticker':
+        handlePrintBarcodeSticker();
+        break;
+      case 'downloadPdf':
+        handleDownloadPdf();
+        break;
+    }
+
+    setPendingAction(null);
+  };
 
   // Barcode scanner detection - auto-search when barcode is scanned
   const handleBarcodeScanned = useCallback(
@@ -213,21 +244,30 @@ export default function RenewalScreen() {
     }
   }, [dispatch]); // Only run once on mount
 
-  // Fetch calculation when pledge or months change
+  // Fetch calculation when pledge, months, or rate changes
   useEffect(() => {
     if (pledge?.id) {
-      fetchCalculation(pledge.id, extensionMonths);
+      const timer = setTimeout(() => {
+        fetchCalculation(pledge.id, extensionMonths, interestRate);
+      }, 400); // debounce API calls
+      return () => clearTimeout(timer);
     }
-  }, [extensionMonths]);
+  }, [extensionMonths, interestRate, pledge?.id]);
 
   // Fetch interest calculation from API
-  const fetchCalculation = async (pledgeId, months) => {
+  const fetchCalculation = async (pledgeId, months, rate) => {
     setIsCalculating(true);
     try {
-      const response = await renewalService.calculate({
+      const payload = {
         pledge_id: pledgeId,
         renewal_months: months,
-      });
+      };
+      
+      if (rate !== "" && rate !== null && !isNaN(parseFloat(rate))) {
+        payload.interest_rate = parseFloat(rate);
+      }
+      
+      const response = await renewalService.calculate(payload);
 
       if (response.data?.success !== false) {
         const data = response.data?.data || response.data;
@@ -491,6 +531,14 @@ export default function RenewalScreen() {
         terms_accepted: true,
       };
 
+      if (interestRate !== "" && interestRate !== null && !isNaN(parseFloat(interestRate))) {
+        renewalData.interest_rate = parseFloat(interestRate);
+      }
+
+      if (interestRate !== "" && interestRate !== null && !isNaN(parseFloat(interestRate))) {
+        renewalData.interest_rate = parseFloat(interestRate);
+      }
+
       const response = await renewalService.create(renewalData);
       const data = response.data?.data || response.data;
 
@@ -563,86 +611,98 @@ export default function RenewalScreen() {
       console.error("Auto-print failed:", error);
     }
 
-    // Auto-print barcode label (same as NewPledge)
+    // Auto-print barcode label (normal barcode, no REPRINT badge)
     if (pledge?.id && token) {
       try {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        const response = await fetch(`${apiUrl}/print/barcodes/${pledge.id}`, {
-          method: "GET",
+        // Fetch pledge details to get items
+        const pledgeResponse = await fetch(`${apiUrl}/pledges/${pledge.id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
         });
+        if (!pledgeResponse.ok) throw new Error("Failed to fetch pledge details");
+        const pledgeData = await pledgeResponse.json();
+        const items = pledgeData.data?.pledge?.items || pledgeData.data?.items || [];
+        if (items.length === 0) throw new Error("No items found");
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.data) {
-            const barcodeImage = data.data.items?.[0]?.image || "";
-            const totalWeight = data.data.items?.reduce(
-              (sum, item) => sum + (parseFloat(item.net_weight) || 0),
-              0,
-            ) || 0;
-            const storageLocation = data.data.storage_location || data.data.items?.[0]?.storage_location || "";
-            const pledgeNo = data.data.pledge_no || pledge.pledgeNo;
+        // Fetch barcodes via batch API
+        const barcodeResponse = await fetch(`${apiUrl}/print/barcodes/batch`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ item_ids: items.map((item) => item.id) }),
+        });
+        if (!barcodeResponse.ok) throw new Error("Failed to generate barcodes");
+        const barcodeData = await barcodeResponse.json();
+        const barcodes = barcodeData.data || [];
 
-            const barcodeWindow = window.open("", "_blank", "width=400,height=600");
-            if (barcodeWindow) {
-              barcodeWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                  <title>Barcode Label - ${pledgeNo}</title>
-                  <style>
-                    @page { size: 50mm 50mm; margin: 0 !important; }
-                    @media print {
-                      html, body { width: 50mm !important; height: 50mm !important; margin: 0 !important; padding: 0 !important; }
-                      .controls { display: none !important; }
-                      .labels-wrapper { width: 50mm !important; margin: 0 !important; box-shadow: none !important; }
-                    }
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
-                    .labels-wrapper { width: 50mm; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-                    .label { 
-                      width: 50mm; height: 50mm; padding: 4mm 4mm 4mm 4mm; background: white; 
-                      display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-bottom: 1px dashed #ccc;
-                    }
-                    .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
-                    .pledge-no { font-size: 8pt; font-weight: bold; }
-                    .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-                    .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
-                    .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
-                    .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; z-index: 10; }
-                    .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
-                    .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
-                  </style>
-                </head>a
-                <body>
-                  <div class="labels-wrapper">
-                    <div class="label">
-                      <div class="header-row">
-                        <span class="pledge-no">${pledgeNo}</span>
-                        <span class="category">${data.data.category || (data.data.items?.length || 1) + " item(s)"}</span>
-                      </div>
-                      <div class="barcode-section">
-                        ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
-                      </div>
-                      <div class="footer-row">
-                        ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
-                        <div>${parseFloat(totalWeight).toFixed(2)}g</div>
-                      </div>
-                      <div class="reprint-badge">REPRINT</div>
-                    </div>
-                  </div>
-                  <script>
-                    window.onload = function() { window.print(); };
-                    window.onafterprint = function() { window.close(); };
-                  <\/script>
-                </body>
-                </html>
-              `);
-              barcodeWindow.document.close();
-            }
+        if (barcodes.length > 0) {
+          const pledgeNo = pledge.pledgeNo;
+          const barcodeLabels = barcodes.map((item) => `
+            <div class="label">
+              <div class="header-row">
+                <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
+                <span class="category">${item.category || "Item"}</span>
+              </div>
+              <div class="barcode-section">
+                ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
+              </div>
+              <div class="footer-row">
+                ${item.storage_location ? `<div class="storage-loc">${item.storage_location}</div>` : `<div>${item.purity || "916"}</div>`}
+                <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
+              </div>
+              <div class="remark-line">${item.description || ""}</div>
+            </div>
+          `).join("");
+
+          const barcodeWindow = window.open("", "_blank", "width=400,height=600");
+          if (barcodeWindow) {
+            barcodeWindow.document.write(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Barcode Label - ${pledgeNo}</title>
+                <style>
+                  @page { size: 50mm 50mm; margin: 0 !important; }
+                  @media print {
+                    html, body { width: 50mm !important; height: 50mm !important; margin: 0 !important; padding: 0 !important; }
+                    .controls { display: none !important; }
+                    .labels-wrapper { width: 50mm !important; margin: 0 !important; box-shadow: none !important; }
+                    .label { page-break-after: always; page-break-inside: avoid; margin: 0 !important; }
+                    .label:last-child { page-break-after: avoid; }
+                  }
+                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                  body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
+                  .labels-wrapper { width: 50mm; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+                  .label { 
+                    width: 50mm; height: 50mm; padding: 4mm 4mm 4mm 4mm; background: white; 
+                    display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-bottom: 1px dashed #ccc;
+                  }
+                  .label:last-child { border-bottom: none; }
+                  .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
+                  .pledge-no { font-size: 8pt; font-weight: bold; }
+                  .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+                  .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
+                  .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
+                  .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; z-index: 10; }
+                  .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
+                  .remark-line { text-align: center; font-size: 8pt; font-weight: bold; text-transform: uppercase; margin-top: auto; color: #000; width: 100%; border-top: 0.1mm dashed #ccc; padding-top: 1mm; }
+                </style>
+              </head>
+              <body>
+                <div class="labels-wrapper">${barcodeLabels}</div>
+                <script>
+                  window.onload = function() { window.print(); };
+                  window.onafterprint = function() { window.close(); };
+                <\/script>
+              </body>
+              </html>
+            `);
+            barcodeWindow.document.close();
           }
         }
       } catch (error) {
@@ -939,9 +999,9 @@ export default function RenewalScreen() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-      // Use pre-printed overlay endpoint (data only for carbonless forms)
+      // Use reprint endpoint - adds "(REPRINT)" labels to copies
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-with-form/renewal/${renewalResult.id}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/renewal/${renewalResult.id}/reprint`,
         {
           method: "POST",
           headers: {
@@ -1107,7 +1167,7 @@ export default function RenewalScreen() {
     }
   };
 
-  // Handle Barcode Sticker Print (manual button)
+  // Handle Barcode Sticker Print (manual button) - REPRINT version with description
   const handlePrintBarcodeSticker = async () => {
     if (!pledge?.id) {
       dispatch(
@@ -1129,95 +1189,107 @@ export default function RenewalScreen() {
     }
 
     try {
-      const response = await fetch(`${apiUrl}/print/barcodes/${pledge.id}`, {
-        method: "GET",
+      // Fetch pledge details to get items
+      const pledgeResponse = await fetch(`${apiUrl}/pledges/${pledge.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
       });
+      if (!pledgeResponse.ok) throw new Error("Failed to fetch pledge details");
+      const pledgeData = await pledgeResponse.json();
+      const items = pledgeData.data?.pledge?.items || pledgeData.data?.items || [];
+      if (items.length === 0) throw new Error("No items found");
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data) {
-          const barcodeImage = data.data.items?.[0]?.image || "";
-          const totalWeight = data.data.items?.reduce(
-            (sum, item) => sum + (parseFloat(item.net_weight) || 0),
-            0,
-          ) || 0;
-          const storageLocation = data.data.storage_location || data.data.items?.[0]?.storage_location || "";
-          const pledgeNo = data.data.pledge_no || pledge.pledgeNo;
+      // Fetch barcodes via batch API
+      const barcodeResponse = await fetch(`${apiUrl}/print/barcodes/batch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ item_ids: items.map((item) => item.id) }),
+      });
+      if (!barcodeResponse.ok) throw new Error("Failed to generate barcodes");
+      const barcodeData = await barcodeResponse.json();
+      const barcodes = barcodeData.data || [];
 
-          const barcodeWindow = window.open("", "_blank", "width=400,height=600");
-          if (barcodeWindow) {
-            barcodeWindow.document.write(`
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <title>Barcode Label - ${pledgeNo}</title>
-                <style>
-                  @page { size: 50mm 50mm; margin: 0 !important; }
-                  @media print {
-                    html, body { width: 50mm !important; height: 50mm !important; margin: 0 !important; padding: 0 !important; }
-                    .controls { display: none !important; }
-                    .labels-wrapper { width: 50mm !important; margin: 0 !important; box-shadow: none !important; }
-                  }
-                  * { margin: 0; padding: 0; box-sizing: border-box; }
-                  body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
-                  .labels-wrapper { width: 50mm; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-                  .label { 
-                    width: 50mm; height: 50mm; padding: 4mm 4mm 4mm 4mm; background: white; 
-                    display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-bottom: 1px dashed #ccc;
-                  }
-                  .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
-                  .pledge-no { font-size: 8pt; font-weight: bold; }
-                  .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-                  .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
-                  .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
-                  .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; z-index: 10;}
-                  .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
-                  .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
-                </style>
-              </head>
-              <body>
-                <div class="labels-wrapper">
-                  <div class="label">
-                    <div class="header-row">
-                      <span class="pledge-no">${pledgeNo}</span>
-                      <span class="category">${data.data.category || (data.data.items?.length || 1) + " item(s)"}</span>
-                    </div>
-                    <div class="barcode-section">
-                      ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
-                    </div>
-                    <div class="footer-row">
-                      ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
-                      <div>${parseFloat(totalWeight).toFixed(2)}g</div>
-                    </div>
-                    <div class="reprint-badge">REPRINT</div>
-                  </div>
-                </div>
-                <script>
-                  window.onload = function() { window.print(); };
-                  window.onafterprint = function() { window.close(); };
-                </script>
-              </body>
-              </html>
-            `);
-            barcodeWindow.document.close();
-          } else {
-            dispatch(
-              addToast({
-                type: "warning",
-                title: "Popup Blocked",
-                message: "Please allow popups for this site to print.",
-              }),
-            );
-          }
+      if (barcodes.length > 0) {
+        const pledgeNo = pledge.pledgeNo;
+        const barcodeLabels = barcodes.map((item) => `
+          <div class="label">
+            <div class="header-row">
+              <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
+              <span class="category">${item.category || "Item"}</span>
+            </div>
+            <div class="barcode-section">
+              ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
+            </div>
+            <div class="footer-row">
+              ${item.storage_location ? `<div class="storage-loc">${item.storage_location}</div>` : `<div>${item.purity || "916"}</div>`}
+              <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
+            </div>
+            <div class="reprint-badge">REPRINT</div>
+            <div class="remark-line">${item.description || ""}</div>
+          </div>
+        `).join("");
+
+        const barcodeWindow = window.open("", "_blank", "width=400,height=600");
+        if (barcodeWindow) {
+          barcodeWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Reprint Barcode Labels - ${pledgeNo}</title>
+              <style>
+                @page { size: 50mm 50mm; margin: 0 !important; }
+                @media print {
+                  html, body { width: 50mm !important; height: 50mm !important; margin: 0 !important; padding: 0 !important; }
+                  .controls { display: none !important; }
+                  .labels-wrapper { width: 50mm !important; margin: 0 !important; box-shadow: none !important; }
+                  .label { page-break-after: always; page-break-inside: avoid; margin: 0 !important; }
+                  .label:last-child { page-break-after: avoid; }
+                }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
+                .labels-wrapper { width: 50mm; margin: 0 auto; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+                .label { 
+                  width: 50mm; height: 50mm; padding: 4mm 4mm 4mm 4mm; background: white; 
+                  display: flex; flex-direction: column; justify-content: center; overflow: hidden; border-bottom: 1px dashed #ccc;
+                }
+                .label:last-child { border-bottom: none; }
+                .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; position: relative; z-index: 10; }
+                .pledge-no { font-size: 8pt; font-weight: bold; }
+                .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+                .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; position: relative; z-index: 10; }
+                .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
+                .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; z-index: 10; }
+                .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
+                .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
+                .remark-line { text-align: center; font-size: 8pt; font-weight: bold; text-transform: uppercase; margin-top: auto; color: #000; width: 100%; border-top: 0.1mm dashed #ccc; padding-top: 1mm; }
+              </style>
+            </head>
+            <body>
+              <div class="labels-wrapper">${barcodeLabels}</div>
+              <script>
+                window.onload = function() { window.print(); };
+                window.onafterprint = function() { window.close(); };
+              </script>
+            </body>
+            </html>
+          `);
+          barcodeWindow.document.close();
         } else {
-          throw new Error("Invalid barcode data from server");
+          dispatch(
+            addToast({
+              type: "warning",
+              title: "Popup Blocked",
+              message: "Please allow popups for this site to print.",
+            }),
+          );
         }
       } else {
-        throw new Error("Failed to fetch barcode sticker");
+        throw new Error("No barcode data found");
       }
     } catch (error) {
       console.error("Barcode sticker print error:", error);
@@ -1867,6 +1939,21 @@ export default function RenewalScreen() {
                   </div>
                 </div>
 
+                {/* Custom Interest Rate */}
+                <div className="mb-4">
+                  <label className="text-sm text-zinc-600 mb-2 block">
+                    Custom Interest Rate (%) <span className="text-xs text-zinc-400 font-normal">(Leave empty for default)</span>
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 1.0"
+                    value={interestRate}
+                    onChange={(e) => setInterestRate(e.target.value)}
+                    leftIcon={TrendingUp}
+                  />
+                </div>
+
                 {/* Interest Breakdown */}
                 {interestBreakdown.length > 0 && (
                   <div className="mb-4 p-4 bg-zinc-50 rounded-lg">
@@ -2146,6 +2233,7 @@ export default function RenewalScreen() {
           setBankId("");
           setReferenceNo("");
           setExtensionMonths(1);
+          setInterestRate("");
           setCalculation(null);
           setSearchResult(null);
           setDueList([]);
@@ -2221,7 +2309,7 @@ export default function RenewalScreen() {
               variant="outline"
               fullWidth
               leftIcon={Printer}
-              onClick={handlePrintReceipt}
+              onClick={() => handleActionWithPasskey('reprintReceipt')}
               loading={isPrintingReceipt}
             >
               Reprint Receipt
@@ -2242,7 +2330,7 @@ export default function RenewalScreen() {
               variant="outline"
               fullWidth
               leftIcon={ScanLine}
-              onClick={handlePrintBarcodeSticker}
+              onClick={() => handleActionWithPasskey('reprintSticker')}
               className="text-amber-600 border-amber-200 hover:bg-amber-50"
             >
               Reprint Sticker
@@ -2251,7 +2339,7 @@ export default function RenewalScreen() {
               variant="outline"
               fullWidth
               leftIcon={FileDown}
-              onClick={handleDownloadPdf}
+              onClick={() => handleActionWithPasskey('downloadPdf')}
               loading={isPrintingReceipt}
               className="text-blue-600 border-blue-200 hover:bg-blue-50"
             >
@@ -2282,6 +2370,7 @@ export default function RenewalScreen() {
                 setBankId("");
                 setReferenceNo("");
                 setExtensionMonths(1);
+                setInterestRate("");
                 setCalculation(null);
                 setSearchResult(null);
                 setDueList([]);
@@ -2292,6 +2381,18 @@ export default function RenewalScreen() {
           </div>
         </div>
       </Modal>
+
+      {/* Passkey Modal */}
+      <PasskeyModal
+        isOpen={passkeyModalOpen}
+        onClose={() => {
+          setPasskeyModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={executePendingAction}
+        title="Verification Required"
+        message="Please enter your 6-digit passkey to authorize this action."
+      />
     </PageWrapper>
   );
 }

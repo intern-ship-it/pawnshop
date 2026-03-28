@@ -1493,10 +1493,10 @@ export default function PrintTestPage() {
       <div class="labels-wrapper">${barcodeLabels}</div>
       <script>
         window.onload = function() { 
-          window.print(); 
+      //    window.print(); 
         };
         window.onafterprint = function() {
-           window.close();
+       //    window.close();
        };
       </script>
     </body>
