@@ -138,6 +138,8 @@ export default function InventoryList() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showRelocatedPrintModal, setShowRelocatedPrintModal] = useState(false);
+  const [relocatedItem, setRelocatedItem] = useState(null);
 
   // Passkey Modal State
   const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
@@ -500,7 +502,7 @@ export default function InventoryList() {
   };
 
   // Print barcode labels - 50mm x 50mm thermal labels
-  const handlePrintBarcodeLabels = (reasonText = "") => {
+  const handlePrintBarcodeLabels = (reasonText = "", isRelocated = false) => {
     setIsPrinting(true);
     const selectedData = getSelectedItemsData();
 
@@ -696,6 +698,7 @@ export default function InventoryList() {
                 + '<div>' + parseFloat(item.net_weight || item.weight || 0).toFixed(2) + 'g</div>'
                 + '</div>'
                 + '<div class="reprint-badge">REPRINT</div>'
+                + (isRelocated ? '<div style="text-align: center; font-size: 9pt; font-weight: 900; color: #000; margin-top: 1mm;">RELOCATED</div>' : '')
                 + '<div class="remark-line">' + remarkText + '</div>'
                 + '</div>';
             })
@@ -754,7 +757,7 @@ export default function InventoryList() {
   };
 
   // Print single item label - 50mm x 50mm thermal label
-  const handlePrintSingleLabel = (item) => {
+  const handlePrintSingleLabel = (item, isRelocated = false) => {
     const catName = getCategoryName(item.category);
     const purName = getPurityName(item.purity);
     const barcodeValue = (item.barcode || "NOCODE")
@@ -922,6 +925,7 @@ export default function InventoryList() {
               <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
             </div>
             <div class="reprint-badge">REPRINT</div>
+            ${isRelocated ? `<div style="text-align: center; font-size: 9pt; font-weight: 900; color: #000; margin-top: 1mm;">RELOCATED</div>` : ``}
           </div>
         </div>
         <script>
@@ -995,7 +999,14 @@ export default function InventoryList() {
           }),
         );
         setShowLocationModal(false);
+        setRelocatedItem({
+          ...editingItem,
+          vault: { id: newLocation.vault_id }, // Temporary for print
+          box: { id: newLocation.box_id },
+          slot: { id: newLocation.slot_id }
+        });
         setEditingItem(null);
+        setShowRelocatedPrintModal(true);
         fetchInventory(); // Refresh data from API
       } else {
         dispatch(
@@ -2114,9 +2125,9 @@ export default function InventoryList() {
                   onChange={(e) => setCustomReprintReason(e.target.value)}
                   placeholder="Enter custom reason..."
                   fullWidth
-                  maxLength={35}
+                  maxLength={20}
                 />
-                <p className="text-xs text-zinc-500 mt-1">Max 35 characters</p>
+                <p className="text-xs text-zinc-500 mt-1">Max 20 characters</p>
               </motion.div>
             )}
           </div>
@@ -2155,6 +2166,48 @@ export default function InventoryList() {
         }}
         onSuccess={executePendingAction}
       />
+
+      {/* Relocated Print Prompt Modal */}
+      <Modal
+        isOpen={showRelocatedPrintModal}
+        onClose={() => setShowRelocatedPrintModal(false)}
+        title="Print Relocated Sticker?"
+        size="sm"
+      >
+        <div className="p-5 text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Barcode className="w-8 h-8 text-amber-600" />
+          </div>
+          <p className="text-zinc-600 mb-6">
+            The item has been relocated. Would you like to print a new barcode sticker with the <strong>"RELOCATED"</strong> label?
+          </p>
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => {
+                setShowRelocatedPrintModal(false);
+                setRelocatedItem(null);
+              }}
+            >
+              Skip
+            </Button>
+            <Button
+              variant="accent"
+              fullWidth
+              leftIcon={Printer}
+              onClick={() => {
+                handlePrintSingleLabel(relocatedItem, true);
+                setShowRelocatedPrintModal(false);
+                setRelocatedItem(null);
+              }}
+            >
+              Print Sticker
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageWrapper>
   );
 }

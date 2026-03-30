@@ -137,6 +137,13 @@ const menuConfig = [
         exact: true,
         permission: "dayend.view",
       },
+      {
+        name: "Month End",
+        path: "/reports/month-end",
+        icon: ScrollText,
+        exact: true,
+        permission: "reports.view",
+      },
     ],
   },
   {

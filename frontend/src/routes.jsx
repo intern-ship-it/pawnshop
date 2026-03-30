@@ -53,6 +53,7 @@ const AuctionScreen = lazy(() => import("@/pages/auctions/AuctionScreen"));
 // Report pages
 const ReportsScreen = lazy(() => import("@/pages/reports/ReportsScreen"));
 const DayEndSummary = lazy(() => import("@/pages/reports/DayEndSummary"));
+const MonthEndSummary = lazy(() => import("@/pages/reports/MonthEndSummary"));
 
 // Settings pages
 const SettingsScreen = lazy(() => import("@/pages/settings/SettingsScreen"));
@@ -142,6 +143,7 @@ export const router = createBrowserRouter([
       // REPORT ROUTES
       { path: "reports", element: withPermission(ReportsScreen, "reports.view") },
       { path: "reports/day-end", element: withPermission(DayEndSummary, "dayend.view") },
+      { path: "reports/month-end", element: withPermission(MonthEndSummary, "reports.view") },
 
       // SETTINGS ROUTES
       { path: "settings", element: withPermission(SettingsScreen, "settings.view") },
@@ -184,6 +186,7 @@ export const ROUTES = {
   AUCTIONS: "/auctions",
   REPORTS: "/reports",
   DAY_END: "/reports/day-end",
+  MONTH_END: "/reports/month-end",
   SETTINGS: "/settings",
   USERS: "/settings/users",
   USER_NEW: "/settings/users/new",

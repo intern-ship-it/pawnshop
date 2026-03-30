@@ -2029,8 +2029,9 @@ export default function NewPledge() {
   };
 
   // Open reprint reason modal
-  const handleReprintBarcodeClick = () => {
-    setNpReprintReasons(getReprintReasons());
+  const handleReprintBarcodeClick = async () => {
+    const reasons = await getReprintReasons();
+    setNpReprintReasons(reasons || []);
     setNpReprintReason("");
     setNpCustomReprintReason("");
     setShowReprintReasonModal(true);
@@ -3323,12 +3324,18 @@ export default function NewPledge() {
 
           {npReprintReason === "__custom__" && (
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1.5">Custom Reason</label>
+              <label className="flex justify-between text-sm font-medium text-zinc-700 mb-1.5">
+                <span>Custom Reason</span>
+                <span className={cn("text-xs", npCustomReprintReason.length >= 20 ? "text-red-500" : "text-zinc-400")}>
+                  {npCustomReprintReason.length}/20
+                </span>
+              </label>
               <Input
                 value={npCustomReprintReason}
                 onChange={(e) => setNpCustomReprintReason(e.target.value)}
                 placeholder="Enter your custom reason..."
                 autoFocus
+                maxLength={20}
               />
             </div>
           )}

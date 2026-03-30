@@ -93,6 +93,7 @@ export default function PledgeList() {
   const [reprintReason, setReprintReason] = useState("");
   const [customReprintReason, setCustomReprintReason] = useState("");
   const [reprintReasons, setReprintReasons] = useState([]);
+  const [isRelocatedLabel, setIsRelocatedLabel] = useState(false);
 
   // Predefined cancellation reasons
   const cancelReasons = [
@@ -174,7 +175,7 @@ export default function PledgeList() {
     setPasskeyModalOpen(true);
   };
 
-  const executePendingAction = () => {
+  const executePendingAction = async () => {
     if (!pendingAction) return;
     const { type, payload } = pendingAction;
 
@@ -187,7 +188,7 @@ export default function PledgeList() {
         break;
       case 'barcode':
         // Show reprint reason modal instead of printing directly
-        handleReprintBarcodeClick(payload.pledge);
+        await handleReprintBarcodeClick(payload.pledge);
         break;
       case 'download':
         handleDownloadPdf(payload.pledge);
@@ -769,17 +770,22 @@ export default function PledgeList() {
   };
 
   // Open reprint reason modal before printing barcode
-  const handleReprintBarcodeClick = (pledge, e) => {
+  const handleReprintBarcodeClick = async (pledge, e) => {
     if (e) e.stopPropagation();
     setReprintReasonPledge(pledge);
-    setReprintReasons(getReprintReasons());
+    setIsRelocatedLabel(false); // Reset to default
+
+    // getReprintReasons is an async function, we must await it
+    const reasons = await getReprintReasons();
+    setReprintReasons(reasons || []);
+
     setReprintReason("");
     setCustomReprintReason("");
     setShowReprintReasonModal(true);
   };
 
   // Handle barcode print with reason
-  const handlePrintBarcode = async (pledge, e, reasonText = "") => {
+  const handlePrintBarcode = async (pledge, e, reasonText = "", isRelocated = false) => {
     if (e) e.stopPropagation();
     const token = getToken();
     const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -859,6 +865,7 @@ export default function PledgeList() {
                       <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                     </div>
                     <div class="reprint-badge">REPRINT</div>
+                    ${isRelocated ? `<div style="text-align: center; font-size: 9pt; font-weight: 900; color: #000; margin-top: 1mm;">RELOCATED</div>` : ``}
                     <div class="remark-line">${remarkText}</div>
                   </div>
                 </div>
@@ -1833,22 +1840,49 @@ export default function PledgeList() {
 
           {reprintReason === "__custom__" && (
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1.5">Custom Reason</label>
+              <label className="flex justify-between text-sm font-medium text-zinc-700 mb-1.5">
+                <span>Custom Reason</span>
+                <span className={cn("text-xs", customReprintReason.length >= 20 ? "text-red-500" : "text-zinc-400")}>
+                  {customReprintReason.length}/20
+                </span>
+              </label>
               <Input
                 value={customReprintReason}
                 onChange={(e) => setCustomReprintReason(e.target.value)}
                 placeholder="Enter your custom reason..."
                 autoFocus
+                maxLength={20}
               />
             </div>
           )}
 
-          {((reprintReason && reprintReason !== "__custom__") || customReprintReason) && (
+          {/* Relocated Toggle */}
+          <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer" onClick={() => setIsRelocatedLabel(!isRelocatedLabel)}>
+            <div className={cn(
+              "w-5 h-5 rounded border flex items-center justify-center transition-colors",
+              isRelocatedLabel ? "bg-amber-600 border-amber-600 shadow-sm" : "border-zinc-300 bg-white"
+            )}>
+              {isRelocatedLabel && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-900">Include "RELOCATED" Label</p>
+              <p className="text-xs text-amber-700 opacity-80">This will add a RELOCATED tag at the bottom of the sticker.</p>
+            </div>
+          </div>
+
+          {((reprintReason && reprintReason !== "__custom__") || customReprintReason || isRelocatedLabel) && (
             <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
               <p className="text-xs text-zinc-500 mb-1">Will be printed on sticker:</p>
-              <p className="text-sm font-bold text-zinc-800 uppercase">
-                {reprintReason === "__custom__" ? customReprintReason : reprintReason}
-              </p>
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-bold text-zinc-800 uppercase">
+                  {reprintReason === "__custom__" ? customReprintReason : (reprintReason || "-")}
+                </p>
+                {isRelocatedLabel && (
+                  <p className="text-sm font-black text-amber-600">
+                    + RELOCATED
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -1869,7 +1903,7 @@ export default function PledgeList() {
               onClick={() => {
                 const reasonText = reprintReason === "__custom__" ? customReprintReason.trim() : reprintReason;
                 setShowReprintReasonModal(false);
-                if (reprintReasonPledge) handlePrintBarcode(reprintReasonPledge, null, reasonText);
+                if (reprintReasonPledge) handlePrintBarcode(reprintReasonPledge, null, reasonText, isRelocatedLabel);
               }}
             >
               Reprint Barcode

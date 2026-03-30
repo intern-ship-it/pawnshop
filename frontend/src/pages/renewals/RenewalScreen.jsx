@@ -138,7 +138,7 @@ export default function RenewalScreen() {
     setPasskeyModalOpen(true);
   };
 
-  const executePendingAction = () => {
+  const executePendingAction = async () => {
     if (!pendingAction) return;
     const { type } = pendingAction;
 
@@ -148,7 +148,8 @@ export default function RenewalScreen() {
         break;
       case 'reprintSticker':
         // Show reprint reason modal after passkey
-        setRnReprintReasons(getReprintReasons());
+        const reasons = await getReprintReasons();
+        setRnReprintReasons(reasons || []);
         setRnReprintReason("");
         setRnCustomReprintReason("");
         setShowReprintReasonModal(true);
@@ -668,7 +669,6 @@ export default function RenewalScreen() {
                 ${item.storage_location ? `<div class="storage-loc">${item.storage_location}</div>` : `<div>${item.purity || "916"}</div>`}
                 <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
               </div>
-              <div class="remark-line">${item.description || ""}</div>
             </div>
           `).join("");
 
@@ -2457,12 +2457,18 @@ export default function RenewalScreen() {
 
           {rnReprintReason === "__custom__" && (
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1.5">Custom Reason</label>
+              <label className="flex justify-between text-sm font-medium text-zinc-700 mb-1.5">
+                <span>Custom Reason</span>
+                <span className={cn("text-xs", rnCustomReprintReason.length >= 20 ? "text-red-500" : "text-zinc-400")}>
+                  {rnCustomReprintReason.length}/20
+                </span>
+              </label>
               <Input
                 value={rnCustomReprintReason}
                 onChange={(e) => setRnCustomReprintReason(e.target.value)}
                 placeholder="Enter your custom reason..."
                 autoFocus
+                maxLength={20}
               />
             </div>
           )}
