@@ -188,6 +188,13 @@ export default function NewPledge() {
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
 
+  // Helper to calculate due date (6 months from today)
+  const calculateDueDate = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 6);
+    return d;
+  };
+
   // Step 1: Customer state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -2667,7 +2674,7 @@ export default function NewPledge() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-zinc-500">Due Date</p>
-                  <p className="font-bold text-zinc-800">{new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                  <p className="font-bold text-zinc-800">{calculateDueDate().toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" })}</p>
                 </div>
               </div>
             </motion.div>
@@ -3138,7 +3145,7 @@ export default function NewPledge() {
                 <div className="flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-600" />
                   <div className="text-sm">
-                    <p className="font-medium text-amber-800">Due Date: {new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" })}</p>
+                    <p className="font-medium text-amber-800">Due Date: {calculateDueDate().toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" })}</p>
                     <p className="text-amber-600">6 months from today. Interest at 0.5% per month.</p>
                   </div>
                 </div>
