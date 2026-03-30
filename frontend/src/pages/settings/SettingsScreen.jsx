@@ -48,6 +48,7 @@ import {
   Loader2,
   FileText,
   Printer,
+  RotateCcw,
 } from "lucide-react";
 import WhatsAppSettings from "./WhatsAppSettings";
 import storageService from "@/services/storageService";
@@ -56,6 +57,7 @@ import StoneDeductionTab from "./StoneDeductionTab";
 import HandlingChargesTab from "./HandlingChargesTab";
 import TermsConditionsTab from "./TermsConditionsTab";
 import PrintSettingsTab from "./PrintSettingsTab";
+import ReprintReasonsTab from "./ReprintReasonsTab";
 
 // Default settings structure
 const defaultSettings = {
@@ -137,6 +139,7 @@ const tabs = [
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "whatsappReminder", label: "WhatsApp Reminder", icon: MessageCircle, route: "/settings/whatsapp/reminders" },
   // { id: "printSettings", label: "Print Settings", icon: Printer }, // Hidden
+  { id: "reprintReasons", label: "Reprint Reasons", icon: RotateCcw },
   { id: "printTest", label: "Print Test", icon: Printer, route: "/settings/print-test" },
 ];
 
@@ -496,6 +499,8 @@ export default function SettingsScreen() {
         return <WhatsAppSettings />;
       case "printSettings":
         return <PrintSettingsTab settings={settings} updateSettings={updateSettings} />;
+      case "reprintReasons":
+        return <ReprintReasonsTab />;
       default:
         return null;
     }

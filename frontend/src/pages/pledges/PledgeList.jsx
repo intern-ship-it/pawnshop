@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
 import PasskeyModal from "@/components/common/PasskeyModal";
+import { getReprintReasons } from "@/pages/settings/ReprintReasonsTab";
 import { usePermission } from "@/components/auth/PermissionGate";
 import {
   Plus,
@@ -37,6 +38,8 @@ import {
   ScanLine,
   RotateCcw,
   Copy,
+  ChevronDown,
+  MessageSquare,
 } from "lucide-react";
 
 // Status badge config
@@ -83,6 +86,13 @@ export default function PledgeList() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelNotes, setCancelNotes] = useState("");
   const [cancelling, setCancelling] = useState(false);
+
+  // Reprint Reason Modal State
+  const [showReprintReasonModal, setShowReprintReasonModal] = useState(false);
+  const [reprintReasonPledge, setReprintReasonPledge] = useState(null);
+  const [reprintReason, setReprintReason] = useState("");
+  const [customReprintReason, setCustomReprintReason] = useState("");
+  const [reprintReasons, setReprintReasons] = useState([]);
 
   // Predefined cancellation reasons
   const cancelReasons = [
@@ -176,7 +186,8 @@ export default function PledgeList() {
         handleReprint(payload.id);
         break;
       case 'barcode':
-        handlePrintBarcode(payload.pledge);
+        // Show reprint reason modal instead of printing directly
+        handleReprintBarcodeClick(payload.pledge);
         break;
       case 'download':
         handleDownloadPdf(payload.pledge);
@@ -757,8 +768,18 @@ export default function PledgeList() {
     }
   };
 
-  // Handle barcode print
-  const handlePrintBarcode = async (pledge, e) => {
+  // Open reprint reason modal before printing barcode
+  const handleReprintBarcodeClick = (pledge, e) => {
+    if (e) e.stopPropagation();
+    setReprintReasonPledge(pledge);
+    setReprintReasons(getReprintReasons());
+    setReprintReason("");
+    setCustomReprintReason("");
+    setShowReprintReasonModal(true);
+  };
+
+  // Handle barcode print with reason
+  const handlePrintBarcode = async (pledge, e, reasonText = "") => {
     if (e) e.stopPropagation();
     const token = getToken();
     const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -788,7 +809,8 @@ export default function PledgeList() {
           ) || 0;
           const storageLocation = data.data.storage_location || data.data.items?.[0]?.storage_location || "";
           const pledgeNo = data.data.pledge_no || pledge.pledgeNo;
-          const itemDescription = data.data.items?.[0]?.description || "";
+          // Use the reason text instead of item description
+          const remarkText = reasonText || "REPRINT";
 
           const barcodeWindow = window.open("", "_blank", "width=400,height=600");
           if (barcodeWindow) {
@@ -837,13 +859,13 @@ export default function PledgeList() {
                       <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                     </div>
                     <div class="reprint-badge">REPRINT</div>
-                    <div class="remark-line">${itemDescription}</div>
+                    <div class="remark-line">${remarkText}</div>
                   </div>
                 </div>
                 <script>
                   window.onload = function() { window.print(); };
                   window.onafterprint = function() { window.close(); };
-                </script>
+                <\/script>
               </body>
               </html>
             `);
@@ -1765,6 +1787,96 @@ export default function PledgeList() {
         title="Verification Required"
         message="Please enter your 6-digit passkey to authorize this action."
       />
+
+      {/* Reprint Reason Modal */}
+      <Modal
+        isOpen={showReprintReasonModal}
+        onClose={() => setShowReprintReasonModal(false)}
+        title="Reprint Barcode – Select Reason"
+        size="md"
+      >
+        <div className="space-y-5">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <RotateCcw className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">
+                Why are you reprinting this barcode?
+              </p>
+              <p className="text-xs text-red-600 mt-0.5">
+                The reason will be printed on the barcode sticker.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+              Select Reason
+            </label>
+            <div className="relative">
+              <select
+                value={reprintReason}
+                onChange={(e) => {
+                  setReprintReason(e.target.value);
+                  if (e.target.value !== "__custom__") setCustomReprintReason("");
+                }}
+                className="w-full px-3 py-2.5 border border-zinc-300 rounded-lg bg-white text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none cursor-pointer"
+              >
+                <option value="">— Choose a reason —</option>
+                {reprintReasons.map((r) => (
+                  <option key={r.id} value={r.reason}>{r.reason}</option>
+                ))}
+                <option value="__custom__">✏️ Enter Custom Reason...</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {reprintReason === "__custom__" && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1.5">Custom Reason</label>
+              <Input
+                value={customReprintReason}
+                onChange={(e) => setCustomReprintReason(e.target.value)}
+                placeholder="Enter your custom reason..."
+                autoFocus
+              />
+            </div>
+          )}
+
+          {((reprintReason && reprintReason !== "__custom__") || customReprintReason) && (
+            <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+              <p className="text-xs text-zinc-500 mb-1">Will be printed on sticker:</p>
+              <p className="text-sm font-bold text-zinc-800 uppercase">
+                {reprintReason === "__custom__" ? customReprintReason : reprintReason}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" fullWidth onClick={() => setShowReprintReasonModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              fullWidth
+              leftIcon={RotateCcw}
+              className="bg-red-600 hover:bg-red-700"
+              loading={printingBarcodeId === reprintReasonPledge?.id}
+              disabled={
+                (!reprintReason || (reprintReason === "__custom__" && !customReprintReason.trim())) ||
+                printingBarcodeId === reprintReasonPledge?.id
+              }
+              onClick={() => {
+                const reasonText = reprintReason === "__custom__" ? customReprintReason.trim() : reprintReason;
+                setShowReprintReasonModal(false);
+                if (reprintReasonPledge) handlePrintBarcode(reprintReasonPledge, null, reasonText);
+              }}
+            >
+              Reprint Barcode
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageWrapper>
   );
 }

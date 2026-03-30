@@ -32,6 +32,7 @@ import {
   TermsConsentPanel,
 } from "@/components/common";
 import StorageWarningBanner from "@/components/common/StorageWarningBanner";
+import { getReprintReasons } from "@/pages/settings/ReprintReasonsTab";
 import {
   ArrowLeft,
   ArrowRight,
@@ -74,6 +75,8 @@ import {
   Upload,
   Barcode,
   Copy,
+  RotateCcw,
+  ChevronDown,
 } from "lucide-react";
 
 // Step configuration - NOW 6 STEPS WITH STORAGE
@@ -262,6 +265,12 @@ export default function NewPledge() {
   const [createdReceiptNo, setCreatedReceiptNo] = useState(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+
+  // Reprint reason modal state
+  const [showReprintReasonModal, setShowReprintReasonModal] = useState(false);
+  const [npReprintReason, setNpReprintReason] = useState("");
+  const [npCustomReprintReason, setNpCustomReprintReason] = useState("");
+  const [npReprintReasons, setNpReprintReasons] = useState([]);
 
   // Auto-print status tracking
   const [printJobStatus, setPrintJobStatus] = useState({
@@ -1500,7 +1509,7 @@ export default function NewPledge() {
   };
 
   // Generate barcode print HTML - ONE BARCODE PER PLEDGE
-  const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo, isReprint = false) => {
+  const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo, isReprint = false, reprintReasonText = "") => {
     const barcodeImage = pledgeData.barcode_image || pledgeData.image || "";
     const categoryName = pledgeData.category || "Item";
     const totalWeight = pledgeData.total_weight || "0";
@@ -1558,7 +1567,7 @@ export default function NewPledge() {
               ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purityName}</div>`}
               <div>${parseFloat(totalWeight).toFixed(2)}g</div>
             </div>
-            ${isReprint ? `<div class="reprint-badge">REPRINT</div><div class="remark-line">${itemDescription}</div>` : ''}
+            ${isReprint ? `<div class="reprint-badge">REPRINT</div><div class="remark-line">${reprintReasonText || 'REPRINT'}</div>` : ''}
           </div>
         </div>
         <script>
@@ -2012,7 +2021,15 @@ export default function NewPledge() {
     } catch (error) { console.error("Print both error:", error); } finally { setIsPrinting(false); }
   };
 
-  const handlePrintBarcodes = async () => {
+  // Open reprint reason modal
+  const handleReprintBarcodeClick = () => {
+    setNpReprintReasons(getReprintReasons());
+    setNpReprintReason("");
+    setNpCustomReprintReason("");
+    setShowReprintReasonModal(true);
+  };
+
+  const handlePrintBarcodes = async (reasonText = "") => {
     if (!createdPledgeId) return;
     const token = getToken();
     if (!token) { dispatch(addToast({ type: "error", title: "Error", message: "Please login again" })); return; }
@@ -2039,7 +2056,7 @@ export default function NewPledge() {
 
       const printWindow = window.open("", "_blank", "width=400,height=600");
       if (!printWindow) { dispatch(addToast({ type: "error", title: "Popup Blocked", message: "Please allow popups for this site to print barcodes." })); return; }
-      printWindow.document.write(generateBarcodeHTML(pledgeBarcodeData, data.data.pledge_no || createdReceiptNo, data.data.receipt_no || createdReceiptNo, true));
+      printWindow.document.write(generateBarcodeHTML(pledgeBarcodeData, data.data.pledge_no || createdReceiptNo, data.data.receipt_no || createdReceiptNo, true, reasonText));
       printWindow.document.close();
       printWindow.focus();
       dispatch(addToast({ type: "success", title: "Label Ready", message: "1 barcode label ready for printing." }));
@@ -3209,7 +3226,7 @@ export default function NewPledge() {
             <div className="mt-3 space-y-2">
               <div className="grid grid-cols-1 gap-2">
                 {/* <Button variant="outline" size="sm" leftIcon={Copy} onClick={handlePrintBothCopies} loading={isPrinting} disabled={isPrinting}>PDF Copies</Button> */}
-                <Button variant="outline" size="sm" leftIcon={RefreshCw} onClick={handlePrintBarcodes} loading={isPrinting} disabled={isPrinting}>Reprint Barcode</Button>
+                <Button variant="outline" size="sm" leftIcon={RotateCcw} onClick={handleReprintBarcodeClick} loading={isPrinting} disabled={isPrinting}>Reprint Barcode</Button>
               </div>
               {/* <Button variant="outline" size="sm" leftIcon={FileText} onClick={handleHPPrintA5} loading={isPrinting} disabled={isPrinting} className="w-full">HP Print - A5</Button>
               <Button variant="outline" size="sm" leftIcon={FileDown} onClick={handleDownloadPdf} loading={isPrinting} disabled={isPrinting} className="w-full">Download PDF (A5)</Button>
@@ -3248,6 +3265,94 @@ export default function NewPledge() {
           </div>
         </div>
       </Modal>
+
+      {/* Reprint Reason Modal */}
+      <Modal
+        isOpen={showReprintReasonModal}
+        onClose={() => setShowReprintReasonModal(false)}
+        title="Reprint Barcode – Select Reason"
+        size="md"
+      >
+        <div className="space-y-5">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <RotateCcw className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">
+                Why are you reprinting this barcode?
+              </p>
+              <p className="text-xs text-red-600 mt-0.5">
+                The reason will be printed on the barcode sticker.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Reason</label>
+            <div className="relative">
+              <select
+                value={npReprintReason}
+                onChange={(e) => {
+                  setNpReprintReason(e.target.value);
+                  if (e.target.value !== "__custom__") setNpCustomReprintReason("");
+                }}
+                className="w-full px-3 py-2.5 border border-zinc-300 rounded-lg bg-white text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none cursor-pointer"
+              >
+                <option value="">— Choose a reason —</option>
+                {npReprintReasons.map((r) => (
+                  <option key={r.id} value={r.reason}>{r.reason}</option>
+                ))}
+                <option value="__custom__">✏️ Enter Custom Reason...</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {npReprintReason === "__custom__" && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1.5">Custom Reason</label>
+              <Input
+                value={npCustomReprintReason}
+                onChange={(e) => setNpCustomReprintReason(e.target.value)}
+                placeholder="Enter your custom reason..."
+                autoFocus
+              />
+            </div>
+          )}
+
+          {((npReprintReason && npReprintReason !== "__custom__") || npCustomReprintReason) && (
+            <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+              <p className="text-xs text-zinc-500 mb-1">Will be printed on sticker:</p>
+              <p className="text-sm font-bold text-zinc-800 uppercase">
+                {npReprintReason === "__custom__" ? npCustomReprintReason : npReprintReason}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" fullWidth onClick={() => setShowReprintReasonModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              fullWidth
+              leftIcon={RotateCcw}
+              className="bg-red-600 hover:bg-red-700"
+              loading={isPrinting}
+              disabled={
+                (!npReprintReason || (npReprintReason === "__custom__" && !npCustomReprintReason.trim())) ||
+                isPrinting
+              }
+              onClick={() => {
+                const reasonText = npReprintReason === "__custom__" ? npCustomReprintReason.trim() : npReprintReason;
+                setShowReprintReasonModal(false);
+                handlePrintBarcodes(reasonText);
+              }}
+            >
+              Reprint Barcode
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageWrapper>
   );
-}
+}

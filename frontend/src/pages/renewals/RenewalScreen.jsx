@@ -36,6 +36,7 @@ import {
   TermsConsentPanel,
 } from "@/components/common";
 import PasskeyModal from "@/components/common/PasskeyModal";
+import { getReprintReasons } from "@/pages/settings/ReprintReasonsTab";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
   RefreshCw,
@@ -64,6 +65,8 @@ import {
   Eye,
   List,
   ScanLine,
+  RotateCcw,
+  ChevronDown,
 } from "lucide-react";
 
 export default function RenewalScreen() {
@@ -119,6 +122,12 @@ export default function RenewalScreen() {
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
 
+  // Reprint Reason Modal State
+  const [showReprintReasonModal, setShowReprintReasonModal] = useState(false);
+  const [rnReprintReason, setRnReprintReason] = useState("");
+  const [rnCustomReprintReason, setRnCustomReprintReason] = useState("");
+  const [rnReprintReasons, setRnReprintReasons] = useState([]);
+
   // Passkey Modal State
   const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
@@ -138,7 +147,11 @@ export default function RenewalScreen() {
         handlePrintReceipt();
         break;
       case 'reprintSticker':
-        handlePrintBarcodeSticker();
+        // Show reprint reason modal after passkey
+        setRnReprintReasons(getReprintReasons());
+        setRnReprintReason("");
+        setRnCustomReprintReason("");
+        setShowReprintReasonModal(true);
         break;
       case 'downloadPdf':
         handleDownloadPdf();
@@ -1167,8 +1180,8 @@ export default function RenewalScreen() {
     }
   };
 
-  // Handle Barcode Sticker Print (manual button) - REPRINT version with description
-  const handlePrintBarcodeSticker = async () => {
+  // Handle Barcode Sticker Print (manual button) - REPRINT version with reason
+  const handlePrintBarcodeSticker = async (reasonText = "") => {
     if (!pledge?.id) {
       dispatch(
         addToast({
@@ -1230,7 +1243,7 @@ export default function RenewalScreen() {
               <div>${item.net_weight ? parseFloat(item.net_weight).toFixed(2) + "g" : ""}</div>
             </div>
             <div class="reprint-badge">REPRINT</div>
-            <div class="remark-line">${item.description || ""}</div>
+            <div class="remark-line">${reasonText || 'REPRINT'}</div>
           </div>
         `).join("");
 
@@ -2393,6 +2406,92 @@ export default function RenewalScreen() {
         title="Verification Required"
         message="Please enter your 6-digit passkey to authorize this action."
       />
+
+      {/* Reprint Reason Modal */}
+      <Modal
+        isOpen={showReprintReasonModal}
+        onClose={() => setShowReprintReasonModal(false)}
+        title="Reprint Barcode – Select Reason"
+        size="md"
+      >
+        <div className="space-y-5">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+            <RotateCcw className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">
+                Why are you reprinting this barcode?
+              </p>
+              <p className="text-xs text-red-600 mt-0.5">
+                The reason will be printed on the barcode sticker.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">Select Reason</label>
+            <div className="relative">
+              <select
+                value={rnReprintReason}
+                onChange={(e) => {
+                  setRnReprintReason(e.target.value);
+                  if (e.target.value !== "__custom__") setRnCustomReprintReason("");
+                }}
+                className="w-full px-3 py-2.5 border border-zinc-300 rounded-lg bg-white text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none cursor-pointer"
+              >
+                <option value="">— Choose a reason —</option>
+                {rnReprintReasons.map((r) => (
+                  <option key={r.id} value={r.reason}>{r.reason}</option>
+                ))}
+                <option value="__custom__">✏️ Enter Custom Reason...</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {rnReprintReason === "__custom__" && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1.5">Custom Reason</label>
+              <Input
+                value={rnCustomReprintReason}
+                onChange={(e) => setRnCustomReprintReason(e.target.value)}
+                placeholder="Enter your custom reason..."
+                autoFocus
+              />
+            </div>
+          )}
+
+          {((rnReprintReason && rnReprintReason !== "__custom__") || rnCustomReprintReason) && (
+            <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
+              <p className="text-xs text-zinc-500 mb-1">Will be printed on sticker:</p>
+              <p className="text-sm font-bold text-zinc-800 uppercase">
+                {rnReprintReason === "__custom__" ? rnCustomReprintReason : rnReprintReason}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" fullWidth onClick={() => setShowReprintReasonModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              fullWidth
+              leftIcon={RotateCcw}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={
+                (!rnReprintReason || (rnReprintReason === "__custom__" && !rnCustomReprintReason.trim()))
+              }
+              onClick={() => {
+                const reasonText = rnReprintReason === "__custom__" ? rnCustomReprintReason.trim() : rnReprintReason;
+                setShowReprintReasonModal(false);
+                handlePrintBarcodeSticker(reasonText);
+              }}
+            >
+              Reprint Barcode
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PageWrapper>
   );
 }
