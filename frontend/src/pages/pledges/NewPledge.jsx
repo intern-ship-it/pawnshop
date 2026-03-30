@@ -2825,6 +2825,7 @@ export default function NewPledge() {
                     <>
                     {(() => {
                       const activeBox = boxes.find((b) => b.id === parseInt(selectedBox));
+                      const activeVault = vaults.find((v) => v.id === parseInt(selectedVault));
                       if (activeBox?.has_subslots) {
                         const subPerSlot = activeBox.subslots_per_slot || 1;
                         const groupedSlots = {};
@@ -2893,6 +2894,9 @@ export default function NewPledge() {
                                               <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{occupiedItem.pledge.customer.name}</p>
                                             )}
                                             <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
+                                              <p className="text-[10px] text-zinc-800 bg-amber-50 p-1 rounded border border-amber-100 mb-1">
+                                                <span className="font-medium text-amber-700">Location:</span> {activeVault?.name || activeVault?.code || 'Locker'} → {activeBox?.box_number || activeBox?.name || 'Drawer'} / Slot {sNum}-{slot.subNum}
+                                              </p>
                                               <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
                                               <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
                                               <p className="text-[10px] text-zinc-600"><span className="font-medium">Weight:</span> {occupiedItem.net_weight || occupiedItem.gross_weight || '—'}g</p>
@@ -2962,6 +2966,9 @@ export default function NewPledge() {
                                       <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{occupiedItem.pledge.customer.name}</p>
                                     )}
                                     <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
+                                      <p className="text-[10px] text-zinc-800 bg-amber-50 p-1 rounded border border-amber-100 mb-1">
+                                        <span className="font-medium text-amber-700">Location:</span> {activeVault?.name || activeVault?.code || 'Locker'} → {activeBox?.box_number || activeBox?.name || 'Drawer'} / Slot {slot.slot_number}
+                                      </p>
                                       <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
                                       <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
                                       <p className="text-[10px] text-zinc-600"><span className="font-medium">Weight:</span> {occupiedItem.net_weight || occupiedItem.gross_weight || '—'}g</p>

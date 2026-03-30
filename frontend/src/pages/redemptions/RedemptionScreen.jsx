@@ -180,6 +180,17 @@ export default function RedemptionScreen() {
     }
   }, [dispatch]);
 
+  // Auto-fill amount received for cash and transfer options
+  useEffect(() => {
+    if (calculation && calculation.total_payable !== undefined) {
+      if (paymentMethod === "cash" || paymentMethod === "transfer") {
+        setAmountReceived(String(calculation.total_payable));
+      }
+    } else if (!calculation) {
+      setAmountReceived("");
+    }
+  }, [calculation?.total_payable, paymentMethod]);
+
   // Fetch redemption calculation from API
   // Issue 2: Now supports item_ids for partial redemption
   const fetchCalculation = async (pledgeId, itemIds = null) => {

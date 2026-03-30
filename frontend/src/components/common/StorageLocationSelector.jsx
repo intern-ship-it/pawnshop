@@ -22,6 +22,7 @@ export default function StorageLocationSelector({
     boxes: false,
     slots: false,
   });
+  const [logicalSlot, setLogicalSlot] = useState("");
 
   // Load vaults on mount
   useEffect(() => {
@@ -46,6 +47,24 @@ export default function StorageLocationSelector({
       setSlots([]);
     }
   }, [value.box_id]);
+
+  // Derive logicalSlot from current slot_id if needed (for edit mode)
+  useEffect(() => {
+    if (value.slot_id && slots.length > 0) {
+      const parentBox = boxes.find((b) => b.id.toString() === value.box_id);
+      if (parentBox && parentBox.has_subslots) {
+        const slot = slots.find((s) => s.id.toString() === value.slot_id);
+        if (slot) {
+          const lSlot = Math.ceil(slot.slot_number / (parentBox.subslots_per_slot || 1));
+          setLogicalSlot(lSlot.toString());
+        }
+      } else {
+        setLogicalSlot("");
+      }
+    } else if (!value.slot_id) {
+       setLogicalSlot("");
+    }
+  }, [value.slot_id, value.box_id, slots, boxes]);
 
   const fetchVaults = async () => {
     setLoading((prev) => ({ ...prev, vaults: true }));
@@ -144,24 +163,59 @@ export default function StorageLocationSelector({
     })),
   ];
 
-  // Format slot options
-  const slotOptions = [
-    { value: "", label: "Select Slot" },
-    ...slots.map((slot) => {
-      const parentBox = boxes.find((b) => b.id.toString() === value.box_id);
-      let slotLabel = `Slot ${slot.slot_number}`;
-      if (parentBox && parentBox.has_subslots) {
-        slotLabel = `Slot ${Math.ceil(slot.slot_number / (parentBox.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (parentBox.subslots_per_slot || 1)) + 1}`;
-      }
-      return {
+  const parentBox = boxes.find((b) => b.id.toString() === value.box_id);
+  const hasSubslots = parentBox && parentBox.has_subslots;
+  const subslotsPerSlot = parentBox?.subslots_per_slot || 1;
+
+  let mainSlotOptions = [];
+  let subslotOptions = [];
+
+  if (hasSubslots) {
+    const activeLogicalSlots = new Set();
+    slots.forEach((s) => {
+      activeLogicalSlots.add(Math.ceil(s.slot_number / subslotsPerSlot));
+    });
+
+    mainSlotOptions = [
+      { value: "", label: "Select Slot" },
+      ...Array.from(activeLogicalSlots)
+        .sort((a, b) => a - b)
+        .map((num) => ({
+          value: num.toString(),
+          label: `Slot ${num}`,
+        })),
+    ];
+
+    if (logicalSlot) {
+      subslotOptions = [
+        { value: "", label: "Select Subslot" },
+        ...slots
+          .filter(
+            (s) =>
+              Math.ceil(s.slot_number / subslotsPerSlot) ===
+              parseInt(logicalSlot)
+          )
+          .map((s) => ({
+            value: s.id.toString(),
+            label: `Subslot ${
+              ((s.slot_number - 1) % subslotsPerSlot) + 1
+            }${s.is_occupied ? " (Occupied)" : " (Available)"}`,
+            disabled: s.is_occupied,
+          })),
+      ];
+    }
+  } else {
+    mainSlotOptions = [
+      { value: "", label: "Select Slot" },
+      ...slots.map((slot) => ({
         value: slot.id.toString(),
-        label: `${slotLabel}${
+        label: `Slot ${slot.slot_number}${
           slot.is_occupied ? " (Occupied)" : " (Available)"
         }`,
         disabled: slot.is_occupied,
-      };
-    }),
-  ];
+      })),
+    ];
+  }
 
   return (
     <div className="space-y-4">
@@ -208,25 +262,61 @@ export default function StorageLocationSelector({
       </div>
 
       {/* Slot Selection */}
-      <div className="relative">
-        <Select
-          label={
-            <div className="flex items-center gap-2">
-              <Grid3X3 className="w-4 h-4 text-amber-500" />
-              <span>Slot Number</span>
+      {!hasSubslots ? (
+        <div className="relative">
+          <Select
+            label={
+              <div className="flex items-center gap-2">
+                <Grid3X3 className="w-4 h-4 text-amber-500" />
+                <span>Slot Number</span>
+              </div>
+            }
+            value={value.slot_id}
+            onChange={handleSlotChange}
+            options={mainSlotOptions}
+            disabled={disabled || !value.box_id || loading.slots}
+          />
+          {loading.slots && (
+            <div className="absolute right-3 top-9">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
             </div>
-          }
-          value={value.slot_id}
-          onChange={handleSlotChange}
-          options={slotOptions}
-          disabled={disabled || !value.box_id || loading.slots}
-        />
-        {loading.slots && (
-          <div className="absolute right-3 top-9">
-            <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="relative">
+            <Select
+              label={
+                <div className="flex items-center gap-2">
+                  <Grid3X3 className="w-4 h-4 text-amber-500" />
+                  <span>Slot Number</span>
+                </div>
+              }
+              value={logicalSlot}
+              onChange={(e) => {
+                setLogicalSlot(e.target.value);
+                onChange({ ...value, slot_id: "" });
+              }}
+              options={mainSlotOptions}
+              disabled={disabled || !value.box_id || loading.slots}
+            />
           </div>
-        )}
-      </div>
+          <div className="relative">
+            <Select
+              label={
+                <div className="flex items-center gap-2">
+                  <Grid3X3 className="w-4 h-4 text-amber-500" />
+                  <span>Subslot Options</span>
+                </div>
+              }
+              value={value.slot_id}
+              onChange={handleSlotChange}
+              options={subslotOptions}
+              disabled={disabled || !logicalSlot || loading.slots}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Selected Location Preview */}
       {value.vault_id && value.box_id && value.slot_id && (
