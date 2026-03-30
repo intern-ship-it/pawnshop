@@ -81,6 +81,9 @@ const FIELDS = [
   { key: "name",      label: "Name" },
   { key: "ic",        label: "IC number" },
   { key: "address",   label: "Address" },
+  { key: "city",      label: "City" },
+  { key: "state",     label: "State" },
+  { key: "postcode",  label: "Postcode" },
   { key: "gender",    label: "Gender" },
   { key: "race",      label: "Race" },
   { key: "photo",     label: "Photo" },
@@ -186,9 +189,9 @@ export default function MyKadScanner({ onDataReceived, header }) {
                 // Map the data to our format expected by CustomerCreate!
                 const cd = response.data;
                 
-                // Address construction
+                // Address construction (street lines only, city/postcode/state are separate fields)
                 const addressParts = [cd.Addr1, cd.Addr2, cd.Addr3].filter(Boolean);
-                const fullAddr = addressParts.length > 0 ? addressParts.join(' ') + (cd.Postcode ? `, ${cd.Postcode}` : '') + (cd.City ? ` ${cd.City}` : '') : '';
+                const fullAddr = addressParts.length > 0 ? addressParts.join(' ') : '';
                 
                 // Race remapping
                 let mappedRace = null;
@@ -214,6 +217,9 @@ export default function MyKadScanner({ onDataReceived, header }) {
                     name: cd.Name || '',
                     icNumber: cd.ICNo || '',
                     address: fullAddr,
+                    postcode: cd.Postcode || '',
+                    city: cd.City || '',
+                    state: cd.State || '',
                     gender: mappedGender,
                     race: mappedRace,
                     photo: photoDataURI,

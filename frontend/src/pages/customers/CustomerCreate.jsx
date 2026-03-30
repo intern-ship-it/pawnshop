@@ -146,106 +146,7 @@ export default function CustomerCreate() {
     }
   }, [formData.phone, sameAsPhone]);
 
-  // Malaysian state codes mapping (digits 7-8 of IC)
-  const stateCodeMap = {
-    "01": "Johor",
-    21: "Johor",
-    22: "Johor",
-    23: "Johor",
-    24: "Johor",
-    "02": "Kedah",
-    25: "Kedah",
-    26: "Kedah",
-    27: "Kedah",
-    "03": "Kelantan",
-    28: "Kelantan",
-    29: "Kelantan",
-    "04": "Melaka",
-    30: "Melaka",
-    "05": "Negeri Sembilan",
-    31: "Negeri Sembilan",
-    59: "Negeri Sembilan",
-    "06": "Pahang",
-    32: "Pahang",
-    33: "Pahang",
-    "07": "Pulau Pinang",
-    34: "Pulau Pinang",
-    35: "Pulau Pinang",
-    "08": "Perak",
-    36: "Perak",
-    37: "Perak",
-    38: "Perak",
-    39: "Perak",
-    "09": "Perlis",
-    40: "Perlis",
-    10: "Selangor",
-    41: "Selangor",
-    42: "Selangor",
-    43: "Selangor",
-    44: "Selangor",
-    11: "Terengganu",
-    45: "Terengganu",
-    46: "Terengganu",
-    12: "Sabah",
-    47: "Sabah",
-    48: "Sabah",
-    49: "Sabah",
-    13: "Sarawak",
-    50: "Sarawak",
-    51: "Sarawak",
-    52: "Sarawak",
-    53: "Sarawak",
-    14: "Kuala Lumpur",
-    54: "Kuala Lumpur",
-    55: "Kuala Lumpur",
-    56: "Kuala Lumpur",
-    57: "Kuala Lumpur",
-    15: "Labuan",
-    58: "Labuan",
-    16: "Putrajaya",
-  };
-
-  // Postcode mapping by state (starting postcode of capital city)
-  const statePostcodeMap = {
-    Johor: "80000", // Johor Bahru: 80000-81900
-    Kedah: "05000", // Alor Setar: 05000-06650
-    Kelantan: "15000", // Kota Bharu: 15000-16810
-    Melaka: "75000", // Melaka City: 75000-75990
-    "Negeri Sembilan": "70000", // Seremban: 70000-71900
-    Pahang: "25000", // Kuantan: 25000-26900
-    "Pulau Pinang": "10000", // George Town: 10000-14400
-    Perak: "30000", // Ipoh: 30000-31650
-    Perlis: "01000", // Kangar: 01000-02600
-    Selangor: "40000", // Shah Alam: 40000-40920
-    Terengganu: "20000", // Kuala Terengganu: 20000-21810
-    Sabah: "88000", // Kota Kinabalu: 88000-89509
-    Sarawak: "93000", // Kuching: 93000-93990
-    "Kuala Lumpur": "50000", // KL City: 50000-60000
-    Labuan: "87000", // Labuan: 87000-87033
-    Putrajaya: "62000", // Putrajaya: 62000-62988
-  };
-
-  // City mapping by state (official capital cities)
-  const stateCityMap = {
-    Johor: "Johor Bahru",
-    Kedah: "Alor Setar",
-    Kelantan: "Kota Bharu",
-    Melaka: "Melaka City",
-    "Negeri Sembilan": "Seremban",
-    Pahang: "Kuantan",
-    "Pulau Pinang": "George Town",
-    Perak: "Ipoh",
-    Perlis: "Kangar",
-    Selangor: "Shah Alam",
-    Terengganu: "Kuala Terengganu",
-    Sabah: "Kota Kinabalu",
-    Sarawak: "Kuching",
-    "Kuala Lumpur": "Kuala Lumpur",
-    Labuan: "Labuan",
-    Putrajaya: "Putrajaya",
-  };
-
-  // Extract DOB, Gender, and State from IC
+  // Extract DOB and Gender from IC
   useEffect(() => {
     const ic = formData.icNumber.replace(/[-\s]/g, "");
 
@@ -274,22 +175,6 @@ export default function CustomerCreate() {
         }
       } else {
         setFormData((prev) => ({ ...prev, dateOfBirth: "" }));
-      }
-    }
-
-    if (ic.length >= 8) {
-      // Extract state from digits 7-8
-      const stateCode = ic.substring(6, 8);
-      const state = stateCodeMap[stateCode];
-      if (state) {
-        const postcode = statePostcodeMap[state];
-        const city = stateCityMap[state];
-        setFormData((prev) => ({
-          ...prev,
-          state,
-          city: city || prev.city,
-          postcode: postcode || prev.postcode,
-        }));
       }
     }
 
@@ -512,6 +397,15 @@ export default function CustomerCreate() {
     if (data.name) setFormData(prev => ({ ...prev, name: data.name }));
     if (data.icNumber) setFormData(prev => ({ ...prev, icNumber: formatIC(data.icNumber) }));
     if (data.address) setFormData(prev => ({ ...prev, address: data.address }));
+    if (data.postcode) setFormData(prev => ({ ...prev, postcode: data.postcode }));
+    if (data.city) setFormData(prev => ({ ...prev, city: data.city }));
+    if (data.state) {
+      // Try to match the state from card response to our dropdown values
+      const matchedState = malaysianStates.find(
+        s => s.toUpperCase() === data.state.toUpperCase()
+      );
+      setFormData(prev => ({ ...prev, state: matchedState || data.state }));
+    }
     if (data.gender) setFormData(prev => ({ ...prev, gender: data.gender.toLowerCase() }));
     if (data.race) setFormData(prev => ({ ...prev, race: data.race }));
     if (data.photo) {
@@ -943,7 +837,7 @@ export default function CustomerCreate() {
                       placeholder="Enter city"
                       value={formData.city}
                       onChange={handleChange}
-                      hint="Auto-filled from IC state"
+                      hint="Auto-filled from card reader"
                     />
                   </div>
 
@@ -956,7 +850,7 @@ export default function CustomerCreate() {
                       value={formData.postcode}
                       onChange={handleChange}
                       maxLength={5}
-                      hint="Auto-filled from IC state"
+                      hint="Auto-filled from card reader"
                     />
                   </div>
 
