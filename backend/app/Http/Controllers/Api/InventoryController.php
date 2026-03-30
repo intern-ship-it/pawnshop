@@ -437,12 +437,14 @@ class InventoryController extends Controller
             // Weight and value (stored items only)
             'total_weight' => round($storedItems->sum('net_weight'), 3),
             'total_value' => round($storedItems->sum('net_value'), 2),
+            'total_gross_value' => round($storedItems->sum('gross_value'), 2),
 
             // By category (stored items only)
             'by_category' => $storedItems->groupBy('category_id')->map(fn($g) => [
                 'count' => $g->count(),
                 'weight' => round($g->sum('net_weight'), 3),
                 'value' => round($g->sum('net_value'), 2),
+                'gross_value' => round($g->sum('gross_value'), 2),
             ]),
 
             // By purity (stored items only)
@@ -450,6 +452,7 @@ class InventoryController extends Controller
                 'count' => $g->count(),
                 'weight' => round($g->sum('net_weight'), 3),
                 'value' => round($g->sum('net_value'), 2),
+                'gross_value' => round($g->sum('gross_value'), 2),
             ]),
 
             // Items without location assignment

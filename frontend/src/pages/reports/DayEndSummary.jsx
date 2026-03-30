@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import dayEndService from "@/services/dayEndService";
+import goldPriceService from "@/services/goldPriceService";
+import inventoryService from "@/services/inventoryService";
 import { useNavigate } from "react-router";
 import { addToast } from "@/features/ui/uiSlice";
 import { formatCurrency } from "@/utils/formatters";
+import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -72,7 +75,18 @@ export default function DayEndSummary() {
     cashOut: 0,
     netCashFlow: 0,
     totalItemsAdded: 0,
+    totalItemsOut: 0,
     totalWeight: 0,
+  });
+
+  // Gold price state
+  const [goldPrice, setGoldPrice] = useState(null);
+
+  // Inventory summary state
+  const [inventorySummary, setInventorySummary] = useState({
+    in_storage: 0,
+    total_weight: 0,
+    total_value: 0,
   });
 
   // Cash drawer
@@ -85,7 +99,62 @@ export default function DayEndSummary() {
   // Fetch data on mount and date change
   useEffect(() => {
     fetchDayEndData();
+    fetchGoldPrice();
+    fetchInventorySummary();
   }, [selectedDate]);
+
+  // Fetch gold price (mirrors Header.jsx logic)
+  const fetchGoldPrice = async () => {
+    try {
+      // Check if manual price is configured in settings (same as Header)
+      const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
+      const goldSettings = stored?.goldPrice || { source: "api" };
+
+      if (goldSettings.source === "manual") {
+        // Use manual price from settings
+        const manualPrices = goldSettings.manualPrices || {};
+        const price = parseFloat(manualPrices["916"]) || parseFloat(goldSettings.manualPrice) || 0;
+        if (price > 0) {
+          setGoldPrice(price);
+          return;
+        }
+      }
+
+      // Fetch from API
+      const response = await goldPriceService.getDashboardPrices();
+      if (response?.success && response?.data) {
+        const data = response.data;
+        // Try multiple field paths matching goldPriceService response format
+        const price =
+          data.purity_codes?.["916"] ||
+          data.carat?.["916"] ||
+          data.price999 ||
+          data.purity_codes?.["999"] ||
+          data.carat?.["999"] ||
+          data.current?.prices?.gold?.per_gram ||
+          null;
+        setGoldPrice(price);
+      }
+    } catch (error) {
+      console.error('Error fetching gold price:', error);
+    }
+  };
+
+  // Fetch inventory summary
+  const fetchInventorySummary = async () => {
+    try {
+      const response = await inventoryService.getSummary();
+      if (response?.success && response?.data) {
+        setInventorySummary({
+          in_storage: response.data.in_storage || 0,
+          total_weight: parseFloat(response.data.total_weight) || 0,
+          total_value: parseFloat(response.data.total_value) || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching inventory summary:', error);
+    }
+  };
 
   // FIX: Fetch day end data from API
   const fetchDayEndData = async () => {
@@ -128,6 +197,7 @@ export default function DayEndSummary() {
             cashOut: newPledgesAmount,
             netCashFlow: renewalInterest + redemptionAmount - newPledgesAmount,
             totalItemsAdded: report.items_in_count || 0,
+            totalItemsOut: report.items_out_count || 0,
             totalWeight: 0,
           });
 
@@ -179,6 +249,7 @@ export default function DayEndSummary() {
             cashOut: newPledgesAmount,
             netCashFlow: renewalInterest + redemptionAmount - newPledgesAmount,
             totalItemsAdded: stats.items_in || 0,
+            totalItemsOut: stats.items_out || 0,
             totalWeight: 0,
           });
 
@@ -204,6 +275,7 @@ export default function DayEndSummary() {
             cashOut: 0,
             netCashFlow: 0,
             totalItemsAdded: 0,
+            totalItemsOut: 0,
             totalWeight: 0,
           });
           setVerificationItems([]);
@@ -225,6 +297,7 @@ export default function DayEndSummary() {
           cashOut: 0,
           netCashFlow: 0,
           totalItemsAdded: 0,
+          totalItemsOut: 0,
           totalWeight: 0,
         });
         setVerificationItems([]);
@@ -410,6 +483,9 @@ export default function DayEndSummary() {
           .positive { color: #059669; }
           .negative { color: #dc2626; }
           .total { font-size: 1.2em; background: #f5f5f5; padding: 10px; border-radius: 4px; }
+          .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #f59e0b; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+          .gold-banner .gold-label { font-weight: 600; color: #92400e; }
+          .gold-banner .gold-value { font-size: 1.3em; font-weight: 700; color: #b45309; }
           .signature { margin-top: 40px; display: flex; justify-content: space-between; }
           .signature-line { border-top: 1px solid #333; width: 200px; text-align: center; padding-top: 5px; }
           @media print { body { padding: 0; } }
@@ -429,11 +505,29 @@ export default function DayEndSummary() {
           <div><strong>Status:</strong> ${dayStatus === "closed" ? "🔒 CLOSED" : "🔓 OPEN"}</div>
         </div>
 
+        <div class="gold-banner">
+          <span class="gold-label">🥇 Gold Value (per gram)</span>
+          <span class="gold-value">${goldPrice ? `RM ${parseFloat(goldPrice).toFixed(2)}/g` : "N/A"}</span>
+        </div>
+
         <div class="section">
           <h3>📊 Transaction Summary</h3>
-          <div class="row"><span class="label">New Pledges</span><span class="value">${dailyStats.newPledgesCount} (${formatCurrency(dailyStats.newPledgesAmount)})</span></div>
-          <div class="row"><span class="label">Renewals</span><span class="value">${dailyStats.renewalsCount} (Interest: ${formatCurrency(dailyStats.renewalInterest)})</span></div>
-          <div class="row"><span class="label">Redemptions</span><span class="value">${dailyStats.redemptionsCount} (${formatCurrency(dailyStats.redemptionAmount)})</span></div>
+          <div class="row"><span class="label">Pledge (Cash Out)</span><span class="value">${dailyStats.newPledgesCount} pax — ${formatCurrency(dailyStats.newPledgesAmount)}</span></div>
+          <div class="row"><span class="label">Redeem (Cash In)</span><span class="value">${dailyStats.redemptionsCount} pax — ${formatCurrency(dailyStats.redemptionAmount)}</span></div>
+          <div class="row"><span class="label">Renewal (Cash In)</span><span class="value">${dailyStats.renewalsCount} pax — ${formatCurrency(dailyStats.renewalInterest)}</span></div>
+        </div>
+
+        <div class="section">
+          <h3>📦 Stock Movement</h3>
+          <div class="row"><span class="label">Stock In (Items Received)</span><span class="value">${dailyStats.totalItemsAdded} items</span></div>
+          <div class="row"><span class="label">Stock Out (Items Released)</span><span class="value">${dailyStats.totalItemsOut} items</span></div>
+        </div>
+
+        <div class="section">
+          <h3>🏪 Total Stock Value</h3>
+          <div class="row"><span class="label">Items in Storage</span><span class="value">${inventorySummary.in_storage} items</span></div>
+          <div class="row"><span class="label">Total Weight</span><span class="value">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</span></div>
+          <div class="row"><span class="label">Total Value</span><span class="value">${formatCurrency(inventorySummary.total_value)}</span></div>
         </div>
 
         <div class="section">
@@ -710,12 +804,14 @@ export default function DayEndSummary() {
               <Package className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Items Added</p>
+              <p className="text-xs text-zinc-500">Stock In / Out</p>
               <p className="text-2xl font-bold text-zinc-800">
                 {dailyStats.totalItemsAdded}
+                <span className="text-base text-zinc-400 font-normal"> / </span>
+                <span className="text-lg text-red-500">{dailyStats.totalItemsOut}</span>
               </p>
               <p className="text-xs text-purple-600 font-medium">
-                {dailyStats.totalWeight.toFixed(2)}g total
+                {inventorySummary.in_storage} in storage ({parseFloat(inventorySummary.total_weight).toFixed(1)}g)
               </p>
             </div>
           </div>

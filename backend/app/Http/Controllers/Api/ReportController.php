@@ -300,7 +300,18 @@ class ReportController extends Controller
         })
             ->where('status', 'stored')
             ->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
-            ->get();
+            ->get()
+            ->map(function ($item) {
+                // Ensure gross_value is never 0 if weight/price exists
+                if ($item->gross_value <= 0 && $item->price_per_gram > 0) {
+                    $item->gross_value = $item->net_weight * $item->price_per_gram;
+                }
+                // If still 0, at least use net_value as proxy (though gross is usually higher)
+                if ($item->gross_value <= 0) {
+                    $item->gross_value = $item->net_value;
+                }
+                return $item;
+            });
 
         // Group by category - use callback to properly access relationship
         $byCategory = $items->groupBy(function ($item) {
@@ -311,6 +322,7 @@ class ReportController extends Controller
                 'count' => $group->count(),
                 'total_weight' => round($group->sum('net_weight'), 3),
                 'total_value' => round($group->sum('net_value'), 2),
+                'gross_value' => round($group->sum('gross_value'), 2),
             ];
         })->values();
 
@@ -323,6 +335,7 @@ class ReportController extends Controller
                 'count' => $group->count(),
                 'total_weight' => round($group->sum('net_weight'), 3),
                 'total_value' => round($group->sum('net_value'), 2),
+                'gross_value' => round($group->sum('gross_value'), 2),
             ];
         })->values();
 
@@ -344,6 +357,7 @@ class ReportController extends Controller
             'total_items' => $items->count(),
             'total_weight' => round($items->sum('net_weight'), 3),
             'total_value' => round($items->sum('net_value'), 2),
+            'total_gross_value' => round($items->sum('gross_value'), 2),
             'active_pledges' => $activePledgesCount,
             'by_category' => $byCategory,
             'by_purity' => $byPurity,

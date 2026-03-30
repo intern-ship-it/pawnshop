@@ -364,6 +364,7 @@ export default function ReportsScreen() {
     <PageWrapper
       title="Reports"
       subtitle="Generate and export business reports"
+      fullWidth={true}
       actions={
         <div className="flex items-center gap-3">
           {/* Date Range Display */}
@@ -657,7 +658,7 @@ function OverviewReport({ data }) {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="p-5 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
           <Package className="w-8 h-8 mb-3 opacity-80" />
           <p className="text-emerald-100 text-sm">New Pledges</p>
@@ -700,6 +701,24 @@ function OverviewReport({ data }) {
           <p className="text-amber-200 text-sm mt-1">
             {formatCurrency(outstandingSummary.total_outstanding || 0)}
           </p>
+        </Card>
+
+        {/* NEW: Live Inventory / Stock Summary */}
+        <Card className="p-5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-none shadow-indigo-500/20">
+          <Warehouse className="w-8 h-8 mb-3 opacity-80" />
+          <p className="text-white/80 text-xs font-medium uppercase tracking-wider">Live Inventory</p>
+          <p className="text-2xl font-bold mt-1">
+            {inventorySummary.total_items || 0}
+            <span className="text-xs font-normal text-white/60 ml-2 block sm:inline">
+              (New: {pledgesSummary.total_pledges || 0} - Red: {redemptionsSummary.total_redemptions || 0} = { (pledgesSummary.total_pledges || 0) - (redemptionsSummary.total_redemptions || 0) >= 0 ? "+" : ""}{(pledgesSummary.total_pledges || 0) - (redemptionsSummary.total_redemptions || 0)})
+            </span>
+          </p>
+          <div className="mt-4 pt-3 border-t border-white/10">
+            <p className="text-white text-lg font-bold leading-tight">
+              {formatCurrency(inventorySummary.total_gross_value || 0)}
+            </p>
+            <p className="text-[10px] text-white/60 font-medium">100% Market Value (Stock Valuation)</p>
+          </div>
         </Card>
       </div>
 
@@ -763,14 +782,18 @@ function OverviewReport({ data }) {
             </div>
             <div className="text-center p-3 bg-zinc-50 rounded-lg">
               <DollarSign className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-              <p className="text-lg font-bold text-emerald-600 break-words">
+              <p className="text-sm font-bold text-emerald-600 break-words">
+                {formatCurrency(inventorySummary.total_gross_value || 0)}
+              </p>
+              <p className="text-[10px] text-zinc-400">100% Value</p>
+              <p className="text-xs font-semibold text-zinc-500 mt-1">
                 {formatCurrency(
                   typeof inventorySummary.total_value === "object"
                     ? inventorySummary.total_value?.total_value || 0
                     : inventorySummary.total_value || 0,
                 )}
               </p>
-              <p className="text-xs text-zinc-500">Value</p>
+              <p className="text-[9px] text-zinc-400">Loan Value</p>
             </div>
           </div>
 
@@ -792,10 +815,15 @@ function OverviewReport({ data }) {
                   return (
                     <div
                       key={label || idx}
-                      className="flex justify-between text-sm"
+                      className="flex justify-between items-center text-sm p-1 hover:bg-zinc-50 rounded"
                     >
-                      <span className="text-zinc-600">{label}</span>
-                      <span className="font-medium">{weight}g</span>
+                      <span className="text-zinc-600 font-medium">{label}</span>
+                      <div className="text-right">
+                        <p className="font-semibold text-zinc-800">{weight}g</p>
+                        <p className="text-[10px] text-emerald-600 font-bold">
+                          {formatCurrency(item.gross_value || 0)}
+                        </p>
+                      </div>
                     </div>
                   );
                 })}
