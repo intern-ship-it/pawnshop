@@ -23,24 +23,38 @@ const DEFAULT_REASONS = [
   { id: "3", reason: "Sticker Fell Off", active: true },
   { id: "4", reason: "Wrong Barcode Printed", active: true },
   { id: "5", reason: "Customer Request", active: true },
-  { id: "6", reason: "Renewal – New Sticker Needed", active: true },
+  { id: "6", reason: "Renewal - New Sticker Needed", active: true },
   { id: "7", reason: "Gold Check / Verification", active: true },
   { id: "8", reason: "Storage Relocation", active: true },
-  { id: "9", reason: "System error / network issue during printing", active: true },
-  { id: "10", reason: "Damaged / torn / smudged label", active: true },
-  { id: "11", reason: "Label fell of item", active: true },
-  { id: "12", reason: "Print unclear", active: true },
+  { id: "9", reason: "Print System / Network Error", active: true },
+  { id: "10", reason: "Damaged / Torn Label", active: true },
+  { id: "11", reason: "Label Fell Off Item", active: true },
+  { id: "12", reason: "Print Unclear", active: true },
   { id: "13", reason: "Other (Specify)", active: true },
 ];
 
-export function getReprintReasons() {
+export async function getReprintReasons() {
+  try {
+    // Try API first
+    const { settingsService } = await import("@/services");
+    const response = await settingsService.getByCategory("reprint");
+    if (response.success && response.data && Array.isArray(response.data)) {
+      const setting = response.data.find((s) => s.key_name === "reprint_reasons");
+      if (setting && setting.value) {
+        return JSON.parse(setting.value).filter((r) => r.active);
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to load reprint reasons from API, trying localStorage:", e);
+  }
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       return JSON.parse(stored).filter((r) => r.active);
     }
   } catch (e) {
-    console.error("Failed to load reprint reasons:", e);
+    console.error("Failed to load reprint reasons from localStorage:", e);
   }
   return DEFAULT_REASONS.filter((r) => r.active);
 }
@@ -53,11 +67,36 @@ export default function ReprintReasonsTab() {
   const [newReason, setNewReason] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    loadReasons();
+    fetchReasons();
   }, []);
 
-  const loadReasons = () => {
+  const fetchReasons = async () => {
+    setIsLoading(true);
+    try {
+      const { settingsService } = await import("@/services");
+      const response = await settingsService.getByCategory("reprint");
+      if (response.success && response.data && Array.isArray(response.data)) {
+        const setting = response.data.find((s) => s.key_name === "reprint_reasons");
+        if (setting && setting.value) {
+          const parsed = JSON.parse(setting.value);
+          setReasons(parsed);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          return;
+        }
+      }
+      loadFromLocalStorage();
+    } catch (e) {
+      console.error("API load failed:", e);
+      loadFromLocalStorage();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadFromLocalStorage = () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -71,9 +110,23 @@ export default function ReprintReasonsTab() {
     }
   };
 
-  const saveReasons = (updated) => {
+  const saveReasons = async (updated) => {
     setReasons(updated);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    
+    try {
+      const { settingsService } = await import("@/services");
+      await settingsService.update([
+        {
+          category: "reprint",
+          key_name: "reprint_reasons",
+          value: JSON.stringify(updated),
+        },
+      ]);
+    } catch (e) {
+      console.error("Failed to sync reasons to API:", e);
+      dispatch(addToast({ type: "warning", title: "Sync Warning", message: "Changes saved locally but failed to sync to server" }));
+    }
   };
 
   const handleAdd = () => {
@@ -170,7 +223,8 @@ export default function ReprintReasonsTab() {
           </h2>
           <p className="text-sm text-zinc-500 mt-1">
             Manage predefined reasons for barcode reprinting. These appear as
-            dropdown options when reprinting a barcode sticker.
+            dropdown options when reprinting a barcode sticker. 
+            <span className="font-medium text-red-500 ml-1">(Max 35 characters per line)</span>
           </p>
         </div>
         <Badge variant="warning">{activeCount} active</Badge>
@@ -188,6 +242,7 @@ export default function ReprintReasonsTab() {
               className="flex-1"
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               autoFocus
+              maxLength={35}
             />
             <Button
               variant="primary"
@@ -279,6 +334,7 @@ export default function ReprintReasonsTab() {
                     className="flex-1"
                     onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
                     autoFocus
+                    maxLength={35}
                   />
                   <Button
                     variant="primary"

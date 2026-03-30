@@ -1035,7 +1035,7 @@ export default function PrintTestPage() {
   };
 
   // Open the reprint reason modal before printing
-  const handleReprintBarcodeClick = () => {
+  const handleReprintBarcodeClick = async () => {
     if (!selectedPledge) {
       dispatch(
         addToast({
@@ -1046,11 +1046,27 @@ export default function PrintTestPage() {
       );
       return;
     }
-    // Load latest reasons from storage
-    setReprintReasons(getReprintReasons());
-    setReprintReason("");
-    setCustomReprintReason("");
-    setShowReprintModal(true);
+
+    setPrinting(true);
+    try {
+      // Load latest reasons from API/Storage
+      const reasons = await getReprintReasons();
+      setReprintReasons(reasons);
+      setReprintReason("");
+      setCustomReprintReason("");
+      setShowReprintModal(true);
+    } catch (err) {
+      console.error("Failed to load reprint reasons:", err);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Error",
+          message: "Failed to load reprint reasons. Please try again.",
+        }),
+      );
+    } finally {
+      setPrinting(false);
+    }
   };
 
   // Test Reprint Barcode - same as testBarcodePrint but labels show "REPRINT" + reason
@@ -4396,7 +4412,9 @@ export default function PrintTestPage() {
                 onChange={(e) => setCustomReprintReason(e.target.value)}
                 placeholder="Enter your custom reason..."
                 autoFocus
+                maxLength={35}
               />
+              <p className="text-xs text-zinc-400 mt-1">Max 35 characters</p>
             </div>
           )}
 

@@ -15,7 +15,9 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Select, Badge, Modal } from "@/components/common";
+import PasskeyModal from "@/components/common/PasskeyModal";
 import StorageLocationSelector from "@/components/common/StorageLocationSelector";
+import { getReprintReasons } from "@/pages/settings/ReprintReasonsTab";
 import RackMap from "./RackMap";
 import {
   Search,
@@ -137,6 +139,15 @@ export default function InventoryList() {
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
+  // Passkey Modal State
+  const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+
+  // Reprint Reason Modal State
+  const [showReprintReasonModal, setShowReprintReasonModal] = useState(false);
+  const [reprintReason, setReprintReason] = useState("");
+  const [customReprintReason, setCustomReprintReason] = useState("");
+  const [reprintReasons, setReprintReasons] = useState([]);
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -451,12 +462,49 @@ export default function InventoryList() {
   // Get selected items data
   const getSelectedItemsData = () => {
     return filteredItems.filter((item) => selectedItems.includes(item.id));
+  };  // Handle Passkey Action
+  const handleActionWithPasskey = (type) => {
+    setPendingAction({ type });
+    setPasskeyModalOpen(true);
+  };
+
+  // Execute Pending Action
+  const executePendingAction = async () => {
+    if (!pendingAction) return;
+    const { type } = pendingAction;
+
+    if (type === "reprint_barcode") {
+      setIsPrinting(true);
+      try {
+        const reasons = await getReprintReasons();
+        setReprintReasons(reasons);
+        setShowPrintModal(false);
+        setReprintReason("");
+        setCustomReprintReason("");
+        setShowReprintReasonModal(true);
+      } catch (err) {
+        console.error("Failed to load reprint reasons:", err);
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Failed to load reprint reasons. Please try again.",
+          }),
+        );
+      } finally {
+        setIsPrinting(false);
+      }
+    }
+
+    setPendingAction(null);
   };
 
   // Print barcode labels - 50mm x 50mm thermal labels
-  const handlePrintBarcodeLabels = () => {
+  const handlePrintBarcodeLabels = (reasonText = "") => {
     setIsPrinting(true);
     const selectedData = getSelectedItemsData();
+
+    const remarkText = reasonText || "REPRINT";
 
     const printContent = `
       <!DOCTYPE html>
@@ -467,11 +515,12 @@ export default function InventoryList() {
         <style>
           @page { 
             size: 50mm 50mm; 
-            margin: 0; 
+            margin: 0 !important; 
           }
           @media print {
             html, body {
               width: 50mm !important;
+              height: 50mm !important;
               margin: 0 !important;
               padding: 0 !important;
             }
@@ -481,12 +530,12 @@ export default function InventoryList() {
               margin: 0 !important;
               padding: 0 !important;
               gap: 0 !important;
+              box-shadow: none !important;
             }
             .label {
               page-break-after: always;
               page-break-inside: avoid;
               border: none !important;
-              box-shadow: none !important;
             }
             .label:last-child {
               page-break-after: avoid;
@@ -516,8 +565,6 @@ export default function InventoryList() {
             font-size: 14px;
           }
           .controls button.close { background: #6b7280; }
-          .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
-          .controls .info strong { color: #fbbf24; }
           .labels-container { 
             width: 50mm; 
             margin: 0 auto; 
@@ -525,89 +572,101 @@ export default function InventoryList() {
             box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
           }
           .label { 
-          width: 50mm; 
-          height: 50mm;
-          padding: 4mm 4mm 4mm 4mm; 
-          background: white; 
-          display: flex; 
-          flex-direction: column; 
-          justify-content: center;
-          overflow: hidden;
-          border-bottom: 1px dashed #ccc;
-        }
-        .label:last-child { border-bottom: none; }
-        .header-row { 
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 0.3mm solid #333;
-          padding-bottom: 1mm;
-          margin-bottom: 1mm;
-        }
-        .pledge-no { font-size: 8pt; font-weight: bold; }
-        .reprint-badge {
-          display: block;
-          text-align: center;
-          font-size: 7pt;
-          font-weight: 900;
-          color: #000;
-          letter-spacing: 1.5px;
-          text-transform: uppercase;
-          padding-top: 1mm;
-        }
-        .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-        .barcode-section { 
-          text-align: center; 
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 1mm 2mm;
-          width: 100%;
-        }
-        .barcode-section svg { 
-          max-width: 36mm; 
-          width: 36mm;
-          height: 14mm; 
-          margin: 0 auto;
-        }
-        .footer-row { 
-          padding-top: 1mm;
-          font-size: 7.5pt; 
-          font-weight: bold;
-          flex-direction: column;
-          text-align: center;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          width: 100%;
-        }
-        .storage-loc {
-          font-weight: 600;
-          color: #333;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 100%;
-          width: 100%;
-        }
-        @media screen { 
-          body { padding: 0px; } 
-        }
+            width: 50mm; 
+            height: 50mm;
+            padding: 4mm; 
+            background: white; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center;
+            overflow: hidden;
+            border-bottom: 1px dashed #ccc;
+          }
+          .label:last-child { border-bottom: none; }
+          .header-row { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 0.3mm solid #333;
+            padding-bottom: 1mm;
+            margin-bottom: 1mm;
+          }
+          .pledge-no { font-size: 8pt; font-weight: bold; }
+          .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
+          
+          .barcode-section { 
+            text-align: center; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1mm 2mm;
+            width: 100%;
+          }
+          .barcode-section svg { 
+            max-width: 36mm; 
+            width: 36mm;
+            height: 14mm; 
+            margin: 0 auto;
+          }
+          
+          .footer-row { 
+            padding-top: 1mm;
+            font-size: 7.5pt; 
+            font-weight: bold;
+            flex-direction: column;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+          }
+          .storage-loc {
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            width: 100%;
+          }
+          
+          .reprint-badge {
+            display: block;
+            text-align: center;
+            font-size: 7pt;
+            font-weight: 900;
+            color: #000;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding-top: 1mm;
+          }
+          .remark-line { 
+            text-align: center; 
+            font-size: 8pt; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            margin-top: auto; 
+            color: #000; 
+            width: 100%; 
+            border-top: 0.1mm dashed #ccc; 
+            padding-top: 1mm; 
+          }
+          
+          @media screen { 
+            body { padding: 0px; } 
+          }
         </style>
       </head>
       <body>
         <div class="controls">
           <button onclick="window.print()">🏷️ Print ${selectedData.length} Label${selectedData.length > 1 ? "s" : ""}</button>
           <button class="close" onclick="window.close()">✕ Close</button>
-          <p class="info">Label Size: <strong>50mm × 50mm</strong> | Labels: <strong>${selectedData.length}</strong></p>
-          <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
         </div>
         <div class="labels-container">
           ${selectedData
             .map((item, index) => {
               const catName = getCategoryName(item.category);
-              const purName = getPurityName(item.purity);
               let storageLocation = "N/A";
               if (item.vault || item.box || item.slot) {
                 const vaultName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
@@ -616,25 +675,29 @@ export default function InventoryList() {
                 const boxNum = typeof item.box === 'object' ? (item.box?.box_number || item.box?.name || "") : String(item.box || "");
                 const slotNum = typeof item.slot === 'object' ? (item.slot?.slot_number || item.slot?.name || "") : String(item.slot || "");
                 
-                storageLocation = `${lockerLetter}-${boxNum}${slotNum}`;
+                storageLocation = lockerLetter + "-" + boxNum + slotNum;
+              } else if (item.storage_location) {
+                storageLocation = item.storage_location;
               }
 
-              return `
-            <div class="label">
-            <div class="header-row">
-              <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
-              <span class="category">${catName}</span>
-            </div>
-            <div class="barcode-section">
-              <svg id="barcode-${index}"></svg>
-            </div>
-            <div class="footer-row">
-              ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${purName || "916"}</div>`}
-              <div>${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
-            </div>
-            <div class="reprint-badge">REPRINT</div>
-          </div>
-          `;
+              const itemsCount = item.pledge?.items?.length || item.pledge?.items_count || 1;
+              const titleCategory = itemsCount + " ITEM(S)";
+
+              return '<div class="label">'
+                + '<div class="header-row">'
+                + '<span class="pledge-no">' + (item.pledge?.pledge_no || "N/A") + '</span>'
+                + '<span class="category">' + titleCategory + '</span>'
+                + '</div>'
+                + '<div class="barcode-section">'
+                + '<svg id="barcode-' + index + '"></svg>'
+                + '</div>'
+                + '<div class="footer-row">'
+                + (storageLocation !== "N/A" ? '<div class="storage-loc">' + storageLocation + '</div>' : '<div>' + (getPurityName(item.purity) || "916") + '</div>')
+                + '<div>' + parseFloat(item.net_weight || item.weight || 0).toFixed(2) + 'g</div>'
+                + '</div>'
+                + '<div class="reprint-badge">REPRINT</div>'
+                + '<div class="remark-line">' + remarkText + '</div>'
+                + '</div>';
             })
             .join("")}
         </div>
@@ -645,19 +708,17 @@ export default function InventoryList() {
                 const barcodeValue = (item.barcode || "NOCODE")
                   .replace(/[^A-Z0-9]/gi, "")
                   .substring(0, 20);
-                return `
-              try {
-                JsBarcode("#barcode-${index}", "${barcodeValue}", {
-                  format: "CODE128",
-                  width: 2,
-                  height: 50,
-                  displayValue: false,
-                  margin: 0
-                });
-              } catch(e) { console.log(e); }
-            `;
+                return 'try {'
+                  + 'JsBarcode("#barcode-' + index + '", "' + barcodeValue + '", {'
+                  + 'format: "CODE128",'
+                  + 'width: 2,'
+                  + 'height: 35,'
+                  + 'displayValue: false,'
+                  + 'margin: 0'
+                  + '});'
+                  + '} catch(e) { console.log(e); }';
               })
-              .join("")}
+              .join("\n")}
             document.querySelector('button').focus();
           };
         </script>
@@ -665,190 +726,19 @@ export default function InventoryList() {
       </html>
     `;
 
-    const printWindow = window.open("", "_blank");
+    const printWindow = window.open("", "_blank", "width=400,height=600");
     if (printWindow) {
       printWindow.document.write(printContent);
       printWindow.document.close();
       setIsPrinting(false);
       setShowPrintModal(false);
+      setShowReprintReasonModal(false);
       clearSelection();
       dispatch(
         addToast({
           type: "success",
           title: "Print",
           message: `Printing ${selectedData.length} barcode labels`,
-        }),
-      );
-    } else {
-      setIsPrinting(false);
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Error",
-          message: "Please allow popups to print",
-        }),
-      );
-    }
-  };
-
-  // Print pack stickers
-  const handlePrintPackStickers = () => {
-    setIsPrinting(true);
-    const selectedData = getSelectedItemsData();
-
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Pack Stickers - PawnSys</title>
-        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; background: #fff; }
-          .stickers-container { display: flex; flex-wrap: wrap; gap: 15px; padding: 15px; }
-          .sticker { 
-            width: 280px; 
-            border: 2px solid #d97706; 
-            border-radius: 8px;
-            padding: 0; 
-            page-break-inside: avoid;
-            background: #fff;
-            overflow: hidden;
-          }
-          .sticker-header { 
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
-            color: white; 
-            padding: 8px 12px; 
-            font-weight: bold;
-            font-size: 13px;
-            letter-spacing: 0.5px;
-          }
-          .sticker-body {
-            padding: 10px 12px;
-          }
-          .sticker-row { 
-            display: table;
-            width: 100%;
-            margin-bottom: 5px; 
-            font-size: 11px; 
-          }
-          .sticker-label { 
-            display: table-cell;
-            width: 70px;
-            color: #666; 
-            font-weight: 500;
-            vertical-align: top;
-          }
-          .sticker-value { 
-            display: table-cell;
-            font-weight: 600; 
-            color: #1f2937;
-          }
-          .sticker-barcode { 
-            text-align: center; 
-            padding: 8px 12px 10px;
-            border-top: 1px dashed #e5e7eb; 
-            background: #fafafa;
-          }
-          .sticker-barcode svg { max-width: 100%; height: 38px; }
-          .barcode-text { 
-            font-size: 9px; 
-            font-family: 'Courier New', monospace; 
-            margin-top: 4px; 
-            color: #374151;
-            letter-spacing: 1px;
-          }
-          @media print { 
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .sticker { border: 1.5px solid #d97706; } 
-          }
-        </style>
-      </head>
-      <body>
-        <div class="stickers-container">
-          ${selectedData
-            .map((item, index) => {
-              const catName = getCategoryName(item.category);
-              const purName = getPurityName(item.purity);
-              return `
-            <div class="sticker">
-              <div class="sticker-header">${
-                item.pledge?.pledge_no || "N/A"
-              }</div>
-              <div class="sticker-body">
-                <div class="sticker-row">
-                  <span class="sticker-label">Customer:</span>
-                  <span class="sticker-value">${
-                    item.pledge?.customer?.name || "N/A"
-                  }</span>
-                </div>
-                <div class="sticker-row">
-                  <span class="sticker-label">Item:</span>
-                  <span class="sticker-value">${catName}</span>
-                </div>
-                <div class="sticker-row">
-                  <span class="sticker-label">Purity:</span>
-                  <span class="sticker-value">${purName}</span>
-                </div>
-                <div class="sticker-row">
-                  <span class="sticker-label">Weight:</span>
-                  <span class="sticker-value">${item.net_weight || item.weight || 0}g</span>
-                </div>
-                <div class="sticker-row">
-                  <span class="sticker-label">Value:</span>
-                  <span class="sticker-value">RM ${parseFloat(
-                    item.net_value || item.estimated_value || 0,
-                  ).toLocaleString()}</span>
-                </div>
-              </div>
-              <div class="sticker-barcode">
-                <svg id="sticker-barcode-${index}"></svg>
-                <div class="barcode-text">${item.barcode || "N/A"}</div>
-              </div>
-            </div>
-          `;
-            })
-            .join("")}
-        </div>
-        <script>
-          window.onload = function() {
-            ${selectedData
-              .map((item, index) => {
-                const barcodeValue = (item.barcode || "NOCODE")
-                  .replace(/[^A-Z0-9]/gi, "")
-                  .substring(0, 20);
-                return `
-              try {
-                JsBarcode("#sticker-barcode-${index}", "${barcodeValue}", {
-                  format: "CODE128",
-                  width: 1.5,
-                  height: 35,
-                  displayValue: false,
-                  margin: 0
-                });
-              } catch(e) { console.log(e); }
-            `;
-              })
-              .join("")}
-            setTimeout(function() { window.print(); }, 300);
-          };
-        </script>
-      </body>
-      </html>
-    `;
-
-    const printWindow = window.open("", "_blank");
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      setIsPrinting(false);
-      setShowPrintModal(false);
-      clearSelection();
-      dispatch(
-        addToast({
-          type: "success",
-          title: "Print",
-          message: `Printing ${selectedData.length} pack stickers`,
         }),
       );
     } else {
@@ -2104,19 +1994,10 @@ export default function InventoryList() {
               variant="outline"
               fullWidth
               leftIcon={Barcode}
-              onClick={handlePrintBarcodeLabels}
+              onClick={() => handleActionWithPasskey('reprint_barcode')}
               loading={isPrinting}
             >
-              Item Barcode Labels
-            </Button>
-            <Button
-              variant="outline"
-              fullWidth
-              leftIcon={Package}
-              onClick={handlePrintPackStickers}
-              loading={isPrinting}
-            >
-              Pack Stickers
+              Item Barcode Reprint
             </Button>
           </div>
 
@@ -2181,6 +2062,99 @@ export default function InventoryList() {
           )}
         </div>
       </Modal>
+
+      {/* Reprint Reason Modal */}
+      <Modal
+        isOpen={showReprintReasonModal}
+        onClose={() => setShowReprintReasonModal(false)}
+        title="Reprint Barcode - Select Reason"
+        size="md"
+      >
+        <div className="p-5">
+          <div className="bg-red-50 text-red-700 p-4 rounded-lg flex items-start gap-3 mb-6 border border-red-100">
+            <RotateCcw className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm">Why are you reprinting this barcode?</p>
+              <p className="text-xs opacity-80 mt-1">The reason will be printed on the barcode sticker.</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                Select Reason
+              </label>
+              <Select
+                value={reprintReason}
+                onChange={(e) => {
+                  setReprintReason(e.target.value);
+                  if (!e.target.value.toLowerCase().includes("other")) {
+                    setCustomReprintReason("");
+                  }
+                }}
+                placeholder="-- Choose a reason --"
+                options={reprintReasons.map((r) => ({
+                  value: r.reason,
+                  label: r.reason,
+                }))}
+                fullWidth
+              />
+            </div>
+            {reprintReason.toLowerCase().includes("other") && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Custom Reason
+                </label>
+                <Input
+                  value={customReprintReason}
+                  onChange={(e) => setCustomReprintReason(e.target.value)}
+                  placeholder="Enter custom reason..."
+                  fullWidth
+                  maxLength={35}
+                />
+                <p className="text-xs text-zinc-500 mt-1">Max 35 characters</p>
+              </motion.div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowReprintReasonModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              fullWidth
+              leftIcon={Printer}
+              onClick={() => {
+                const finalReason = reprintReason.toLowerCase().includes("other") ? customReprintReason : reprintReason;
+                handlePrintBarcodeLabels(finalReason);
+              }}
+              disabled={!reprintReason || (reprintReason.toLowerCase().includes("other") && !customReprintReason.trim())}
+              loading={isPrinting}
+              className="bg-red-500 hover:bg-red-600 text-white border-none"
+            >
+              Reprint Barcode
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <PasskeyModal
+        isOpen={passkeyModalOpen}
+        onClose={() => {
+          setPasskeyModalOpen(false);
+          setPendingAction(null);
+        }}
+        onSuccess={executePendingAction}
+      />
     </PageWrapper>
   );
 }

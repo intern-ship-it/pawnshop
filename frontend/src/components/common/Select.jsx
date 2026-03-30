@@ -63,6 +63,7 @@ const Select = forwardRef(({
               {option.label}
             </option>
           ))}
+          {props.children}
         </select>
 
         {/* Chevron Icon */}
