@@ -26,6 +26,11 @@ const DEFAULT_REASONS = [
   { id: "6", reason: "Renewal – New Sticker Needed", active: true },
   { id: "7", reason: "Gold Check / Verification", active: true },
   { id: "8", reason: "Storage Relocation", active: true },
+  { id: "9", reason: "System error / network issue during printing", active: true },
+  { id: "10", reason: "Damaged / torn / smudged label", active: true },
+  { id: "11", reason: "Label fell of item", active: true },
+  { id: "12", reason: "Print unclear", active: true },
+  { id: "13", reason: "Other (Specify)", active: true },
 ];
 
 export function getReprintReasons() {
