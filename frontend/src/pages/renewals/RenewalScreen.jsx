@@ -740,6 +740,13 @@ export default function RenewalScreen() {
   const interestBreakdown = calculation?.calculation?.interest_breakdown || [];
   const newDueDate = calculation?.renewal?.new_due_date;
 
+  // Auto-fill amountReceived when payment method is cash or transfer
+  useEffect(() => {
+    if ((paymentMethod === "cash" || paymentMethod === "transfer") && totalPayable > 0) {
+      setAmountReceived(totalPayable.toFixed(2));
+    }
+  }, [paymentMethod, totalPayable]);
+
   // Days until due
   const getDaysUntilDue = () => {
     if (!pledge?.dueDate) return 0;
