@@ -95,7 +95,7 @@
         .hours-box {
             background: #f5c518;
             color: #000;
-            padding: 7pt 6pt 14pt 6pt;
+            padding: 5pt 8pt 5pt 8pt;
             text-align: center;
             margin-top: 3pt;
         }
@@ -115,6 +115,7 @@
             width: 100%;
             border: 1.5pt solid #1a4a7a;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-top: 4pt;
             margin-bottom: 4pt;
         }
@@ -124,7 +125,7 @@
         }
         .items-cell {
             padding: 4pt 6pt;
-            width: 25%;
+            width: 40%;
         }
         .items-title {
             font-size: 6.5pt;
@@ -140,11 +141,21 @@
             font-size: 8pt;
             font-weight: bold;
             color: #1a4a7a;
-            margin-bottom: 1pt;
-            line-height: 1.4;
+            margin-bottom: 2pt;
+            line-height: 1.3;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        .item-description-text {
+            font-size: 7.5pt;
+            font-weight: normal;
+            color: #1a4a7a;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            display: inline;
         }
         .mid-section .barcode-cell {
-            width: 22%;
+            width: 20%;
             text-align: center;
             vertical-align: middle;
             padding: 6pt 4pt;
@@ -152,7 +163,7 @@
             border-right: none;
         }
         .barcode-img {
-            max-width: 130pt;
+            max-width: 120pt;
             height: 38pt;
         }
         .barcode-text {
@@ -162,8 +173,16 @@
             color: #555;
             margin-top: 1pt;
         }
+        .barcode-label {
+            font-size: 5pt;
+            text-align: center;
+            color: #999;
+            margin-top: 1pt;
+            text-transform: uppercase;
+            letter-spacing: 1pt;
+        }
         .right-col {
-            width: 38%;
+            width: 40%;
         }
         .ticket-box {
             background: #f5c518;
@@ -298,13 +317,19 @@
             font-weight: 900;
             font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
             color: #000;
-            padding-left: 77pt;
+            padding-left: 20pt;
         }
         .pinjaman-stars {
             font-size: 12pt;
             font-weight: bold;
             color: #000;
             float: right;
+        }
+        .keuntungan-text {
+            font-size: 9.5pt;
+            font-weight: bold;
+            color: #1a4a7a;
+            padding-left: 6pt;
         }
         .date-cell {
             text-align: center;
@@ -372,7 +397,7 @@
         $phone2 = $settings['phone2'] ?? '';
         $estYear = $settings['established_year'] ?? '';
         $businessDays = $settings['business_days'] ?? 'ISNIN - AHAD';
-        $businessHours = $settings['business_hours'] ?? '8.30AM - 6.00PM';
+        $businessHours = $settings['business_hours'] ?? '9.00AM - 6.00PM';
         $redemptionPeriod = $settings['redemption_period'] ?? '6 BULAN';
         $interestRateNormal = $settings['interest_rate_normal'] ?? '1.5';
         $interestRateOverdue = $settings['interest_rate_overdue'] ?? '2.0';
@@ -412,7 +437,9 @@
         $gender = in_array($g, ['male', 'm', 'lelaki']) ? 'LELAKI' : (in_array($g, ['female', 'f', 'perempuan']) ? 'PEREMPUAN' : '-');
 
         $nat = strtoupper($customer->nationality ?? '');
+        $race = strtoupper($customer->race ?? '');
         $nationality = str_contains($nat, 'MALAYSIA') ? 'MALAYSIA' : ($nat ?: 'WARGANEGARA');
+        if ($race) $nationality .= '  (' . $race . ')';
 
         $addrParts = array_filter([
             $customer->address_line1 ?? $customer->address ?? '',
@@ -471,19 +498,17 @@
                     </table>
                 </td>
                 <td class="header-right">
-                    <table style="margin-left: auto; border-collapse: collapse;">
+                    <table style="margin-left: auto; border-collapse: collapse; width: auto;">
                         <tr>
                             <td style="padding-right: 3pt; vertical-align: middle;">
                                 <span class="phone-box">&#9742; {{ $phone }}@if($phone2)<br>{{ $phone2 }}@endif</span>
                             </td>
                             @if($estYear)
-                                <td style="vertical-align: middle; margin-right:3pt;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
+                                <td style="vertical-align: middle; padding-left: 3pt;"><span class="established">SEJAK<br>{{ $estYear }}</span></td>
                             @endif
                         </tr>
-                    </table>
-                    <table style="margin-left: auto; border-collapse: collapse; margin-top: 3pt;">
                         <tr>
-                            <td>
+                            <td colspan="{{ $estYear ? '2' : '1' }}" style="padding-top: 3pt;">
                                 <div class="hours-box">
                                     <div class="hours-title">BUKA 7 HARI</div>
                                     <div class="hours-line">{{ $businessDays }} : {{ $businessHours }}</div>
@@ -506,6 +531,9 @@
                                 {{ $index + 1 }}. {{ $item->category->name_ms ?? $item->category->name_en ?? 'Item' }}
                                 {{ $item->purity->code ?? '' }}
                                 - {{ number_format($item->net_weight ?? $item->gross_weight ?? 0, 2) }}g
+                                @if(!empty($item->description))
+                                    -- <span class="item-description-text">{{ $item->description }}</span>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -515,6 +543,7 @@
                         <img src="{{ $barcodeUrl }}" class="barcode-img" alt="{{ $pledge->pledge_no }}">
                     @endif
                     <div class="barcode-text">{{ $pledge->pledge_no }}</div>
+                    <div class="barcode-label">BARCODE</div>
                 </td>
                 <td class="right-col">
                     <div class="ticket-box">
@@ -527,9 +556,9 @@
                     </div>
                     <div class="kadar-section">
                         <div class="kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                        <div class="kadar-line"> <span style="font-weight: bold;color:black;"> 2.</span> 1.5% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
-                        <div class="kadar-line"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
+                        <div class="kadar-line"> <span style="font-weight: bold;color:black;"> 2.</span> {{ $interestRateNormal }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"> <span style="font-weight: bold;color:black;"> 3.</span> {{ $interestRateOverdue }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
                     </div>
                 </td>
             </tr>
@@ -557,10 +586,10 @@
                     <td><span class="cl">Alamat :</span></td>
                     <td colspan="5"><span class="cv">{{ $customerAddress }}</span></td>
                 </tr>
-                <tr>
+                <!-- <tr>
                     <td><span class="cl">Catatan :</span></td>
                     <td colspan="5"><span class="cv">{{ $catatan }}</span></td>
-                </tr>
+                </tr> -->
             </table>
         </div>
 
@@ -571,12 +600,16 @@
         </div>
 
         {{-- ═══ BOTTOM ═══ --}}
+        @php
+            $monthlyInterest = $loanAmount * 0.005;
+        @endphp
         <table class="bottom-table">
             <tr>
                 <td class="pinjaman-cell">
                     <span class="pinjaman-label">Pinjaman</span>
                     <span class="pinjaman-rm">RM</span>
                     <span class="pinjaman-amount">{{ number_format($loanAmount, 2) }}</span>
+                    <span class="keuntungan-text">Keuntungan Dikena RM {{ number_format($monthlyInterest, 2) }} sebulan</span>
                     <span class="pinjaman-stars">***</span>
                 </td>
                 <td class="date-cell">

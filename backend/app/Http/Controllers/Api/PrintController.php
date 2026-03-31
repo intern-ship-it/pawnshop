@@ -472,7 +472,7 @@ class PrintController extends Controller
             'phone' => $settingsMap['phone'] ?? $branch->phone ?? '03-12345678',
             'phone2' => $settingsMap['phone2'] ?? '',
             'fax' => $settingsMap['fax'] ?? '',
-            'business_hours' => $settingsMap['business_hours'] ?? '8.30AM - 6.00PM',
+            'business_hours' => $settingsMap['business_hours'] ?? '9.00AM - 6.00PM',
             'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
             'closed_days' => $settingsMap['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA',
             'handling_fee' => $settingsMap['receipt_handling_fee'] ?? $settingsMap['handling_fee'] ?? '50 SEN',
