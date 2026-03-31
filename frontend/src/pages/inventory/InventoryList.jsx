@@ -257,18 +257,36 @@ export default function InventoryList() {
   };
 
   const formatLocation = (item) => {
-    // API returns vault, box, slot as separate objects (not nested)
+    // API returns vault, box, slot as separate objects
     if (item.vault && item.box && item.slot) {
-      const lockerName = item.vault.name || item.vault.code;
-      const drawerLetter = item.box.box_number || item.box.name;
-      return `${lockerName} → ${drawerLetter}${item.slot.slot_number}`;
+      const lockerName = item.vault.name || item.vault.code || "Locker";
+      const drawerName = item.box.box_number || item.box.name || "Drawer";
+      
+      if (item.box.has_subslots) {
+        const subPerSlot = item.box.subslots_per_slot || 5;
+        const sNum = Math.ceil(item.slot.slot_number / subPerSlot);
+        const subNum = ((item.slot.slot_number - 1) % subPerSlot) + 1;
+        return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
+      }
+      
+      return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${item.slot.slot_number}`;
     }
-    // Fallback: check for nested structure (in case some APIs return it nested)
+    
+    // Check for nested structure
     if (item.slot?.box?.vault) {
-      const lockerName = item.slot.box.vault.name || item.slot.box.vault.code;
-      const drawerLetter = item.slot.box.box_number || item.slot.box.name;
-      return `${lockerName} → ${drawerLetter}${item.slot.slot_number}`;
+      const lockerName = item.slot.box.vault.name || item.slot.box.vault.code || "Locker";
+      const drawerName = item.slot.box.box_number || item.slot.box.name || "Drawer";
+      
+      if (item.slot.box.has_subslots) {
+        const subPerSlot = item.slot.box.subslots_per_slot || 5;
+        const sNum = Math.ceil(item.slot.slot_number / subPerSlot);
+        const subNum = ((item.slot.slot_number - 1) % subPerSlot) + 1;
+        return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
+      }
+      
+      return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${item.slot.slot_number}`;
     }
+
     if (item.storage_location) {
       return item.storage_location;
     }
@@ -703,12 +721,24 @@ export default function InventoryList() {
               let storageLocation = "N/A";
               if (item.vault || item.box || item.slot) {
                 const vaultName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
-                const lockerLetter = vaultName.trim().slice(-1);
+                const lockerDigit = vaultName.trim().slice(-1);
                 
-                const boxNum = typeof item.box === 'object' ? (item.box?.box_number || item.box?.name || "") : String(item.box || "");
-                const slotNum = typeof item.slot === 'object' ? (item.slot?.slot_number || item.slot?.name || "") : String(item.slot || "");
+                const boxObj = typeof item.box === 'object' ? item.box : null;
+                const drawerName = boxObj?.box_number || boxObj?.name || String(item.box || "");
                 
-                storageLocation = lockerLetter + "-" + boxNum + slotNum;
+                const slotObj = typeof item.slot === 'object' ? item.slot : null;
+                const absSlotNum = slotObj?.slot_number || parseInt(item.slot) || 0;
+                
+                if (boxObj?.has_subslots && absSlotNum) {
+                  const subPerSlot = boxObj.subslots_per_slot || 5;
+                  const sNum = Math.ceil(absSlotNum / subPerSlot);
+                  const subNum = ((absSlotNum - 1) % subPerSlot) + 1;
+                  storageLocation = `${lockerDigit}-${drawerName}${sNum}-${subNum}`;
+                } else if (absSlotNum) {
+                  storageLocation = `${lockerDigit}-${drawerName}${absSlotNum}`;
+                } else {
+                  storageLocation = `${lockerDigit}-${drawerName}`;
+                }
               } else if (item.storage_location) {
                 storageLocation = item.storage_location;
               }
@@ -791,7 +821,28 @@ export default function InventoryList() {
     const catName = getCategoryName(item.category);
     const purName = getPurityName(item.purity);
     const barcodeValue = item.barcode || "NOCODE";
-    const storageLocation = formatLocation(item);
+    let storageLocation = "N/A";
+    if (item.vault || item.box || item.slot) {
+      const vName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
+      const lockerDigit = vName.trim().slice(-1);
+      const bObj = typeof item.box === 'object' ? item.box : null;
+      const dName = bObj?.box_number || bObj?.name || String(item.box || "");
+      const sObj = typeof item.slot === 'object' ? item.slot : null;
+      const slotNumRaw = sObj?.slot_number || parseInt(item.slot) || 0;
+      
+      if (bObj?.has_subslots && slotNumRaw) {
+        const sPerS = bObj.subslots_per_slot || 5;
+        const sN = Math.ceil(slotNumRaw / sPerS);
+        const subN = ((slotNumRaw - 1) % sPerS) + 1;
+        storageLocation = `${lockerDigit}-${dName}${sN}-${subN}`;
+      } else if (slotNumRaw) {
+        storageLocation = `${lockerDigit}-${dName}${slotNumRaw}`;
+      } else {
+        storageLocation = `${lockerDigit}-${dName}`;
+      }
+    } else if (item.storage_location) {
+      storageLocation = item.storage_location;
+    }
 
     const printContent = `
       <!DOCTYPE html>

@@ -325,19 +325,23 @@ export default function StorageLocationSelector({
             Selected Location:
           </p>
           <p className="text-sm font-semibold text-amber-900">
-            {vaults.find((v) => String(v.id) === String(value.vault_id))?.name ||
-              "Locker"}{" "}
-            →{" "}
-            {boxes.find((b) => String(b.id) === String(value.box_id))?.box_number ||
-             boxes.find((b) => String(b.id) === String(value.box_id))?.name || ""}
-            -
             {(() => {
+              const v = vaults.find((v) => String(v.id) === String(value.vault_id));
               const b = boxes.find((b) => String(b.id) === String(value.box_id));
               const s = slots.find((s) => String(s.id) === String(value.slot_id));
-              if (s && b && b.has_subslots) {
-                return `S${Math.ceil(s.slot_number / (b.subslots_per_slot || 1))}-${((s.slot_number - 1) % (b.subslots_per_slot || 1)) + 1}`;
+              
+              if (!v || !b || !s) return "";
+              
+              const lockerName = v.name || v.code || "Locker";
+              const drawerName = b.box_number || b.name || "Drawer";
+              
+              if (b.has_subslots) {
+                const sNum = Math.ceil(s.slot_number / (b.subslots_per_slot || 5));
+                const subNum = ((s.slot_number - 1) % (b.subslots_per_slot || 5)) + 1;
+                return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
               }
-              return s ? `S${s.slot_number}` : "";
+              
+              return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${s.slot_number}`;
             })()}
           </p>
         </div>

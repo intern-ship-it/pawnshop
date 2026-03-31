@@ -2903,7 +2903,7 @@ export default function NewPledge() {
                                             )}
                                             <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
                                               <p className="text-[10px] text-zinc-800 bg-amber-50 p-1 rounded border border-amber-100 mb-1">
-                                                <span className="font-medium text-amber-700">Location:</span> {activeVault?.name || activeVault?.code || 'Locker'} → {activeBox?.box_number || activeBox?.name || 'Drawer'} / Slot {sNum}-{slot.subNum}
+                                                <span className="font-medium text-amber-700">Location:</span> {(activeVault?.name || activeVault?.code || 'Locker').toUpperCase()} {'>'} DRAWER {activeBox?.box_number || activeBox?.name || 'Drawer'} {'>'} SLOT {sNum} {'>'} SUBSLOT {slot.subNum}
                                               </p>
                                               <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
                                               <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
@@ -2975,7 +2975,7 @@ export default function NewPledge() {
                                     )}
                                     <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
                                       <p className="text-[10px] text-zinc-800 bg-amber-50 p-1 rounded border border-amber-100 mb-1">
-                                        <span className="font-medium text-amber-700">Location:</span> {activeVault?.name || activeVault?.code || 'Locker'} → {activeBox?.box_number || activeBox?.name || 'Drawer'} / Slot {slot.slot_number}
+                                        <span className="font-medium text-amber-700">Location:</span> {(activeVault?.name || activeVault?.code || 'Locker').toUpperCase()} {'>'} DRAWER {activeBox?.box_number || activeBox?.name || 'Drawer'} {'>'} SLOT {slot.slot_number}
                                       </p>
                                       <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
                                       <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
@@ -3014,7 +3014,7 @@ export default function NewPledge() {
                         </div>
                         <div>
                           <p className="font-semibold text-zinc-800">Slot {selectedSlot.slotNumber}</p>
-                          <p className="text-sm text-zinc-500">{getVaultName(selectedSlot.vaultId)} → {getBoxName(selectedSlot.boxId)}</p>
+                          <p className="text-sm text-zinc-500">{getVaultName(selectedSlot.vaultId).toUpperCase()} {'>'} DRAWER {getBoxName(selectedSlot.boxId)}</p>
                           <p className="text-xs text-zinc-400">{items.filter((i) => i.category && i.weight).length} item(s) will be stored here</p>
                         </div>
                       </div>
@@ -3108,7 +3108,7 @@ export default function NewPledge() {
                   {selectedSlot ? (
                     <>
                       <p className="text-lg font-bold text-blue-600">Slot {selectedSlot.slotNumber}</p>
-                      <p className="text-sm text-zinc-500">{getVaultName(selectedSlot.vaultId)} → {getBoxName(selectedSlot.boxId)}</p>
+                      <p className="text-sm text-zinc-500">{getVaultName(selectedSlot.vaultId).toUpperCase()} {'>'} DRAWER {getBoxName(selectedSlot.boxId)}</p>
                       <p className="text-xs text-zinc-400 mt-1">{items.filter((i) => i.category && i.weight).length} item(s)</p>
                     </>
                   ) : (
