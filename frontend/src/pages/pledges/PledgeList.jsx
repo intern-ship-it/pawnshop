@@ -93,7 +93,6 @@ export default function PledgeList() {
   const [reprintReason, setReprintReason] = useState("");
   const [customReprintReason, setCustomReprintReason] = useState("");
   const [reprintReasons, setReprintReasons] = useState([]);
-  const [isRelocatedLabel, setIsRelocatedLabel] = useState(false);
 
   // Predefined cancellation reasons
   const cancelReasons = [
@@ -773,7 +772,6 @@ export default function PledgeList() {
   const handleReprintBarcodeClick = async (pledge, e) => {
     if (e) e.stopPropagation();
     setReprintReasonPledge(pledge);
-    setIsRelocatedLabel(false); // Reset to default
 
     // getReprintReasons is an async function, we must await it
     const reasons = await getReprintReasons();
@@ -785,7 +783,7 @@ export default function PledgeList() {
   };
 
   // Handle barcode print with reason
-  const handlePrintBarcode = async (pledge, e, reasonText = "", isRelocated = false) => {
+  const handlePrintBarcode = async (pledge, e, reasonText = "") => {
     if (e) e.stopPropagation();
     const token = getToken();
     const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -1614,25 +1612,6 @@ export default function PledgeList() {
                             </Button>
                           )}
 
-                          {/* Dot Matrix Print Button (Hidden per request)
-                          {canPrint && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              disabled={dotPrintingId === pledge.id}
-                              onClick={(e) => handleDotPrint(pledge, e)}
-                              title="2 copy A4 portrait — A4 Data Overlay (Portrait)"
-                              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            >
-                              {dotPrintingId === pledge.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Printer className="w-4 h-4" />
-                              )}
-                            </Button>
-                          )}
-                          */}
-
                           {/* Reprint Barcode Button */}
                           {canPrint && (
                             <Button
@@ -1668,22 +1647,6 @@ export default function PledgeList() {
                               )}
                             </Button>
                           )}
-
-                          {/* Cancel Button - Only for active pledges with no renewals (Hidden per request)
-                          {canDelete &&
-                            pledge.status === "active" &&
-                            pledge.renewalCount === 0 && (
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={(e) => openCancelModal(pledge, e)}
-                                title="Cancel Pledge"
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            )}
-                          */}
                         </div>
                       </td>
                     </tr>
@@ -1872,32 +1835,13 @@ export default function PledgeList() {
             </div>
           )}
 
-          {/* Relocated Toggle */}
-          <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer" onClick={() => setIsRelocatedLabel(!isRelocatedLabel)}>
-            <div className={cn(
-              "w-5 h-5 rounded border flex items-center justify-center transition-colors",
-              isRelocatedLabel ? "bg-amber-600 border-amber-600 shadow-sm" : "border-zinc-300 bg-white"
-            )}>
-              {isRelocatedLabel && <CheckCircle className="w-3.5 h-3.5 text-white" />}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-amber-900">Include "RELOCATED" Label</p>
-              <p className="text-xs text-amber-700 opacity-80">This will add a RELOCATED tag at the bottom of the sticker.</p>
-            </div>
-          </div>
-
-          {((reprintReason && reprintReason !== "__custom__") || customReprintReason || isRelocatedLabel) && (
+          {((reprintReason && reprintReason !== "__custom__") || customReprintReason) && (
             <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-lg">
               <p className="text-xs text-zinc-500 mb-1">Will be printed on sticker:</p>
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-bold text-zinc-800 uppercase">
                   {reprintReason === "__custom__" ? customReprintReason : (reprintReason || "-")}
                 </p>
-                {isRelocatedLabel && (
-                  <p className="text-sm font-black text-amber-600">
-                    + RELOCATED
-                  </p>
-                )}
               </div>
             </div>
           )}
@@ -1919,7 +1863,7 @@ export default function PledgeList() {
               onClick={() => {
                 const reasonText = reprintReason === "__custom__" ? customReprintReason.trim() : reprintReason;
                 setShowReprintReasonModal(false);
-                if (reprintReasonPledge) handlePrintBarcode(reprintReasonPledge, null, reasonText, isRelocatedLabel);
+                if (reprintReasonPledge) handlePrintBarcode(reprintReasonPledge, null, reasonText);
               }}
             >
               Reprint Barcode

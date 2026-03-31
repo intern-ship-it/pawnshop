@@ -467,8 +467,8 @@ export default function InventoryList() {
   const getSelectedItemsData = () => {
     return filteredItems.filter((item) => selectedItems.includes(item.id));
   };  // Handle Passkey Action
-  const handleActionWithPasskey = (type) => {
-    setPendingAction({ type });
+  const handleActionWithPasskey = (type, data = null) => {
+    setPendingAction({ type, data });
     setPasskeyModalOpen(true);
   };
 
@@ -497,6 +497,17 @@ export default function InventoryList() {
         );
       } finally {
         setIsPrinting(false);
+      }
+    } else if (type === "set_location") {
+      const item = pendingAction.data;
+      if (item) {
+        setEditingItem(item);
+        setNewLocation({
+          vault_id: item.vault?.id || item.vault_id || "",
+          box_id: item.box?.id || item.box_id || "",
+          slot_id: item.slot?.id || item.slot_id || "",
+        });
+        setShowLocationModal(true);
       }
     }
 
@@ -885,14 +896,7 @@ export default function InventoryList() {
 
   // Open location assignment modal
   const openLocationModal = (item) => {
-    setEditingItem(item);
-    // Initialize with existing location IDs if available
-    setNewLocation({
-      vault_id: item.vault?.id || item.vault_id || "",
-      box_id: item.box?.id || item.box_id || "",
-      slot_id: item.slot?.id || item.slot_id || "",
-    });
-    setShowLocationModal(true);
+    handleActionWithPasskey("set_location", item);
   };
 
   // Save location via API
@@ -929,14 +933,6 @@ export default function InventoryList() {
           }),
         );
         setShowLocationModal(false);
-<<<<<<< Updated upstream
-        setRelocatedItem({
-          ...editingItem,
-          vault: { id: newLocation.vault_id }, // Temporary for print
-          box: { id: newLocation.box_id },
-          slot: { id: newLocation.slot_id }
-        });
-=======
         // After location updated, prompt to print relocated label
         setRelocatedItemToPrint(editingItem);
         
@@ -958,9 +954,7 @@ export default function InventoryList() {
         }
         
         setShowPostRelocatePrintConfirm(true);
->>>>>>> Stashed changes
         setEditingItem(null);
-        setShowRelocatedPrintModal(true);
         fetchInventory(); // Refresh data from API
       } else {
         dispatch(
@@ -2079,15 +2073,9 @@ export default function InventoryList() {
                   onChange={(e) => setCustomReprintReason(e.target.value)}
                   placeholder="Enter custom reason..."
                   fullWidth
-<<<<<<< Updated upstream
-                  maxLength={20}
-                />
-                <p className="text-xs text-zinc-500 mt-1">Max 20 characters</p>
-=======
                   maxLength={25}
                 />
                 <p className="text-xs text-zinc-500 mt-1">Max 25 characters</p>
->>>>>>> Stashed changes
               </motion.div>
             )}
           </div>
@@ -2234,47 +2222,6 @@ export default function InventoryList() {
         onSuccess={executePendingAction}
       />
 
-      {/* Relocated Print Prompt Modal */}
-      <Modal
-        isOpen={showRelocatedPrintModal}
-        onClose={() => setShowRelocatedPrintModal(false)}
-        title="Print Relocated Sticker?"
-        size="sm"
-      >
-        <div className="p-5 text-center">
-          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Barcode className="w-8 h-8 text-amber-600" />
-          </div>
-          <p className="text-zinc-600 mb-6">
-            The item has been relocated. Would you like to print a new barcode sticker with the <strong>"RELOCATED"</strong> label?
-          </p>
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              fullWidth
-              onClick={() => {
-                setShowRelocatedPrintModal(false);
-                setRelocatedItem(null);
-              }}
-            >
-              Skip
-            </Button>
-            <Button
-              variant="accent"
-              fullWidth
-              leftIcon={Printer}
-              onClick={() => {
-                handlePrintSingleLabel(relocatedItem, true);
-                setShowRelocatedPrintModal(false);
-                setRelocatedItem(null);
-              }}
-            >
-              Print Sticker
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </PageWrapper>
   );
 }
