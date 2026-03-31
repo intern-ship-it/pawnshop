@@ -814,9 +814,19 @@ export default function PledgeList() {
             0,
           ) || 0;
           const storageLocation = data.data.storage_location || data.data.items?.[0]?.storage_location || "";
+          const rawRemark = reasonText || "REPRINT";
+          let badgeText = "REPRINT";
+          let commentToDisplay = rawRemark;
+
+          if (rawRemark.toUpperCase().includes("RELOCAT")) {
+            badgeText = "RELOCATED";
+            commentToDisplay = rawRemark.replace(/^RELOCATED:?\s*/i, "").trim();
+          } else if (rawRemark.toUpperCase() === "REPRINT") {
+            commentToDisplay = "";
+          }
+          
+          const remarkText = commentToDisplay;
           const pledgeNo = data.data.pledge_no || pledge.pledgeNo;
-          // Use the reason text instead of item description
-          const remarkText = reasonText || "REPRINT";
 
           const barcodeWindow = window.open("", "_blank", "width=400,height=600");
           if (barcodeWindow) {
@@ -841,12 +851,18 @@ export default function PledgeList() {
                   }
                   .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; }
                   .pledge-no { font-size: 8pt; font-weight: bold; }
-                  .reprint-badge { display: block; text-align: center; font-size: 7pt; font-weight: 900; color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; }
-                  .remark-line { text-align: center; font-size: 8pt; font-weight: bold; text-transform: uppercase; margin-top: auto; color: #000; width: 100%; border-top: 0.1mm dashed #ccc; padding-top: 1mm; }
+                  .reprint-badge { 
+                    display: block; text-align: center; font-size: 7.5pt; font-weight: 900; 
+                    color: #000; letter-spacing: 1px; text-transform: uppercase; padding-top: 1mm;
+                  }
+                  .remark-line { 
+                    text-align: center; font-size: 8pt; font-weight: bold; text-transform: uppercase; 
+                    color: #000; width: 100%; border-top: 0.1mm dashed #ccc; padding-top: 1mm; margin-top: 0.5mm;
+                  }
                   .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
                   .barcode-section { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; width: 100%; }
                   .barcode-img { max-width: 36mm; width: 36mm; height: 14mm; object-fit: contain; margin: 0 auto; }
-                  .footer-row { padding-top: 1mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: space-between; align-items: center; width: 100%; }
+                  .footer-row { padding-top: 1mm; padding-bottom: 0.5mm; font-size: 7.5pt; font-weight: bold; flex-direction: column; text-align: center; display: flex; justify-content: center; align-items: center; width: 100%; }
                   .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; width: 100%; }
                 </style>
               </head>
@@ -864,9 +880,8 @@ export default function PledgeList() {
                       ${storageLocation ? `<div class="storage-loc">${storageLocation}</div>` : `<div>${data.data.purity || "916"}</div>`}
                       <div>${parseFloat(totalWeight).toFixed(2)}g</div>
                     </div>
-                    <div class="reprint-badge">REPRINT</div>
-                    ${isRelocated ? `<div style="text-align: center; font-size: 9pt; font-weight: 900; color: #000; margin-top: 1mm;">RELOCATED</div>` : ``}
-                    <div class="remark-line">${remarkText}</div>
+                    <div class="reprint-badge">${badgeText}</div>
+                    ${remarkText ? `<div class="remark-line">${remarkText}</div>` : ""}
                   </div>
                 </div>
                 <script>
@@ -1851,8 +1866,9 @@ export default function PledgeList() {
                 onChange={(e) => setCustomReprintReason(e.target.value)}
                 placeholder="Enter your custom reason..."
                 autoFocus
-                maxLength={20}
+                maxLength={25}
               />
+              <p className="text-xs text-zinc-500 mt-1">Max 25 characters</p>
             </div>
           )}
 

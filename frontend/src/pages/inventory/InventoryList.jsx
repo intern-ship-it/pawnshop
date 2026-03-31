@@ -138,8 +138,10 @@ export default function InventoryList() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [showRelocatedPrintModal, setShowRelocatedPrintModal] = useState(false);
-  const [relocatedItem, setRelocatedItem] = useState(null);
+  const [showPostRelocatePrintConfirm, setShowPostRelocatePrintConfirm] = useState(false);
+  const [relocatedItemToPrint, setRelocatedItemToPrint] = useState(null);
+  const [relocationPrintReason, setRelocationPrintReason] = useState("");
+  const [customRelocationPrintReason, setCustomRelocationPrintReason] = useState("");
 
   // Passkey Modal State
   const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
@@ -502,11 +504,28 @@ export default function InventoryList() {
   };
 
   // Print barcode labels - 50mm x 50mm thermal labels
-  const handlePrintBarcodeLabels = (reasonText = "", isRelocated = false) => {
+  const handlePrintBarcodeLabels = (reasonText = "", overrideIds = null) => {
     setIsPrinting(true);
-    const selectedData = getSelectedItemsData();
+    const idsToPrint = overrideIds || selectedItems;
+    const selectedData = filteredItems.filter((item) => idsToPrint.includes(item.id));
 
-    const remarkText = reasonText || "REPRINT";
+    if (selectedData.length === 0) {
+      setIsPrinting(false);
+      return;
+    }
+
+    const rawRemark = reasonText || "REPRINT";
+    let badgeText = "REPRINT";
+    let commentToDisplay = rawRemark;
+
+    if (rawRemark.toUpperCase().includes("RELOCAT")) {
+      badgeText = "RELOCATED";
+      commentToDisplay = rawRemark.replace(/^RELOCATED:?\s*/i, "").trim();
+    } else if (rawRemark.toUpperCase() === "REPRINT") {
+      commentToDisplay = "";
+    }
+    
+    const remarkText = commentToDisplay; // Simplified for the loop below
 
     const printContent = `
       <!DOCTYPE html>
@@ -614,6 +633,7 @@ export default function InventoryList() {
           
           .footer-row { 
             padding-top: 1mm;
+            padding-bottom: 0.5mm;
             font-size: 7.5pt; 
             font-weight: bold;
             flex-direction: column;
@@ -636,10 +656,10 @@ export default function InventoryList() {
           .reprint-badge {
             display: block;
             text-align: center;
-            font-size: 7pt;
+            font-size: 7.5pt;
             font-weight: 900;
             color: #000;
-            letter-spacing: 1.5px;
+            letter-spacing: 1px;
             text-transform: uppercase;
             padding-top: 1mm;
           }
@@ -648,11 +668,11 @@ export default function InventoryList() {
             font-size: 8pt; 
             font-weight: bold; 
             text-transform: uppercase; 
-            margin-top: auto; 
             color: #000; 
             width: 100%; 
             border-top: 0.1mm dashed #ccc; 
-            padding-top: 1mm; 
+            padding-top: 1mm;
+            margin-top: 0.5mm;
           }
           
           @media screen { 
@@ -697,9 +717,8 @@ export default function InventoryList() {
                 + (storageLocation !== "N/A" ? '<div class="storage-loc">' + storageLocation + '</div>' : '<div>' + (getPurityName(item.purity) || "916") + '</div>')
                 + '<div>' + parseFloat(item.net_weight || item.weight || 0).toFixed(2) + 'g</div>'
                 + '</div>'
-                + '<div class="reprint-badge">REPRINT</div>'
-                + (isRelocated ? '<div style="text-align: center; font-size: 9pt; font-weight: 900; color: #000; margin-top: 1mm;">RELOCATED</div>' : '')
-                + '<div class="remark-line">' + remarkText + '</div>'
+                + '<div class="reprint-badge">' + badgeText + '</div>'
+                + (remarkText ? '<div class="remark-line">' + remarkText + '</div>' : '')
                 + '</div>';
             })
             .join("")}
@@ -760,157 +779,61 @@ export default function InventoryList() {
   const handlePrintSingleLabel = (item, isRelocated = false) => {
     const catName = getCategoryName(item.category);
     const purName = getPurityName(item.purity);
-    const barcodeValue = (item.barcode || "NOCODE")
-      .replace(/[^A-Z0-9]/gi, "")
-      .substring(0, 20);
-
-    let storageLocation = "N/A";
-    if (item.vault || item.box || item.slot) {
-      const vaultName = typeof item.vault === 'object' ? (item.vault?.name || item.vault?.code || "") : String(item.vault || "");
-      const lockerLetter = vaultName.trim().slice(-1);
-      
-      const boxNum = typeof item.box === 'object' ? (item.box?.box_number || item.box?.name || "") : String(item.box || "");
-      const slotNum = typeof item.slot === 'object' ? (item.slot?.slot_number || item.slot?.name || "") : String(item.slot || "");
-      
-      storageLocation = `${lockerLetter}-${boxNum}${slotNum}`;
-    }
+    const barcodeValue = item.barcode || "NOCODE";
+    const storageLocation = formatLocation(item);
 
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Label - ${item.barcode}</title>
+        <title>Label - ${barcodeValue}</title>
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
-          @page { 
-            size: 50mm 50mm; 
-            margin: 0; 
-          }
+          @page { size: 50mm 50mm; margin: 0; }
           @media print {
-            html, body {
-              width: 50mm !important;
-              height: 50mm !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
+            html, body { width: 50mm !important; height: 50mm !important; margin: 0 !important; padding: 0 !important; }
             .controls { display: none !important; }
-            .labels-wrapper { 
-              width: 50mm !important; 
-              margin: 0 !important;
-              box-shadow: none !important;
-            }
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; background: #f5f5f5; }
+          body { font-family: Arial, sans-serif; background: #fff; }
           .controls { 
-            text-align: center; 
-            padding: 15px; 
-            background: linear-gradient(135deg, #1f2937 0%, #374151 100%); 
-            margin-bottom: 15px;
-            max-width: 400px;
-            margin-left: auto;
-            margin-right: auto;
-            border-radius: 8px;
+            text-align: center; padding: 15px; background: #1f2937; 
+            margin: 10px; border-radius: 8px;
           }
           .controls button { 
-            background: linear-gradient(135deg, #d97706 0%, #b45309 100%); 
-            color: white; 
-            border: none; 
-            padding: 12px 25px; 
-            cursor: pointer; 
-            border-radius: 8px; 
-            margin: 0 5px; 
-            font-weight: bold;
-            font-size: 14px;
-          }
-          .controls button.close { background: #6b7280; }
-          .controls .info { color: #9ca3af; font-size: 11px; margin-top: 10px; }
-          .controls .info strong { color: #fbbf24; }
-          .labels-wrapper { 
-            width: 50mm; 
-            margin: 0 auto; 
-            background: white; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+            background: #d97706; color: white; border: none; padding: 10px 20px; 
+            cursor: pointer; border-radius: 5px; font-weight: bold;
           }
           .label { 
-            width: 50mm; 
-            height: 50mm;
-            padding: 4mm 4mm 4mm 4mm; 
-            background: white; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center;
-            overflow: hidden;
-            border-bottom: 1px dashed #ccc;
+            width: 50mm; height: 50mm; padding: 4mm; display: flex; 
+            flex-direction: column; justify-content: center; overflow: hidden; 
           }
-          .label:last-child { border-bottom: none; }
           .header-row { 
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 0.3mm solid #333;
-            padding-bottom: 1mm;
-            margin-bottom: 1mm;
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 0.3mm solid #333; padding-bottom: 1mm; margin-bottom: 1mm; 
           }
           .pledge-no { font-size: 8pt; font-weight: bold; }
-          .reprint-badge {
-            display: block;
-            text-align: center;
-            font-size: 7pt;
-            font-weight: 900;
-            color: #000;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            padding-top: 1mm;
-          }
           .category { font-size: 7pt; font-weight: 600; text-transform: uppercase; color: #333; }
-          .barcode-section { 
-            text-align: center; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 1mm 2mm;
-            width: 100%;
-          }
-          .barcode-section svg { 
-            max-width: 36mm; 
-            width: 36mm;
-            height: 14mm; 
-            margin: 0 auto;
-          }
+          .barcode-section { text-align: center; padding: 1mm 2mm; width: 100%; }
+          .barcode-section svg { max-width: 36mm; width: 36mm; height: 14mm; margin: 0 auto; }
           .footer-row { 
-            padding-top: 1mm;
-            font-size: 7.5pt; 
-            font-weight: bold;
-            flex-direction: column;
-            text-align: center;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
+            padding-top: 1mm; font-size: 7.5pt; font-weight: bold;
+            flex-direction: column; text-align: center; display: flex; 
+            justify-content: center; align-items: center; width: 100%;
           }
-          .storage-loc {
-            font-weight: 600;
-            color: #333;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-            width: 100%;
-          }
-          @media screen { 
-            body { padding: 0px; } 
+          .storage-loc { font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+          .reprint-badge { 
+            display: block; text-align: center; font-size: 7pt; font-weight: 900; 
+            color: #000; letter-spacing: 1.5px; text-transform: uppercase; padding-top: 1mm; margin-top: auto;
           }
         </style>
       </head>
       <body>
         <div class="controls">
-          <button onclick="window.print()">🏷️ Print Label</button>
-          <button class="close" onclick="window.close()">✕ Close</button>
-          <p class="info">Label Size: <strong>50mm × 50mm</strong></p>
-          <p class="info" style="margin-top:5px;">⚠️ Set Scale to <strong>100%</strong> (not Fit to Page)</p>
+          <button onclick="window.print()">Print Label</button>
+          <button onclick="window.close()">Close</button>
         </div>
+<<<<<<< Updated upstream
         <div class="labels-wrapper">
           <div class="label">
             <div class="header-row">
@@ -926,27 +849,34 @@ export default function InventoryList() {
             </div>
             <div class="reprint-badge">REPRINT</div>
             ${isRelocated ? `<div style="text-align: center; font-size: 9pt; font-weight: 900; color: #000; margin-top: 1mm;">RELOCATED</div>` : ``}
+=======
+        <div class="label">
+          <div class="header-row">
+            <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
+            <span class="category">${catName}</span>
+          </div>
+          <div class="barcode-section"><svg id="single-barcode"></svg></div>
+          <div class="footer-row">
+            <div class="storage-loc">${storageLocation}</div>
+            <div>${purName || "916"} | ${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
+>>>>>>> Stashed changes
           </div>
         </div>
         <script>
           window.onload = function() {
             try {
               JsBarcode("#single-barcode", "${barcodeValue}", {
-                format: "CODE128",
-                width: 2,
-                height: 50,
-                displayValue: false,
-                margin: 0
+                format: "CODE128", width: 2, height: 48, displayValue: false, margin: 0
               });
+              window.print();
             } catch(e) { console.log(e); }
-            document.querySelector('button').focus();
           };
         </script>
       </body>
       </html>
     `;
 
-    const printWindow = window.open("", "_blank");
+    const printWindow = window.open("", "_blank", "width=400,height=500");
     if (printWindow) {
       printWindow.document.write(printContent);
       printWindow.document.close();
@@ -999,12 +929,36 @@ export default function InventoryList() {
           }),
         );
         setShowLocationModal(false);
+<<<<<<< Updated upstream
         setRelocatedItem({
           ...editingItem,
           vault: { id: newLocation.vault_id }, // Temporary for print
           box: { id: newLocation.box_id },
           slot: { id: newLocation.slot_id }
         });
+=======
+        // After location updated, prompt to print relocated label
+        setRelocatedItemToPrint(editingItem);
+        
+        // Fetch reprint reasons for the modal
+        try {
+          const reasons = await getReprintReasons();
+          setReprintReasons(reasons || []);
+          
+          // Pre-select "Storage Relocation" or set it as default
+          const relocateReason = reasons?.find(r => r.reason.toLowerCase().includes("reloc"));
+          if (relocateReason) {
+            setRelocationPrintReason(relocateReason.reason);
+          } else {
+            setRelocationPrintReason("Storage Relocation");
+          }
+        } catch (err) {
+          console.error("Failed to fetch reprint reasons:", err);
+          setRelocationPrintReason("Storage Relocation");
+        }
+        
+        setShowPostRelocatePrintConfirm(true);
+>>>>>>> Stashed changes
         setEditingItem(null);
         setShowRelocatedPrintModal(true);
         fetchInventory(); // Refresh data from API
@@ -2125,9 +2079,15 @@ export default function InventoryList() {
                   onChange={(e) => setCustomReprintReason(e.target.value)}
                   placeholder="Enter custom reason..."
                   fullWidth
+<<<<<<< Updated upstream
                   maxLength={20}
                 />
                 <p className="text-xs text-zinc-500 mt-1">Max 20 characters</p>
+=======
+                  maxLength={25}
+                />
+                <p className="text-xs text-zinc-500 mt-1">Max 25 characters</p>
+>>>>>>> Stashed changes
               </motion.div>
             )}
           </div>
@@ -2150,6 +2110,113 @@ export default function InventoryList() {
               }}
               disabled={!reprintReason || (reprintReason.toLowerCase().includes("other") && !customReprintReason.trim())}
               loading={isPrinting}
+              className="bg-red-500 hover:bg-red-600 text-white border-none"
+            >
+              Reprint Barcode
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showPostRelocatePrintConfirm}
+        onClose={() => {
+          setShowPostRelocatePrintConfirm(false);
+          setRelocatedItemToPrint(null);
+          setRelocationPrintReason("");
+          setCustomRelocationPrintReason("");
+        }}
+        title="Reprint Barcode - Select Reason"
+        size="md"
+      >
+        <div className="p-5">
+          <div className="bg-red-50 text-red-700 p-4 rounded-lg flex items-start gap-3 mb-6 border border-red-100">
+            <RotateCcw className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm">Why are you reprinting this barcode?</p>
+              <p className="text-xs opacity-80 mt-1">The reason will be printed on the barcode sticker.</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                Select Reason
+              </label>
+              <Select
+                value={relocationPrintReason}
+                onChange={(e) => {
+                  setRelocationPrintReason(e.target.value);
+                  if (!e.target.value.toLowerCase().includes("enter custom reason")) {
+                    setCustomRelocationPrintReason("");
+                  }
+                }}
+                placeholder="-- Choose a reason --"
+                options={[
+                  ...(reprintReasons || []).map((r) => ({
+                    value: r.reason,
+                    label: r.reason,
+                  })),
+                  { value: "Enter Custom Reason...", label: "Enter Custom Reason..." }
+                ]}
+                fullWidth
+              />
+            </div>
+            
+            {(relocationPrintReason.toLowerCase().includes("custom") || relocationPrintReason.toLowerCase().includes("other")) && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <label className="block text-sm font-medium text-zinc-700 mb-1 ml-1">
+                  Custom Reason / Comment 
+                </label>
+                <Input
+                  value={customRelocationPrintReason}
+                  onChange={(e) => setCustomRelocationPrintReason(e.target.value)}
+                  placeholder="Enter details (e.g. Rack Name, Box Num)..."
+                  fullWidth
+                  maxLength={25}
+                  autoFocus
+                />
+                <p className="text-xs text-zinc-500 mt-1 ml-1">Max 25 characters</p>
+              </motion.div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => {
+                setShowPostRelocatePrintConfirm(false);
+                setRelocatedItemToPrint(null);
+                setRelocationPrintReason("");
+                setCustomRelocationPrintReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              fullWidth
+              leftIcon={Printer}
+              onClick={() => {
+                setShowPostRelocatePrintConfirm(false);
+                if (relocatedItemToPrint) {
+                  fetchInventory();
+                  const comment = (relocationPrintReason.toLowerCase().includes("custom") || relocationPrintReason.toLowerCase().includes("other")) 
+                    ? customRelocationPrintReason 
+                    : relocationPrintReason;
+                    
+                  const finalReason = comment.trim() ? `RELOCATED: ${comment.trim()}` : "RELOCATED";
+                  handlePrintBarcodeLabels(finalReason, [relocatedItemToPrint.id]);
+                  setRelocationPrintReason("");
+                  setCustomRelocationPrintReason("");
+                }
+              }}
+              disabled={!relocationPrintReason || ((relocationPrintReason.toLowerCase().includes("custom") || relocationPrintReason.toLowerCase().includes("other")) && !customRelocationPrintReason.trim())}
               className="bg-red-500 hover:bg-red-600 text-white border-none"
             >
               Reprint Barcode

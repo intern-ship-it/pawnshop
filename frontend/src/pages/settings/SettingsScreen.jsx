@@ -1599,6 +1599,8 @@ function RacksTab({ settings, updateSettings }) {
           name: box.name,
           total_slots: box.total_slots || 0,
           occupied_slots: box.occupied_slots || 0,
+          has_subslots: box.has_subslots,
+          subslots_per_slot: box.subslots_per_slot,
           description: box.description,
         }));
         setBoxes(mapped);

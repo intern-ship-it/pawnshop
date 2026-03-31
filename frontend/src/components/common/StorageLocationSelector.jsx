@@ -51,9 +51,9 @@ export default function StorageLocationSelector({
   // Derive logicalSlot from current slot_id if needed (for edit mode)
   useEffect(() => {
     if (value.slot_id && slots.length > 0) {
-      const parentBox = boxes.find((b) => b.id.toString() === value.box_id);
+      const parentBox = boxes.find((b) => String(b.id) === String(value.box_id));
       if (parentBox && parentBox.has_subslots) {
-        const slot = slots.find((s) => s.id.toString() === value.slot_id);
+        const slot = slots.find((s) => String(s.id) === String(value.slot_id));
         if (slot) {
           const lSlot = Math.ceil(slot.slot_number / (parentBox.subslots_per_slot || 1));
           setLogicalSlot(lSlot.toString());
@@ -163,7 +163,7 @@ export default function StorageLocationSelector({
     })),
   ];
 
-  const parentBox = boxes.find((b) => b.id.toString() === value.box_id);
+  const parentBox = boxes.find((b) => String(b.id) === String(value.box_id));
   const hasSubslots = parentBox && parentBox.has_subslots;
   const subslotsPerSlot = parentBox?.subslots_per_slot || 1;
 
@@ -325,15 +325,15 @@ export default function StorageLocationSelector({
             Selected Location:
           </p>
           <p className="text-sm font-semibold text-amber-900">
-            {vaults.find((v) => v.id.toString() === value.vault_id)?.name ||
+            {vaults.find((v) => String(v.id) === String(value.vault_id))?.name ||
               "Locker"}{" "}
             →{" "}
-            {boxes.find((b) => b.id.toString() === value.box_id)?.box_number ||
-             boxes.find((b) => b.id.toString() === value.box_id)?.name || ""}
+            {boxes.find((b) => String(b.id) === String(value.box_id))?.box_number ||
+             boxes.find((b) => String(b.id) === String(value.box_id))?.name || ""}
             -
             {(() => {
-              const b = boxes.find((b) => b.id.toString() === value.box_id);
-              const s = slots.find((s) => s.id.toString() === value.slot_id);
+              const b = boxes.find((b) => String(b.id) === String(value.box_id));
+              const s = slots.find((s) => String(s.id) === String(value.slot_id));
               if (s && b && b.has_subslots) {
                 return `S${Math.ceil(s.slot_number / (b.subslots_per_slot || 1))}-${((s.slot_number - 1) % (b.subslots_per_slot || 1)) + 1}`;
               }
