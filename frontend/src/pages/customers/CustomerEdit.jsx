@@ -50,7 +50,7 @@ const malaysianStates = [
   "Sarawak",
   "Selangor",
   "Terengganu",
-  "Kuala Lumpur",
+  "W. PERSEKUTUAN(KL)",
   "Labuan",
   "Putrajaya",
 ];

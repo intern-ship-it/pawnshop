@@ -82,7 +82,7 @@ export default function CustomerCreate() {
     "Sarawak",
     "Selangor",
     "Terengganu",
-    "Kuala Lumpur",
+    "W. PERSEKUTUAN(KL)",
     "Labuan",
     "Putrajaya",
   ];
