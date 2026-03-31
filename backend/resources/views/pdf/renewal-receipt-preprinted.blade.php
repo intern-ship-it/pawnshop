@@ -649,9 +649,9 @@
                     </div>
                     <div class="kadar-section">
                         <div class="kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ $interestRateNormal }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ $interestRateOverdue }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ number_format($pledge->interest_rate, 1) }}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ number_format($pledge->interest_rate_extended, 1) }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ number_format($pledge->interest_rate_overdue, 1) }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
                     </div>
                 </td>
             </tr>
@@ -704,7 +704,7 @@
 
         {{-- ═══ BOTTOM ═══ --}}
         @php
-            $monthlyInterest = $loanAmount * 0.005;
+            $monthlyInterest = $loanAmount * ($pledge->interest_rate / 100);
         @endphp
         <table class="bottom-table">
             <tr>
