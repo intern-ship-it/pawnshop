@@ -2854,12 +2854,13 @@ export default function NewPledge() {
                                 <div className="p-2 grid grid-cols-5 gap-1 justify-center align-middle place-items-center text-center">
                                   {subslots.map((slot) => {
                                     const isSelected = isSlotAssignedInPledge(slot.id);
-                                    const occupiedItem = slot.is_occupied ? (slot.current_item || slot.pledge_item) : null;
+                                    const occupiedItems = slot.is_occupied ? (slot.current_items || (slot.current_item ? [slot.current_item] : [])) : [];
+                                    const firstItem = occupiedItems[0] || null;
                                     return (
                                       <div 
                                         key={slot.id} 
                                         className="relative"
-                                        onMouseEnter={() => slot.is_occupied && occupiedItem && setHoveredOccupiedSlot(slot.id)}
+                                        onMouseEnter={() => slot.is_occupied && occupiedItems.length > 0 && setHoveredOccupiedSlot(slot.id)}
                                         onMouseLeave={() => setHoveredOccupiedSlot(null)}
                                       >
                                         <button
@@ -2888,27 +2889,32 @@ export default function NewPledge() {
                                         >
                                           {slot.subNum}
                                         </button>
-                                        {hoveredOccupiedSlot === slot.id && occupiedItem && (
+                                        {hoveredOccupiedSlot === slot.id && firstItem && (
                                           <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white border border-zinc-200 rounded-lg shadow-xl p-3 text-left pointer-events-none" style={{ minWidth: '220px' }}>
                                             <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-zinc-200 transform rotate-45" />
                                             <p className="text-[11px] font-bold text-zinc-800 mb-1.5 flex items-center gap-1">
                                               <Package className="w-3 h-3 text-amber-500" />
-                                              {occupiedItem.pledge?.pledge_no || 'N/A'}
-                                              <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", occupiedItem.pledge?.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600')}>
-                                                {occupiedItem.pledge?.status || 'active'}
+                                              {firstItem.pledge?.pledge_no || 'N/A'}
+                                              <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", firstItem.pledge?.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600')}>
+                                                {firstItem.pledge?.status || 'active'}
                                               </span>
                                             </p>
-                                            {occupiedItem.pledge?.customer?.name && (
-                                              <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{occupiedItem.pledge.customer.name}</p>
+                                            {firstItem.pledge?.customer?.name && (
+                                              <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{firstItem.pledge.customer.name}</p>
                                             )}
                                             <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
                                               <p className="text-[10px] text-zinc-800 bg-amber-50 p-1 rounded border border-amber-100 mb-1">
                                                 <span className="font-medium text-amber-700">Location:</span> {(activeVault?.name || activeVault?.code || 'Locker').toUpperCase()} {'>'} DRAWER {activeBox?.box_number || activeBox?.name || 'Drawer'} {'>'} SLOT {sNum} {'>'} SUBSLOT {slot.subNum}
                                               </p>
-                                              <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
-                                              <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
-                                              <p className="text-[10px] text-zinc-600"><span className="font-medium">Weight:</span> {occupiedItem.net_weight || occupiedItem.gross_weight || '—'}g</p>
-                                              {occupiedItem.description && <p className="text-[10px] text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occupiedItem.description}</p>}
+                                              <p className="text-[10px] text-zinc-600 font-semibold mb-0.5">{occupiedItems.length} Item{occupiedItems.length > 1 ? 's' : ''} in this slot:</p>
+                                              {occupiedItems.map((occItem, occIdx) => (
+                                                <div key={occItem.id || occIdx} className={cn("text-[10px]", occIdx > 0 && "mt-1 pt-1 border-t border-zinc-100")}>
+                                                  <p className="text-zinc-600"><span className="font-medium">#{occIdx + 1} Category:</span> {occItem.category?.name_en || occItem.category?.name || '—'}</p>
+                                                  <p className="text-zinc-600"><span className="font-medium">Purity:</span> {occItem.purity?.code || occItem.purity?.name || '—'}</p>
+                                                  <p className="text-zinc-600"><span className="font-medium">Weight:</span> {occItem.net_weight || occItem.gross_weight || '—'}g</p>
+                                                  {occItem.description && <p className="text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occItem.description}</p>}
+                                                </div>
+                                              ))}
                                             </div>
                                           </div>
                                         )}
@@ -2926,12 +2932,13 @@ export default function NewPledge() {
                         <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                           {slots.map((slot) => {
                             const isSelected = isSlotAssignedInPledge(slot.id);
-                            const occupiedItem = slot.is_occupied ? (slot.current_item || slot.pledge_item) : null;
+                            const occupiedItems = slot.is_occupied ? (slot.current_items || (slot.current_item ? [slot.current_item] : [])) : [];
+                            const firstItem = occupiedItems[0] || null;
                             return (
                               <div 
                                 key={slot.id} 
                                 className="relative"
-                                onMouseEnter={() => slot.is_occupied && occupiedItem && setHoveredOccupiedSlot(slot.id)}
+                                onMouseEnter={() => slot.is_occupied && occupiedItems.length > 0 && setHoveredOccupiedSlot(slot.id)}
                                 onMouseLeave={() => setHoveredOccupiedSlot(null)}
                               >
                                 <button
@@ -2960,27 +2967,32 @@ export default function NewPledge() {
                                 >
                                   {slot.slot_number}
                                 </button>
-                                {hoveredOccupiedSlot === slot.id && occupiedItem && (
+                                {hoveredOccupiedSlot === slot.id && firstItem && (
                                   <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white border border-zinc-200 rounded-lg shadow-xl p-3 text-left pointer-events-none" style={{ minWidth: '220px' }}>
                                     <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-zinc-200 transform rotate-45" />
                                     <p className="text-[11px] font-bold text-zinc-800 mb-1.5 flex items-center gap-1">
                                       <Package className="w-3 h-3 text-amber-500" />
-                                      {occupiedItem.pledge?.pledge_no || 'N/A'}
-                                      <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", occupiedItem.pledge?.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600')}>
-                                        {occupiedItem.pledge?.status || 'active'}
+                                      {firstItem.pledge?.pledge_no || 'N/A'}
+                                      <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", firstItem.pledge?.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600')}>
+                                        {firstItem.pledge?.status || 'active'}
                                       </span>
                                     </p>
-                                    {occupiedItem.pledge?.customer?.name && (
-                                      <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{occupiedItem.pledge.customer.name}</p>
+                                    {firstItem.pledge?.customer?.name && (
+                                      <p className="text-[10px] text-zinc-500 mb-1 flex items-center gap-1"><User className="w-2.5 h-2.5" />{firstItem.pledge.customer.name}</p>
                                     )}
                                     <div className="border-t border-zinc-100 pt-1.5 mt-1 space-y-0.5">
                                       <p className="text-[10px] text-zinc-800 bg-amber-50 p-1 rounded border border-amber-100 mb-1">
                                         <span className="font-medium text-amber-700">Location:</span> {(activeVault?.name || activeVault?.code || 'Locker').toUpperCase()} {'>'} DRAWER {activeBox?.box_number || activeBox?.name || 'Drawer'} {'>'} SLOT {slot.slot_number}
                                       </p>
-                                      <p className="text-[10px] text-zinc-600"><span className="font-medium">Category:</span> {occupiedItem.category?.name_en || occupiedItem.category?.name || '—'}</p>
-                                      <p className="text-[10px] text-zinc-600"><span className="font-medium">Purity:</span> {occupiedItem.purity?.code || occupiedItem.purity?.name || '—'}</p>
-                                      <p className="text-[10px] text-zinc-600"><span className="font-medium">Weight:</span> {occupiedItem.net_weight || occupiedItem.gross_weight || '—'}g</p>
-                                      {occupiedItem.description && <p className="text-[10px] text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occupiedItem.description}</p>}
+                                      <p className="text-[10px] text-zinc-600 font-semibold mb-0.5">{occupiedItems.length} Item{occupiedItems.length > 1 ? 's' : ''} in this slot:</p>
+                                      {occupiedItems.map((occItem, occIdx) => (
+                                        <div key={occItem.id || occIdx} className={cn("text-[10px]", occIdx > 0 && "mt-1 pt-1 border-t border-zinc-100")}>
+                                          <p className="text-zinc-600"><span className="font-medium">#{occIdx + 1} Category:</span> {occItem.category?.name_en || occItem.category?.name || '—'}</p>
+                                          <p className="text-zinc-600"><span className="font-medium">Purity:</span> {occItem.purity?.code || occItem.purity?.name || '—'}</p>
+                                          <p className="text-zinc-600"><span className="font-medium">Weight:</span> {occItem.net_weight || occItem.gross_weight || '—'}g</p>
+                                          {occItem.description && <p className="text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occItem.description}</p>}
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
                                 )}

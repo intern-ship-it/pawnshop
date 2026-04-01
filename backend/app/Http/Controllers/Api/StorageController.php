@@ -315,8 +315,8 @@ class StorageController extends Controller
         }
 
         $slots = $box->slots()
-            ->with(['currentItem' => function ($q) {
-                $q->select('id', 'pledge_id', 'category_id', 'purity_id', 'net_weight', 'gross_weight', 'net_value', 'gross_value', 'description', 'barcode')
+            ->with(['currentItems' => function ($q) {
+                $q->select('id', 'pledge_id', 'category_id', 'purity_id', 'net_weight', 'gross_weight', 'net_value', 'gross_value', 'description', 'barcode', 'slot_id')
                   ->with([
                       'pledge:id,pledge_no,status,customer_id,due_date',
                       'pledge.customer:id,name',

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Slot extends Model
 {
@@ -31,6 +32,14 @@ class Slot extends Model
     public function currentItem(): BelongsTo
     {
         return $this->belongsTo(PledgeItem::class, 'current_item_id');
+    }
+
+    /**
+     * Get ALL pledge items stored in this slot (supports multi-item pledges sharing one slot)
+     */
+    public function currentItems(): HasMany
+    {
+        return $this->hasMany(PledgeItem::class, 'slot_id')->where('status', 'stored');
     }
 
     public function occupy(int $itemId): void
