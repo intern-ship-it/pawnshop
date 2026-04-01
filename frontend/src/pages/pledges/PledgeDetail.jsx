@@ -155,11 +155,21 @@ export default function PledgeDetail() {
             vaultId: item.vault_id,
             boxId: item.box_id,
             slotId: item.slot_id,
-            location:
-              item.location_string ||
-              (item.vault
-                ? `${item.vault.name || item.vault.code} → ${item.box?.box_number || item.box?.name}${item.slot?.slot_number}`
-                : "Not Assigned"),
+            location: (() => {
+              if (item.location_string) return item.location_string;
+              if (item.vault && item.box && item.slot) {
+                const lockerName = (item.vault.name || item.vault.code || "Locker").toUpperCase();
+                const drawerName = item.box.box_number || item.box.name || "Drawer";
+                if (item.box.has_subslots && item.slot.slot_number) {
+                  const subPerSlot = item.box.subslots_per_slot || 5;
+                  const sNum = Math.ceil(item.slot.slot_number / subPerSlot);
+                  const subNum = ((item.slot.slot_number - 1) % subPerSlot) + 1;
+                  return `${lockerName} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
+                }
+                return `${lockerName} > DRAWER ${drawerName} > SLOT ${item.slot.slot_number}`;
+              }
+              return "Not Assigned";
+            })(),
           })),
           payments: (data.payments || []).map((payment) => ({
             id: payment.id,

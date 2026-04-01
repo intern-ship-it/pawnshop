@@ -869,7 +869,7 @@ export default function PledgeList() {
                   <div class="label">
                     <div class="header-row">
                       <span class="pledge-no">${pledgeNo}</span>
-                      <span class="category">${data.data.category || (data.data.items?.length || 1) + " item(s)"}</span>
+                      <span class="category">${(pledge.itemsCount || pledge.items?.length || data.data.items?.length || 1) + " ITEM(S)"}</span>
                     </div>
                     <div class="barcode-section">
                       ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}
