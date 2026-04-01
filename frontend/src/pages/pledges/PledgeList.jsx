@@ -812,6 +812,8 @@ export default function PledgeList() {
             0,
           ) || 0;
           const storageLocation = data.data.storage_location || data.data.items?.[0]?.storage_location || "";
+          const totalItemsNum = parseInt(data.data.total_items || data.data.items?.length || pledge.itemsCount || pledge.items?.length) || 1;
+          const displayCategory = totalItemsNum >= 2 ? `${totalItemsNum} ITEMS` : (data.data.items?.[0]?.category || pledge.items?.[0]?.category?.name_en || "ITEM");
           const rawRemark = reasonText || "REPRINT";
           let badgeText = "REPRINT";
           let commentToDisplay = rawRemark;
@@ -869,7 +871,7 @@ export default function PledgeList() {
                   <div class="label">
                     <div class="header-row">
                       <span class="pledge-no">${pledgeNo}</span>
-                      <span class="category">${(pledge.itemsCount || pledge.items?.length || data.data.items?.length || 1) + " ITEM(S)"}</span>
+                      <span class="category">${displayCategory}</span>
                     </div>
                     <div class="barcode-section">
                       ${barcodeImage ? `<img class="barcode-img" src="${barcodeImage}" alt="barcode" onerror="this.style.display='none'" />` : ""}

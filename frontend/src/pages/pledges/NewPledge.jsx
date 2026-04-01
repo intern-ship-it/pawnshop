@@ -1287,7 +1287,7 @@ export default function NewPledge() {
               data.data.barcode ||
               data.data.pledge_barcode ||
               data.data.pledge_no,
-            total_items: data.data.items?.length || data.data.total_items || 1,
+            total_items: data.data.total_items || data.data.items?.length || 1,
             total_weight:
               data.data.total_weight ||
               data.data.items?.reduce(
@@ -1518,7 +1518,8 @@ export default function NewPledge() {
   // Generate barcode print HTML - ONE BARCODE PER PLEDGE
   const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo, isReprint = false, reprintReasonText = "") => {
     const barcodeImage = pledgeData.barcode_image || pledgeData.image || "";
-    const categoryName = pledgeData.category || "Item";
+    const totalItems = parseInt(pledgeData.total_items) || 1;
+    const categoryName = totalItems >= 2 ? `${totalItems} ITEMS` : (pledgeData.category || "Item");
     const totalWeight = pledgeData.total_weight || "0";
     const storageLocation = pledgeData.storage_location || "";
     const purityName = pledgeData.purity || "916";
@@ -1647,7 +1648,7 @@ export default function NewPledge() {
               const pledgeBarcodeData = {
                 barcode_image: data.data.barcode_image || data.data.items?.[0]?.image || "",
                 barcode: data.data.barcode || data.data.pledge_barcode || data.data.pledge_no,
-                total_items: data.data.items?.length || data.data.total_items || 1,
+                total_items: data.data.total_items || data.data.items?.length || 1,
                 total_weight: data.data.total_weight || data.data.items?.reduce((sum, item) => sum + (parseFloat(item.net_weight) || 0), 0) || 0,
                 storage_location: data.data.storage_location || data.data.items?.[0]?.storage_location || "",
                 description: data.data.items?.[0]?.description || "",
@@ -2056,7 +2057,7 @@ export default function NewPledge() {
       const pledgeBarcodeData = {
         barcode_image: data.data.barcode_image || data.data.items?.[0]?.image || "",
         barcode: data.data.barcode || data.data.pledge_barcode || data.data.pledge_no,
-        total_items: data.data.items?.length || data.data.total_items || 1,
+        total_items: data.data.total_items || data.data.items?.length || 1,
         total_weight: data.data.total_weight || data.data.items?.reduce((sum, item) => sum + (parseFloat(item.net_weight) || 0), 0) || 0,
         storage_location: data.data.storage_location || data.data.items?.[0]?.storage_location || "",
         category: data.data.items?.[0]?.category || "",

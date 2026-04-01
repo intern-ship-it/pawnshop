@@ -231,6 +231,7 @@ class PrintController extends Controller
             'pledge_no' => $pledge->pledge_no,
             'receipt_no' => $pledge->receipt_no,
             'storage_location' => $storageLocation,
+            'total_items' => $pledge->items->count(),
         ]);
     }
 
@@ -393,10 +394,11 @@ class PrintController extends Controller
                 'pledge_no' => $item->pledge->pledge_no,
                 'category' => $item->category->name_en,
                 'weight' => $item->net_weight . 'g',
-                'purity' => $item->purity->code,
-                'net_weight' => $item->net_weight,
+                'purity' => $item->purity->code ?? '',
+                'net_weight' => $item->pledge->items->sum('net_weight'),
                 'storage_location' => $storageLocation,
                 'description' => trim(($item->description ?? '') . ' ' . ($item->remarks ?? '')),
+                'total_items' => $item->pledge->items->count(),
             ];
         }
 

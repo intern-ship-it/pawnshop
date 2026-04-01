@@ -743,8 +743,8 @@ export default function InventoryList() {
                 storageLocation = item.storage_location;
               }
 
-              const itemsCount = item.pledge?.items?.length || item.pledge?.items_count || 1;
-              const titleCategory = itemsCount + " ITEM(S)";
+              const itemsCount = parseInt(item.pledge?.items?.length || item.pledge?.items_count) || 1;
+              const titleCategory = itemsCount >= 2 ? `${itemsCount} ITEMS` : (catName || "ITEM");
 
               return '<div class="label">'
                 + '<div class="header-row">'
