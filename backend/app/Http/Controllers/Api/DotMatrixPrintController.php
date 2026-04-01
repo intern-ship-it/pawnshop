@@ -2228,7 +2228,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 99.9mm;
+    top: 102.9mm;
     left: 22mm;
     width: 160mm;
     font-size: 9px;
@@ -2237,21 +2237,21 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 108mm;
+    top: 110mm;
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 110mm;
+    top: 113mm;
     text-align: center;
     font-size: 12px;
     right: 7mm;
 }
 .ppo-interest-note {
     position: absolute;
-    top: 108.7mm;
+    top: 111.7mm;
     left: 95mm;
     width: 72mm;
     font-size: 12px;
@@ -2269,7 +2269,7 @@ HTML;
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 128mm;
+    top: 130mm;
     right: 13mm;
     font-size: 12px;
 }
@@ -2860,9 +2860,9 @@ HTMLSTART
         </div>
 
         <!-- ROW 3: Alamat (full width) -->
-        <div class="pp-cust-row full-width">
+        <div class="pp-cust-row full-width" style="height: 8mm;">
             <span class="pp-cust-lbl">Alamat :</span>
-            <span class="pp-cust-val"></span>
+            <span class="pp-cust-val"></span> 
         </div>
         
         <!-- ROW 4: Catatan (full width) -->
@@ -3105,7 +3105,7 @@ HTML;
             \Log::error('Pre-Printed Overlay Error: ' . $e->getMessage());
             return $this->error('Print error: ' . $e->getMessage(), 500);
         }
-    }
+    } 
 
     /**
      * Generate Pledge Receipt WITH Pre-Printed Form Template
