@@ -1031,19 +1031,22 @@ export default function InventoryList() {
 
   // Export to CSV
   const handleExport = () => {
-    const csvData = filteredItems.map((item) => ({
-      Barcode: item.barcode || "",
-      "Pledge No": item.pledge?.pledge_no || "",
-      Customer: item.pledge?.customer?.name || "",
-      Category: getCategoryName(item.category),
-      Purity: getPurityName(item.purity),
-      "Weight (g)": item.net_weight || item.weight || 0,
-      "Value (RM)": item.net_value || item.estimated_value || 0,
-      Location: formatLocation(item) ? formatLocation(item).replace(/ → /g, ' - ').replace(/→/g, '-') : "Unassigned",
-      "Item Status": item.status || "stored",
-      "Pledge Status": item.pledge?.status || "",
-      "Due Date": item.pledge?.due_date ? String(item.pledge.due_date).split('T')[0].split(' ')[0] : "",
-    }));
+    const csvData = filteredItems.map((item) => {
+      const loc = formatLocation(item);
+      const locationStr = loc ? loc.replace(/ > /g, ' > ').replace(/ → /g, ' > ').replace(/→/g, '>') : "Unassigned";
+      return {
+        "Pledge No": item.pledge?.pledge_no || "",
+        Customer: item.pledge?.customer?.name || "",
+        Category: getCategoryName(item.category),
+        Purity: getPurityName(item.purity),
+        "Weight (g)": item.net_weight || item.weight || 0,
+        "Value (RM)": item.net_value || item.estimated_value || 0,
+        Location: locationStr,
+        "Item Status": item.status || "stored",
+        "Pledge Status": item.pledge?.status || "",
+        "Due Date": item.pledge?.due_date ? String(item.pledge.due_date).split('T')[0].split(' ')[0] : "",
+      };
+    });
 
     const headers = Object.keys(csvData[0] || {});
     const csv = [
