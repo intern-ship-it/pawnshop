@@ -3577,7 +3577,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-amount-words {
     position: absolute;
-    top: 99.9mm;
+    top: 102.9mm;
     left: 22mm;
     width: 160mm;
     font-size: 9px;
@@ -3586,7 +3586,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-loan-amount {
     position: absolute;
-    top: 106mm;
+    top: 110mm;
     left: 48mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
@@ -3595,9 +3595,9 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 
 .ppo-interest-note {
     position: absolute;
-    top: 108mm;
+    top: 111mm;
     left: 96mm;
-    width: 70mm;
+    width: 72mm;
     font-size: 12px;
     font-weight: bold;
 }
@@ -3613,13 +3613,13 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
-    top: 126mm;
+    top: 128mm;
     right: 13mm;
     font-size: 12px;
 }
 .ppo-pledge-date{
     position: absolute;
-    bottom: 34mm;
+    bottom: 32mm;
     right: 8mm;
     font-size: 13px;
 }
