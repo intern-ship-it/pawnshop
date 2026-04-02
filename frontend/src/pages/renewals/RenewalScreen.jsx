@@ -489,7 +489,13 @@ export default function RenewalScreen() {
 
     setPledge(enrichedPledge);
     setSearchResult("found");
-    fetchCalculation(data.id, extensionMonths);
+    
+    // Auto-apply overdue penalty rate of 2.0% if pledge is overdue (check both string status and date)
+    const isOverdue = new Date(enrichedPledge.dueDate) < new Date();
+    const customRate = (enrichedPledge.status === "overdue" || isOverdue) ? "2.0" : "";
+    setInterestRate(customRate);
+
+    fetchCalculation(data.id, extensionMonths, customRate);
   };
 
   // Process renewal via API
@@ -656,11 +662,13 @@ export default function RenewalScreen() {
 
         if (barcodes.length > 0) {
           const pledgeNo = pledge.pledgeNo;
+          const totalItemsCount = items.length;
+          const displayCategory = totalItemsCount >= 2 ? `${totalItemsCount} ITEMS` : null;
           const barcodeLabels = barcodes.map((item) => `
             <div class="label">
               <div class="header-row">
                 <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
-                <span class="category">${item.category || "Item"}</span>
+                <span class="category">${displayCategory || item.category || "Item"}</span>
               </div>
               <div class="barcode-section">
                 ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
@@ -1236,11 +1244,13 @@ export default function RenewalScreen() {
 
       if (barcodes.length > 0) {
         const pledgeNo = pledge.pledgeNo;
+        const totalItemsCount = items.length;
+        const displayCategory = totalItemsCount >= 2 ? `${totalItemsCount} ITEMS` : null;
         const barcodeLabels = barcodes.map((item) => `
           <div class="label">
             <div class="header-row">
               <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
-              <span class="category">${item.category || "Item"}</span>
+              <span class="category">${displayCategory || item.category || "Item"}</span>
             </div>
             <div class="barcode-section">
               ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}

@@ -1011,7 +1011,7 @@ export default function PrintTestPage() {
       setPreviewFormat("text");
 
       if (barcodes.length > 0)
-        openBarcodeWindow(barcodes, selectedPledge.pledge_no);
+        openBarcodeWindow(barcodes, selectedPledge.pledge_no, items.length);
       dispatch(
         addToast({
           type: "success",
@@ -1126,7 +1126,7 @@ export default function PrintTestPage() {
       setPreviewFormat("text");
 
       if (barcodes.length > 0)
-        openReprintBarcodeWindow(barcodes, selectedPledge.pledge_no, reasonText);
+        openReprintBarcodeWindow(barcodes, selectedPledge.pledge_no, reasonText, items.length);
       dispatch(
         addToast({
           type: "success",
@@ -1150,7 +1150,7 @@ export default function PrintTestPage() {
   };
 
   // FIXED: Open barcode window with DYNAMIC paper sizing
-  const openBarcodeWindow = (barcodeItems, pledgeNo) => {
+  const openBarcodeWindow = (barcodeItems, pledgeNo, totalItemsCount = 1) => {
     const printWindow = window.open("", "_blank", "width=400,height=600");
     if (!printWindow) {
       dispatch(
@@ -1165,13 +1165,15 @@ export default function PrintTestPage() {
 
     const labelCount = barcodeItems.length;
 
+    const displayCategory = totalItemsCount >= 2 ? `${totalItemsCount} ITEMS` : null;
+
     const barcodeLabels = barcodeItems
       .map(
         (item) => `
       <div class="label">
         <div class="header-row">
           <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
-          <span class="category">${item.category || "Item"}</span>
+          <span class="category">${displayCategory || item.category || "Item"}</span>
         </div>
         <div class="barcode-section">
           ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
@@ -1336,7 +1338,7 @@ export default function PrintTestPage() {
   };
 
   // Open REPRINT barcode window - same layout but with "REPRINT" text and reason on each label
-  const openReprintBarcodeWindow = (barcodeItems, pledgeNo, reasonText = "") => {
+  const openReprintBarcodeWindow = (barcodeItems, pledgeNo, reasonText = "", totalItemsCount = 1) => {
     const printWindow = window.open("", "_blank", "width=400,height=600");
     if (!printWindow) {
       dispatch(
@@ -1353,13 +1355,15 @@ export default function PrintTestPage() {
     // Use the reprint reason text instead of item description
     const remarkText = reasonText || "REPRINT";
 
+    const displayCategory = totalItemsCount >= 2 ? `${totalItemsCount} ITEMS` : null;
+
     const barcodeLabels = barcodeItems
       .map(
         (item) => `
       <div class="label">
         <div class="header-row">
           <span class="pledge-no">${pledgeNo || item.pledge_no || ""}</span>
-          <span class="category">${item.category || "Item"}</span>
+          <span class="category">${displayCategory || item.category || "Item"}</span>
         </div>
         <div class="barcode-section">
           ${item.image ? `<img class="barcode-img" src="${item.image}" alt="barcode" onerror="this.style.display='none'" />` : ""}
@@ -4470,4 +4474,4 @@ export default function PrintTestPage() {
       </Modal>
     </>
   );
-}
+}

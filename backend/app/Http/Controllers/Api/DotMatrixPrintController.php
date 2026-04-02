@@ -2255,7 +2255,7 @@ HTML;
     left: 95mm;
     width: 72mm;
     font-size: 12px;
-    font-weight: bold;
+    font-weight: bold; 
 }
 /* .ppo-due-date {
     position: absolute;
