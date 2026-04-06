@@ -463,99 +463,273 @@ export default function DayEndSummary() {
     }
   };
 
-  // Print summary
+  // Print summary — accounting-style ledger
   const handlePrint = () => {
+    const dateLabel = new Date(selectedDate).toLocaleDateString("en-MY", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const totalTxn = dailyStats.newPledgesCount + dailyStats.renewalsCount + dailyStats.redemptionsCount;
+
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Day End Summary - ${selectedDate}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-          h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-          .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
-          .section h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-          .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-          .row:last-child { border-bottom: none; }
-          .label { color: #666; }
-          .value { font-weight: bold; }
-          .positive { color: #059669; }
-          .negative { color: #dc2626; }
-          .total { font-size: 1.2em; background: #f5f5f5; padding: 10px; border-radius: 4px; }
-          .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #f59e0b; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-          .gold-banner .gold-label { font-weight: 600; color: #92400e; }
-          .gold-banner .gold-value { font-size: 1.3em; font-weight: 700; color: #b45309; }
-          .signature { margin-top: 40px; display: flex; justify-content: space-between; }
-          .signature-line { border-top: 1px solid #333; width: 200px; text-align: center; padding-top: 5px; }
-          @media print { body { padding: 0; } }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Arial', 'Helvetica Neue', sans-serif;
+            padding: 30px 40px;
+            max-width: 780px;
+            margin: 0 auto;
+            color: #1a1a1a;
+            font-size: 13px;
+            line-height: 1.5;
+          }
+          h1 {
+            text-align: center;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+          }
+          .sub-header {
+            text-align: center;
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 24px;
+          }
+          .section {
+            margin-bottom: 22px;
+          }
+          .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          table th {
+            text-align: left;
+            font-weight: 700;
+            font-size: 11px;
+            border-bottom: 1px solid #999;
+            padding: 4px 8px 4px 0;
+            color: #333;
+          }
+          table th.right, table td.right {
+            text-align: right;
+          }
+          table td {
+            padding: 5px 8px 5px 0;
+            border-bottom: 1px solid #e8e8e8;
+            font-size: 13px;
+          }
+          table tr:last-child td {
+            border-bottom: none;
+          }
+          .total-row td {
+            border-top: 1px solid #333;
+            border-bottom: 2px solid #333 !important;
+            font-weight: 700;
+            padding-top: 6px;
+            padding-bottom: 6px;
+          }
+          .positive { color: #0a7d2e; }
+          .negative { color: #c0392b; }
+          .gold-banner {
+            background: linear-gradient(135deg, #fffbeb, #fef3c7);
+            border: 1px solid #f59e0b;
+            padding: 10px 15px;
+            margin-bottom: 22px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .gold-banner .gold-label { font-weight: 600; color: #92400e; font-size: 13px; }
+          .gold-banner .gold-value { font-size: 15px; font-weight: 700; color: #b45309; }
+          .signature-area {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+          }
+          .signature-block {
+            text-align: center;
+            width: 160px;
+          }
+          .signature-line {
+            border-top: 1px solid #333;
+            padding-top: 6px;
+            font-size: 12px;
+            font-weight: 600;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #999;
+            font-size: 10px;
+          }
+          @media print {
+            body { padding: 15px 25px; }
+          }
         </style>
       </head>
       <body>
         <h1>Day End Summary</h1>
-        <div class="header">
-          <div><strong>Date:</strong> ${new Date(
-            selectedDate,
-          ).toLocaleDateString("en-MY", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}</div>
-          <div><strong>Status:</strong> ${dayStatus === "closed" ? "🔒 CLOSED" : "🔓 OPEN"}</div>
+        <div class="sub-header">
+          Date: ${dateLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Status: ${dayStatus === "closed" ? "CLOSED" : "OPEN"}
         </div>
 
         <div class="gold-banner">
-          <span class="gold-label">🥇 Gold Value (per gram)</span>
+          <span class="gold-label">Gold Value (per gram)</span>
           <span class="gold-value">${goldPrice ? `RM ${parseFloat(goldPrice).toFixed(2)}/g` : "N/A"}</span>
         </div>
 
         <div class="section">
-          <h3>📊 Transaction Summary</h3>
-          <div class="row"><span class="label">Pledge (Cash Out)</span><span class="value">${dailyStats.newPledgesCount} pax — ${formatCurrency(dailyStats.newPledgesAmount)}</span></div>
-          <div class="row"><span class="label">Redeem (Cash In)</span><span class="value">${dailyStats.redemptionsCount} pax — ${formatCurrency(dailyStats.redemptionAmount)}</span></div>
-          <div class="row"><span class="label">Renewal (Cash In)</span><span class="value">${dailyStats.renewalsCount} pax — ${formatCurrency(dailyStats.renewalInterest)}</span></div>
+          <div class="section-title">Transaction Summary</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th class="right">Count</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>New Pledges (Cash Out)</td>
+                <td class="right">${dailyStats.newPledgesCount} pax</td>
+                <td class="right">${formatCurrency(dailyStats.newPledgesAmount)}</td>
+              </tr>
+              <tr>
+                <td>Redemptions (Cash In)</td>
+                <td class="right">${dailyStats.redemptionsCount} pax</td>
+                <td class="right">${formatCurrency(dailyStats.redemptionAmount)}</td>
+              </tr>
+              <tr>
+                <td>Renewals (Interest In)</td>
+                <td class="right">${dailyStats.renewalsCount} pax</td>
+                <td class="right">${formatCurrency(dailyStats.renewalInterest)}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Total</td>
+                <td class="right">${totalTxn} pax</td>
+                <td class="right">${formatCurrency(dailyStats.newPledgesAmount + dailyStats.redemptionAmount + dailyStats.renewalInterest)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="section">
-          <h3>📦 Stock Movement</h3>
-          <div class="row"><span class="label">Stock In (Items Received)</span><span class="value">${dailyStats.totalItemsAdded} items</span></div>
-          <div class="row"><span class="label">Stock Out (Items Released)</span><span class="value">${dailyStats.totalItemsOut} items</span></div>
+          <div class="section-title">Stock Movement</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="right">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Stock In (Items Received)</td>
+                <td class="right">${dailyStats.totalItemsAdded} items</td>
+              </tr>
+              <tr>
+                <td>Stock Out (Items Released)</td>
+                <td class="right">${dailyStats.totalItemsOut} items</td>
+              </tr>
+              <tr>
+                <td>Items in Storage</td>
+                <td class="right">${inventorySummary.in_storage} items</td>
+              </tr>
+              <tr>
+                <td>Total Weight</td>
+                <td class="right">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</td>
+              </tr>
+              <tr>
+                <td>Total Value</td>
+                <td class="right">${formatCurrency(inventorySummary.total_value)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="section">
-          <h3>🏪 Total Stock Value</h3>
-          <div class="row"><span class="label">Items in Storage</span><span class="value">${inventorySummary.in_storage} items</span></div>
-          <div class="row"><span class="label">Total Weight</span><span class="value">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</span></div>
-          <div class="row"><span class="label">Total Value</span><span class="value">${formatCurrency(inventorySummary.total_value)}</span></div>
+          <div class="section-title">Cash Flow</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Cash In (Received)</td>
+                <td class="right positive">+ ${formatCurrency(dailyStats.cashIn)}</td>
+              </tr>
+              <tr>
+                <td>Cash Out (Disbursed)</td>
+                <td class="right negative">- ${formatCurrency(dailyStats.cashOut)}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Net Cash Flow</td>
+                <td class="right ${dailyStats.netCashFlow >= 0 ? "positive" : "negative"}">${dailyStats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(dailyStats.netCashFlow)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="section">
-          <h3>💰 Cash Flow</h3>
-          <div class="row"><span class="label">Cash In (Received)</span><span class="value positive">+ ${formatCurrency(dailyStats.cashIn)}</span></div>
-          <div class="row"><span class="label">Cash Out (Disbursed)</span><span class="value negative">- ${formatCurrency(dailyStats.cashOut)}</span></div>
-          <div class="row total"><span class="label">Net Cash Flow</span><span class="value ${dailyStats.netCashFlow >= 0 ? "positive" : "negative"}">${dailyStats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(dailyStats.netCashFlow)}</span></div>
+          <div class="section-title">Cash Drawer</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Opening Balance</td>
+                <td class="right">${formatCurrency(cashDrawer.openingBalance)}</td>
+              </tr>
+              <tr>
+                <td>Expected Closing</td>
+                <td class="right">${formatCurrency(expectedClosing)}</td>
+              </tr>
+              ${cashDrawer.closingBalance ? `<tr><td>Actual Closing</td><td class="right">${formatCurrency(parseFloat(cashDrawer.closingBalance))}</td></tr>` : ""}
+              ${cashDrawer.closingBalance ? `<tr class="total-row"><td>Variance</td><td class="right ${variance >= 0 ? "positive" : "negative"}">${variance >= 0 ? "+" : ""}${formatCurrency(variance)}</td></tr>` : ""}
+            </tbody>
+          </table>
         </div>
 
-        <div class="section">
-          <h3>🏦 Cash Drawer</h3>
-          <div class="row"><span class="label">Opening Balance</span><span class="value">${formatCurrency(cashDrawer.openingBalance)}</span></div>
-          <div class="row"><span class="label">Expected Closing</span><span class="value">${formatCurrency(expectedClosing)}</span></div>
-          ${cashDrawer.closingBalance ? `<div class="row"><span class="label">Actual Closing</span><span class="value">${formatCurrency(parseFloat(cashDrawer.closingBalance))}</span></div>` : ""}
-          ${cashDrawer.closingBalance ? `<div class="row"><span class="label">Variance</span><span class="value ${variance >= 0 ? "positive" : "negative"}">${variance >= 0 ? "+" : ""}${formatCurrency(variance)}</span></div>` : ""}
+        ${cashDrawer.notes ? `<div class="section"><div class="section-title">Notes</div><p style="padding: 5px 0; font-size: 13px;">${cashDrawer.notes}</p></div>` : ""}
+
+        <div class="signature-area">
+          <div class="signature-block">
+            <div class="signature-line">Prepared By</div>
+          </div>
+          <div class="signature-block">
+            <div class="signature-line">Verified By</div>
+          </div>
+          <div class="signature-block">
+            <div class="signature-line">Manager Approval</div>
+          </div>
         </div>
 
-        ${cashDrawer.notes ? `<div class="section"><h3>📝 Notes</h3><p>${cashDrawer.notes}</p></div>` : ""}
-
-        <div class="signature">
-          <div class="signature-line">Prepared By</div>
-          <div class="signature-line">Verified By</div>
-          <div class="signature-line">Manager Approval</div>
-        </div>
-
-        <p style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+        <div class="footer">
           Generated on ${new Date().toLocaleString("en-MY")} | PawnSys
-        </p>
+        </div>
       </body>
       </html>
     `;
@@ -636,6 +810,7 @@ export default function DayEndSummary() {
     <PageWrapper
       title="Day End Summary"
       subtitle="Daily closing report and cash reconciliation"
+      fullWidth={true}
       actions={
         <div className="flex items-center gap-2">
           <Input
@@ -749,15 +924,15 @@ export default function DayEndSummary() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-              <FileText className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
+              <FileText className="w-6 h-6 text-amber-600" />
             </div>
             <div>
               <p className="text-xs text-zinc-500">New Pledges</p>
               <p className="text-2xl font-bold text-zinc-800">
                 {dailyStats.newPledgesCount}
               </p>
-              <p className="text-xs text-blue-600 font-medium">
+              <p className="text-xs text-amber-600 font-medium">
                 {formatCurrency(dailyStats.newPledgesAmount)}
               </p>
             </div>
@@ -830,22 +1005,22 @@ export default function DayEndSummary() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Cash In */}
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-emerald-700">Cash In</span>
-                  <ArrowDownRight className="w-5 h-5 text-emerald-500" />
+                  <span className="text-sm font-semibold text-amber-700">Cash In</span>
+                  <ArrowDownRight className="w-5 h-5 text-amber-500" />
                 </div>
-                <p className="text-2xl font-bold text-emerald-600">
+                <p className="text-2xl font-bold text-amber-700">
                   {formatCurrency(dailyStats.cashIn)}
                 </p>
-                <div className="mt-3 space-y-1 text-xs text-emerald-600">
+                <div className="mt-3 pt-3 border-t border-amber-200/60 space-y-1.5 text-xs text-amber-600">
                   <div className="flex justify-between">
                     <span>Interest</span>
-                    <span>{formatCurrency(dailyStats.renewalInterest)}</span>
+                    <span className="font-semibold">{formatCurrency(dailyStats.renewalInterest)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Redemptions</span>
-                    <span>{formatCurrency(dailyStats.redemptionAmount)}</span>
+                    <span className="font-semibold">{formatCurrency(dailyStats.redemptionAmount)}</span>
                   </div>
                 </div>
               </div>
@@ -872,23 +1047,23 @@ export default function DayEndSummary() {
                 className={cn(
                   "p-4 rounded-xl border",
                   dailyStats.netCashFlow >= 0
-                    ? "bg-blue-50 border-blue-200"
-                    : "bg-orange-50 border-orange-200",
+                    ? "bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200"
+                    : "bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-200",
                 )}
               >
                 <div className="flex items-center justify-between mb-3">
                   <span
                     className={cn(
-                      "text-sm",
+                      "text-sm font-semibold",
                       dailyStats.netCashFlow >= 0
-                        ? "text-blue-700"
+                        ? "text-amber-700"
                         : "text-orange-700",
                     )}
                   >
                     Net Flow
                   </span>
                   {dailyStats.netCashFlow >= 0 ? (
-                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                    <TrendingUp className="w-5 h-5 text-amber-500" />
                   ) : (
                     <TrendingDown className="w-5 h-5 text-orange-500" />
                   )}
@@ -897,8 +1072,8 @@ export default function DayEndSummary() {
                   className={cn(
                     "text-2xl font-bold",
                     dailyStats.netCashFlow >= 0
-                      ? "text-blue-600"
-                      : "text-orange-600",
+                      ? "text-amber-700"
+                      : "text-orange-700",
                   )}
                 >
                   {dailyStats.netCashFlow >= 0 ? "+" : ""}
@@ -937,7 +1112,7 @@ export default function DayEndSummary() {
                   <tr className="hover:bg-zinc-50">
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-blue-500" />
+                        <FileText className="w-4 h-4 text-amber-500" />
                         <span>New Pledges</span>
                       </div>
                     </td>
@@ -1032,7 +1207,7 @@ export default function DayEndSummary() {
                     className={cn(
                       "flex items-center justify-between p-3 rounded-lg border transition-all",
                       item.is_verified
-                        ? "bg-emerald-50 border-emerald-200"
+                        ? "bg-amber-50 border-amber-200"
                         : "bg-zinc-50 border-zinc-200",
                     )}
                   >
@@ -1045,7 +1220,7 @@ export default function DayEndSummary() {
                         className={cn(
                           "w-6 h-6 rounded border-2 flex items-center justify-center transition-all",
                           item.is_verified
-                            ? "bg-emerald-500 border-emerald-500 text-white"
+                            ? "bg-amber-500 border-amber-500 text-white"
                             : "border-zinc-300 hover:border-amber-500",
                         )}
                       >
@@ -1059,10 +1234,10 @@ export default function DayEndSummary() {
                             className={cn(
                               "text-xs font-medium px-2 py-0.5 rounded",
                               item.verification_type === "item_in"
-                                ? "bg-blue-100 text-blue-700"
+                                ? "bg-amber-100 text-amber-700"
                                 : item.verification_type === "item_out"
                                   ? "bg-orange-100 text-orange-700"
-                                  : "bg-purple-100 text-purple-700",
+                                  : "bg-zinc-100 text-zinc-700",
                             )}
                           >
                             {item.verification_type === "item_in"
@@ -1147,8 +1322,8 @@ export default function DayEndSummary() {
               {/* Transactions */}
               <div className="p-4 bg-zinc-50 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-emerald-600">+ Cash In</span>
-                  <span className="font-medium text-emerald-600">
+                  <span className="text-amber-600">+ Cash In</span>
+                  <span className="font-medium text-amber-600">
                     {formatCurrency(dailyStats.cashIn)}
                   </span>
                 </div>
@@ -1255,12 +1430,12 @@ export default function DayEndSummary() {
           </Card>
 
           {/* Quick Info */}
-          <Card className="p-4 bg-blue-50 border-blue-200">
+          <Card className="p-4 bg-amber-50/50 border-amber-200">
             <div className="flex gap-3">
-              <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-700">
+              <Info className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
                 <p className="font-medium">Day End Process</p>
-                <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                <ol className="list-decimal list-inside mt-2 space-y-1 text-xs text-amber-700">
                   <li>Click "Start Day End"</li>
                   <li>Review all transactions</li>
                   <li>Verify items physically</li>

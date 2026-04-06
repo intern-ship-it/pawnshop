@@ -6,13 +6,12 @@ import { useNavigate } from "react-router";
 import { addToast } from "@/features/ui/uiSlice";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Input, Badge } from "@/components/common";
 import {
   Calendar,
   Clock,
-  DollarSign,
   TrendingUp,
   TrendingDown,
   Package,
@@ -21,22 +20,19 @@ import {
   FileText,
   Printer,
   Download,
-  AlertTriangle,
   Receipt,
   ArrowUpRight,
   ArrowDownRight,
   Info,
-  Eye,
-  CheckSquare,
   Loader2,
   ChevronLeft,
   ChevronRight,
-  BarChart3,
-  Scale,
-  Warehouse,
-  PieChart,
   Banknote,
   CreditCard,
+  Scale,
+  BarChart3,
+  ShieldCheck,
+  Layers,
 } from "lucide-react";
 
 export default function MonthEndSummary() {
@@ -69,11 +65,11 @@ export default function MonthEndSummary() {
       newPledgesCount: pledges.count || 0,
       newPledgesAmount: pledges.total || 0,
       renewalsCount: renewals.count || 0,
-      renewalInterest: renewals.total || 0, // This is interest in PaymentSplitReport
+      renewalInterest: renewals.total || 0,
       redemptionsCount: redemptions.count || 0,
       redemptionAmount: redemptions.total || 0,
       cashIn: renewals.cash + redemptions.cash,
-      cashOut: pledges.cash, // Cash disbursed for pledges
+      cashOut: pledges.cash,
       netCashFlow: (renewals.cash + redemptions.cash) - (pledges.cash),
       totalTransactionCount: summary.transaction_count || 0,
       cashTotal: summary.cash_total || 0,
@@ -86,13 +82,11 @@ export default function MonthEndSummary() {
     if (!selectedMonth) return { from: "", to: "" };
     const [year, month] = selectedMonth.split("-").map(Number);
     const from = `${year}-${String(month).padStart(2, "0")}-01`;
-    // Last day of the month
     const lastDay = new Date(year, month, 0).getDate();
     const to = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
     return { from, to };
   }, [selectedMonth]);
 
-  // Fetch data on mount and month change
   useEffect(() => {
     fetchMonthEndData();
     fetchInventorySummary();
@@ -101,7 +95,6 @@ export default function MonthEndSummary() {
   const fetchMonthEndData = async () => {
     setIsLoading(true);
     try {
-      // Use payment-split report as it gives the exact stats needed for the dashboard summary
       const response = await reportService.getPaymentSplitReport({
         from_date: dateRange.from,
         to_date: dateRange.to,
@@ -140,7 +133,6 @@ export default function MonthEndSummary() {
     }
   };
 
-  // Helper to change month
   const handleMonthChange = (offset) => {
     const [year, month] = selectedMonth.split("-").map(Number);
     const date = new Date(year, month - 1 + offset, 1);
@@ -149,9 +141,14 @@ export default function MonthEndSummary() {
     );
   };
 
-  // Print summary
+  // Print summary — accounting-style ledger
   const handlePrint = () => {
     if (!stats) return;
+
+    const monthLabel = new Date(dateRange.from).toLocaleDateString("en-MY", {
+      year: "numeric",
+      month: "long",
+    });
 
     const printContent = `
       <!DOCTYPE html>
@@ -159,72 +156,236 @@ export default function MonthEndSummary() {
       <head>
         <title>Month End Summary - ${selectedMonth}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-          h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-          .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
-          .section h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-          .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-          .row:last-child { border-bottom: none; }
-          .label { color: #666; }
-          .value { font-weight: bold; }
-          .positive { color: #059669; }
-          .negative { color: #dc2626; }
-          .total { font-size: 1.2em; background: #f5f5f5; padding: 10px; border-radius: 4px; }
-          .signature { margin-top: 40px; display: flex; justify-content: space-between; }
-          .signature-line { border-top: 1px solid #333; width: 200px; text-align: center; padding-top: 5px; }
-          @media print { body { padding: 0; } }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Arial', 'Helvetica Neue', sans-serif;
+            padding: 30px 40px;
+            max-width: 780px;
+            margin: 0 auto;
+            color: #1a1a1a;
+            font-size: 13px;
+            line-height: 1.5;
+          }
+          h1 {
+            text-align: center;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+          }
+          .sub-header {
+            text-align: center;
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 24px;
+          }
+          .section {
+            margin-bottom: 22px;
+          }
+          .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          table th {
+            text-align: left;
+            font-weight: 700;
+            font-size: 11px;
+            border-bottom: 1px solid #999;
+            padding: 4px 8px 4px 0;
+            color: #333;
+          }
+          table th.right, table td.right {
+            text-align: right;
+          }
+          table td {
+            padding: 5px 8px 5px 0;
+            border-bottom: 1px solid #e8e8e8;
+            font-size: 13px;
+          }
+          table tr:last-child td {
+            border-bottom: none;
+          }
+          .total-row td {
+            border-top: 1px solid #333;
+            border-bottom: 2px solid #333 !important;
+            font-weight: 700;
+            padding-top: 6px;
+            padding-bottom: 6px;
+          }
+          .positive { color: #0a7d2e; }
+          .negative { color: #c0392b; }
+          .signature-area {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+          }
+          .signature-block {
+            text-align: center;
+            width: 160px;
+          }
+          .signature-line {
+            border-top: 1px solid #333;
+            padding-top: 6px;
+            font-size: 12px;
+            font-weight: 600;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #999;
+            font-size: 10px;
+          }
+          @media print {
+            body { padding: 15px 25px; }
+          }
         </style>
       </head>
       <body>
         <h1>Month End Summary</h1>
-        <div class="header">
-          <div><strong>Month:</strong> ${new Date(
-            dateRange.from,
-          ).toLocaleDateString("en-MY", {
-            year: "numeric",
-            month: "long",
-          })}</div>
-          <div><strong>Period:</strong> ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}</div>
+        <div class="sub-header">
+          Month: ${monthLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Period: ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}
         </div>
 
         <div class="section">
-          <h3>📊 Monthly Transaction Summary</h3>
-          <div class="row"><span class="label">New Pledges (Cash Out)</span><span class="value">${stats.newPledgesCount} txn — ${formatCurrency(stats.newPledgesAmount)}</span></div>
-          <div class="row"><span class="label">Redemptions (Cash In)</span><span class="value">${stats.redemptionsCount} txn — ${formatCurrency(stats.redemptionAmount)}</span></div>
-          <div class="row"><span class="label">Renewals (Interest In)</span><span class="value">${stats.renewalsCount} txn — ${formatCurrency(stats.renewalInterest)}</span></div>
+          <div class="section-title">Monthly Transaction Summary</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th class="right">Count</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>New Pledges (Cash Out)</td>
+                <td class="right">${stats.newPledgesCount} txn</td>
+                <td class="right">${formatCurrency(stats.newPledgesAmount)}</td>
+              </tr>
+              <tr>
+                <td>Redemptions (Cash In)</td>
+                <td class="right">${stats.redemptionsCount} txn</td>
+                <td class="right">${formatCurrency(stats.redemptionAmount)}</td>
+              </tr>
+              <tr>
+                <td>Renewals (Interest In)</td>
+                <td class="right">${stats.renewalsCount} txn</td>
+                <td class="right">${formatCurrency(stats.renewalInterest)}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Total</td>
+                <td class="right">${stats.totalTransactionCount} txn</td>
+                <td class="right">${formatCurrency(stats.newPledgesAmount + stats.redemptionAmount + stats.renewalInterest)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="section">
-          <h3>📦 Live Inventory Status</h3>
-          <div class="row"><span class="label">Items in Storage</span><span class="value">${inventorySummary.in_storage} items</span></div>
-          <div class="row"><span class="label">Total Weight</span><span class="value">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</span></div>
-          <div class="row"><span class="label">Total Loan Value</span><span class="value">${formatCurrency(inventorySummary.total_value)}</span></div>
-          <div class="row"><span class="label">Total Market Value (Gross)</span><span class="value">${formatCurrency(inventorySummary.total_gross_value)}</span></div>
+          <div class="section-title">Live Inventory Status</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="right">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Items in Storage</td>
+                <td class="right">${inventorySummary.in_storage} items</td>
+              </tr>
+              <tr>
+                <td>Total Weight</td>
+                <td class="right">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</td>
+              </tr>
+              <tr>
+                <td>Total Loan Value</td>
+                <td class="right">${formatCurrency(inventorySummary.total_value)}</td>
+              </tr>
+              <tr>
+                <td>Total Market Value (Gross)</td>
+                <td class="right">${formatCurrency(inventorySummary.total_gross_value)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="section">
-          <h3>💰 Cash Flow Summary</h3>
-          <div class="row"><span class="label">Total Cash In (Redemptions + Renewals)</span><span class="value positive">+ ${formatCurrency(stats.cashIn)}</span></div>
-          <div class="row"><span class="label">Total Cash Out (Pledges Disbursed)</span><span class="value negative">- ${formatCurrency(stats.cashOut)}</span></div>
-          <div class="row total"><span class="label">Net Cash Movement</span><span class="value ${stats.netCashFlow >= 0 ? "positive" : "negative"}">${stats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(stats.netCashFlow)}</span></div>
+          <div class="section-title">Cash Flow Summary</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Total Cash In (Redemptions + Renewals)</td>
+                <td class="right positive">+ ${formatCurrency(stats.cashIn)}</td>
+              </tr>
+              <tr>
+                <td>Total Cash Out (Pledges Disbursed)</td>
+                <td class="right negative">- ${formatCurrency(stats.cashOut)}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Net Cash Movement</td>
+                <td class="right ${stats.netCashFlow >= 0 ? "positive" : "negative"}">${stats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(stats.netCashFlow)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="section">
-          <h3>💳 Payment Methods Breakdown</h3>
-          <div class="row"><span class="label">Physical Cash Total</span><span class="value">${formatCurrency(stats.cashTotal)}</span></div>
-          <div class="row"><span class="label">Online Transfer Total</span><span class="value">${formatCurrency(stats.transferTotal)}</span></div>
+          <div class="section-title">Payment Methods Breakdown</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Physical Cash Total</td>
+                <td class="right">${formatCurrency(stats.cashTotal)}</td>
+              </tr>
+              <tr>
+                <td>Online Transfer Total</td>
+                <td class="right">${formatCurrency(stats.transferTotal)}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Grand Total</td>
+                <td class="right">${formatCurrency(stats.cashTotal + stats.transferTotal)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <div class="signature">
-          <div class="signature-line">Branch Manager</div>
-          <div class="signature-line">Accountant</div>
-          <div class="signature-line">Director</div>
+        <div class="signature-area">
+          <div class="signature-block">
+            <div class="signature-line">Branch Manager</div>
+          </div>
+          <div class="signature-block">
+            <div class="signature-line">Accountant</div>
+          </div>
+          <div class="signature-block">
+            <div class="signature-line">Director</div>
+          </div>
         </div>
 
-        <p style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+        <div class="footer">
           Generated on ${new Date().toLocaleString("en-MY")} | PawnSys
-        </p>
+        </div>
       </body>
       </html>
     `;
@@ -263,6 +424,14 @@ export default function MonthEndSummary() {
       setIsExporting(false);
     }
   };
+
+  // Derived calculations
+  const totalVolume = (stats?.cashTotal || 0) + (stats?.transferTotal || 0);
+  const cashPercent = totalVolume > 0 ? Math.round((stats?.cashTotal / totalVolume) * 100) : 0;
+  const transferPercent = totalVolume > 0 ? 100 - cashPercent : 0;
+  const pledgeToRedeemRatio = stats?.redemptionsCount > 0
+    ? (stats.newPledgesCount / stats.redemptionsCount).toFixed(2)
+    : "N/A";
 
   if (isLoading && !reportData) {
     return (
@@ -335,283 +504,479 @@ export default function MonthEndSummary() {
       }
     >
       <div className="space-y-6">
-        {/* Month Banner - Improved to match existing UI */}
-        <Card className="p-4 mb-6 border-2 bg-amber-50 border-amber-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center text-zinc-900 shadow-sm">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-zinc-800">
-                  {new Date(dateRange.from).toLocaleDateString("en-MY", {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </h2>
-                <div className="flex items-center gap-2 text-zinc-500 text-sm">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{formatDate(dateRange.from)} to {formatDate(dateRange.to)}</span>
+        {/* Executive Banner */}
+        <Card className="overflow-hidden border-2 border-amber-200 shadow-lg">
+          <div className="bg-gradient-to-r from-amber-50 via-amber-100/80 to-amber-50 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <Calendar className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-zinc-800 tracking-tight">
+                    {new Date(dateRange.from).toLocaleDateString("en-MY", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </h2>
+                  <div className="flex items-center gap-2 text-zinc-500 text-sm mt-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Reporting Period: {formatDate(dateRange.from)} to {formatDate(dateRange.to)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="text-right flex items-center gap-6">
-              <div>
-                <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-0.5">
-                  Transactions
-                </p>
-                <p className="text-2xl font-black text-zinc-800">
-                  {stats?.totalTransactionCount || 0}
-                </p>
+              <div className="flex items-center gap-8">
+                <div className="text-right">
+                  <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-[0.2em]">
+                    Total Transactions
+                  </p>
+                  <p className="text-3xl font-black text-zinc-800 tabular-nums">
+                    {stats?.totalTransactionCount || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-px bg-amber-300" />
+                <div className="text-right">
+                  <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-[0.2em]">
+                    Total Volume
+                  </p>
+                  <p className="text-xl font-bold text-amber-700 tabular-nums">
+                    {formatCurrency(totalVolume)}
+                  </p>
+                </div>
               </div>
-              <div className="h-10 w-px bg-zinc-200" />
-              <Badge variant="success" className="h-fit">MONTHLY REPORT</Badge>
             </div>
           </div>
         </Card>
 
-        {/* Stats Cards - Updated to match Day End Summary cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-blue-600" />
+        {/* KPI Cards Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <Card className="p-4 hover:shadow-md transition-shadow border-l-4 border-l-blue-500">
+              <div className="flex items-center justify-between mb-2">
+                <FileText className="w-5 h-5 text-blue-500" />
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">PLEDGE</span>
               </div>
-              <div>
-                <p className="text-xs text-zinc-500">New Pledges</p>
-                <p className="text-2xl font-bold text-zinc-800">
-                  {stats?.newPledgesCount || 0}
-                </p>
-                <p className="text-xs text-blue-600 font-medium">
-                  {formatCurrency(stats?.newPledgesAmount || 0)}
-                </p>
-              </div>
-            </div>
-          </Card>
+              <p className="text-2xl font-black text-zinc-900 tabular-nums">{stats?.newPledgesCount || 0}</p>
+              <p className="text-xs text-zinc-500 mt-1">{formatCurrency(stats?.newPledgesAmount || 0)}</p>
+            </Card>
+          </motion.div>
 
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
-                <RefreshCw className="w-6 h-6 text-amber-600" />
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <Card className="p-4 hover:shadow-md transition-shadow border-l-4 border-l-amber-500">
+              <div className="flex items-center justify-between mb-2">
+                <RefreshCw className="w-5 h-5 text-amber-500" />
+                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">RENEW</span>
               </div>
-              <div>
-                <p className="text-xs text-zinc-500">Renewals</p>
-                <p className="text-2xl font-bold text-zinc-800">
-                  {stats?.renewalsCount || 0}
-                </p>
-                <p className="text-xs text-amber-600 font-medium">
-                  {formatCurrency(stats?.renewalInterest || 0)} interest
-                </p>
-              </div>
-            </div>
-          </Card>
+              <p className="text-2xl font-black text-zinc-900 tabular-nums">{stats?.renewalsCount || 0}</p>
+              <p className="text-xs text-zinc-500 mt-1">{formatCurrency(stats?.renewalInterest || 0)} interest</p>
+            </Card>
+          </motion.div>
 
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-emerald-600" />
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <Card className="p-4 hover:shadow-md transition-shadow border-l-4 border-l-emerald-500">
+              <div className="flex items-center justify-between mb-2">
+                <Wallet className="w-5 h-5 text-emerald-500" />
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">REDEEM</span>
               </div>
-              <div>
-                <p className="text-xs text-zinc-500">Redemptions</p>
-                <p className="text-2xl font-bold text-zinc-800">
-                  {stats?.redemptionsCount || 0}
-                </p>
-                <p className="text-xs text-emerald-600 font-medium">
-                  {formatCurrency(stats?.redemptionAmount || 0)}
-                </p>
-              </div>
-            </div>
-          </Card>
+              <p className="text-2xl font-black text-zinc-900 tabular-nums">{stats?.redemptionsCount || 0}</p>
+              <p className="text-xs text-zinc-500 mt-1">{formatCurrency(stats?.redemptionAmount || 0)}</p>
+            </Card>
+          </motion.div>
 
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-zinc-100 flex items-center justify-center">
-                <Receipt className="w-6 h-6 text-zinc-600" />
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <Card className="p-4 hover:shadow-md transition-shadow border-l-4 border-l-violet-500">
+              <div className="flex items-center justify-between mb-2">
+                <BarChart3 className="w-5 h-5 text-violet-500" />
+                <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">RATIO</span>
               </div>
-              <div>
-                <p className="text-xs text-zinc-500">Net Volume</p>
-                <p className="text-2xl font-bold text-zinc-800">
-                  {formatCurrency(stats?.cashTotal + stats?.transferTotal || 0)}
-                </p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
-                    {Math.round((stats?.cashTotal / (stats?.cashTotal + stats?.transferTotal || 1)) * 100)}% Cash
-                  </Badge>
-                </div>
+              <p className="text-2xl font-black text-zinc-900 tabular-nums">{pledgeToRedeemRatio}</p>
+              <p className="text-xs text-zinc-500 mt-1">Pledge : Redeem</p>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+            <Card className={cn(
+              "p-4 hover:shadow-md transition-shadow border-l-4",
+              stats?.netCashFlow >= 0 ? "border-l-emerald-500" : "border-l-red-500"
+            )}>
+              <div className="flex items-center justify-between mb-2">
+                {stats?.netCashFlow >= 0 ? (
+                  <TrendingUp className="w-5 h-5 text-emerald-500" />
+                ) : (
+                  <TrendingDown className="w-5 h-5 text-red-500" />
+                )}
+                <span className={cn(
+                  "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                  stats?.netCashFlow >= 0 ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"
+                )}>NET</span>
               </div>
-            </div>
-          </Card>
+              <p className={cn(
+                "text-lg font-black tabular-nums",
+                stats?.netCashFlow >= 0 ? "text-emerald-700" : "text-red-600"
+              )}>
+                {stats?.netCashFlow >= 0 ? "+" : ""}{formatCurrency(stats?.netCashFlow || 0)}
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">Net Cash Flow</p>
+            </Card>
+          </motion.div>
         </div>
 
+        {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Financials */}
+          {/* Left Column - 2 cols */}
           <div className="lg:col-span-2 space-y-6">
+
+            {/* Transaction Breakdown Table */}
+            <Card className="overflow-hidden">
+              <div className="px-6 py-4 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between">
+                <h3 className="font-semibold text-zinc-800 flex items-center gap-2 text-sm uppercase tracking-wider">
+                  <Receipt className="w-4 h-4 text-amber-500" />
+                  Transaction Breakdown
+                </h3>
+                <Badge variant="outline" className="text-[10px]">
+                  {stats?.totalTransactionCount || 0} TOTAL
+                </Badge>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-zinc-50/50">
+                    <tr>
+                      <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Type</th>
+                      <th className="text-center p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Count</th>
+                      <th className="text-right p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Amount</th>
+                      <th className="text-center p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Direction</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    <tr className="hover:bg-zinc-50/50 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                            <FileText className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <span className="font-medium text-zinc-800">New Pledges</span>
+                            <p className="text-[11px] text-zinc-400">Loan disbursement</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="text-lg font-bold text-zinc-800">{stats?.newPledgesCount || 0}</span>
+                      </td>
+                      <td className="p-4 text-right font-semibold text-zinc-800 tabular-nums">
+                        {formatCurrency(stats?.newPledgesAmount || 0)}
+                      </td>
+                      <td className="p-4 text-center">
+                        <Badge variant="error">Cash Out</Badge>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-zinc-50/50 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                            <RefreshCw className="w-4 h-4 text-amber-600" />
+                          </div>
+                          <div>
+                            <span className="font-medium text-zinc-800">Renewals</span>
+                            <p className="text-[11px] text-zinc-400">Interest collection</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="text-lg font-bold text-zinc-800">{stats?.renewalsCount || 0}</span>
+                      </td>
+                      <td className="p-4 text-right font-semibold text-zinc-800 tabular-nums">
+                        {formatCurrency(stats?.renewalInterest || 0)}
+                      </td>
+                      <td className="p-4 text-center">
+                        <Badge variant="success">Cash In</Badge>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-zinc-50/50 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                            <Wallet className="w-4 h-4 text-emerald-600" />
+                          </div>
+                          <div>
+                            <span className="font-medium text-zinc-800">Redemptions</span>
+                            <p className="text-[11px] text-zinc-400">Loan repayment</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="text-lg font-bold text-zinc-800">{stats?.redemptionsCount || 0}</span>
+                      </td>
+                      <td className="p-4 text-right font-semibold text-zinc-800 tabular-nums">
+                        {formatCurrency(stats?.redemptionAmount || 0)}
+                      </td>
+                      <td className="p-4 text-center">
+                        <Badge variant="success">Cash In</Badge>
+                      </td>
+                    </tr>
+                  </tbody>
+                  <tfoot className="bg-zinc-100/80 font-semibold border-t-2 border-zinc-300">
+                    <tr>
+                      <td className="p-4 font-bold text-zinc-900">Monthly Total</td>
+                      <td className="p-4 text-center font-bold text-zinc-900">{stats?.totalTransactionCount || 0}</td>
+                      <td className="p-4 text-right font-bold text-zinc-900 tabular-nums">
+                        {formatCurrency((stats?.newPledgesAmount || 0) + (stats?.redemptionAmount || 0) + (stats?.renewalInterest || 0))}
+                      </td>
+                      <td className="p-4"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </Card>
+
+            {/* Cash Flow Analysis */}
             <Card className="p-6">
               <h3 className="font-semibold text-zinc-800 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
                 <Banknote className="w-4 h-4 text-amber-500" />
-                Cash Flow Summary
+                Cash Flow Analysis
               </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-tight">Financial Inflow</span>
-                    <ArrowDownRight className="w-4 h-4 text-emerald-500" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Inflow</span>
+                    <div className="w-8 h-8 rounded-full bg-emerald-200/60 flex items-center justify-center">
+                      <ArrowDownRight className="w-4 h-4 text-emerald-600" />
+                    </div>
                   </div>
-                  <p className="text-2xl font-bold text-emerald-600">
+                  <p className="text-2xl font-black text-emerald-700 tabular-nums">
                     {formatCurrency(stats?.cashIn || 0)}
                   </p>
-                  <p className="text-[10px] text-emerald-500 mt-2 font-medium">REDEEM & RENEW</p>
+                  <div className="mt-3 pt-3 border-t border-emerald-200/60 space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-emerald-600">Redemptions</span>
+                      <span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(stats?.redemptionAmount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-emerald-600">Interest</span>
+                      <span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(stats?.renewalInterest || 0)}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-red-50 border border-red-200 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-red-700 uppercase tracking-tight">Financial Outflow</span>
-                    <ArrowUpRight className="w-4 h-4 text-red-500" />
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-red-50 to-red-100/50 border border-red-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-bold text-red-700 uppercase tracking-wider">Outflow</span>
+                    <div className="w-8 h-8 rounded-full bg-red-200/60 flex items-center justify-center">
+                      <ArrowUpRight className="w-4 h-4 text-red-600" />
+                    </div>
                   </div>
-                  <p className="text-2xl font-bold text-red-600">
+                  <p className="text-2xl font-black text-red-700 tabular-nums">
                     {formatCurrency(stats?.cashOut || 0)}
                   </p>
-                  <p className="text-[10px] text-red-500 mt-2 font-medium">PLEDGE DISBURSED</p>
+                  <div className="mt-3 pt-3 border-t border-red-200/60 space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-red-600">Pledges Disbursed</span>
+                      <span className="font-semibold text-red-700 tabular-nums">{formatCurrency(stats?.newPledgesAmount || 0)}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div
-                  className={cn(
-                    "p-4 rounded-xl border shadow-sm",
-                    stats?.netCashFlow >= 0
-                      ? "bg-blue-50 border-blue-200"
-                      : "bg-orange-50 border-orange-200",
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span
-                      className={cn(
-                        "text-xs font-semibold uppercase tracking-tight",
-                        stats?.netCashFlow >= 0 ? "text-blue-700" : "text-orange-700",
+                <div className={cn(
+                  "p-5 rounded-2xl border",
+                  stats?.netCashFlow >= 0
+                    ? "bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200"
+                    : "bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-200",
+                )}>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className={cn(
+                      "text-xs font-bold uppercase tracking-wider",
+                      stats?.netCashFlow >= 0 ? "text-amber-700" : "text-orange-700",
+                    )}>Net Movement</span>
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center",
+                      stats?.netCashFlow >= 0 ? "bg-amber-200/60" : "bg-orange-200/60",
+                    )}>
+                      {stats?.netCashFlow >= 0 ? (
+                        <TrendingUp className="w-4 h-4 text-amber-600" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 text-orange-600" />
                       )}
-                    >
-                      Net Cash Flow
-                    </span>
-                    {stats?.netCashFlow >= 0 ? (
-                      <TrendingUp className="w-4 h-4 text-blue-500" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4 text-orange-500" />
-                    )}
+                    </div>
                   </div>
-                  <p
-                    className={cn(
-                      "text-2xl font-bold",
-                      stats?.netCashFlow >= 0 ? "text-blue-600" : "text-orange-600",
-                    )}
-                  >
-                    {stats?.netCashFlow >= 0 ? "+" : ""}
-                    {formatCurrency(stats?.netCashFlow || 0)}
+                  <p className={cn(
+                    "text-2xl font-black tabular-nums",
+                    stats?.netCashFlow >= 0 ? "text-amber-700" : "text-orange-700",
+                  )}>
+                    {stats?.netCashFlow >= 0 ? "+" : ""}{formatCurrency(stats?.netCashFlow || 0)}
                   </p>
                   <p className={cn(
-                    "text-[10px] mt-2 font-medium",
-                    stats?.netCashFlow >= 0 ? "text-blue-500" : "text-orange-500"
-                  )}>MONTHLY VARIANCE</p>
+                    "text-[10px] mt-3 font-semibold uppercase tracking-wider",
+                    stats?.netCashFlow >= 0 ? "text-amber-500" : "text-orange-500",
+                  )}>
+                    {stats?.netCashFlow >= 0 ? "Positive Cash Position" : "Net Cash Deficit"}
+                  </p>
                 </div>
               </div>
             </Card>
 
-            {/* Transaction Mix - Using ReportsScreen Styled Cards */}
+            {/* Payment Methods */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="p-5 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-none shadow-md">
-                <div className="flex justify-between items-start mb-4">
-                  <p className="text-emerald-100 text-sm font-medium">Physical Cash Total</p>
-                  <Banknote className="w-6 h-6 opacity-40" />
-                </div>
-                <p className="text-3xl font-bold mb-2">
-                  {formatCurrency(stats?.cashTotal || 0)}
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-white h-full" 
-                      style={{ width: `${(stats?.cashTotal / (stats?.cashTotal + (stats?.transferTotal || 1))) * 100}%` }}
-                    />
+              <Card className="overflow-hidden border-amber-200">
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100 p-5">
+                  <div className="flex justify-between items-start mb-5">
+                    <div>
+                      <p className="text-amber-600 text-xs font-semibold uppercase tracking-wider">Physical Cash</p>
+                      <p className="text-3xl font-black mt-1 tabular-nums text-zinc-900">
+                        {formatCurrency(stats?.cashTotal || 0)}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-amber-200/60 flex items-center justify-center">
+                      <Banknote className="w-5 h-5 text-amber-600" />
+                    </div>
                   </div>
-                  <span className="text-xs text-emerald-100 font-bold whitespace-nowrap">
-                    {Math.round((stats?.cashTotal / (stats?.cashTotal + (stats?.transferTotal || 0) || 1)) * 100)}%
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 bg-amber-200/50 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${cashPercent}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-amber-700">{cashPercent}%</span>
+                  </div>
                 </div>
               </Card>
 
-              <Card className="p-5 bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-md">
-                <div className="flex justify-between items-start mb-4">
-                  <p className="text-blue-100 text-sm font-medium">Online Transfer Total</p>
-                  <CreditCard className="w-6 h-6 opacity-40" />
-                </div>
-                <p className="text-3xl font-bold mb-2">
-                  {formatCurrency(stats?.transferTotal || 0)}
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-white h-full" 
-                      style={{ width: `${(stats?.transferTotal / (stats?.cashTotal + (stats?.transferTotal || 1))) * 100}%` }}
-                    />
+              <Card className="overflow-hidden border-zinc-200">
+                <div className="bg-gradient-to-br from-zinc-50 to-zinc-100 p-5">
+                  <div className="flex justify-between items-start mb-5">
+                    <div>
+                      <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Online Transfer</p>
+                      <p className="text-3xl font-black mt-1 tabular-nums text-zinc-900">
+                        {formatCurrency(stats?.transferTotal || 0)}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-zinc-200/60 flex items-center justify-center">
+                      <CreditCard className="w-5 h-5 text-zinc-500" />
+                    </div>
                   </div>
-                  <span className="text-xs text-blue-100 font-bold whitespace-nowrap">
-                    {Math.round((stats?.transferTotal / (stats?.cashTotal + (stats?.transferTotal || 0) || 1)) * 100)}%
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 bg-zinc-200/50 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-zinc-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${transferPercent}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-zinc-600">{transferPercent}%</span>
+                  </div>
                 </div>
               </Card>
             </div>
           </div>
 
-          {/* Side Info */}
+          {/* Right Column - Sidebar */}
           <div className="space-y-6">
-            {/* Inventory Status - Improved visual style */}
-            <Card className="overflow-hidden border-zinc-200">
-              <div className="p-4 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between">
-                <h3 className="font-semibold text-zinc-800 text-sm">LIVE STOCK STATUS</h3>
-                <Package className="w-4 h-4 text-zinc-400" />
+
+            {/* Vault Inventory */}
+            <Card className="overflow-hidden border-amber-200">
+              <div className="px-5 py-4 bg-gradient-to-r from-amber-100 to-amber-50 border-b border-amber-200 flex items-center justify-between">
+                <h3 className="font-semibold text-zinc-800 text-sm tracking-wide flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  Vault Inventory
+                </h3>
+                <Package className="w-4 h-4 text-amber-400" />
               </div>
-              
-              <div className="p-0">
-                <div className="p-4 border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">Items in Vault</span>
-                    <span className="text-sm font-bold text-zinc-900">{inventorySummary.in_storage} units</span>
+
+              <div className="divide-y divide-zinc-100">
+                <div className="p-4 flex items-center justify-between hover:bg-zinc-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                      <Layers className="w-4 h-4 text-zinc-500" />
+                    </div>
+                    <span className="text-sm text-zinc-600">Items in Vault</span>
                   </div>
+                  <span className="text-sm font-bold text-zinc-900 tabular-nums">{inventorySummary.in_storage}</span>
                 </div>
 
-                <div className="p-4 border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">Total Net Weight</span>
-                    <span className="text-sm font-bold text-zinc-900">{parseFloat(inventorySummary.total_weight).toFixed(3)}g</span>
+                <div className="p-4 flex items-center justify-between hover:bg-zinc-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
+                      <Scale className="w-4 h-4 text-zinc-500" />
+                    </div>
+                    <span className="text-sm text-zinc-600">Total Weight</span>
                   </div>
+                  <span className="text-sm font-bold text-zinc-900 tabular-nums">{parseFloat(inventorySummary.total_weight).toFixed(3)}g</span>
                 </div>
 
-                <div className="p-4 border-b border-zinc-100 bg-amber-50/30 hover:bg-amber-50/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-amber-700 font-semibold">Total Loan Volume</span>
-                    <span className="text-sm font-bold text-amber-600">{formatCurrency(inventorySummary.total_value)}</span>
+                <div className="p-4 flex items-center justify-between bg-amber-50/40 hover:bg-amber-50/70 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <Banknote className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-amber-800">Loan Exposure</span>
                   </div>
+                  <span className="text-sm font-bold text-amber-700 tabular-nums">{formatCurrency(inventorySummary.total_value)}</span>
                 </div>
 
-                <div className="p-4 bg-blue-50/30 hover:bg-blue-50/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-blue-700 font-semibold">Market Valuation</span>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-blue-600 block">{formatCurrency(inventorySummary.total_gross_value)}</span>
-                      <span className="text-[9px] text-blue-400">Current Market Price</span>
+                <div className="p-4 flex items-center justify-between bg-amber-50/30 hover:bg-amber-50/60 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-semibold text-amber-800 block">Market Value</span>
+                      <span className="text-[10px] text-amber-400">Gross valuation</span>
                     </div>
                   </div>
+                  <span className="text-sm font-bold text-amber-700 tabular-nums">{formatCurrency(inventorySummary.total_gross_value)}</span>
                 </div>
               </div>
             </Card>
 
-            <Card className="p-4 border border-zinc-200 bg-white shadow-sm">
+            {/* Monthly Highlights */}
+            <Card className="overflow-hidden">
+              <div className="px-5 py-4 bg-gradient-to-r from-amber-500 to-amber-600 flex items-center justify-between">
+                <h3 className="font-semibold text-zinc-900 text-sm tracking-wide flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Monthly Highlights
+                </h3>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex justify-between items-center p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                  <span className="text-xs text-zinc-500 font-medium">Avg. Pledge Size</span>
+                  <span className="text-sm font-bold text-zinc-900 tabular-nums">
+                    {stats?.newPledgesCount > 0
+                      ? formatCurrency(stats.newPledgesAmount / stats.newPledgesCount)
+                      : "RM 0.00"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                  <span className="text-xs text-zinc-500 font-medium">Avg. Redemption</span>
+                  <span className="text-sm font-bold text-zinc-900 tabular-nums">
+                    {stats?.redemptionsCount > 0
+                      ? formatCurrency(stats.redemptionAmount / stats.redemptionsCount)
+                      : "RM 0.00"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                  <span className="text-xs text-zinc-500 font-medium">Interest Earned</span>
+                  <span className="text-sm font-bold text-amber-700 tabular-nums">
+                    {formatCurrency(stats?.renewalInterest || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                  <span className="text-xs text-zinc-500 font-medium">Cash vs Transfer</span>
+                  <span className="text-sm font-bold text-zinc-900">
+                    {cashPercent}% / {transferPercent}%
+                  </span>
+                </div>
+              </div>
+            </Card>
+
+            {/* Report Notice */}
+            <Card className="p-4 border border-zinc-200 bg-zinc-50/50">
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center flex-shrink-0">
                   <Info className="w-4 h-4 text-zinc-500" />
                 </div>
                 <div className="text-[11px] text-zinc-500 leading-relaxed">
-                  <p className="font-bold text-zinc-700 mb-1">AGGREGATED DATA NOTICE</p>
-                  All figures shown are dynamically calculated from real-time database transactions for the period of <strong>{new Date(dateRange.from).toLocaleDateString("en-MY", { month: "long" })}</strong>.
+                  <p className="font-bold text-zinc-700 mb-1">REPORT DATA</p>
+                  All figures are dynamically calculated from real-time transaction data for <strong>{new Date(dateRange.from).toLocaleDateString("en-MY", { month: "long", year: "numeric" })}</strong>. Values update automatically as transactions are processed.
                 </div>
               </div>
             </Card>
