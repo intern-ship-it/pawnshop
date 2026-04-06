@@ -364,6 +364,16 @@ class PledgeController extends Controller
             $payoutAmount = max(0, $loanAmount - $handlingFee);
             $dueDate = Carbon::today()->addMonths(6);
 
+            // Fetch interest rates from database (branch specific or global)
+            $interestRates = \App\Models\InterestRate::where(function($q) use ($branchId) {
+                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+            })->get()->keyBy('rate_type');
+
+            // Set rates (fallback to config if not set in DB yet)
+            $rateStandard = isset($interestRates['standard']) ? $interestRates['standard']->rate_percentage : config('pawnsys.interest.standard', 0.5);
+            $rateExtended = isset($interestRates['extended']) ? $interestRates['extended']->rate_percentage : config('pawnsys.interest.extended', 1.5);
+            $rateOverdue = isset($interestRates['overdue']) ? $interestRates['overdue']->rate_percentage : config('pawnsys.interest.overdue', 2.0);
+
             // Create pledge
             $pledge = Pledge::create([
                 'branch_id' => $branchId,
@@ -378,9 +388,9 @@ class PledgeController extends Controller
                 'loan_amount' => $loanAmount,
                 'handling_fee' => $handlingFee,
                 'payout_amount' => $payoutAmount,
-                'interest_rate' => config('pawnsys.interest.standard', 0.5),
-                'interest_rate_extended' => config('pawnsys.interest.extended', 1.5),
-                'interest_rate_overdue' => config('pawnsys.interest.overdue', 2.0),
+                'interest_rate' => $rateStandard,
+                'interest_rate_extended' => $rateExtended,
+                'interest_rate_overdue' => $rateOverdue,
                 'pledge_date' => Carbon::today(),
                 'due_date' => $dueDate,
                 'grace_end_date' => $dueDate->copy()->addDays(7),

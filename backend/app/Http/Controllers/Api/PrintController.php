@@ -463,6 +463,29 @@ class PrintController extends Controller
             }
         }
 
+        // Get interest rates from InterestRate model
+        $interestRateNormal = $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '0.5';
+        $interestRateExtended = '1.0';
+        $interestRateOverdue = $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0';
+
+        try {
+            if (class_exists('\App\Models\InterestRate')) {
+                $rates = \App\Models\InterestRate::where(function($q) use ($branch) {
+                    $q->where('branch_id', $branch->id)->orWhereNull('branch_id');
+                })->get()->keyBy('rate_type');
+                
+                if (isset($rates['standard'])) {
+                    $interestRateNormal = number_format($rates['standard']->rate_percentage, 1);
+                }
+                if (isset($rates['extended'])) {
+                    $interestRateExtended = number_format($rates['extended']->rate_percentage, 1);
+                }
+                if (isset($rates['overdue'])) {
+                    $interestRateOverdue = number_format($rates['overdue']->rate_percentage, 1);
+                }
+            }
+        } catch (\Exception $e) {}
+
         return [
             'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
             'company_name_chinese' => $settingsMap['name_chinese'] ?? '新泰當',
@@ -479,8 +502,9 @@ class PrintController extends Controller
             'closed_days' => $settingsMap['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA',
             'handling_fee' => $settingsMap['receipt_handling_fee'] ?? $settingsMap['handling_fee'] ?? '50 SEN',
             'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
-            'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
-            'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
+            'interest_rate_normal' => $interestRateNormal,
+            'interest_rate_extended' => $interestRateExtended,
+            'interest_rate_overdue' => $interestRateOverdue,
             'branch_code' => $branch->code ?? 'HQ',
             'insurance_policy_no' => $settingsMap['insurance_policy_no'] ?? '',
             'logo_url' => $logoUrl,

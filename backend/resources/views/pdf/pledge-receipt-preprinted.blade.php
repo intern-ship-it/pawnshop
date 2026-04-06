@@ -399,7 +399,7 @@
         $businessDays = $settings['business_days'] ?? 'ISNIN - AHAD';
         $businessHours = $settings['business_hours'] ?? '9.00AM - 6.00PM';
         $redemptionPeriod = $settings['redemption_period'] ?? '6 BULAN';
-        $interestRateNormal = $settings['interest_rate_normal'] ?? '1.5';
+        $interestRateNormal = $settings['interest_rate_normal'] ?? '1.0';
         $interestRateOverdue = $settings['interest_rate_overdue'] ?? '2.0';
         $logoUrl = $settings['logo_url'] ?? null;
 
@@ -556,9 +556,9 @@
                     </div>
                     <div class="kadar-section">
                         <div class="kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ number_format($pledge->interest_rate, 1) }}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ number_format($pledge->interest_rate_extended, 1) }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ number_format($pledge->interest_rate_overdue, 1) }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ $settings['interest_rate_normal'] ?? '0.5' }}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ $settings['interest_rate_extended'] ?? '1.0' }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ $settings['interest_rate_overdue'] ?? '2.0' }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
                     </div>
                 </td>
             </tr>
