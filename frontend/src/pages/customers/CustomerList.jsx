@@ -201,6 +201,7 @@ export default function CustomerList() {
     <PageWrapper
       title="Customers"
       subtitle="Manage customer records and profiles"
+      fullWidth={true}
       actions={
         <div className="flex items-center gap-3">
           <Button

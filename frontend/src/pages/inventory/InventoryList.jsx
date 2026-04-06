@@ -1077,6 +1077,7 @@ export default function InventoryList() {
       <PageWrapper
         title="Inventory Management"
         subtitle="Track and manage all pledged items"
+        fullWidth={true}
       >
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center">
@@ -1092,6 +1093,7 @@ export default function InventoryList() {
     <PageWrapper
       title="Inventory Management"
       subtitle="Track and manage all pledged items"
+      fullWidth={true}
       actions={
         <div className="flex items-center gap-2">
           <Button

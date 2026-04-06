@@ -623,6 +623,7 @@ export default function StockReconciliation() {
     <PageWrapper
       title="Stock Reconciliation"
       subtitle="Verify physical inventory against system records"
+      fullWidth={true}
       actions={
         <div className="flex items-center gap-2">
           {!isReconciling ? (
