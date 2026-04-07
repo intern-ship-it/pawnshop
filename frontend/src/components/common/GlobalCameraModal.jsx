@@ -63,6 +63,32 @@ function calculateBlurScore(canvas) {
   return variance;
 }
 
+// ─── Crop to Guide Frame ──────────────────────────────────────────────
+// Guide frame: x=10%, y=25%, width=80%, height=50% of the video
+function cropToGuideFrame(sourceCanvas) {
+  const { width, height } = sourceCanvas;
+
+  // Guide frame percentages (must match the SVG overlay)
+  const cropX = Math.round(width * 0.10);
+  const cropY = Math.round(height * 0.25);
+  const cropW = Math.round(width * 0.80);
+  const cropH = Math.round(height * 0.50);
+
+  // Create a new canvas for the cropped image
+  const cropCanvas = document.createElement("canvas");
+  cropCanvas.width = cropW;
+  cropCanvas.height = cropH;
+
+  const cropCtx = cropCanvas.getContext("2d");
+  cropCtx.drawImage(
+    sourceCanvas,
+    cropX, cropY, cropW, cropH, // Source rect
+    0, 0, cropW, cropH           // Dest rect
+  );
+
+  return cropCanvas;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────
 export default function GlobalCameraModal() {
   const dispatch = useAppDispatch();
@@ -199,20 +225,23 @@ export default function GlobalCameraModal() {
     if (!videoRef.current) return;
 
     const video = videoRef.current;
-    const canvas = canvasRef.current || document.createElement("canvas");
-    canvasRef.current = canvas;
+    const fullCanvas = canvasRef.current || document.createElement("canvas");
+    canvasRef.current = fullCanvas;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    fullCanvas.width = video.videoWidth;
+    fullCanvas.height = video.videoHeight;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = fullCanvas.getContext("2d");
     ctx.drawImage(video, 0, 0);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    // Auto-crop to guide frame in document mode
+    const outputCanvas = isDocument ? cropToGuideFrame(fullCanvas) : fullCanvas;
+
+    const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.92);
     setCapturedDataUrl(dataUrl);
 
-    // Blur detection
-    const score = calculateBlurScore(canvas);
+    // Blur detection on the cropped area
+    const score = calculateBlurScore(outputCanvas);
     setBlurScore(Math.round(score));
     setIsBlurry(score < BLUR_THRESHOLD);
 
@@ -223,7 +252,7 @@ export default function GlobalCameraModal() {
     setLiveSharpness("waiting");
 
     setPhase("preview");
-  }, [BLUR_THRESHOLD]);
+  }, [BLUR_THRESHOLD, isDocument]);
 
   // ─── Use Photo ────────────────────────────────────────────────────
   const handleUsePhoto = useCallback(() => {
@@ -360,18 +389,21 @@ export default function GlobalCameraModal() {
           setTimeout(() => {
             // Final capture
             if (videoRef.current && autoCapturePendingRef.current) {
-              const captureCanvas =
+              const fullCanvas =
                 canvasRef.current || document.createElement("canvas");
-              canvasRef.current = captureCanvas;
-              captureCanvas.width = videoRef.current.videoWidth;
-              captureCanvas.height = videoRef.current.videoHeight;
-              const captureCtx = captureCanvas.getContext("2d");
+              canvasRef.current = fullCanvas;
+              fullCanvas.width = videoRef.current.videoWidth;
+              fullCanvas.height = videoRef.current.videoHeight;
+              const captureCtx = fullCanvas.getContext("2d");
               captureCtx.drawImage(videoRef.current, 0, 0);
 
-              const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.92);
+              // Auto-crop to guide frame in document mode
+              const outputCanvas = captureMode === "document" ? cropToGuideFrame(fullCanvas) : fullCanvas;
+
+              const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.92);
               setCapturedDataUrl(dataUrl);
 
-              const finalScore = calculateBlurScore(captureCanvas);
+              const finalScore = calculateBlurScore(outputCanvas);
               setBlurScore(Math.round(finalScore));
               setIsBlurry(finalScore < BLUR_THRESHOLD);
 
