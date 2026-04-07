@@ -389,7 +389,8 @@ export default function CustomerCreate() {
   // Handle camera capture
   const handleCameraCapture = (type) => {
     setCurrentCaptureType(type);
-    dispatch(openCamera({ contextId: type }));
+    const mode = type === "profile" ? "selfie" : "document";
+    dispatch(openCamera({ contextId: type, mode }));
   };
 
   // Handle MyKAD card reader scan data

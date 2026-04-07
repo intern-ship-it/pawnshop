@@ -23,6 +23,7 @@ const initialState = {
     isOpen: false,
     contextId: null,
     capturedImage: null,
+    captureMode: null, // 'document' | 'selfie' | null
   },
 }
 
@@ -75,7 +76,8 @@ const uiSlice = createSlice({
       state.camera = {
         isOpen: true,
         contextId: action.payload.contextId, // e.g. item ID
-        capturedImage: null
+        capturedImage: null,
+        captureMode: action.payload.mode || null, // 'document' | 'selfie'
       }
     },
     closeCamera: (state) => {
