@@ -138,7 +138,7 @@ export default function GlobalCameraModal() {
   const [liveBlurScore, setLiveBlurScore] = useState(0);
   const [liveSharpness, setLiveSharpness] = useState("waiting"); // 'waiting' | 'focusing' | 'sharp' | 'capturing'
   const [countdown, setCountdown] = useState(null); // 3, 2, 1, null
-  const [autoCapture, setAutoCapture] = useState(true); // Auto-capture toggle
+  const [autoCapture, setAutoCapture] = useState(false); // Auto-capture toggle
 
   const isDocument = captureMode === "document";
   const BLUR_THRESHOLD = 80;
@@ -460,7 +460,7 @@ export default function GlobalCameraModal() {
       setLiveSharpness("waiting");
       sharpCountRef.current = 0;
       autoCapturePendingRef.current = false;
-      setAutoCapture(true);
+      setAutoCapture(false);
       startCamera(initialFacing);
     }
 
