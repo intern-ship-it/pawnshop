@@ -339,11 +339,8 @@ class UserController extends Controller
             DB::table('audit_logs')->where('user_id', $user->id)->delete();
             DB::table('notifications')->where('user_id', $user->id)->delete();
             
-            // 2. Clear assigned hardware
-            DB::table('hardware_devices')->where('assigned_to', $user->id)->update(['assigned_to' => null]);
-            
-            // 3. Delete Reconciliations
-            $recs = DB::table('reconciliations')->where('created_by', $user->id)->pluck('id');
+            // 2. Delete Reconciliations
+            $recs = DB::table('reconciliations')->where('started_by', $user->id)->pluck('id');
             if ($recs->isNotEmpty()) {
                 DB::table('reconciliation_items')->whereIn('reconciliation_id', $recs)->delete();
                 DB::table('reconciliations')->whereIn('id', $recs)->delete();
