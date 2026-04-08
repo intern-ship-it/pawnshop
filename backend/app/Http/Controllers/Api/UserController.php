@@ -282,11 +282,19 @@ class UserController extends Controller
 
         $userName = $user->name;
         $userEmail = $user->email;
+        $userId = $user->id;
 
-        // Detach custom permissions
-        $user->customPermissions()->detach();
+        try {
+            // Detach custom permissions
+            $user->customPermissions()->detach();
 
-        $user->delete();
+            $user->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == '23000') {
+                return $this->error('Cannot delete user. They have associated system records (transactions, logs, etc.). Please deactivate the user instead.', 409);
+            }
+            return $this->error('An error occurred while trying to delete the user.', 500);
+        }
 
         // Audit log - user deleted
         try {

@@ -529,7 +529,7 @@ export default function GlobalCameraModal() {
 
       {/* ─── Camera Feed / Preview ───────────────────────────── */}
       <div
-        className="relative w-full h-full flex items-center justify-center overflow-hidden"
+        className="relative w-full h-full max-w-xl mx-auto flex items-center justify-center overflow-hidden"
         onClick={handleTapToFocus}
       >
         {cameraError ? (
@@ -732,12 +732,14 @@ export default function GlobalCameraModal() {
           </>
         ) : (
           /* ─── Preview Phase ─────────────────────────────────── */
-          <div className="w-full h-full flex items-center justify-center bg-black">
+          <div className="w-full h-full flex items-center justify-center bg-black px-4">
             <img
               src={capturedDataUrl}
               alt="Captured"
-              className="max-w-full max-h-full object-contain"
-              style={{ transform: facingMode === "user" ? "scaleX(-1)" : "none" }}
+              className="w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+              style={{
+                transform: facingMode === "user" ? "scaleX(-1)" : "none",
+              }}
             />
 
             {/* Blur warning overlay */}
