@@ -80,6 +80,7 @@ export default function UserList() {
   const [newPassword, setNewPassword] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [forceDelete, setForceDelete] = useState(false);
   const [userPermissions, setUserPermissions] = useState({});
   const [loadingPermissions, setLoadingPermissions] = useState(false);
 
@@ -173,7 +174,10 @@ export default function UserList() {
 
     setIsDeleting(true);
     try {
-      const response = await apiDelete(`/users/${selectedUser.id}`);
+      const endpoint = forceDelete 
+        ? `/users/${selectedUser.id}?force_delete=1` 
+        : `/users/${selectedUser.id}`;
+      const response = await apiDelete(endpoint);
       if (response.success) {
         setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id));
         dispatch(
@@ -186,6 +190,7 @@ export default function UserList() {
         );
         setShowDeleteModal(false);
         setSelectedUser(null);
+        setForceDelete(false);
       } else {
         throw new Error(response.message || "Failed to delete user");
       }
@@ -618,7 +623,10 @@ export default function UserList() {
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setForceDelete(false);
+        }}
         title="Delete User"
         size="sm"
       >
@@ -635,6 +643,22 @@ export default function UserList() {
               </p>
             </div>
           </div>
+
+          {currentRoleSlug === "super-admin" && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 flex-shrink-0 text-red-600 focus:ring-red-500 rounded border-red-300"
+                  checked={forceDelete}
+                  onChange={(e) => setForceDelete(e.target.checked)}
+                />
+                <span className="text-xs text-red-800 leading-snug">
+                  <strong>Danger (Force Delete)</strong>: Delete this user AND permanently erase all their associated system records (receipts, logs, tickets, etc.).
+                </span>
+              </label>
+            </div>
+          )}
 
           <div className="flex gap-3">
             <Button

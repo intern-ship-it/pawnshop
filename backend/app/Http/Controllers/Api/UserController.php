@@ -10,7 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 class UserController extends Controller
 {
     /**
@@ -284,11 +285,17 @@ class UserController extends Controller
         $userEmail = $user->email;
         $userId = $user->id;
 
+        $forceDelete = $request->boolean('force_delete') && $request->user()->isSuperAdmin();
+
         try {
             // Detach custom permissions
             $user->customPermissions()->detach();
 
-            $user->delete();
+            if ($forceDelete) {
+                $this->forceDeleteAllUserRecords($user);
+            } else {
+                $user->delete();
+            }
         } catch (\Illuminate\Database\QueryException $e) {
             if ($e->getCode() == '23000') {
                 return $this->error('Cannot delete user. They have associated system records (transactions, logs, etc.). Please deactivate the user instead.', 409);
@@ -318,6 +325,70 @@ class UserController extends Controller
         }
 
         return $this->success(null, 'User deleted successfully');
+    }
+
+    /**
+     * Forcefully delete a user and all their associated records
+     */
+    private function forceDeleteAllUserRecords(User $user): void
+    {
+        DB::transaction(function () use ($user) {
+            // 1. Audit Logs & Notifications
+            DB::table('audit_logs')->where('user_id', $user->id)->delete();
+            DB::table('notifications')->where('user_id', $user->id)->delete();
+            
+            // 2. Clear assigned hardware
+            DB::table('hardware_devices')->where('assigned_to', $user->id)->update(['assigned_to' => null]);
+            
+            // 3. Delete Reconciliations
+            $recs = DB::table('reconciliations')->where('created_by', $user->id)->pluck('id');
+            if ($recs->isNotEmpty()) {
+                DB::table('reconciliation_items')->whereIn('reconciliation_id', $recs)->delete();
+                DB::table('reconciliations')->whereIn('id', $recs)->delete();
+            }
+            
+            // 4. Delete Pledges, Renewals, Redemptions & associated items/receipts
+            $auctions = DB::table('auctions')->where('created_by', $user->id)->pluck('id');
+            if ($auctions->isNotEmpty()) {
+                DB::table('auction_items')->whereIn('auction_id', $auctions)->delete();
+                DB::table('auctions')->whereIn('id', $auctions)->delete();
+            }
+
+            $renewals = DB::table('renewals')->where('created_by', $user->id)->pluck('id');
+            if ($renewals->isNotEmpty()) {
+                DB::table('renewal_payments')->whereIn('renewal_id', $renewals)->delete();
+                DB::table('renewal_receipts')->whereIn('renewal_id', $renewals)->delete();
+                DB::table('renewals')->whereIn('id', $renewals)->delete();
+            }
+
+            $redemptions = DB::table('redemptions')->where('created_by', $user->id)->pluck('id');
+            if ($redemptions->isNotEmpty()) {
+                DB::table('redemption_items')->whereIn('redemption_id', $redemptions)->delete();
+                DB::table('redemption_payments')->whereIn('redemption_id', $redemptions)->delete();
+                DB::table('redemption_receipts')->whereIn('redemption_id', $redemptions)->delete();
+                DB::table('redemptions')->whereIn('id', $redemptions)->delete();
+            }
+            
+            $pledges = DB::table('pledges')->where('created_by', $user->id)->pluck('id');
+            if ($pledges->isNotEmpty()) {
+                $pledgeItems = DB::table('pledge_items')->whereIn('pledge_id', $pledges)->pluck('id');
+                if ($pledgeItems->isNotEmpty()) {
+                    // Free up slots
+                    DB::table('slots')->whereIn('current_item_id', $pledgeItems)->update(['current_item_id' => null, 'status' => 'empty']);
+                    DB::table('item_location_history')->whereIn('pledge_item_id', $pledgeItems)->delete();
+                }
+                
+                DB::table('pledge_items')->whereIn('pledge_id', $pledges)->delete();
+                DB::table('pledge_payments')->whereIn('pledge_id', $pledges)->delete();
+                DB::table('pledge_receipts')->whereIn('pledge_id', $pledges)->delete();
+                DB::table('pledges')->whereIn('id', $pledges)->delete();
+            }
+
+            // 5. Finally, Disable FK briefly just in case of any remaining minor constraint (e.g. approved_by, processed_by)
+            Schema::disableForeignKeyConstraints();
+            $user->delete();
+            Schema::enableForeignKeyConstraints();
+        });
     }
 
     /**
