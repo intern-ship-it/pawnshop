@@ -356,16 +356,12 @@ class UserController extends Controller
 
             $renewals = DB::table('renewals')->where('created_by', $user->id)->pluck('id');
             if ($renewals->isNotEmpty()) {
-                DB::table('renewal_payments')->whereIn('renewal_id', $renewals)->delete();
-                DB::table('renewal_receipts')->whereIn('renewal_id', $renewals)->delete();
+                DB::table('renewal_interest_breakdown')->whereIn('renewal_id', $renewals)->delete();
                 DB::table('renewals')->whereIn('id', $renewals)->delete();
             }
 
             $redemptions = DB::table('redemptions')->where('created_by', $user->id)->pluck('id');
             if ($redemptions->isNotEmpty()) {
-                DB::table('redemption_items')->whereIn('redemption_id', $redemptions)->delete();
-                DB::table('redemption_payments')->whereIn('redemption_id', $redemptions)->delete();
-                DB::table('redemption_receipts')->whereIn('redemption_id', $redemptions)->delete();
                 DB::table('redemptions')->whereIn('id', $redemptions)->delete();
             }
             
