@@ -64,30 +64,49 @@ function calculateBlurScore(canvas) {
 }
 
 // ─── Crop to Guide Frame ──────────────────────────────────────────────
-// Guide frame: x=10%, y=25%, width=80%, height=50% of the video
-function cropToGuideFrame(sourceCanvas) {
-  const { width, height } = sourceCanvas;
+function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
+  if (!videoElement || !guideElement) return sourceCanvas;
+  
+  const vw = videoElement.videoWidth;
+  const vh = videoElement.videoHeight;
+  if (!vw || !vh) return sourceCanvas;
+  
+  const elementRect = videoElement.getBoundingClientRect();
+  const guideRect = guideElement.getBoundingClientRect();
 
-  // Guide frame percentages (must match the SVG overlay)
-  const cropX = Math.round(width * 0.10);
-  const cropY = Math.round(height * 0.25);
-  const cropW = Math.round(width * 0.80);
-  const cropH = Math.round(height * 0.50);
+  // object-cover scaling
+  const scale = Math.max(elementRect.width / vw, elementRect.height / vh);
+  
+  const renderedX = elementRect.left + (elementRect.width - vw * scale) / 2;
+  const renderedY = elementRect.top + (elementRect.height - vh * scale) / 2;
+  
+  let cropX = (guideRect.left - renderedX) / scale;
+  let cropY = (guideRect.top - renderedY) / scale;
+  let cropW = guideRect.width / scale;
+  let cropH = guideRect.height / scale;
 
-  // Create a new canvas for the cropped image
+  // Clamp values
+  cropX = Math.max(0, cropX);
+  cropY = Math.max(0, cropY);
+  cropW = Math.min(vw - cropX, cropW);
+  cropH = Math.min(vh - cropY, cropH);
+
   const cropCanvas = document.createElement("canvas");
   cropCanvas.width = cropW;
   cropCanvas.height = cropH;
 
   const cropCtx = cropCanvas.getContext("2d");
+  cropCtx.imageSmoothingEnabled = true;
+  cropCtx.imageSmoothingQuality = 'high';
   cropCtx.drawImage(
     sourceCanvas,
-    cropX, cropY, cropW, cropH, // Source rect
-    0, 0, cropW, cropH           // Dest rect
+    cropX, cropY, cropW, cropH,
+    0, 0, cropW, cropH
   );
 
   return cropCanvas;
 }
+
 
 // ─── Main Component ───────────────────────────────────────────────────
 export default function GlobalCameraModal() {
@@ -98,6 +117,7 @@ export default function GlobalCameraModal() {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const analyzeCanvasRef = useRef(null); // Separate canvas for live analysis
+  const guideRef = useRef(null); // Guide hole for cropping
   const sharpCountRef = useRef(0); // Track consecutive sharp frames
   const autoCapturePendingRef = useRef(false);
 
@@ -235,7 +255,7 @@ export default function GlobalCameraModal() {
     ctx.drawImage(video, 0, 0);
 
     // Auto-crop to guide frame in document mode
-    const outputCanvas = isDocument ? cropToGuideFrame(fullCanvas) : fullCanvas;
+    const outputCanvas = isDocument ? cropToGuideFrame(fullCanvas, video, guideRef.current) : fullCanvas;
 
     const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.92);
     setCapturedDataUrl(dataUrl);
@@ -398,7 +418,7 @@ export default function GlobalCameraModal() {
               captureCtx.drawImage(videoRef.current, 0, 0);
 
               // Auto-crop to guide frame in document mode
-              const outputCanvas = captureMode === "document" ? cropToGuideFrame(fullCanvas) : fullCanvas;
+              const outputCanvas = captureMode === "document" ? cropToGuideFrame(fullCanvas, videoRef.current, guideRef.current) : fullCanvas;
 
               const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.92);
               setCapturedDataUrl(dataUrl);
@@ -567,65 +587,24 @@ export default function GlobalCameraModal() {
 
             {/* ─── Card Guide Overlay (Document mode only) ───── */}
             {isDocument && cameraReady && (
-              <div className="absolute inset-0 pointer-events-none">
-                {/* Dark overlay with transparent card cutout */}
-                <svg className="w-full h-full" preserveAspectRatio="none">
-                  <defs>
-                    <mask id="card-mask">
-                      <rect width="100%" height="100%" fill="white" />
-                      <rect
-                        x="10%"
-                        y="25%"
-                        width="80%"
-                        height="50%"
-                        rx="12"
-                        ry="12"
-                        fill="black"
-                      />
-                    </mask>
-                  </defs>
-                  <rect
-                    width="100%"
-                    height="100%"
-                    fill="rgba(0,0,0,0.55)"
-                    mask="url(#card-mask)"
-                  />
-                  {/* Card border — turns green when sharp */}
-                  <rect
-                    x="10%"
-                    y="25%"
-                    width="80%"
-                    height="50%"
-                    rx="12"
-                    ry="12"
-                    fill="none"
-                    stroke={
+              <div className="absolute inset-0 pointer-events-none flex justify-center items-center">
+                {/* Guide hole with box shadow for darkening the outside */}
+                <div 
+                  ref={guideRef}
+                  className="relative w-[85%] max-w-[420px] aspect-[1.58/1] rounded-xl"
+                  style={{
+                    boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
+                    border: `2px ${liveSharpness === "sharp" || liveSharpness === "capturing" ? "solid" : "dashed"} ${
                       liveSharpness === "sharp" || liveSharpness === "capturing"
                         ? "rgba(52,211,153,0.9)"
                         : liveSharpness === "focusing"
                           ? "rgba(251,191,36,0.8)"
                           : "rgba(255,255,255,0.8)"
-                    }
-                    strokeWidth={
-                      liveSharpness === "sharp" || liveSharpness === "capturing" ? "3" : "2"
-                    }
-                    strokeDasharray={
-                      liveSharpness === "sharp" || liveSharpness === "capturing"
-                        ? "none"
-                        : "12 6"
-                    }
-                    style={{
-                      transition: "stroke 0.3s, stroke-width 0.3s",
-                    }}
-                  />
-                </svg>
-
-                {/* Corner brackets */}
-                <div
-                  className="absolute"
-                  style={{ left: "10%", top: "25%", width: "80%", height: "50%" }}
+                    }`,
+                    transition: "border-color 0.3s"
+                  }}
                 >
-                  {/* Determine corner color based on sharpness */}
+                  {/* Corner brackets */}
                   {(() => {
                     const cornerColor =
                       liveSharpness === "sharp" || liveSharpness === "capturing"
@@ -636,24 +615,24 @@ export default function GlobalCameraModal() {
                     return (
                       <>
                         {/* Top-left corner */}
-                        <div className="absolute -top-[1px] -left-[1px] w-8 h-8">
-                          <div className={`absolute top-0 left-0 w-full h-[3px] ${cornerColor} rounded-full transition-colors duration-300`} />
-                          <div className={`absolute top-0 left-0 w-[3px] h-full ${cornerColor} rounded-full transition-colors duration-300`} />
+                        <div className="absolute -top-[2px] -left-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute top-0 left-0 w-full h-[3px] ${cornerColor} rounded-tl-xl transition-colors duration-300`} />
+                          <div className={`absolute top-0 left-0 w-[3px] h-full ${cornerColor} rounded-tl-xl transition-colors duration-300`} />
                         </div>
                         {/* Top-right corner */}
-                        <div className="absolute -top-[1px] -right-[1px] w-8 h-8">
-                          <div className={`absolute top-0 right-0 w-full h-[3px] ${cornerColor} rounded-full transition-colors duration-300`} />
-                          <div className={`absolute top-0 right-0 w-[3px] h-full ${cornerColor} rounded-full transition-colors duration-300`} />
+                        <div className="absolute -top-[2px] -right-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute top-0 right-0 w-full h-[3px] ${cornerColor} rounded-tr-xl transition-colors duration-300`} />
+                          <div className={`absolute top-0 right-0 w-[3px] h-full ${cornerColor} rounded-tr-xl transition-colors duration-300`} />
                         </div>
                         {/* Bottom-left corner */}
-                        <div className="absolute -bottom-[1px] -left-[1px] w-8 h-8">
-                          <div className={`absolute bottom-0 left-0 w-full h-[3px] ${cornerColor} rounded-full transition-colors duration-300`} />
-                          <div className={`absolute bottom-0 left-0 w-[3px] h-full ${cornerColor} rounded-full transition-colors duration-300`} />
+                        <div className="absolute -bottom-[2px] -left-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute bottom-0 left-0 w-full h-[3px] ${cornerColor} rounded-bl-xl transition-colors duration-300`} />
+                          <div className={`absolute bottom-0 left-0 w-[3px] h-full ${cornerColor} rounded-bl-xl transition-colors duration-300`} />
                         </div>
                         {/* Bottom-right corner */}
-                        <div className="absolute -bottom-[1px] -right-[1px] w-8 h-8">
-                          <div className={`absolute bottom-0 right-0 w-full h-[3px] ${cornerColor} rounded-full transition-colors duration-300`} />
-                          <div className={`absolute bottom-0 right-0 w-[3px] h-full ${cornerColor} rounded-full transition-colors duration-300`} />
+                        <div className="absolute -bottom-[2px] -right-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute bottom-0 right-0 w-full h-[3px] ${cornerColor} rounded-br-xl transition-colors duration-300`} />
+                          <div className={`absolute bottom-0 right-0 w-[3px] h-full ${cornerColor} rounded-br-xl transition-colors duration-300`} />
                         </div>
                       </>
                     );
