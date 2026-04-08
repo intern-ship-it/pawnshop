@@ -300,7 +300,9 @@ class UserController extends Controller
             if ($e->getCode() == '23000') {
                 return $this->error('Cannot delete user. They have associated system records (transactions, logs, etc.). Please deactivate the user instead.', 409);
             }
-            return $this->error('An error occurred while trying to delete the user.', 500);
+            return $this->error('An error occurred: ' . $e->getMessage(), 500);
+        } catch (\Exception $e) {
+            return $this->error('An error occurred: ' . $e->getMessage(), 500);
         }
 
         // Audit log - user deleted
