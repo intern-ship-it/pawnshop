@@ -71,6 +71,12 @@ function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
   const vh = videoElement.videoHeight;
   if (!vw || !vh) return sourceCanvas;
   
+  // Source canvas may be higher resolution than video stream (ImageCapture API)
+  const sourceW = sourceCanvas.width;
+  const sourceH = sourceCanvas.height;
+  const resScaleX = sourceW / vw;
+  const resScaleY = sourceH / vh;
+
   const elementRect = videoElement.getBoundingClientRect();
   const guideRect = guideElement.getBoundingClientRect();
 
@@ -89,15 +95,22 @@ function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
   let cropH = guideRect.height / scale;
 
   // Clamp values to video bounds
-  cropX = Math.max(0, Math.round(cropX));
-  cropY = Math.max(0, Math.round(cropY));
-  cropW = Math.min(vw - cropX, Math.round(cropW));
-  cropH = Math.min(vh - cropY, Math.round(cropH));
+  cropX = Math.max(0, cropX);
+  cropY = Math.max(0, cropY);
+  cropW = Math.min(vw - cropX, cropW);
+  cropH = Math.min(vh - cropY, cropH);
 
-  // Output at a high resolution — at least 1600px wide for readable text
+  // Scale from video-space to actual source canvas space (for high-res ImageCapture photos)
+  const srcX = Math.round(cropX * resScaleX);
+  const srcY = Math.round(cropY * resScaleY);
+  const srcW = Math.round(cropW * resScaleX);
+  const srcH = Math.round(cropH * resScaleY);
+
+  // Output at native crop resolution (already high-res from ImageCapture)
+  // Only upscale if source crop is smaller than 1600px
   const MIN_OUTPUT_WIDTH = 1600;
-  const outputW = Math.max(cropW, MIN_OUTPUT_WIDTH);
-  const outputH = Math.round(outputW * (cropH / cropW));
+  const outputW = Math.max(srcW, MIN_OUTPUT_WIDTH);
+  const outputH = Math.round(outputW * (srcH / srcW));
 
   const cropCanvas = document.createElement("canvas");
   cropCanvas.width = outputW;
@@ -106,10 +119,10 @@ function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
   const cropCtx = cropCanvas.getContext("2d");
   cropCtx.imageSmoothingEnabled = true;
   cropCtx.imageSmoothingQuality = 'high';
-  // Draw the cropped region from the full-resolution source, scaled up to output size
+  // Draw the cropped region from the full-resolution source
   cropCtx.drawImage(
     sourceCanvas,
-    cropX, cropY, cropW, cropH,
+    srcX, srcY, srcW, srcH,
     0, 0, outputW, outputH
   );
 
@@ -129,6 +142,7 @@ export default function GlobalCameraModal() {
   const guideRef = useRef(null); // Guide hole for cropping
   const sharpCountRef = useRef(0); // Track consecutive sharp frames
   const autoCapturePendingRef = useRef(false);
+  const imageCaptureRef = useRef(null); // ImageCapture API for full-res photos
 
   const [phase, setPhase] = useState("live"); // 'live' | 'countdown' | 'preview'
   const [capturedDataUrl, setCapturedDataUrl] = useState(null);
@@ -207,6 +221,16 @@ export default function GlobalCameraModal() {
         setTorchSupported(!!capabilities.torch);
       }
 
+      // Create ImageCapture instance for full-resolution photo capture
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && typeof ImageCapture !== 'undefined') {
+        try {
+          imageCaptureRef.current = new ImageCapture(videoTrack);
+        } catch {
+          imageCaptureRef.current = null;
+        }
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
@@ -250,22 +274,59 @@ export default function GlobalCameraModal() {
     startCamera(newFacing);
   }, [facingMode, startCamera]);
 
-  // ─── Capture Photo ────────────────────────────────────────────────
-  const handleCapture = useCallback(() => {
-    if (!videoRef.current) return;
+  // ─── Take High-Res Photo (ImageCapture API) ───────────────────────
+  // Uses the camera's full sensor resolution instead of the low-res video preview
+  const takeHighResPhoto = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return null;
+
+    // Try ImageCapture API first — this gives FULL sensor resolution (e.g. 4032x3024)
+    if (imageCaptureRef.current) {
+      try {
+        const blob = await imageCaptureRef.current.takePhoto();
+        // Convert blob to canvas for cropping
+        const img = new window.Image();
+        const url = URL.createObjectURL(blob);
+        
+        return new Promise((resolve) => {
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+            resolve(canvas);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(null); // fallback
+          };
+          img.src = url;
+        });
+      } catch (e) {
+        console.warn("ImageCapture.takePhoto() failed, falling back to video frame:", e);
+      }
+    }
+
+    // Fallback: grab frame from video stream
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+    return canvas;
+  }, []);
+
+  // ─── Process captured canvas into preview ─────────────────────────
+  const processCapture = useCallback((fullCanvas) => {
+    if (!fullCanvas || !videoRef.current) return;
 
     const video = videoRef.current;
-    const fullCanvas = canvasRef.current || document.createElement("canvas");
-    canvasRef.current = fullCanvas;
 
-    fullCanvas.width = video.videoWidth;
-    fullCanvas.height = video.videoHeight;
-
-    const ctx = fullCanvas.getContext("2d");
-    ctx.drawImage(video, 0, 0);
-
-    // Auto-crop to guide frame in document mode
-    const outputCanvas = isDocument ? cropToGuideFrame(fullCanvas, video, guideRef.current) : fullCanvas;
+    // Capture full frame (no cropping) — guide frame is just a visual alignment aid
+    // Cropping to guide frame reduces resolution too much on external cameras
+    const outputCanvas = fullCanvas;
 
     const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
     setCapturedDataUrl(dataUrl);
@@ -283,6 +344,16 @@ export default function GlobalCameraModal() {
 
     setPhase("preview");
   }, [BLUR_THRESHOLD, isDocument]);
+
+  // ─── Capture Photo ────────────────────────────────────────────────
+  const handleCapture = useCallback(async () => {
+    if (!videoRef.current) return;
+
+    const fullCanvas = await takeHighResPhoto();
+    if (fullCanvas) {
+      processCapture(fullCanvas);
+    }
+  }, [takeHighResPhoto, processCapture]);
 
   // ─── Use Photo ────────────────────────────────────────────────────
   const handleUsePhoto = useCallback(() => {
@@ -416,29 +487,21 @@ export default function GlobalCameraModal() {
           setCountdown(3);
           setTimeout(() => setCountdown(2), 600);
           setTimeout(() => setCountdown(1), 1200);
-          setTimeout(() => {
-            // Final capture
+          setTimeout(async () => {
+            // Final capture using full-resolution ImageCapture API
             if (videoRef.current && autoCapturePendingRef.current) {
-              const fullCanvas =
-                canvasRef.current || document.createElement("canvas");
-              canvasRef.current = fullCanvas;
-              fullCanvas.width = videoRef.current.videoWidth;
-              fullCanvas.height = videoRef.current.videoHeight;
-              const captureCtx = fullCanvas.getContext("2d");
-              captureCtx.drawImage(videoRef.current, 0, 0);
+              const fullCanvas = await takeHighResPhoto();
+              if (fullCanvas) {
+                const dataUrl = fullCanvas.toDataURL("image/jpeg", 0.95);
+                setCapturedDataUrl(dataUrl);
 
-              // Auto-crop to guide frame in document mode
-              const outputCanvas = captureMode === "document" ? cropToGuideFrame(fullCanvas, videoRef.current, guideRef.current) : fullCanvas;
+                const finalScore = calculateBlurScore(fullCanvas);
+                setBlurScore(Math.round(finalScore));
+                setIsBlurry(finalScore < BLUR_THRESHOLD);
 
-              const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
-              setCapturedDataUrl(dataUrl);
-
-              const finalScore = calculateBlurScore(outputCanvas);
-              setBlurScore(Math.round(finalScore));
-              setIsBlurry(finalScore < BLUR_THRESHOLD);
-
-              setCountdown(null);
-              setPhase("preview");
+                setCountdown(null);
+                setPhase("preview");
+              }
             }
           }, 1800);
         }
@@ -581,7 +644,7 @@ export default function GlobalCameraModal() {
               autoPlay
               playsInline
               muted
-              className={`w-full h-full ${isDocument ? 'object-contain' : 'object-cover'}`}
+              className="w-full h-full object-cover"
               style={{ transform: facingMode === "user" ? "scaleX(-1)" : "none" }}
             />
 
