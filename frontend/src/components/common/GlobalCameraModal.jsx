@@ -74,34 +74,43 @@ function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
   const elementRect = videoElement.getBoundingClientRect();
   const guideRect = guideElement.getBoundingClientRect();
 
-  // object-cover scaling
-  const scale = Math.max(elementRect.width / vw, elementRect.height / vh);
+  // Determine scaling based on how the video is displayed
+  // object-contain: video fits entirely inside the element, may have letterbox bars
+  const scale = Math.min(elementRect.width / vw, elementRect.height / vh);
   
+  // Where the actual video image starts within the element (accounting for letterboxing)
   const renderedX = elementRect.left + (elementRect.width - vw * scale) / 2;
   const renderedY = elementRect.top + (elementRect.height - vh * scale) / 2;
   
+  // Map guide frame coordinates to video pixel coordinates
   let cropX = (guideRect.left - renderedX) / scale;
   let cropY = (guideRect.top - renderedY) / scale;
   let cropW = guideRect.width / scale;
   let cropH = guideRect.height / scale;
 
-  // Clamp values
-  cropX = Math.max(0, cropX);
-  cropY = Math.max(0, cropY);
-  cropW = Math.min(vw - cropX, cropW);
-  cropH = Math.min(vh - cropY, cropH);
+  // Clamp values to video bounds
+  cropX = Math.max(0, Math.round(cropX));
+  cropY = Math.max(0, Math.round(cropY));
+  cropW = Math.min(vw - cropX, Math.round(cropW));
+  cropH = Math.min(vh - cropY, Math.round(cropH));
+
+  // Output at a high resolution — at least 1600px wide for readable text
+  const MIN_OUTPUT_WIDTH = 1600;
+  const outputW = Math.max(cropW, MIN_OUTPUT_WIDTH);
+  const outputH = Math.round(outputW * (cropH / cropW));
 
   const cropCanvas = document.createElement("canvas");
-  cropCanvas.width = cropW;
-  cropCanvas.height = cropH;
+  cropCanvas.width = outputW;
+  cropCanvas.height = outputH;
 
   const cropCtx = cropCanvas.getContext("2d");
   cropCtx.imageSmoothingEnabled = true;
   cropCtx.imageSmoothingQuality = 'high';
+  // Draw the cropped region from the full-resolution source, scaled up to output size
   cropCtx.drawImage(
     sourceCanvas,
     cropX, cropY, cropW, cropH,
-    0, 0, cropW, cropH
+    0, 0, outputW, outputH
   );
 
   return cropCanvas;
@@ -159,8 +168,9 @@ export default function GlobalCameraModal() {
       const constraints = {
         video: {
           facingMode: { ideal: facing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          // Request the highest resolution available for sharp document captures
+          width: { ideal: 3840, min: 1280 },
+          height: { ideal: 2160, min: 720 },
         },
         audio: false,
       };
@@ -257,7 +267,7 @@ export default function GlobalCameraModal() {
     // Auto-crop to guide frame in document mode
     const outputCanvas = isDocument ? cropToGuideFrame(fullCanvas, video, guideRef.current) : fullCanvas;
 
-    const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.92);
+    const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
     setCapturedDataUrl(dataUrl);
 
     // Blur detection on the cropped area
@@ -420,7 +430,7 @@ export default function GlobalCameraModal() {
               // Auto-crop to guide frame in document mode
               const outputCanvas = captureMode === "document" ? cropToGuideFrame(fullCanvas, videoRef.current, guideRef.current) : fullCanvas;
 
-              const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.92);
+              const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
               setCapturedDataUrl(dataUrl);
 
               const finalScore = calculateBlurScore(outputCanvas);
@@ -571,7 +581,7 @@ export default function GlobalCameraModal() {
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover"
+              className={`w-full h-full ${isDocument ? 'object-contain' : 'object-cover'}`}
               style={{ transform: facingMode === "user" ? "scaleX(-1)" : "none" }}
             />
 
