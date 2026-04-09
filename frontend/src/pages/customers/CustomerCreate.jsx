@@ -425,8 +425,9 @@ export default function CustomerCreate() {
       fetch(capturedImage)
         .then((res) => res.blob())
         .then((blob) => {
-          const file = new File([blob], `${currentCaptureType}.jpg`, {
-            type: "image/jpeg",
+          const isPng = blob.type === "image/png";
+          const file = new File([blob], `${currentCaptureType}.${isPng ? "png" : "jpg"}`, {
+            type: blob.type || "image/jpeg",
           });
 
           // Set the image based on type

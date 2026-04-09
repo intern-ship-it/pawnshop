@@ -335,8 +335,8 @@ export default function GlobalCameraModal() {
     if (isDocument && guideRef.current) {
       outputCanvas = cropToGuideFrame(fullCanvas, video, guideRef.current);
     }
-
-    const dataUrl = outputCanvas.toDataURL("image/jpeg", 1.0);
+    // Save as PNG instead of JPEG. PNG is completely lossless, guaranteeing maximum quality.
+    const dataUrl = outputCanvas.toDataURL("image/png");
     setCapturedDataUrl(dataUrl);
 
     // Blur detection on the cropped area
@@ -505,7 +505,8 @@ export default function GlobalCameraModal() {
                 if (isDocument && guideRef.current) {
                   outputCanvas = cropToGuideFrame(fullCanvas, videoRef.current, guideRef.current);
                 }
-                const dataUrl = outputCanvas.toDataURL("image/jpeg", 1.0);
+                // PNG is lossless (100% uncompressed quality)
+                const dataUrl = outputCanvas.toDataURL("image/png");
                 setCapturedDataUrl(dataUrl);
 
                 const finalScore = calculateBlurScore(outputCanvas);
