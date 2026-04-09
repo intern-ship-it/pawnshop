@@ -112,10 +112,10 @@ function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
 
   if (srcW <= 0 || srcH <= 0) return sourceCanvas;
 
-  // Output at native crop resolution (already high-res from ImageCapture)
-  // Only upscale if source crop is smaller than 1600px
-  const MIN_OUTPUT_WIDTH = 1600;
-  const outputW = Math.max(srcW, MIN_OUTPUT_WIDTH);
+  // Output at native crop resolution to preserve pixel crispness
+  // Do not artificially upscale, as canvas interpolation makes text blurry
+  // We apply a minimum safety resolution bounds just in case
+  const outputW = Math.max(srcW, 320); 
   const outputH = Math.round(outputW * (srcH / srcW));
 
   const cropCanvas = document.createElement("canvas");
@@ -336,7 +336,7 @@ export default function GlobalCameraModal() {
       outputCanvas = cropToGuideFrame(fullCanvas, video, guideRef.current);
     }
 
-    const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
+    const dataUrl = outputCanvas.toDataURL("image/jpeg", 1.0);
     setCapturedDataUrl(dataUrl);
 
     // Blur detection on the cropped area
@@ -505,7 +505,7 @@ export default function GlobalCameraModal() {
                 if (isDocument && guideRef.current) {
                   outputCanvas = cropToGuideFrame(fullCanvas, videoRef.current, guideRef.current);
                 }
-                const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
+                const dataUrl = outputCanvas.toDataURL("image/jpeg", 1.0);
                 setCapturedDataUrl(dataUrl);
 
                 const finalScore = calculateBlurScore(outputCanvas);
