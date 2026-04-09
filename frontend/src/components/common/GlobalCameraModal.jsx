@@ -74,17 +74,18 @@ function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
   // Source canvas may be higher resolution than video stream (ImageCapture API)
   const sourceW = sourceCanvas.width;
   const sourceH = sourceCanvas.height;
-  const resScaleX = sourceW / vw;
-  const resScaleY = sourceH / vh;
+  // ImageCapture may return a different aspect ratio than the video stream
+  // Use source canvas dimensions for the final mapping
+  const sourceAspect = sourceW / sourceH;
 
   const elementRect = videoElement.getBoundingClientRect();
   const guideRect = guideElement.getBoundingClientRect();
 
-  // Determine scaling based on how the video is displayed
-  // object-contain: video fits entirely inside the element, may have letterbox bars
-  const scale = Math.min(elementRect.width / vw, elementRect.height / vh);
+  // The video uses object-cover: it scales up to FILL the element, cropping overflow
+  // object-cover uses Math.max (fills container), not Math.min (fits inside container)
+  const scale = Math.max(elementRect.width / vw, elementRect.height / vh);
   
-  // Where the actual video image starts within the element (accounting for letterboxing)
+  // Where the actual video image starts (may be negative — the overflowing part is hidden)
   const renderedX = elementRect.left + (elementRect.width - vw * scale) / 2;
   const renderedY = elementRect.top + (elementRect.height - vh * scale) / 2;
   
@@ -95,16 +96,21 @@ function cropToGuideFrame(sourceCanvas, videoElement, guideElement) {
   let cropH = guideRect.height / scale;
 
   // Clamp values to video bounds
-  cropX = Math.max(0, cropX);
-  cropY = Math.max(0, cropY);
+  cropX = Math.max(0, Math.min(cropX, vw));
+  cropY = Math.max(0, Math.min(cropY, vh));
   cropW = Math.min(vw - cropX, cropW);
   cropH = Math.min(vh - cropY, cropH);
 
-  // Scale from video-space to actual source canvas space (for high-res ImageCapture photos)
+  // Scale from video-stream-space to actual source canvas space
+  // (ImageCapture photos may have different resolution than the video stream)
+  const resScaleX = sourceW / vw;
+  const resScaleY = sourceH / vh;
   const srcX = Math.round(cropX * resScaleX);
   const srcY = Math.round(cropY * resScaleY);
   const srcW = Math.round(cropW * resScaleX);
   const srcH = Math.round(cropH * resScaleY);
+
+  if (srcW <= 0 || srcH <= 0) return sourceCanvas;
 
   // Output at native crop resolution (already high-res from ImageCapture)
   // Only upscale if source crop is smaller than 1600px
@@ -324,9 +330,11 @@ export default function GlobalCameraModal() {
 
     const video = videoRef.current;
 
-    // Capture full frame (no cropping) — guide frame is just a visual alignment aid
-    // Cropping to guide frame reduces resolution too much on external cameras
-    const outputCanvas = fullCanvas;
+    // For document mode, crop to the guide frame overlay so only the card is captured
+    let outputCanvas = fullCanvas;
+    if (isDocument && guideRef.current) {
+      outputCanvas = cropToGuideFrame(fullCanvas, video, guideRef.current);
+    }
 
     const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
     setCapturedDataUrl(dataUrl);
@@ -492,10 +500,15 @@ export default function GlobalCameraModal() {
             if (videoRef.current && autoCapturePendingRef.current) {
               const fullCanvas = await takeHighResPhoto();
               if (fullCanvas) {
-                const dataUrl = fullCanvas.toDataURL("image/jpeg", 0.95);
+                // Crop to guide frame for document mode
+                let outputCanvas = fullCanvas;
+                if (isDocument && guideRef.current) {
+                  outputCanvas = cropToGuideFrame(fullCanvas, videoRef.current, guideRef.current);
+                }
+                const dataUrl = outputCanvas.toDataURL("image/jpeg", 0.95);
                 setCapturedDataUrl(dataUrl);
 
-                const finalScore = calculateBlurScore(fullCanvas);
+                const finalScore = calculateBlurScore(outputCanvas);
                 setBlurScore(Math.round(finalScore));
                 setIsBlurry(finalScore < BLUR_THRESHOLD);
 
