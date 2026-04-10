@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Role;
 use App\Models\Permission;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
@@ -14,6 +15,28 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 class UserController extends Controller
 {
+    /**
+     * Maximum number of super admins allowed in the system
+     */
+    private const MAX_SUPER_ADMINS = 3;
+
+    /**
+     * Check if adding another super admin would exceed the limit
+     */
+    private function wouldExceedSuperAdminLimit(int $roleId, ?int $excludeUserId = null): bool
+    {
+        $role = Role::find($roleId);
+        if (!$role || $role->slug !== 'super-admin') {
+            return false;
+        }
+
+        $query = User::whereHas('role', fn($q) => $q->where('slug', 'super-admin'));
+        if ($excludeUserId) {
+            $query->where('id', '!=', $excludeUserId);
+        }
+
+        return $query->count() >= self::MAX_SUPER_ADMINS;
+    }
     /**
      * Check if current user can manage permissions
      * Super Admin OR user with 'users.manage_permissions' permission
@@ -77,6 +100,11 @@ class UserController extends Controller
             'custom_permissions.revoked' => 'nullable|array',
             'custom_permissions.revoked.*' => 'integer|exists:permissions,id',
         ]);
+
+        // Check super admin limit
+        if ($this->wouldExceedSuperAdminLimit($validated['role_id'])) {
+            return $this->error('Maximum of ' . self::MAX_SUPER_ADMINS . ' super admins allowed. Please remove an existing super admin first.', 422);
+        }
 
         // Determine branch
         if ($request->user()->isSuperAdmin() && isset($validated['branch_id'])) {
@@ -223,6 +251,13 @@ class UserController extends Controller
         }
         else {
             unset($validated['passkey']);
+        }
+
+        // Check super admin limit when changing role
+        if (isset($validated['role_id']) && $validated['role_id'] !== $user->role_id) {
+            if ($this->wouldExceedSuperAdminLimit($validated['role_id'], $user->id)) {
+                return $this->error('Maximum of ' . self::MAX_SUPER_ADMINS . ' super admins allowed. Please remove an existing super admin first.', 422);
+            }
         }
 
         // Remove custom_permissions from validated (handle separately)
