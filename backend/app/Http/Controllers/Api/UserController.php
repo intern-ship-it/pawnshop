@@ -276,9 +276,12 @@ class UserController extends Controller
             return $this->error('Cannot delete your own account', 422);
         }
 
-        // Cannot delete super admin
+        // Cannot delete the last super admin - at least one must always exist
         if ($user->isSuperAdmin()) {
-            return $this->error('Cannot delete super admin', 422);
+            $superAdminCount = User::whereHas('role', fn($q) => $q->where('slug', 'super-admin'))->count();
+            if ($superAdminCount <= 1) {
+                return $this->error('Cannot delete the last super admin. At least one super admin must exist in the system.', 422);
+            }
         }
 
         $userName = $user->name;
