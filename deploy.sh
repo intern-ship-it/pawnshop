@@ -18,9 +18,16 @@ rm -rf backend/public/assets/
 echo "🔄 Resetting tracked files..."
 git checkout -- backend/bootstrap/app.php backend/config/cors.php deploy.sh frontend/package-lock.json 2>/dev/null
 
+# Stash any remaining local changes to prevent pull conflicts
+echo "📦 Stashing any remaining local changes..."
+git stash --include-untracked 2>/dev/null
+
 # Pull latest code
 echo "📥 Pulling latest code..."
 git pull origin main
+
+# Drop the stash (we don't need it, server-specific files are already backed up)
+git stash drop 2>/dev/null
 
 # Make deploy.sh executable (in case git overwrites permissions)
 chmod +x deploy.sh
