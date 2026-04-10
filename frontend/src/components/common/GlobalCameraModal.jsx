@@ -12,6 +12,7 @@ import {
   Flashlight,
   Focus,
   Zap,
+  Gem,
 } from "lucide-react";
 
 // ─── Blur Detection (Laplacian Variance) ──────────────────────────────
@@ -170,6 +171,8 @@ export default function GlobalCameraModal() {
   const [autoCapture, setAutoCapture] = useState(false); // Auto-capture toggle
 
   const isDocument = captureMode === "document";
+  const isItem = captureMode === "item";
+  const hasGuideFrame = isDocument || isItem; // Both modes use a guide frame for cropping
   const BLUR_THRESHOLD = 80;
   const SHARP_FRAMES_NEEDED = 4; // 4 consecutive sharp checks at 500ms = ~2 seconds of stability
 
@@ -330,9 +333,9 @@ export default function GlobalCameraModal() {
 
     const video = videoRef.current;
 
-    // For document mode, crop to the guide frame overlay so only the card is captured
+    // For document/item mode, crop to the guide frame overlay so only the target area is captured
     let outputCanvas = fullCanvas;
-    if (isDocument && guideRef.current) {
+    if (hasGuideFrame && guideRef.current) {
       outputCanvas = cropToGuideFrame(fullCanvas, video, guideRef.current);
     }
     // Save as PNG instead of JPEG. PNG is completely lossless, guaranteeing maximum quality.
@@ -351,7 +354,7 @@ export default function GlobalCameraModal() {
     setLiveSharpness("waiting");
 
     setPhase("preview");
-  }, [BLUR_THRESHOLD, isDocument]);
+  }, [BLUR_THRESHOLD, hasGuideFrame]);
 
   // ─── Capture Photo ────────────────────────────────────────────────
   const handleCapture = useCallback(async () => {
@@ -502,7 +505,7 @@ export default function GlobalCameraModal() {
               if (fullCanvas) {
                 // Crop to guide frame for document mode
                 let outputCanvas = fullCanvas;
-                if (isDocument && guideRef.current) {
+                if (hasGuideFrame && guideRef.current) {
                   outputCanvas = cropToGuideFrame(fullCanvas, videoRef.current, guideRef.current);
                 }
                 // PNG is lossless (100% uncompressed quality)
@@ -529,7 +532,7 @@ export default function GlobalCameraModal() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [isOpen, cameraReady, phase, autoCapture, BLUR_THRESHOLD, SHARP_FRAMES_NEEDED]);
+  }, [isOpen, cameraReady, phase, autoCapture, BLUR_THRESHOLD, SHARP_FRAMES_NEEDED, hasGuideFrame]);
 
   // ─── Lifecycle ────────────────────────────────────────────────────
   useEffect(() => {
@@ -583,7 +586,7 @@ export default function GlobalCameraModal() {
         </button>
 
         <div className="text-white text-sm font-medium tracking-wide">
-          {isDocument ? "📄 Scan IC Card" : "📸 Take Selfie"}
+          {isDocument ? "📄 Scan IC Card" : isItem ? "💎 Capture Item" : "📸 Take Selfie"}
         </div>
 
         <div className="flex items-center gap-2">
@@ -759,8 +762,101 @@ export default function GlobalCameraModal() {
               </div>
             )}
 
-            {/* Non-document mode hint */}
-            {!isDocument && cameraReady && autoCapture && (
+            {/* ─── Item Guide Overlay (Item capture mode) ───── */}
+            {isItem && cameraReady && (
+              <div className="absolute inset-0 pointer-events-none flex justify-center items-center">
+                {/* Centered square guide frame for jewelry items */}
+                <div 
+                  ref={guideRef}
+                  className="relative w-[75%] max-w-[360px] aspect-square rounded-2xl"
+                  style={{
+                    boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)',
+                    border: `2px ${liveSharpness === "sharp" || liveSharpness === "capturing" ? "solid" : "dashed"} ${
+                      liveSharpness === "sharp" || liveSharpness === "capturing"
+                        ? "rgba(52,211,153,0.9)"
+                        : liveSharpness === "focusing"
+                          ? "rgba(251,191,36,0.8)"
+                          : "rgba(255,255,255,0.8)"
+                    }`,
+                    transition: "border-color 0.3s"
+                  }}
+                >
+                  {/* Corner brackets */}
+                  {(() => {
+                    const cornerColor =
+                      liveSharpness === "sharp" || liveSharpness === "capturing"
+                        ? "bg-emerald-400"
+                        : liveSharpness === "focusing"
+                          ? "bg-amber-400"
+                          : "bg-amber-400";
+                    return (
+                      <>
+                        {/* Top-left corner */}
+                        <div className="absolute -top-[2px] -left-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute top-0 left-0 w-full h-[3px] ${cornerColor} rounded-tl-2xl transition-colors duration-300`} />
+                          <div className={`absolute top-0 left-0 w-[3px] h-full ${cornerColor} rounded-tl-2xl transition-colors duration-300`} />
+                        </div>
+                        {/* Top-right corner */}
+                        <div className="absolute -top-[2px] -right-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute top-0 right-0 w-full h-[3px] ${cornerColor} rounded-tr-2xl transition-colors duration-300`} />
+                          <div className={`absolute top-0 right-0 w-[3px] h-full ${cornerColor} rounded-tr-2xl transition-colors duration-300`} />
+                        </div>
+                        {/* Bottom-left corner */}
+                        <div className="absolute -bottom-[2px] -left-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute bottom-0 left-0 w-full h-[3px] ${cornerColor} rounded-bl-2xl transition-colors duration-300`} />
+                          <div className={`absolute bottom-0 left-0 w-[3px] h-full ${cornerColor} rounded-bl-2xl transition-colors duration-300`} />
+                        </div>
+                        {/* Bottom-right corner */}
+                        <div className="absolute -bottom-[2px] -right-[2px] w-6 h-6 sm:w-8 sm:h-8">
+                          <div className={`absolute bottom-0 right-0 w-full h-[3px] ${cornerColor} rounded-br-2xl transition-colors duration-300`} />
+                          <div className={`absolute bottom-0 right-0 w-[3px] h-full ${cornerColor} rounded-br-2xl transition-colors duration-300`} />
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  {/* Crosshair center indicator */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-[1px] bg-white/30" />
+                    <div className="absolute w-[1px] h-8 bg-white/30" />
+                  </div>
+                </div>
+
+                {/* Instruction text */}
+                <div className="absolute left-0 right-0 flex justify-center" style={{ top: "12%" }}>
+                  <div className="px-4 py-1.5 bg-black/60 rounded-full backdrop-blur-sm">
+                    <p className="text-white text-xs font-medium tracking-wide flex items-center gap-1.5">
+                      <Gem className="w-3.5 h-3.5 text-amber-400" />
+                      Place item in the frame
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live status indicator */}
+                {autoCapture && (
+                  <div className="absolute left-0 right-0 flex justify-center" style={{ bottom: "12%" }}>
+                    <div className={`px-3 py-1 rounded-full backdrop-blur-sm ${currentSharpness.bg} transition-colors duration-300`}>
+                      <p className="text-white text-[11px] font-medium flex items-center gap-1.5">
+                        <span>{currentSharpness.icon}</span>
+                        {currentSharpness.label}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bottom hint when auto-capture is off */}
+                {!autoCapture && (
+                  <div className="absolute left-0 right-0 flex justify-center" style={{ bottom: "12%" }}>
+                    <p className="text-white/50 text-[11px]">
+                      Center item • Tap to capture
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Non-document/non-item mode hint (selfie etc.) */}
+            {!isDocument && !isItem && cameraReady && autoCapture && (
               <div className="absolute left-0 right-0 flex justify-center pointer-events-none" style={{ bottom: "22%" }}>
                 <div className={`px-3 py-1 rounded-full backdrop-blur-sm ${currentSharpness.bg} transition-colors duration-300`}>
                   <p className="text-white text-[11px] font-medium flex items-center gap-1.5">

@@ -2424,7 +2424,7 @@ export default function NewPledge() {
                         ) : (
                           <div className="flex gap-2">
                             <Button type="button" variant="outline" leftIcon={Plus} onClick={() => photoInputRefs.current[item.id]?.click()}>Upload</Button>
-                            <Button type="button" variant="outline" leftIcon={Camera} onClick={() => dispatch(openCamera({ contextId: item.id }))}>Camera</Button>
+                            <Button type="button" variant="outline" leftIcon={Camera} onClick={() => dispatch(openCamera({ contextId: item.id, mode: 'item' }))}>Camera</Button>
                           </div>
                         )}
                       </div>
@@ -3389,4 +3389,4 @@ export default function NewPledge() {
       </Modal>
     </PageWrapper>
   );
-}
+}

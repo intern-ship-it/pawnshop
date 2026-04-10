@@ -1,6 +1,7 @@
 /**
  * CustomerDetail.jsx - API Integrated Version
  */
+import { jsPDF } from "jspdf";
 import { getStorageUrl } from "@/utils/helpers";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
@@ -35,6 +36,7 @@ import {
   Scale,
   TrendingUp,
   Calendar,
+  Download,
 } from "lucide-react";
 
 // Status config
@@ -61,6 +63,7 @@ export default function CustomerDetail() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("active");
   const [expandedPledge, setExpandedPledge] = useState(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Fetch customer data
   const fetchCustomer = async () => {
@@ -125,6 +128,148 @@ export default function CustomerDetail() {
   const handleBack = () => navigate("/customers");
   const handleNewPledge = () => navigate(`/pledges/new?customer=${id}`);
   const handleViewPledge = (pledgeId) => navigate(`/pledges/${pledgeId}`);
+
+  // Download IC images as a single PDF
+  const handleDownloadIcPdf = async () => {
+    if (!customer.ic_front_photo && !customer.ic_back_photo) return;
+
+    setIsDownloadingPdf(true);
+    try {
+      // Helper: build a same-origin storage URL (goes through Vite proxy in dev)
+      const getLocalStorageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith("http") || path.startsWith("data:")) return path;
+        return `/storage/${path}`;
+      };
+
+      // Helper: load image as HTMLImageElement via fetch
+      const loadImage = (url) =>
+        new Promise((resolve, reject) => {
+          fetch(url)
+            .then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.blob();
+            })
+            .then((blob) => {
+              const objectUrl = URL.createObjectURL(blob);
+              const img = new Image();
+              img.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve(img);
+              };
+              img.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error("Failed to load image"));
+              };
+              img.src = objectUrl;
+            })
+            .catch(reject);
+        });
+
+      // Load available images
+      const images = [];
+      if (customer.ic_front_photo) {
+        try {
+          const img = await loadImage(getLocalStorageUrl(customer.ic_front_photo));
+          images.push({ img, label: "IC Front" });
+        } catch (e) {
+          console.warn("Failed to load IC front photo", e);
+        }
+      }
+      if (customer.ic_back_photo) {
+        try {
+          const img = await loadImage(getLocalStorageUrl(customer.ic_back_photo));
+          images.push({ img, label: "IC Back" });
+        } catch (e) {
+          console.warn("Failed to load IC back photo", e);
+        }
+      }
+
+      if (images.length === 0) {
+        dispatch(addToast({ type: "error", message: "Could not load IC images" }));
+        return;
+      }
+
+      // Create PDF (A4 portrait)
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+
+      // Header
+      pdf.setFontSize(16);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("IC Documents", margin, margin + 5);
+
+      pdf.setFontSize(11);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(100);
+      pdf.text(`Name: ${customer.name || "N/A"}`, margin, margin + 13);
+      pdf.text(`IC Number: ${customer.ic_number || "N/A"}`, margin, margin + 20);
+      pdf.setTextColor(0);
+
+      let yPos = margin + 30;
+
+      images.forEach(({ img, label }, index) => {
+        // IC card aspect ratio (standard credit-card shape ~85.6x54mm)
+        const imgAspect = img.width / img.height;
+        let imgWidth = contentWidth;
+        let imgHeight = imgWidth / imgAspect;
+
+        // Cap height so both images fit on one page
+        const maxImgHeight = (pageHeight - margin * 2 - 40) / 2 - 10;
+        if (imgHeight > maxImgHeight) {
+          imgHeight = maxImgHeight;
+          imgWidth = imgHeight * imgAspect;
+        }
+
+        // Centre horizontally
+        const xOffset = margin + (contentWidth - imgWidth) / 2;
+
+        // Draw label
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(label, margin, yPos);
+        yPos += 5;
+
+        // Draw a light border
+        pdf.setDrawColor(200);
+        pdf.setLineWidth(0.3);
+        pdf.rect(xOffset - 1, yPos - 1, imgWidth + 2, imgHeight + 2);
+
+        // Draw image onto a canvas to get base64 data
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+        pdf.addImage(imgData, "JPEG", xOffset, yPos, imgWidth, imgHeight);
+        yPos += imgHeight + 12;
+      });
+
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.text(
+        `Generated on ${new Date().toLocaleDateString("en-MY", { year: "numeric", month: "long", day: "numeric" })}`,
+        margin,
+        pageHeight - 10,
+      );
+
+      const fileName = `IC_${(customer.ic_number || customer.name || "document").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      pdf.save(fileName);
+
+      dispatch(addToast({ type: "success", message: "IC PDF downloaded successfully" }));
+    } catch (err) {
+      console.error("Error generating IC PDF:", err);
+      dispatch(addToast({ type: "error", message: "Failed to generate PDF" }));
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -340,9 +485,26 @@ export default function CustomerDetail() {
           {/* IC Documents */}
           <Card>
             <div className="p-5 border-b border-zinc-100">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-amber-500" />
-                <h3 className="font-semibold text-zinc-800">IC Documents</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-amber-500" />
+                  <h3 className="font-semibold text-zinc-800">IC Documents</h3>
+                </div>
+                {(customer.ic_front_photo || customer.ic_back_photo) && (
+                  <button
+                    onClick={handleDownloadIcPdf}
+                    disabled={isDownloadingPdf}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Download IC as PDF"
+                  >
+                    {isDownloadingPdf ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    PDF
+                  </button>
+                )}
               </div>
             </div>
             <div className="p-5">

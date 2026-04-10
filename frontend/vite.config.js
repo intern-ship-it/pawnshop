@@ -16,6 +16,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 3000,
     open: true,
+    proxy: {
+      '/storage': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     // Production: output to Laravel public folder
