@@ -207,9 +207,13 @@ export default function CustomerDetail() {
       pdf.setTextColor(100);
       pdf.text(`Name: ${customer.name || "N/A"}`, margin, margin + 13);
       pdf.text(`IC Number: ${customer.ic_number || "N/A"}`, margin, margin + 20);
+      const phoneDisplay = customer.phone
+        ? `${customer.country_code ? (customer.country_code.startsWith("+") ? "" : "+") + customer.country_code + " " : ""}${customer.phone}`
+        : "N/A";
+      pdf.text(`Phone: ${phoneDisplay}`, margin, margin + 27);
       pdf.setTextColor(0);
 
-      let yPos = margin + 30;
+      let yPos = margin + 37;
 
       images.forEach(({ img, label }, index) => {
         // IC card aspect ratio (standard credit-card shape ~85.6x54mm)
