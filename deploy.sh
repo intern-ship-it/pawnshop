@@ -16,7 +16,7 @@ rm -rf backend/public/assets/
 
 # Reset any modified tracked files
 echo "🔄 Resetting tracked files..."
-git checkout -- backend/bootstrap/app.php backend/config/cors.php deploy.sh frontend/package-lock.json 2>/dev/null
+git checkout -- backend/bootstrap/app.php backend/config/cors.php frontend/package-lock.json 2>/dev/null
 
 # Stash any remaining local changes to prevent pull conflicts
 echo "📦 Stashing any remaining local changes..."
@@ -135,3 +135,8 @@ echo "🌐 Visit: https://pajak-kedai.graspsoftwaresolutions.xyz"
 echo ""
 echo "📋 Storage link status:"
 ls -la public/ | grep storage
+
+# Show recent Laravel errors (helps debug 500 errors)
+echo ""
+echo "📜 Recent Laravel errors (if any):"
+tail -20 storage/logs/laravel.log 2>/dev/null || echo "  No log file found"
