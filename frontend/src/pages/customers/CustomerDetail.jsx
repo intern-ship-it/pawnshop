@@ -218,7 +218,9 @@ export default function CustomerDetail() {
       images.forEach(({ img, label }, index) => {
         // IC card aspect ratio (standard credit-card shape ~85.6x54mm)
         const imgAspect = img.width / img.height;
-        let imgWidth = contentWidth;
+        // Cap width to 120mm so images don't fill entire page width
+        const maxImgWidth = Math.min(contentWidth, 120);
+        let imgWidth = maxImgWidth;
         let imgHeight = imgWidth / imgAspect;
 
         // Cap height so both images fit on one page
