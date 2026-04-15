@@ -76,7 +76,14 @@ class DayEndController extends Controller
 
         $report->load(['verifications', 'closedBy:id,name']);
 
-        return $this->success($report);
+        // Also include purity breakdown (calculated on the fly)
+        $purityBreakdown = $this->calculatePurityBreakdown($branchId, $today);
+
+        return $this->success([
+            'report' => $report,
+            'items_in_by_purity' => $purityBreakdown['items_in_by_purity'],
+            'items_out_by_purity' => $purityBreakdown['items_out_by_purity'],
+        ]);
     }
 
     /**
@@ -103,7 +110,14 @@ class DayEndController extends Controller
             ]);
         }
 
-        return $this->success($report);
+        // Include purity breakdown alongside report
+        $purityBreakdown = $this->calculatePurityBreakdown($branchId, $date);
+
+        return $this->success([
+            'report' => $report,
+            'items_in_by_purity' => $purityBreakdown['items_in_by_purity'],
+            'items_out_by_purity' => $purityBreakdown['items_out_by_purity'],
+        ]);
     }
 
     /**
@@ -514,15 +528,38 @@ class DayEndController extends Controller
             'transfer' => $redemptions->sum('transfer_amount'),
         ];
 
-        // Items in (from pledges)
-        $itemsIn = PledgeItem::whereHas('pledge', function ($q) use ($branchId, $date) {
+        // Items in (from pledges) - with purity breakdown
+        $itemsInQuery = PledgeItem::whereHas('pledge', function ($q) use ($branchId, $date) {
             $q->where('branch_id', $branchId)->whereDate('pledge_date', $date);
-        })->count();
+        });
+        $itemsIn = $itemsInQuery->count();
 
-        // Items out (from redemptions)
+        $itemsInByPurity = PledgeItem::whereHas('pledge', function ($q) use ($branchId, $date) {
+            $q->where('branch_id', $branchId)->whereDate('pledge_date', $date);
+        })
+        ->with('purity:id,code,name')
+        ->get()
+        ->groupBy(fn($item) => $item->purity->code ?? 'Unknown')
+        ->map(fn($group) => [
+            'count' => $group->count(),
+            'weight' => round($group->sum('net_weight'), 3),
+        ]);
+
+        // Items out (from redemptions) - with purity breakdown
         $itemsOut = PledgeItem::whereHas('pledge.redemption', function ($q) use ($branchId, $date) {
             $q->where('branch_id', $branchId)->whereDate('created_at', $date);
         })->count();
+
+        $itemsOutByPurity = PledgeItem::whereHas('pledge.redemption', function ($q) use ($branchId, $date) {
+            $q->where('branch_id', $branchId)->whereDate('created_at', $date);
+        })
+        ->with('purity:id,code,name')
+        ->get()
+        ->groupBy(fn($item) => $item->purity->code ?? 'Unknown')
+        ->map(fn($group) => [
+            'count' => $group->count(),
+            'weight' => round($group->sum('net_weight'), 3),
+        ]);
 
         return [
             'pledges' => $pledgeStats,
@@ -530,6 +567,8 @@ class DayEndController extends Controller
             'redemptions' => $redemptionStats,
             'items_in' => $itemsIn,
             'items_out' => $itemsOut,
+            'items_in_by_purity' => $itemsInByPurity,
+            'items_out_by_purity' => $itemsOutByPurity,
         ];
     }
 
@@ -554,5 +593,38 @@ class DayEndController extends Controller
             'all_amounts_verified' => $allAmountsVerified,
             'status' => ($allItemsVerified && $allAmountsVerified) ? 'pending_verification' : 'open',
         ]);
+    }
+
+    /**
+     * Calculate purity breakdown for items in/out
+     */
+    protected function calculatePurityBreakdown(int $branchId, $date): array
+    {
+        $itemsInByPurity = PledgeItem::whereHas('pledge', function ($q) use ($branchId, $date) {
+            $q->where('branch_id', $branchId)->whereDate('pledge_date', $date);
+        })
+        ->with('purity:id,code,name')
+        ->get()
+        ->groupBy(fn($item) => $item->purity->code ?? 'Unknown')
+        ->map(fn($group) => [
+            'count' => $group->count(),
+            'weight' => round($group->sum('net_weight'), 3),
+        ]);
+
+        $itemsOutByPurity = PledgeItem::whereHas('pledge.redemption', function ($q) use ($branchId, $date) {
+            $q->where('branch_id', $branchId)->whereDate('created_at', $date);
+        })
+        ->with('purity:id,code,name')
+        ->get()
+        ->groupBy(fn($item) => $item->purity->code ?? 'Unknown')
+        ->map(fn($group) => [
+            'count' => $group->count(),
+            'weight' => round($group->sum('net_weight'), 3),
+        ]);
+
+        return [
+            'items_in_by_purity' => $itemsInByPurity,
+            'items_out_by_purity' => $itemsOutByPurity,
+        ];
     }
 }

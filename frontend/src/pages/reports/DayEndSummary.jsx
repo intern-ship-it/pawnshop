@@ -63,6 +63,12 @@ export default function DayEndSummary() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
+  // Purity breakdown for stock in/out
+  const [stockByPurity, setStockByPurity] = useState({
+    itemsInByPurity: {},
+    itemsOutByPurity: {},
+  });
+
   // FIX: Daily stats from API (not localStorage)
   const [dailyStats, setDailyStats] = useState({
     newPledgesCount: 0,
@@ -175,6 +181,11 @@ export default function DayEndSummary() {
         const data = response.data;
         const report = data.report || data;
         const stats = data.stats;
+
+        // Extract purity breakdown from response
+        const itemsInByPurity = data.items_in_by_purity || stats?.items_in_by_purity || {};
+        const itemsOutByPurity = data.items_out_by_purity || stats?.items_out_by_purity || {};
+        setStockByPurity({ itemsInByPurity, itemsOutByPurity });
 
         // If we have a report (day-end was started)
         if (report && report.id) {
@@ -640,13 +651,25 @@ export default function DayEndSummary() {
             </thead>
             <tbody>
               <tr>
-                <td>Stock In (Items Received)</td>
-                <td class="right">${dailyStats.totalItemsAdded} items</td>
+                <td><strong>Stock In (Items Received)</strong></td>
+                <td class="right"><strong>${dailyStats.totalItemsAdded} items</strong></td>
               </tr>
+              ${Object.entries(stockByPurity.itemsInByPurity).map(([code, data]) => `
               <tr>
-                <td>Stock Out (Items Released)</td>
-                <td class="right">${dailyStats.totalItemsOut} items</td>
+                <td style="padding-left: 20px; color: #555;">&bull; Purity ${code}</td>
+                <td class="right" style="color: #555;">${data.count} items (${parseFloat(data.weight).toFixed(3)}g)</td>
               </tr>
+              `).join('')}
+              <tr>
+                <td><strong>Stock Out (Items Released)</strong></td>
+                <td class="right"><strong>${dailyStats.totalItemsOut} items</strong></td>
+              </tr>
+              ${Object.entries(stockByPurity.itemsOutByPurity).map(([code, data]) => `
+              <tr>
+                <td style="padding-left: 20px; color: #555;">&bull; Purity ${code}</td>
+                <td class="right" style="color: #555;">${data.count} items (${parseFloat(data.weight).toFixed(3)}g)</td>
+              </tr>
+              `).join('')}
               <tr>
                 <td>Items in Storage</td>
                 <td class="right">${inventorySummary.in_storage} items</td>
@@ -1079,6 +1102,68 @@ export default function DayEndSummary() {
                   {dailyStats.netCashFlow >= 0 ? "+" : ""}
                   {formatCurrency(dailyStats.netCashFlow)}
                 </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Stock Movement by Purity */}
+          <Card className="p-6">
+            <h3 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+              <Package className="w-5 h-5 text-purple-500" />
+              Stock Movement by Purity
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {/* Stock In by Purity */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-semibold text-emerald-700">Stock In (Received)</span>
+                  <Badge variant="success">{dailyStats.totalItemsAdded} items</Badge>
+                </div>
+                {Object.keys(stockByPurity.itemsInByPurity).length > 0 ? (
+                  <div className="space-y-2">
+                    {Object.entries(stockByPurity.itemsInByPurity).map(([code, data]) => (
+                      <div key={code} className="flex items-center justify-between p-2.5 bg-white/60 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <span className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700">{code}</span>
+                          <span className="text-sm font-medium text-zinc-700">Purity {code}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-emerald-700">{data.count} items</p>
+                          <p className="text-xs text-emerald-600">{parseFloat(data.weight).toFixed(3)}g</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-emerald-600/60 text-center py-3">No items received today</p>
+                )}
+              </div>
+
+              {/* Stock Out by Purity */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-red-50 to-red-100/50 border border-red-200">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-semibold text-red-700">Stock Out (Released)</span>
+                  <Badge variant="error">{dailyStats.totalItemsOut} items</Badge>
+                </div>
+                {Object.keys(stockByPurity.itemsOutByPurity).length > 0 ? (
+                  <div className="space-y-2">
+                    {Object.entries(stockByPurity.itemsOutByPurity).map(([code, data]) => (
+                      <div key={code} className="flex items-center justify-between p-2.5 bg-white/60 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <span className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-xs font-bold text-red-700">{code}</span>
+                          <span className="text-sm font-medium text-zinc-700">Purity {code}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-red-700">{data.count} items</p>
+                          <p className="text-xs text-red-600">{parseFloat(data.weight).toFixed(3)}g</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-red-600/60 text-center py-3">No items released today</p>
+                )}
               </div>
             </div>
           </Card>
