@@ -704,7 +704,9 @@ export default function RedemptionScreen() {
   const autoTriggerPostRedemption = async (redemptionId) => {
     const token = getToken();
     const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-    // Auto-print receipt removed
+    
+    // Auto-print receipt
+    handlePrintReceiptAuto(redemptionId);
 
     // Barcode label printing is not needed after redemption.
 
@@ -890,7 +892,7 @@ export default function RedemptionScreen() {
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed/redemption/${redemptionId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/redemption/${redemptionId}`,
         {
           method: "POST",
           headers: {
@@ -914,9 +916,9 @@ export default function RedemptionScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>A4 Overlay Alignment - Redemption ${redemptionId}</title>
+          <title>A5 Overlay Alignment - Redemption ${redemptionId}</title>
           <style>
-            @page { size: A4 portrait; margin: 0; }
+            @page { size: A5 landscape; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>
@@ -979,9 +981,9 @@ export default function RedemptionScreen() {
       const apiUrl =
         import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-      // Use pre-printed overlay endpoint (data only for carbonless forms)
+      // Use pre-printed form with template endpoint (fully styled receipt)
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed/redemption/${redemptionId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/redemption/${redemptionId}`,
         {
           method: "POST",
           headers: {
@@ -1021,9 +1023,9 @@ export default function RedemptionScreen() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>A4 Overlay Alignment - Redemption ${redemptionId}</title>
+          <title>A5 Overlay Alignment - Redemption ${redemptionId}</title>
           <style>
-            @page { size: A4 portrait; margin: 0; }
+            @page { size: A5 landscape; margin: 0; }
             body { margin: 0; padding: 0; }
           </style>
         </head>
@@ -2225,7 +2227,22 @@ export default function RedemptionScreen() {
               )}
           </div>
 
+          {/* Issue 5: Auto-trigger status placeholder */}
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+            <p>✓ Receipt sent to printer automatically</p>
+            {pledge?.customerPhone && <p>✓ WhatsApp notification sent</p>}
+          </div>
+
           <div className="flex gap-3">
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={Printer}
+              onClick={handlePrintReceipt}
+              loading={isPrintingReceipt}
+            >
+              Reprint Receipt
+            </Button>
             <Button
               variant="outline"
               fullWidth

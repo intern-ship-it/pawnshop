@@ -107,7 +107,7 @@
         .hours-line {
             font-size: 6.5pt;
             font-weight: bold;
-            color: #1a4a7a;
+            color: #006600;
         }
 
         /* ═══ REDEMPTION TYPE BADGE ═══ */
@@ -126,7 +126,7 @@
         /* ═══ MID SECTION ═══ */
         .mid-section {
             width: 100%;
-            border: 1.5pt solid #1a4a7a;
+            border: 1.5pt solid #006600;
             border-collapse: collapse;
             table-layout: fixed;
             margin-top: 2pt;
@@ -134,7 +134,7 @@
         }
         .mid-section td {
             vertical-align: top;
-            border-left: 1.5pt solid #1a4a7a;
+            border-left: 1.5pt solid #006600;
         }
         .items-cell {
             padding: 4pt 6pt;
@@ -143,7 +143,7 @@
         .items-title {
             font-size: 6.5pt;
             font-weight: bold;
-            color: #1a4a7a;
+            color: #006600;
             margin-bottom: 3pt;
         }
         .items-area {
@@ -172,7 +172,7 @@
             text-align: center;
             vertical-align: middle;
             padding: 6pt 4pt;
-            border-left: 1.5pt dotted #1a4a7a;
+            border-left: 1.5pt dotted #006600;
             border-right: none;
         }
         .barcode-img {
@@ -201,7 +201,7 @@
             background: #e8f5e9;
             padding: 3pt 4pt;
             text-align: center;
-            border-bottom: 1.5pt solid #1a4a7a;
+            border-bottom: 1.5pt solid #006600;
         }
         .ticket-label {
             font-size: 7pt;
@@ -221,7 +221,7 @@
             background: #e8f5e9;
             padding: 2pt 4pt;
             text-align: center;
-            border-bottom: 1.5pt solid #1a4a7a;
+            border-bottom: 1.5pt solid #006600;
         }
         .redemption-no-label {
             font-size: 5.5pt;
@@ -237,22 +237,22 @@
         .rate-section {
             text-align: center;
             padding: 3pt 4pt;
-            border-bottom: 1.5pt solid #1a4a7a;
+            border-bottom: 1.5pt solid #006600;
         }
         .rate-label {
             font-size: 5.5pt;
             font-weight: bold;
-            color: #1a4a7a;
+            color: #006600;
         }
         .rate-value {
             font-size: 13pt;
             font-weight: bold;
-            color: #1a4a7a;
+            color: #006600;
         }
         .redeemed-stamp {
             text-align: center;
             padding: 4pt 4pt;
-            border-bottom: 1.5pt solid #1a4a7a;
+            border-bottom: 1.5pt solid #006600;
         }
         .redeemed-stamp-text {
             font-size: 14pt;
@@ -269,13 +269,13 @@
         .kadar-title {
             font-size: 7pt;
             font-weight: bold;
-            color: #1a4a7a;
+            color: #006600;
             text-align: center;
             margin-bottom: 2pt;
         }
         .kadar-line {
             font-size: 7.5pt;
-            color: #1a4a7a;
+            color: #006600;
             line-height: 1.6;
             font-weight: 800;
         }
@@ -459,6 +459,16 @@
             font-size: 7pt;
             color: #1a4a7a;
             line-height: 1.3;
+        }
+        .sig-cell {
+            width: 130pt;
+            padding: 0 10pt;
+            vertical-align: middle;
+        }
+        .sig-box {
+            width: 100%;
+            height: 48pt;
+            border: 1pt solid #006600;
         }
         .footer-right {
             text-align: right;
@@ -789,6 +799,9 @@
                     <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
                     <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <strong>polisi No : {{ $settings['insurance_policy_no'] ?? '' }}</strong></div>
                     <div class="copy-label">{{ $copyLabel }}</div>
+                </td>
+                <td class="sig-cell">
+                    <div class="sig-box"></div>
                 </td>
                 <td class="footer-right">
                     <div class="weight-label">Termasuk Emas, Batu<br>dan lain-lain</div>
