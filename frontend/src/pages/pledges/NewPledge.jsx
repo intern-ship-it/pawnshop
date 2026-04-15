@@ -212,16 +212,45 @@ export default function NewPledge() {
     (state) => state.ui.camera,
   );
 
+  // Compress a data URL image (PNG from camera) to a smaller JPEG to avoid
+  // exceeding PHP post_max_size when submitting the pledge JSON payload.
+  const compressCameraImage = (dataUrl, maxWidth = 800, quality = 0.7) => {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let w = img.width;
+        let h = img.height;
+        if (w > maxWidth) {
+          h = Math.round((h * maxWidth) / w);
+          w = maxWidth;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(dataUrl); // fallback to original on error
+      img.src = dataUrl;
+    });
+  };
+
   useEffect(() => {
     if (capturedImage && contextId) {
-      setItems((currentItems) =>
-        currentItems.map((item) => {
-          if (item.id === contextId) {
-            return { ...item, photo: capturedImage };
-          }
-          return item;
-        }),
-      );
+      // Compress the camera image before storing it
+      compressCameraImage(capturedImage).then((compressedUrl) => {
+        setItems((currentItems) =>
+          currentItems.map((item) => {
+            if (item.id === contextId) {
+              return { ...item, photo: compressedUrl };
+            }
+            return item;
+          }),
+        );
+        // Clear captured image from Redux to free memory
+        dispatch(clearCapturedImage());
+      });
     }
   }, [capturedImage, contextId]);
 
@@ -1707,7 +1736,10 @@ export default function NewPledge() {
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      updateItem(itemId, "photo", reader.result);
+      // Compress uploaded photo to avoid exceeding payload limits
+      compressCameraImage(reader.result).then((compressedUrl) => {
+        updateItem(itemId, "photo", compressedUrl);
+      });
     };
     reader.readAsDataURL(file);
   };
