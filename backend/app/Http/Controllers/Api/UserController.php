@@ -18,7 +18,7 @@ class UserController extends Controller
     /**
      * Maximum number of super admins allowed in the system
      */
-    private const MAX_SUPER_ADMINS = 3;
+    private const MAX_SUPER_ADMINS = 4;
 
     /**
      * Check if adding another super admin would exceed the limit
