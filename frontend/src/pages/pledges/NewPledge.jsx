@@ -3162,7 +3162,7 @@ export default function NewPledge() {
                 </div>
               </div>
 
-              {/* Signature Pad */}
+              {/* Signature Pad - Commented out
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-medium text-zinc-700">Customer Signature <span className="text-zinc-400 text-xs">(Optional)</span></label>
@@ -3184,6 +3184,7 @@ export default function NewPledge() {
                   </div>
                 </div>
               </div>
+              */}
 
               <div className="mb-6"><TermsConsentPanel activityType="pledge" onConsentChange={(agreed) => setAgreedToTerms(agreed)} /></div>
 
