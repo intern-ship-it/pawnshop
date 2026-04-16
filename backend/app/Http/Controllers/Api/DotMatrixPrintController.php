@@ -4103,246 +4103,6 @@ HTML;
      * Generate Redemption Data Overlay
      * Uses same layout as pledge overlay but with REDEMPTION label
      */
-    private function generatePrePrintedRedemptionOverlay(Redemption $redemption, Pledge $pledge, array $settings): string
-    {
-        $customer = $pledge->customer;
-        $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
-        $interestAmount = $redemption->interest_amount ?? 0;
-        $handlingFee = $redemption->handling_fee ?? 0;
-        $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
-
-        $redemptionDate = $redemption->created_at ?? now();
-        if (is_string($redemptionDate))
-            $redemptionDate = Carbon::parse($redemptionDate);
-
-        $icNumber = $this->formatIC($customer->ic_number ?? '');
-        $birthYear = $this->extractBirthYear($customer);
-        $gender = $this->getGender($customer);
-        $nationality = $this->getCitizenship($customer);
-        $address = $this->formatCustomerAddress($customer);
-
-        $itemsText = '';
-        $itemNumber = 1;
-        foreach ($pledge->items as $item) {
-            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
-            $purity = $item->purity->code ?? '';
-            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
-            $displayDesc = $desc ? " -- {$desc}" : "";
-            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
-            $itemNumber++;
-        }
-
-        $totalWeight = 0;
-        foreach ($pledge->items as $item) {
-            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
-        }
-
-        $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
-
-        // Catatan for redemption - show financial breakdown (labels black, values blue)
-        $catatan = "TEBUS; Asal: <span class='ppo-val'>{$pledge->pledge_no}</span>; Pokok: <span class='ppo-val'>RM " . $this->formatNumber($principal) .
-            "</span>; Faedah: <span class='ppo-val'>RM " . $this->formatNumber($interestAmount) .
-            "</span>; Jumlah: <span class='ppo-val'>RM " . $this->formatNumber($totalPaid) . "</span>";
-
-        return <<<HTML
-<style>
-@page { size: 210mm 148mm; margin: 0; }
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â DATA OVERLAY - MATCHED TO NEW 3-COLUMN FORM Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-page {
-    width: 210mm;
-    height: 148mm;
-    padding: 0;
-    margin: 0;
-    position: relative;
-    font-family: 'Courier New', 'Courier', monospace;
-    font-weight: normal;
-    letter-spacing: 0.5px;
-    color: #000;
-    background: transparent !important;
-    overflow: hidden;
-    box-sizing: border-box;
-    page-break-after: always;
-}
-.ppo-page * { box-sizing: border-box; margin: 0; padding: 0; }
-
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TRANSACTION TYPE BANNER Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-type-banner {
-    position: absolute;
-    top: 16mm;
-    right: 58mm;
-    font-size: 15px;
-    font-weight: 900;
-    color: #d42027;
-    font-family: Arial, Helvetica, sans-serif;
-    letter-spacing: 1px;
-    text-align: right;
-    white-space: nowrap;
-}
-
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â TICKET NUMBER - Inside NO. TIKET yellow box Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-ticket {
-    position: absolute;
-    top: 27mm;
-    right: 7mm;
-    width: 40mm;
-    text-align: center;
-    font-size: 14px;
-    font-weight: bold;
-    font-family: 'Courier New', monospace;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 10mm;
-}
-
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-items {
-    position: absolute;
-    top: 31mm;
-    left: 7mm;
-    width: 81mm;
-    font-size: 9px;
-    line-height: 1.4;
-}
-.ppo-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
-
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CUSTOMER SECTION - 3 COLUMN LAYOUT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-ic {
-    position: absolute;
-    top: 76mm;
-    left: 24mm;
-    font-size: 11px;
-    width: 55mm;
-}
-.ppo-name {
-    position: absolute;
-    top: 76mm;
-    left: 81mm;
-    font-size: 11px;
-    width: 55mm;
-}
-.ppo-nationality {
-    position: absolute;
-    top: 76mm;
-    left: 152mm;
-    font-size: 10px;
-}
-
-.ppo-birthyear {
-    position: absolute;
-    top: 85mm;
-    left: 24mm;
-    font-size: 11px;
-}
-.ppo-gender {
-    position: absolute;
-    top: 85mm;
-    left: 83mm;
-    font-size: 11px;
-}
-
-.ppo-address {
-    position: absolute;
-    top: 92mm;
-    left: 24mm;
-    width: 150mm;
-    font-size: 10px;
-}
-
-.ppo-catatan {
-    position: absolute;
-    top: 98mm;
-    left: 24mm;
-    width: 175mm;
-    font-size: 9px;
-    color: #000;
-    font-weight: bold;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.ppo-val {
-    color: #003399;
-}
-
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AMAUN (Amount in words) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-amount-words {
-    position: absolute;
-    top: 105mm;
-    left: 22mm;
-    width: 150mm;
-    font-size: 9px;
-}
-
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-loan-amount {
-    position: absolute;
-    top: 113mm;
-    left: 48mm;
-    font-size: 18px;
-    font-family: 'Courier New', monospace;
-}
-.ppo-pledge-date {
-    position: absolute;
-    top: 115mm;
-    left: 150mm;
-    width: 28mm;
-    font-size: 12px;
-    text-align: center;
-}
-
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
-.ppo-weight {
-    position: absolute;
-    top: 126mm;
-    right: 9mm;
-    font-size: 10px;
-}
-
-@media print {
-    .ppo-page { page-break-after: always; }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-}
-</style>
-
-<div class="ppo-page">
-    <!-- TRANSACTION TYPE BANNER -->
-    <div class="ppo-type-banner">TEBUS / REDEMPTION</div>
-
-    <!-- TICKET NUMBER -->
-    <div class="ppo-ticket">{$redemption->redemption_no}</div>
-
-    <!-- ITEMS LIST -->
-    <div class="ppo-items">{$itemsText}</div>
-
-    <!-- ROW 1: IC | NAME | NATIONALITY -->
-    <div class="ppo-ic">{$icNumber}</div>
-    <div class="ppo-name">{$customer->name}</div>
-    <div class="ppo-nationality">{$nationality}</div>
-
-    <!-- ROW 2: BIRTH YEAR | GENDER -->
-    <div class="ppo-birthyear">{$birthYear}</div>
-    <div class="ppo-gender">{$gender}</div>
-
-    <!-- ROW 3: ADDRESS -->
-    <div class="ppo-address">{$address}</div>
-
-    <!-- ROW 4: CATATAN (Redemption Info) -->
-    <div class="ppo-catatan">{$catatan}</div>
-
-    <!-- AMOUNT IN WORDS -->
-    <div class="ppo-amount-words">{$amountWords} SAHAJA</div>
-
-    <!-- BOTTOM ROW -->
-    <div class="ppo-loan-amount">{$this->formatNumber($totalPaid, 2)}</div>
-    <div class="ppo-pledge-date">{$redemptionDate->format('d/m/Y')}</div>
-
-    <!-- WEIGHT -->
-    <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
-</div>
-HTML;
-    }
 
     /**
      * Generate Renewal Receipt WITH Pre-Printed Form Template
@@ -4856,108 +4616,7 @@ HTML;
      * Returns the complete form (blank template + redemption data filled in)
      * For checking how redemption data looks on the actual form
      */
-    public function prePrintedRedemptionReceiptWithForm(Request $request, $redemption): JsonResponse
-    {
-        try {
-            if (is_numeric($redemption)) {
-                $redemption = Redemption::find($redemption);
-            } else {
-                $redemption = Redemption::where('redemption_no', $redemption)->first();
-            }
-
-            if (!$redemption) {
-                return $this->error('Redemption not found', 404);
-            }
-
-            $redemption->load([
-                'pledge.customer',
-                'pledge.items.category',
-                'pledge.items.purity',
-                'pledge.branch',
-            ]);
-
-            $pledge = $redemption->pledge;
-
-            if (!$pledge) {
-                return $this->error('Pledge not found', 404);
-            }
-
-            if ($pledge->branch_id !== $request->user()->branch_id) {
-                return $this->error('Unauthorized', 403);
-            }
-
-            $settings = $this->getCompanySettings($pledge->branch);
-
-            // Generate BOTH blank form template AND redemption data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
-            $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
-
-            // Combine them - data overlay on top of blank form
-            $combinedHtml = <<<HTML
-<style>
-.pp-combined-container {
-    position: relative;
-    width: 210mm;
-    height: 148mm;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    page-break-inside: avoid;
-    page-break-after: avoid;
-}
-.pp-blank-layer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    overflow: hidden;
-}
-.pp-data-layer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 2;
-    overflow: hidden;
-}
-@media print {
-    /* Prevent page breaks - single page only */
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
-    .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
-}
-</style>
-
-<div class="pp-combined-container">
-    <div class="pp-blank-layer">
-        {$blankFrontHtml}
-    </div>
-    <div class="pp-data-layer">
-        {$dataOverlayHtml}
-    </div>
-</div>
-HTML;
-
-            return $this->success([
-                'front_html' => $combinedHtml,
-                'back_html' => '',
-                'redemption_no' => $redemption->redemption_no,
-                'pledge_no' => $pledge->pledge_no,
-                'orientation' => 'landscape',
-                'format' => 'html',
-                'paper_size' => 'A5',
-                'type' => 'pre_printed_with_form',
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
-            return $this->error('Print error: ' . $e->getMessage(), 500);
-        }
-    }
-
+  
 
 
     public function prePrintedPledgeReceiptA4(Request $request, Pledge $pledge): JsonResponse
@@ -5742,6 +5401,1577 @@ HTML;
 </div>
 HTML;
     }
+
+// ═══════════════════════════════════════════════════════════════
+// METHOD 1: generatePrePrintedRedmeptionA5FrontPage
+// Blank A5 Landscape form template for Redemption receipts
+// ═══════════════════════════════════════════════════════════════
+
+private function generatePrePrintedRedmeptionA5FrontPage(array $settings): string
+{
+    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $closedDays = htmlspecialchars($settings['closed_days'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $logoUrl = $settings['logo_url'] ?? null;
+
+    $phoneHtml = $phone1;
+    if ($phone2) {
+        $phoneHtml .= '<br>' . $phone2;
+    }
+
+    $logoHtml = '';
+    if ($logoUrl) {
+        $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
+    }
+
+    return <<<'HTMLSTART'
+<style>
+.pp-front {
+    width: 210mm;
+    height: 148mm; 
+    padding: 3mm 5mm;
+    font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
+    background: #fff !important; overflow: hidden; box-sizing: border-box;
+}
+.pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Header */
+.pp-hdr { display: flex; align-items: flex-start; padding-bottom: 2mm; border-bottom: 2px solid #1a4a7a; }
+.pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 3mm; }
+.pp-logo { width: 23mm; height: 24mm; object-fit: cover; flex-shrink: 0; }
+.pp-co-info { flex: 1; }
+.pp-co-name { font-size: 32px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+.pp-co-multi { font-size: 1.8rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
+.pp-co-addr { font-size: 10px; color: #1a4a7a; margin-top: 1mm; }
+
+.pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 48mm; }
+.pp-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }
+.pp-phone-box { background: #008000; color: #fff; padding: 2mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 1.5mm; }
+.pp-phone-icon { font-size: 14px; color: #008000; background: #fff; border-radius: 50%; width: 5.5mm; height: 5.5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pp-phone-nums { font-size: 11px; font-weight: bold; line-height: 1.3; }
+.pp-sejak { background: #008000; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #006400; }
+.pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; }
+.pp-sejak-yr { font-size: 11px; font-weight: bold; line-height: 1; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 45.4mm; text-align: center; }
+.pp-hrs-title { font-size: 12px; font-weight: bold; text-align: center; }
+.pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
+
+/* Middle section */
+.pp-mid { display: flex; border: 1px solid #1a4a7a; }
+.pp-items-sec { flex: 1; padding: 1.5mm 1mm 1mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
+.pp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
+.pp-items-area { min-height: 16mm; padding-left: 2mm; flex: 1; }
+
+/* Items split - left items + right barcode (A5) */
+.pp-items-split { display: flex; flex: 1; min-height: 26mm; }
+.pp-barcode-area { width: 42mm; min-width: 45mm; height: 32mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; margin-bottom: 3mm; flex-shrink: 0; }
+.pp-barcode-space { width: 90%; height: 26mm; border: 1px solid #ccc; }
+.pp-barcode-lbl { font-size: 5px; color: #999; margin-top: 0.5mm; }
+
+.pp-rcol { width: 45mm; min-width: 45mm; }
+.pp-tkt-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; }
+.pp-tkt-lbl { font-size: 8px; font-weight: bold; color: #000; }
+.pp-tkt-space { min-height: 10mm; }
+.pp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }
+.pp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
+.pp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
+.pp-rate-val { font-size: 10px; font-weight: bold; color: #1a4a7a; }
+.pp-rate-big { font-size: 13px; }
+.pp-kadar { padding: 1mm 2mm; }
+.pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center !important; }
+.pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; text-align: left; font-weight: 800; }
+
+/* Customer title row */
+.pp-cust-title-row { 
+    display: flex; 
+    font-size: 8px; 
+    font-weight: bold; 
+    padding: 0.5mm 0; 
+    margin-top: 0.5mm;
+}
+.pp-cust-title-left { flex: 1; }
+
+/* CUSTOMER BOX - 3 COLUMN LAYOUT */
+.pp-cust-box { 
+    border: 1px solid #008000; 
+    padding: 1.5mm 3mm; 
+    min-height: 20mm; 
+}
+
+.pp-cust-row { 
+    display: flex; 
+    align-items: baseline; 
+    margin-bottom: 1.5mm; 
+    font-size: 9px; 
+    font-weight: bold; 
+}
+.pp-cust-row:last-child { margin-bottom: 0; }
+
+/* 3-column container */
+.pp-cust-col {
+    display: flex;
+    align-items: baseline;
+    flex: 1;
+}
+
+/* Labels */
+.pp-cust-lbl { 
+    white-space: nowrap; 
+    min-width: 18mm;
+    flex-shrink: 0;
+    font-size: 11px;
+}
+
+/* Value spaces (dotted underline areas) */
+.pp-cust-val {
+    flex: 1;
+    min-height: 4mm;
+    margin-right: 3mm;
+}
+.pp-cust-col:last-child .pp-cust-val {
+    margin-right: 0;
+}
+
+/* Full width rows */
+.pp-cust-row.full-width .pp-cust-val {
+    margin-right: 0;
+}
+
+/* Amount */
+.pp-amt-row { border: 1px solid #008000; border-bottom: none; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 2mm; }
+.pp-amt-lbl { font-size: 10px; font-weight: bold; }
+
+/* Bottom */
+.pp-bot { display: flex; border: 1px solid #008000; }
+.pp-pin-cell { flex: 1; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 1.5mm; border-right: 2px solid #008000; }
+.pp-pin-lbl { font-size: 9px; }
+.pp-pin-rm { font-size: 12px; font-weight: bold; }
+.pp-pin-sp { flex: 1; min-height: 6mm; }
+.pp-pin-stars { font-size: 12px; font-weight: bold; }
+.pp-dt-cell { width: 27mm; text-align: center; padding: 1.5mm; border-right: 2px solid #008000; }
+.pp-dt-cell:last-child { border-right: none; }
+.pp-dt-lbl { font-size: 7px; font-weight: bold; }
+.pp-dt-sp { min-height: 6mm; }
+.pp-dt-yel { background: #f5c518; }
+
+/* Footer */
+.pp-ftr { font-size: 11px; line-height: 1.3; margin-top: 1.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
+.pp-ftr-left { flex: 1; position: relative;}
+.pp-sig-box { width: 40mm; height: 16mm; border: 1px solid #008000; margin: 0 4mm; flex-shrink: 0; }
+.pp-ftr-right { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 30mm; }
+.pp-ftr-label { font-size: 11px; line-height: 1.3; margin-bottom: 1mm; }
+.pp-ftr-weight-area { font-size: 10px; font-weight: bold; min-height: 5mm; }
+
+@media print {
+    /* page-break-after removed: no back page since client pre-prints it */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+HTMLSTART
+        . <<<HTML
+<div class="pp-front">
+    <div class="pp-hdr">
+        <div class="pp-hdr-left">
+            {$logoHtml}
+            <div class="pp-co-info">
+                <div class="pp-co-name">{$companyName}</div>
+                <div class="pp-co-multi">{$chineseName} {$tamilName}</div>
+                <div class="pp-co-addr">{$address}</div>
+            </div>
+        </div>
+        <div class="pp-hdr-right">
+            <div class="pp-top-row">
+                <div class="pp-phone-box">
+                    <span class="pp-phone-icon">&#9742;</span>
+                    <div class="pp-phone-nums">{$phoneHtml}</div>
+                </div>
+                <div class="pp-sejak">
+                    <span class="pp-sejak-lbl">SEJAK</span>
+                    <span class="pp-sejak-yr">{$estYear}</span>
+                </div>
+            </div>
+            <div class="pp-hrs-box">
+                <div class="pp-hrs-title">BUKA 7 HARI</div>
+                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+            </div>
+        </div>
+    </div>
+    <div class="pp-mid">
+        <div class="pp-items-sec">
+            <div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div>
+            <div class="pp-items-split">
+                <div class="pp-items-area"></div>
+                <div class="pp-barcode-area">
+                    <div class="pp-barcode-space"></div>
+                    <div class="pp-barcode-lbl">BARCODE</div>
+                </div>
+            </div>
+        </div>
+        <div class="pp-rcol">
+            <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
+            <div class="pp-rate-row">
+                <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
+            </div>
+            <div class="pp-kadar">
+                <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.0% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pp-cust-title-row">
+        <span class="pp-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span>
+    </div>
+
+    <!-- CUSTOMER BOX - 3 COLUMN LAYOUT -->
+    <div class="pp-cust-box">
+        <!-- ROW 1: No. Kad Pengenalan | Nama | Kerakyatan (3 columns) -->
+        <div class="pp-cust-row">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">No. Kad<br>Pengenalan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Nama :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Kerakyatan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+
+        <!-- ROW 2: Tahun Lahir | Jantina (2 columns) -->
+        <div class="pp-cust-row">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Tahun Lahir :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col" style="flex: 2;">
+                <span class="pp-cust-lbl">Jantina :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+
+        <!-- ROW 3: Alamat (full width) -->
+        <div class="pp-cust-row full-width" style="height: 8mm;">
+            <span class="pp-cust-lbl">Alamat :</span>
+            <span class="pp-cust-val"></span> 
+        </div>
+        
+        <!-- ROW 4: Catatan (full width) -->
+        <!-- <div class="pp-cust-row full-width">
+            <span class="pp-cust-lbl" style="margin-top:1.5rem" >Catatan :</span>
+            <span class="pp-cust-val"></span>
+        </div> -->
+    </div>
+
+    <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah :</span></div>
+
+    <div class="pp-bot">
+        <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
+        <div class="pp-dt-cell"><div class="pp-dt-lbl">Redemption Date</div><div class="pp-dt-sp"></div></div>
+        <!-- <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div> -->
+    </div>
+
+    <div class="pp-ftr">
+        <div class="pp-ftr-left">
+            <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <b>polisi No : {$settings['insurance_policy_no']}</b></div>
+        </div>
+        <div class="pp-sig-box"></div>
+        <div class="pp-ftr-right">
+            <div class="pp-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>
+            
+        </div>
+    </div>
+</div>
+HTML;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// METHOD 2: generatePrePrintedRedemptionOverlay
+// Data overlay for redemption - prints variable data on pre-printed form
+// ═══════════════════════════════════════════════════════════════
+
+private function generatePrePrintedRedemptionOverlay(Redemption $redemption, Pledge $pledge, array $settings): string
+{
+    $customer = $pledge->customer;
+    $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
+    $interestAmount = $redemption->interest_amount ?? 0;
+    $handlingFee = $redemption->handling_fee ?? 0;
+    $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
+
+    $redemptionDate = $redemption->created_at ?? now();
+    if (is_string($redemptionDate))
+        $redemptionDate = Carbon::parse($redemptionDate);
+
+    $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+    if (is_string($pledgeDate))
+        $pledgeDate = Carbon::parse($pledgeDate);
+
+    // Calculate total weight
+    $totalWeight = 0;
+    foreach ($pledge->items as $item) {
+        $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+    }
+
+    // Customer details
+    $icNumber = $this->formatIC($customer->ic_number ?? '');
+    $birthYear = $this->extractBirthYear($customer);
+    $gender = $this->getGender($customer);
+    $nationality = $this->getCitizenship($customer);
+    $address = $this->formatCustomerAddress($customer);
+
+    // Build items text
+    $itemsText = '';
+    $itemNumber = 1;
+    foreach ($pledge->items as $item) {
+        $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+        $purity = $item->purity->code ?? '';
+        $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+        $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+        $displayDesc = $desc ? " -- {$desc}" : "";
+        $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
+        $itemNumber++;
+    }
+
+    // Format amounts
+    $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
+    $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
+    $principalFormatted = $this->formatNumber($principal, 2);
+    $interestFormatted = $this->formatNumber($interestAmount, 2);
+    $rate = $pledge->interest_rate ?? 0.5;
+    $monthlyInterest = $principal * (floatval($rate) / 100);
+    $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+    return <<<HTML
+<style>
+@page { size: 210mm 148mm; margin: 0; }
+.ppo-page {
+    width: 210mm;
+    height: 148mm;
+    padding: 0;
+    margin: 0;
+    position: relative;
+    font-family: 'Courier New', 'Courier', monospace;
+    font-weight: bolder;
+    letter-spacing: 0.5px;
+    color: #000;
+    background: transparent !important;
+    overflow: hidden;
+    box-sizing: border-box;
+    page-break-after: always;
+}
+.ppo-page * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ═══ TICKET NUMBER (PLG number) ═══ */
+.ppo-ticket {
+    position: absolute;
+    top: 30mm;
+    right: 7mm;
+    width: 40mm;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    height: 7mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ REDEMPTION NO ═══ */
+.ppo-redemption-no {
+    position: absolute;
+    top: 35mm;
+    right: 7mm;
+    width: 40mm;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    height: 6mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ DITEBUS BADGE ═══ */
+.ppo-ditebus-badge {
+    position: absolute;
+    top: 42.7mm;
+    right: 6mm;
+    width: 43mm;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 900;
+    /* color: #fff; */
+    background: #1a7a3a;
+    font-family: Arial, Helvetica, sans-serif;
+    letter-spacing: 1px;
+    padding: 1.5mm 2mm;
+    border-radius: 2px;
+    height: 7mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ ITEMS LIST ═══ */
+.ppo-items {
+    position: absolute;
+    top: 32mm;
+    left: 7mm;
+    width: 80mm;
+    font-size: 11px;
+    line-height: 1.4;
+    font-weight: bold;
+}
+.ppo-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
+
+/* ═══ BARCODE ═══ */
+.ppo-barcode {
+    position: absolute;
+    top: 40mm;
+    left: 111mm;
+    width: 50mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ CUSTOMER SECTION ═══ */
+/* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
+.ppo-ic {
+    position: absolute;
+    top: 80.5mm;
+    left: 28mm;
+    font-size: 12px;
+    width: 55mm;
+}
+.ppo-name {
+    position: absolute;
+    top: 77.3mm;
+    left: 83mm;
+    font-size: 12px;
+    width: 55mm;
+}
+.ppo-nationality {
+    position: absolute;
+    top: 77.5mm;
+    left: 156mm;
+    font-size: 12px;
+}
+
+/* ROW 2: Tahun Lahir | Jantina */
+.ppo-birthyear {
+    position: absolute;
+    top: 86.9mm;
+    left: 28mm;
+    font-size: 12px;
+}
+.ppo-gender {
+    position: absolute;
+    top: 86.6mm;
+    left: 86mm;
+    font-size: 12px;
+}
+
+/* ROW 3: Alamat */
+.ppo-address {
+    position: absolute;
+    top: 92.7mm;
+    left: 21mm;
+    width: 183mm;
+    font-size: 11px;
+}
+
+/* ═══ FINANCIAL BREAKDOWN ═══ */
+.ppo-fin-row {
+    position: absolute;
+    left: 7mm;
+    width: 198mm;
+    font-size: 9px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    display: flex;
+}
+.ppo-fin-row1 { top: 97.5mm; }
+.ppo-fin-row2 { top: 101mm; }
+
+.ppo-fin-col-left {
+    width: 95mm;
+}
+.ppo-fin-col-right {
+    width: 103mm;
+}
+
+/* ═══ AMOUNT IN WORDS ═══ */
+.ppo-amount-words {
+    position: absolute;
+    top: 103mm;
+    left: 22mm;
+    width: 160mm;
+    font-size: 9px;
+}
+
+/* ═══ BOTTOM ROW ═══ */
+.ppo-loan-amount {
+    position: absolute;
+    top: 110mm;
+    left: 35mm;
+    font-size: 22px;
+    font-family: 'Courier New', monospace;
+}
+.ppo-interest-note {
+    position: absolute;
+    top: 112mm;
+    left: 90mm;
+    width: 68mm;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+/* ═══ SIGNATURE BOX ═══ */
+.ppo-signature-box {
+    position: absolute;
+    top: 112mm;
+    left: 160mm;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* ═══ DATES ═══ */
+.ppo-pledge-date-label {
+    position: absolute;
+    top: 108mm;
+    right: 3mm;
+    width: 38mm;
+    font-size: 6.5px;
+    text-align: center;
+    color: #333;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: normal;
+    font-style: italic;
+}
+.ppo-pledge-date {
+    position: absolute;
+    top: 111mm;
+    right: 3mm;
+    width: 38mm;
+    font-size: 11px;
+    text-align: center;
+}
+.ppo-redemption-date-label {
+    position: absolute;
+    top: 116mm;
+    right: 3mm;
+    width: 38mm;
+    font-size: 6.5px;
+    text-align: center;
+    color: #1a7a3a;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: normal;
+    font-style: italic;
+}
+.ppo-redemption-date {
+    position: absolute;
+    top: 112mm;
+    right: -1mm;
+    width: 38mm;
+    font-size: 11px;
+    text-align: center;
+    color: #1a7a3a;
+    font-weight: bold;
+}
+
+/* ═══ WEIGHT ═══ */
+.ppo-weight {
+    position: absolute;
+    bottom: 9mm;
+    right: 10mm;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* ═══ SALINAN PELANGGAN ═══ */
+.ppo-copy-label {
+    position: absolute;
+    bottom: 8mm;
+    left: 7mm;
+    font-size: 11px;
+    font-weight: 900;
+    color: #1a7a3a;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+@media print {
+    .ppo-page { page-break-after: always; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+
+<div class="ppo-page">
+
+    <!-- TICKET NUMBER (Original Pledge No) -->
+    <div class="ppo-ticket">{$pledge->pledge_no}</div>
+
+    <!-- REDEMPTION NUMBER -->
+    <div class="ppo-redemption-no">{$redemption->redemption_no}</div>
+
+    <!-- DITEBUS / REDEEMED BADGE -->
+    <div class="ppo-ditebus-badge">DITEBUS / REDEEMED</div>
+
+    <!-- ITEMS LIST -->
+    <div class="ppo-items">{$itemsText}</div>
+
+    <!-- BARCODE -->
+    <div class="ppo-barcode">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:14mm;width:auto;max-width:25mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
+    </div>
+
+    <!-- ROW 1: IC | NAME | NATIONALITY -->
+    <div class="ppo-ic">{$icNumber}</div>
+    <div class="ppo-name">{$customer->name}</div>
+    <div class="ppo-nationality">{$nationality}</div>
+
+    <!-- ROW 2: BIRTH YEAR | GENDER -->
+    <div class="ppo-birthyear">{$birthYear}</div>
+    <div class="ppo-gender">{$gender}</div>
+
+    <!-- ROW 3: ADDRESS -->
+    <div class="ppo-address">{$address}</div>
+
+    <!-- AMOUNT IN WORDS -->
+    <div class="ppo-amount-words">{$amountWords} SAHAJA</div>
+
+    <!-- BOTTOM ROW -->
+    <div class="ppo-loan-amount">{$totalPaidFormatted}</div>
+    <div class="ppo-interest-note">{$interestNote}</div>
+
+    <!-- DATES -->
+    <div class="ppo-redemption-date">{$redemptionDate->format('d/m/Y')}</div>
+
+    <!-- WEIGHT -->
+    <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
+
+    <!-- SALINAN PELANGGAN -->
+    <div class="ppo-copy-label">SALINAN PELANGGAN</div>
+</div>
+HTML;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// METHOD 3: prePrintedRedemptionReceiptWithForm
+// Public API endpoint - combines blank template + data overlay
+// ═══════════════════════════════════════════════════════════════
+
+public function prePrintedRedemptionReceiptWithForm(Request $request, $redemption): JsonResponse
+{
+    try {
+        if (is_numeric($redemption)) {
+            $redemption = Redemption::find($redemption);
+        } else {
+            $redemption = Redemption::where('redemption_no', $redemption)->first();
+        }
+
+        if (!$redemption) {
+            return $this->error('Redemption not found', 404);
+        }
+
+        $redemption->load([
+            'pledge.customer',
+            'pledge.items.category',
+            'pledge.items.purity',
+            'pledge.branch',
+        ]);
+
+        $pledge = $redemption->pledge;
+
+        if (!$pledge) {
+            return $this->error('Pledge not found', 404);
+        }
+
+        if ($pledge->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $settings = $this->getCompanySettings($pledge->branch);
+
+        // Generate BOTH blank form template AND redemption data overlay
+        $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings);
+        $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
+
+        // Combine them - data overlay on top of blank form
+        $combinedHtml = <<<HTML
+<style>
+.pp-combined-container {
+    position: relative;
+    width: 210mm;
+    height: 148mm;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+.pp-blank-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    overflow: hidden;
+}
+.pp-data-layer {
+    position: absolute;
+    top: 13px;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    overflow: hidden;
+}
+@media print {
+    /* Prevent page breaks - single page only */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+    .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
+}
+</style>
+
+<div class="pp-combined-container">
+    <div class="pp-blank-layer">
+        {$blankFrontHtml}
+    </div>
+    <div class="pp-data-layer">
+        {$dataOverlayHtml}
+    </div>
+</div>
+HTML;
+
+        return $this->success([
+            'front_html' => $combinedHtml,
+            'back_html' => '',
+            'redemption_no' => $redemption->redemption_no,
+            'pledge_no' => $pledge->pledge_no,
+            'orientation' => 'landscape',
+            'format' => 'html',
+            'paper_size' => 'A5',
+            'type' => 'pre_printed_with_form',
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
+        return $this->error('Print error: ' . $e->getMessage(), 500);
+    }
+}
+
+// === REPRINT METHODS ===
+
+// ═══════════════════════════════════════════════════════════════
+// METHOD 1: generatePrePrintedRedmeptionA5FrontPageReprint
+// Blank A5 Landscape form template for Redemption receipts
+// ═══════════════════════════════════════════════════════════════
+
+private function generatePrePrintedRedmeptionA5FrontPageReprint(array $settings): string
+{
+    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $closedDays = htmlspecialchars($settings['closed_days'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $logoUrl = $settings['logo_url'] ?? null;
+
+    $phoneHtml = $phone1;
+    if ($phone2) {
+        $phoneHtml .= '<br>' . $phone2;
+    }
+
+    $logoHtml = '';
+    if ($logoUrl) {
+        $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
+    }
+
+    return <<<'HTMLSTART'
+<style>
+.pp-front {
+    width: 210mm;
+    height: 148mm; 
+    padding: 3mm 5mm;
+    font-family: Arial, Helvetica, sans-serif; color: #1a4a7a;
+    background: #fff !important; overflow: hidden; box-sizing: border-box;
+}
+.pp-front * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Header */
+.pp-hdr { display: flex; align-items: flex-start; padding-bottom: 2mm; border-bottom: 2px solid #1a4a7a; }
+.pp-hdr-left { flex: 1; display: flex; align-items: flex-start; gap: 3mm; }
+.pp-logo { width: 23mm; height: 24mm; object-fit: cover; flex-shrink: 0; }
+.pp-co-info { flex: 1; }
+.pp-co-name { font-size: 32px; font-weight: bold; color: #1a4a7a; line-height: 1.1; }
+.pp-co-multi { font-size: 1.8rem; font-weight: bold; color: #1a4a7a; margin-top: 0.5mm; }
+.pp-co-addr { font-size: 10px; color: #1a4a7a; margin-top: 1mm; }
+
+.pp-hdr-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 48mm; }
+.pp-top-row { display: flex; align-items: center; gap: 2mm; margin-bottom: 1mm; }
+.pp-phone-box { background: #008000; color: #fff; padding: 2mm 3mm; border-radius: 3px; display: flex; align-items: center; gap: 1.5mm; }
+.pp-phone-icon { font-size: 14px; color: #008000; background: #fff; border-radius: 50%; width: 5.5mm; height: 5.5mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pp-phone-nums { font-size: 11px; font-weight: bold; line-height: 1.3; }
+.pp-sejak { background: #008000; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #006400; }
+.pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; }
+.pp-sejak-yr { font-size: 11px; font-weight: bold; line-height: 1; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 45.4mm; text-align: center; }
+.pp-hrs-title { font-size: 12px; font-weight: bold; text-align: center; }
+.pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
+
+/* Middle section */
+.pp-mid { display: flex; border: 1px solid #1a4a7a; }
+.pp-items-sec { flex: 1; padding: 1.5mm 1mm 1mm 2mm; border-right: 1px solid #1a4a7a; display: flex; flex-direction: column; }
+.pp-items-title { font-size: 8px; font-weight: bold; margin-bottom: 1mm; }
+.pp-items-area { min-height: 16mm; padding-left: 2mm; flex: 1; }
+
+/* Items split - left items + right barcode (A5) */
+.pp-items-split { display: flex; flex: 1; min-height: 26mm; }
+.pp-barcode-area { width: 42mm; min-width: 45mm; height: 32mm; border-left: 1px dashed #1a4a7a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5mm; margin-bottom: 3mm; flex-shrink: 0; }
+.pp-barcode-space { width: 90%; height: 26mm; border: 1px solid #ccc; }
+.pp-barcode-lbl { font-size: 5px; color: #999; margin-top: 0.5mm; }
+
+.pp-rcol { width: 45mm; min-width: 45mm; }
+.pp-tkt-box { background: #f5c518; padding: 1.5mm; border-bottom: 1px solid #1a4a7a; }
+.pp-tkt-lbl { font-size: 8px; font-weight: bold; color: #000; }
+.pp-tkt-space { min-height: 10mm; }
+.pp-rate-row { display: flex; border-bottom: 1px solid #1a4a7a; }
+.pp-rate-cell { flex: 1; padding: 1.5mm; text-align: center; }
+.pp-rate-lbl { font-size: 6px; font-weight: bold; color: #1a4a7a; }
+.pp-rate-val { font-size: 10px; font-weight: bold; color: #1a4a7a; }
+.pp-rate-big { font-size: 13px; }
+.pp-kadar { padding: 1mm 2mm; }
+.pp-kadar-title { font-size: 7px; font-weight: bold; color: #1a4a7a; text-align: center !important; }
+.pp-kadar-ln { font-size: 6px; color: #1a4a7a; line-height: 1.5; text-align: left; font-weight: 800; }
+
+/* Customer title row */
+.pp-cust-title-row { 
+    display: flex; 
+    font-size: 8px; 
+    font-weight: bold; 
+    padding: 0.5mm 0; 
+    margin-top: 0.5mm;
+}
+.pp-cust-title-left { flex: 1; }
+
+/* CUSTOMER BOX - 3 COLUMN LAYOUT */
+.pp-cust-box { 
+    border: 1px solid #008000; 
+    padding: 1.5mm 3mm; 
+    min-height: 20mm; 
+}
+
+.pp-cust-row { 
+    display: flex; 
+    align-items: baseline; 
+    margin-bottom: 1.5mm; 
+    font-size: 9px; 
+    font-weight: bold; 
+}
+.pp-cust-row:last-child { margin-bottom: 0; }
+
+/* 3-column container */
+.pp-cust-col {
+    display: flex;
+    align-items: baseline;
+    flex: 1;
+}
+
+/* Labels */
+.pp-cust-lbl { 
+    white-space: nowrap; 
+    min-width: 18mm;
+    flex-shrink: 0;
+    font-size: 11px;
+}
+
+/* Value spaces (dotted underline areas) */
+.pp-cust-val {
+    flex: 1;
+    min-height: 4mm;
+    margin-right: 3mm;
+}
+.pp-cust-col:last-child .pp-cust-val {
+    margin-right: 0;
+}
+
+/* Full width rows */
+.pp-cust-row.full-width .pp-cust-val {
+    margin-right: 0;
+}
+
+/* Amount */
+.pp-amt-row { border: 1px solid #008000; border-bottom: none; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 2mm; }
+.pp-amt-lbl { font-size: 10px; font-weight: bold; }
+
+/* Bottom */
+.pp-bot { display: flex; border: 1px solid #008000; }
+.pp-pin-cell { flex: 1; padding: 1.5mm 3mm; display: flex; align-items: baseline; gap: 1.5mm; border-right: 2px solid #008000; }
+.pp-pin-lbl { font-size: 9px; }
+.pp-pin-rm { font-size: 12px; font-weight: bold; }
+.pp-pin-sp { flex: 1; min-height: 6mm; }
+.pp-pin-stars { font-size: 12px; font-weight: bold; }
+.pp-dt-cell { width: 27mm; text-align: center; padding: 1.5mm; border-right: 2px solid #008000; }
+.pp-dt-cell:last-child { border-right: none; }
+.pp-dt-lbl { font-size: 7px; font-weight: bold; }
+.pp-dt-sp { min-height: 6mm; }
+.pp-dt-yel { background: #f5c518; }
+
+/* Footer */
+.pp-ftr { font-size: 11px; line-height: 1.3; margin-top: 1.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
+.pp-ftr-left { flex: 1; position: relative;}
+.pp-sig-box { width: 40mm; height: 16mm; border: 1px solid #008000; margin: 0 4mm; flex-shrink: 0; }
+.pp-ftr-right { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 30mm; }
+.pp-ftr-label { font-size: 11px; line-height: 1.3; margin-bottom: 1mm; }
+.pp-ftr-weight-area { font-size: 10px; font-weight: bold; min-height: 5mm; }
+
+@media print {
+    /* page-break-after removed: no back page since client pre-prints it */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+HTMLSTART
+        . <<<HTML
+<div class="pp-front">
+    <div class="pp-hdr">
+        <div class="pp-hdr-left">
+            {$logoHtml}
+            <div class="pp-co-info">
+                <div class="pp-co-name">{$companyName}</div>
+                <div class="pp-co-multi">{$chineseName} {$tamilName}</div>
+                <div class="pp-co-addr">{$address}</div>
+            </div>
+        </div>
+        <div class="pp-hdr-right">
+            <div class="pp-top-row">
+                <div class="pp-phone-box">
+                    <span class="pp-phone-icon">&#9742;</span>
+                    <div class="pp-phone-nums">{$phoneHtml}</div>
+                </div>
+                <div class="pp-sejak">
+                    <span class="pp-sejak-lbl">SEJAK</span>
+                    <span class="pp-sejak-yr">{$estYear}</span>
+                </div>
+            </div>
+            <div class="pp-hrs-box">
+                <div class="pp-hrs-title">BUKA 7 HARI</div>
+                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+            </div>
+        </div>
+    </div>
+    <div class="pp-mid">
+        <div class="pp-items-sec">
+            <div class="pp-items-title">Perihal terperinci artikel yang digadai:-</div>
+            <div class="pp-items-split">
+                <div class="pp-items-area"></div>
+                <div class="pp-barcode-area">
+                    <div class="pp-barcode-space"></div>
+                    <div class="pp-barcode-lbl">BARCODE</div>
+                </div>
+            </div>
+        </div>
+        <div class="pp-rcol">
+            <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
+            <div class="pp-rate-row">
+                <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
+            </div>
+            <div class="pp-kadar">
+                <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.0% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pp-cust-title-row">
+        <span class="pp-cust-title-left">Butir-butir terperinci mengenai pemajak gadai:-</span>
+    </div>
+
+    <!-- CUSTOMER BOX - 3 COLUMN LAYOUT -->
+    <div class="pp-cust-box">
+        <!-- ROW 1: No. Kad Pengenalan | Nama | Kerakyatan (3 columns) -->
+        <div class="pp-cust-row">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">No. Kad<br>Pengenalan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Nama :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Kerakyatan :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+
+        <!-- ROW 2: Tahun Lahir | Jantina (2 columns) -->
+        <div class="pp-cust-row">
+            <div class="pp-cust-col">
+                <span class="pp-cust-lbl">Tahun Lahir :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+            <div class="pp-cust-col" style="flex: 2;">
+                <span class="pp-cust-lbl">Jantina :</span>
+                <span class="pp-cust-val"></span>
+            </div>
+        </div>
+
+        <!-- ROW 3: Alamat (full width) -->
+        <div class="pp-cust-row full-width" style="height: 8mm;">
+            <span class="pp-cust-lbl">Alamat :</span>
+            <span class="pp-cust-val"></span> 
+        </div>
+        
+        <!-- ROW 4: Catatan (full width) -->
+        <!-- <div class="pp-cust-row full-width">
+            <span class="pp-cust-lbl" style="margin-top:1.5rem" >Catatan :</span>
+            <span class="pp-cust-val"></span>
+        </div> -->
+    </div>
+
+    <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah :</span></div>
+
+    <div class="pp-bot">
+        <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
+        <div class="pp-dt-cell"><div class="pp-dt-lbl">Redemption Date</div><div class="pp-dt-sp"></div></div>
+        <!-- <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div> -->
+    </div>
+
+    <div class="pp-ftr">
+        <div class="pp-ftr-left">
+            <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
+            <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <b>polisi No : {$settings['insurance_policy_no']}</b></div>
+        </div>
+        <div class="pp-sig-box"></div>
+        <div class="pp-ftr-right">
+            <div class="pp-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>
+            
+        </div>
+    </div>
+</div>
+HTML;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// METHOD 2: generatePrePrintedRedemptionOverlayReprint
+// Data overlay for redemption - prints variable data on pre-printed form
+// ═══════════════════════════════════════════════════════════════
+
+private function generatePrePrintedRedemptionOverlayReprint(Redemption $redemption, Pledge $pledge, array $settings): string
+{
+    $customer = $pledge->customer;
+    $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
+    $interestAmount = $redemption->interest_amount ?? 0;
+    $handlingFee = $redemption->handling_fee ?? 0;
+    $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
+
+    $redemptionDate = $redemption->created_at ?? now();
+    if (is_string($redemptionDate))
+        $redemptionDate = Carbon::parse($redemptionDate);
+
+    $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+    if (is_string($pledgeDate))
+        $pledgeDate = Carbon::parse($pledgeDate);
+
+    // Calculate total weight
+    $totalWeight = 0;
+    foreach ($pledge->items as $item) {
+        $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+    }
+
+    // Customer details
+    $icNumber = $this->formatIC($customer->ic_number ?? '');
+    $birthYear = $this->extractBirthYear($customer);
+    $gender = $this->getGender($customer);
+    $nationality = $this->getCitizenship($customer);
+    $address = $this->formatCustomerAddress($customer);
+
+    // Build items text
+    $itemsText = '';
+    $itemNumber = 1;
+    foreach ($pledge->items as $item) {
+        $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+        $purity = $item->purity->code ?? '';
+        $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+        $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+        $displayDesc = $desc ? " -- {$desc}" : "";
+        $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
+        $itemNumber++;
+    }
+
+    // Format amounts
+    $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
+    $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
+    $principalFormatted = $this->formatNumber($principal, 2);
+    $interestFormatted = $this->formatNumber($interestAmount, 2);
+    $rate = $pledge->interest_rate ?? 0.5;
+    $monthlyInterest = $principal * (floatval($rate) / 100);
+    $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+    return <<<HTML
+<style>
+@page { size: 210mm 148mm; margin: 0; }
+.ppo-page {
+    width: 210mm;
+    height: 148mm;
+    padding: 0;
+    margin: 0;
+    position: relative;
+    font-family: 'Courier New', 'Courier', monospace;
+    font-weight: bolder;
+    letter-spacing: 0.5px;
+    color: #000;
+    background: transparent !important;
+    overflow: hidden;
+    box-sizing: border-box;
+    page-break-after: always;
+}
+.ppo-page * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ═══ TICKET NUMBER (PLG number) ═══ */
+.ppo-ticket {
+    position: absolute;
+    top: 30mm;
+    right: 7mm;
+    width: 40mm;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    height: 7mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ REDEMPTION NO ═══ */
+.ppo-redemption-no {
+    position: absolute;
+    top: 35mm;
+    right: 7mm;
+    width: 40mm;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    height: 6mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ DITEBUS BADGE ═══ */
+.ppo-ditebus-badge {
+    position: absolute;
+    top: 42.7mm;
+    right: 6mm;
+    width: 43mm;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 900;
+    /* color: #fff; */
+    background: #1a7a3a;
+    font-family: Arial, Helvetica, sans-serif;
+    letter-spacing: 1px;
+    padding: 1.5mm 2mm;
+    border-radius: 2px;
+    height: 7mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ ITEMS LIST ═══ */
+.ppo-items {
+    position: absolute;
+    top: 32mm;
+    left: 7mm;
+    width: 80mm;
+    font-size: 11px;
+    line-height: 1.4;
+    font-weight: bold;
+}
+.ppo-item { margin-bottom: 1mm; word-break: break-word; padding-left: 3ch; text-indent: -3ch; }
+
+/* ═══ BARCODE ═══ */
+.ppo-barcode {
+    position: absolute;
+    top: 40mm;
+    left: 111mm;
+    width: 50mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ CUSTOMER SECTION ═══ */
+/* ROW 1: No. Kad Pengenalan | Nama | Kerakyatan */
+.ppo-ic {
+    position: absolute;
+    top: 80.5mm;
+    left: 28mm;
+    font-size: 12px;
+    width: 55mm;
+}
+.ppo-name {
+    position: absolute;
+    top: 77.3mm;
+    left: 83mm;
+    font-size: 12px;
+    width: 55mm;
+}
+.ppo-nationality {
+    position: absolute;
+    top: 77.5mm;
+    left: 156mm;
+    font-size: 12px;
+}
+
+/* ROW 2: Tahun Lahir | Jantina */
+.ppo-birthyear {
+    position: absolute;
+    top: 86.9mm;
+    left: 28mm;
+    font-size: 12px;
+}
+.ppo-gender {
+    position: absolute;
+    top: 86.6mm;
+    left: 86mm;
+    font-size: 12px;
+}
+
+/* ROW 3: Alamat */
+.ppo-address {
+    position: absolute;
+    top: 92.7mm;
+    left: 21mm;
+    width: 183mm;
+    font-size: 11px;
+}
+
+/* ═══ FINANCIAL BREAKDOWN ═══ */
+.ppo-fin-row {
+    position: absolute;
+    left: 7mm;
+    width: 198mm;
+    font-size: 9px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    display: flex;
+}
+.ppo-fin-row1 { top: 97.5mm; }
+.ppo-fin-row2 { top: 101mm; }
+
+.ppo-fin-col-left {
+    width: 95mm;
+}
+.ppo-fin-col-right {
+    width: 103mm;
+}
+
+/* ═══ AMOUNT IN WORDS ═══ */
+.ppo-amount-words {
+    position: absolute;
+    top: 103mm;
+    left: 22mm;
+    width: 160mm;
+    font-size: 9px;
+}
+
+/* ═══ BOTTOM ROW ═══ */
+.ppo-loan-amount {
+    position: absolute;
+    top: 110mm;
+    left: 35mm;
+    font-size: 22px;
+    font-family: 'Courier New', monospace;
+}
+.ppo-interest-note {
+    position: absolute;
+    top: 112mm;
+    left: 90mm;
+    width: 68mm;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+/* ═══ SIGNATURE BOX ═══ */
+.ppo-signature-box {
+    position: absolute;
+    top: 112mm;
+    left: 160mm;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* ═══ DATES ═══ */
+.ppo-pledge-date-label {
+    position: absolute;
+    top: 108mm;
+    right: 3mm;
+    width: 38mm;
+    font-size: 6.5px;
+    text-align: center;
+    color: #333;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: normal;
+    font-style: italic;
+}
+.ppo-pledge-date {
+    position: absolute;
+    top: 111mm;
+    right: 3mm;
+    width: 38mm;
+    font-size: 11px;
+    text-align: center;
+}
+.ppo-redemption-date-label {
+    position: absolute;
+    top: 116mm;
+    right: 3mm;
+    width: 38mm;
+    font-size: 6.5px;
+    text-align: center;
+    color: #1a7a3a;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: normal;
+    font-style: italic;
+}
+.ppo-redemption-date {
+    position: absolute;
+    top: 112mm;
+    right: -1mm;
+    width: 38mm;
+    font-size: 11px;
+    text-align: center;
+    color: #1a7a3a;
+    font-weight: bold;
+}
+
+/* ═══ WEIGHT ═══ */
+.ppo-weight {
+    position: absolute;
+    bottom: 9mm;
+    right: 10mm;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* ═══ SALINAN PELANGGAN (REPRINT) ═══ */
+.ppo-copy-label {
+    position: absolute;
+    bottom: 8mm;
+    left: 7mm;
+    font-size: 11px;
+    font-weight: 900;
+    color: #1a7a3a;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+@media print {
+    .ppo-page { page-break-after: always; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+</style>
+
+<div class="ppo-page">
+
+    <!-- TICKET NUMBER (Original Pledge No) -->
+    <div class="ppo-ticket">{$pledge->pledge_no}</div>
+
+    <!-- REDEMPTION NUMBER -->
+    <div class="ppo-redemption-no">{$redemption->redemption_no}</div>
+
+    <!-- DITEBUS / REDEEMED BADGE -->
+    <div class="ppo-ditebus-badge">DITEBUS / REDEEMED</div>
+
+    <!-- ITEMS LIST -->
+    <div class="ppo-items">{$itemsText}</div>
+
+    <!-- BARCODE -->
+    <div class="ppo-barcode">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:14mm;width:auto;max-width:25mm;">
+        <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
+    </div>
+
+    <!-- ROW 1: IC | NAME | NATIONALITY -->
+    <div class="ppo-ic">{$icNumber}</div>
+    <div class="ppo-name">{$customer->name}</div>
+    <div class="ppo-nationality">{$nationality}</div>
+
+    <!-- ROW 2: BIRTH YEAR | GENDER -->
+    <div class="ppo-birthyear">{$birthYear}</div>
+    <div class="ppo-gender">{$gender}</div>
+
+    <!-- ROW 3: ADDRESS -->
+    <div class="ppo-address">{$address}</div>
+
+    <!-- AMOUNT IN WORDS -->
+    <div class="ppo-amount-words">{$amountWords} SAHAJA</div>
+
+    <!-- BOTTOM ROW -->
+    <div class="ppo-loan-amount">{$totalPaidFormatted}</div>
+    <div class="ppo-interest-note">{$interestNote}</div>
+
+    <!-- DATES -->
+    <div class="ppo-redemption-date">{$redemptionDate->format('d/m/Y')}</div>
+
+    <!-- WEIGHT -->
+    <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
+
+    <!-- SALINAN PELANGGAN (REPRINT) -->
+    <div class="ppo-copy-label">SALINAN PELANGGAN (REPRINT)</div>
+</div>
+HTML;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// METHOD 3: prePrintedRedemptionReceiptWithFormReprint
+// Public API endpoint - combines blank template + data overlay
+// ═══════════════════════════════════════════════════════════════
+
+public function prePrintedRedemptionReceiptWithFormReprint(Request $request, $redemption): JsonResponse
+{
+    try {
+        if (is_numeric($redemption)) {
+            $redemption = Redemption::find($redemption);
+        } else {
+            $redemption = Redemption::where('redemption_no', $redemption)->first();
+        }
+
+        if (!$redemption) {
+            return $this->error('Redemption not found', 404);
+        }
+
+        $redemption->load([
+            'pledge.customer',
+            'pledge.items.category',
+            'pledge.items.purity',
+            'pledge.branch',
+        ]);
+
+        $pledge = $redemption->pledge;
+
+        if (!$pledge) {
+            return $this->error('Pledge not found', 404);
+        }
+
+        if ($pledge->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $settings = $this->getCompanySettings($pledge->branch);
+
+        // Generate BOTH blank form template AND redemption data overlay
+        $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPageReprint($settings);
+        $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlayReprint($redemption, $pledge, $settings);
+
+        // Combine them - data overlay on top of blank form
+        $combinedHtml = <<<HTML
+<style>
+.pp-combined-container {
+    position: relative;
+    width: 210mm;
+    height: 148mm;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+.pp-blank-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    overflow: hidden;
+}
+.pp-data-layer {
+    position: absolute;
+    top: 13px;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    overflow: hidden;
+}
+@media print {
+    /* Prevent page breaks - single page only */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .pp-combined-container { page-break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+    .pp-combined-container .pp-front { page-break-after: avoid !important; page-break-inside: avoid !important; height: 148mm !important; overflow: hidden !important; }
+}
+</style>
+
+<div class="pp-combined-container">
+    <div class="pp-blank-layer">
+        {$blankFrontHtml}
+    </div>
+    <div class="pp-data-layer">
+        {$dataOverlayHtml}
+    </div>
+</div>
+HTML;
+
+        return $this->success([
+            'front_html' => $combinedHtml,
+            'back_html' => '',
+            'redemption_no' => $redemption->redemption_no,
+            'pledge_no' => $pledge->pledge_no,
+            'orientation' => 'landscape',
+            'format' => 'html',
+            'paper_size' => 'A5',
+            'type' => 'pre_printed_with_form',
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
+        return $this->error('Print error: ' . $e->getMessage(), 500);
+    }
+}
+
+
+
+
+
 
 
 }

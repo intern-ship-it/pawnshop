@@ -717,6 +717,8 @@ Route::middleware('auth:sanctum')->group(function () {
                     ->middleware('check.permission:renewals,print');
                 Route::post('/pre-printed-with-form/redemption/{redemption}', [DotMatrixPrintController::class , 'prePrintedRedemptionReceiptWithForm'])
                     ->middleware('check.permission:redemptions,print');
+                Route::post('/pre-printed-with-form/redemption/{redemption}/reprint', [DotMatrixPrintController::class , 'prePrintedRedemptionReceiptWithFormReprint'])
+                    ->middleware('check.permission:redemptions,print');
             }
             );
 

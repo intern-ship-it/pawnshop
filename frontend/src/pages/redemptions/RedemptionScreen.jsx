@@ -983,7 +983,7 @@ export default function RedemptionScreen() {
 
       // Use pre-printed form with template endpoint (fully styled receipt)
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-with-form/redemption/${redemptionId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/redemption/${redemptionId}/reprint`,
         {
           method: "POST",
           headers: {
