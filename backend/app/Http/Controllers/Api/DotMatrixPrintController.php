@@ -4690,7 +4690,7 @@ HTML;
 /* ═══ WEIGHT ═══ */
 .ppo-weight {
     position: absolute;
-    bottom: 9mm;
+    bottom: 4mm;
     right: 10mm;
     font-size: 12px;
     font-weight: bold;
@@ -4699,7 +4699,7 @@ HTML;
 /* ═══ SALINAN PELANGGAN ═══ */
 .ppo-copy-label {
     position: absolute;
-    bottom: 8mm;
+    bottom: 4mm;
     left: 7mm;
     font-size: 11px;
     font-weight: 900;
