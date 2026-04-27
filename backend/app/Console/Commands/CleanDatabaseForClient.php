@@ -13,6 +13,7 @@ class CleanDatabaseForClient extends Command
      */
     protected $signature = 'pawnsys:clean-for-client 
                             {--confirm : Confirm the cleanup (required to run)}
+                            {--force : Skip interactive confirmation (for cPanel terminal)}
                             {--keep-users : Keep existing user accounts}
                             {--keep-gold-prices : Keep gold price history}';
 
@@ -130,9 +131,11 @@ class CleanDatabaseForClient extends Command
         // Show what will be cleaned
         $this->showCleanupPlan();
 
-        if (!$this->confirm('⚠️  Are you absolutely sure? This action CANNOT be undone!', false)) {
-            $this->info('Cleanup cancelled.');
-            return Command::SUCCESS;
+        if (!$this->option('force')) {
+            if (!$this->confirm('⚠️  Are you absolutely sure? This action CANNOT be undone!', false)) {
+                $this->info('Cleanup cancelled.');
+                return Command::SUCCESS;
+            }
         }
 
         $this->newLine();
