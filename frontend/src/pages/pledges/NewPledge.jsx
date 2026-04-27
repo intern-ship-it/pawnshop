@@ -503,7 +503,7 @@ export default function NewPledge() {
 
     calculatedCharge = Math.round(calculatedCharge * 100) / 100;
     setHandlingCharge(calculatedCharge.toString());
-    setNetPayoutAmount(currentLoanAmount);
+    setNetPayoutAmount(Math.max(0, currentLoanAmount - calculatedCharge));
   }, [items, loanPercentage, useCustomPercentage, customPercentage, handlingSettings, goldPrices]);
 
   useEffect(() => {
@@ -518,7 +518,8 @@ export default function NewPledge() {
       : loanPercentage;
     const currentLoanAmountRaw = totalNetValue * (currentEffectivePercentage / 100);
     const currentLoanAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
-    setNetPayoutAmount(currentLoanAmount);
+    const currentHandlingCharge = parseFloat(handlingCharge) || 0;
+    setNetPayoutAmount(Math.max(0, currentLoanAmount - currentHandlingCharge));
   }, [handlingCharge, items, loanPercentage, useCustomPercentage, customPercentage]);
 
   // ============ STORAGE API FUNCTIONS ============
@@ -1928,6 +1929,7 @@ export default function NewPledge() {
             gross_weight: parseFloat(item.weight),
             stone_deduction_type: item.stoneDeductionType || "amount",
             stone_deduction_value: parseFloat(item.stoneDeduction) || 0,
+            price_per_gram: parseFloat(item.pricePerGram) || getMarketPrice(item.purity),
             description: item.description || null,
             photo: item.photo || null,
           };

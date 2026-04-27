@@ -273,6 +273,7 @@ class PledgeController extends Controller
             'items.*.gross_weight' => 'required|numeric|min:0.001',
             'items.*.stone_deduction_type' => 'required|in:percentage,amount,grams',
             'items.*.stone_deduction_value' => 'required|numeric|min:0',
+            'items.*.price_per_gram' => 'nullable|numeric|min:0',
             'items.*.description' => 'nullable|string|max:255',
             'items.*.photo' => 'nullable|string', // Base64 encoded image or URL
             'items.*.vault_id' => 'nullable|exists:vaults,id',
@@ -328,7 +329,8 @@ class PledgeController extends Controller
 
             foreach ($validated['items'] as $item) {
                 $purity = \App\Models\Purity::find($item['purity_id']);
-                $pricePerGram = $goldPrices->getPriceForPurity($purity->code);
+                // Use frontend-provided price if available, otherwise fall back to DB gold price
+                $pricePerGram = !empty($item['price_per_gram']) ? (float) $item['price_per_gram'] : $goldPrices->getPriceForPurity($purity->code);
 
                 $gw = $item['gross_weight'];
                 $deductionWeight = 0;
@@ -364,15 +366,21 @@ class PledgeController extends Controller
             $payoutAmount = max(0, $loanAmount - $handlingFee);
             $dueDate = Carbon::today()->addMonths(6);
 
-            // Validate payment amounts match payout amount to prevent data mismatch
+            // Auto-correct payment amounts to match server-calculated payout amount
             $payment = $validated['payment'];
-            $cashAmt = (float) ($payment['cash_amount'] ?? 0);
-            $transferAmt = (float) ($payment['transfer_amount'] ?? 0);
-            $totalPayment = round($cashAmt + $transferAmt, 2);
-            $expectedPayout = round($payoutAmount, 2);
+            $paymentMethod = $payment['method'] ?? 'cash';
 
-            if (abs($totalPayment - $expectedPayout) > 0.01) {
-                throw new \Exception("Payment breakdown (RM {$totalPayment}) does not match the calculated net payout amount (RM {$expectedPayout}).");
+            if ($paymentMethod === 'cash') {
+                $payment['cash_amount'] = $payoutAmount;
+                $payment['transfer_amount'] = 0;
+            } elseif ($paymentMethod === 'transfer') {
+                $payment['cash_amount'] = 0;
+                $payment['transfer_amount'] = $payoutAmount;
+            } else {
+                // Partial: keep cash as-is, adjust transfer to fill the remainder
+                $cashAmt = min((float) ($payment['cash_amount'] ?? 0), $payoutAmount);
+                $payment['cash_amount'] = $cashAmt;
+                $payment['transfer_amount'] = max(0, $payoutAmount - $cashAmt);
             }
 
             // Fetch interest rates from database (branch specific or global)
@@ -419,7 +427,8 @@ class PledgeController extends Controller
             $itemNumber = 1;
             foreach ($validated['items'] as $item) {
                 $purity = \App\Models\Purity::find($item['purity_id']);
-                $pricePerGram = $goldPrices->getPriceForPurity($purity->code);
+                // Use frontend-provided price if available, otherwise fall back to DB gold price
+                $pricePerGram = !empty($item['price_per_gram']) ? (float) $item['price_per_gram'] : $goldPrices->getPriceForPurity($purity->code);
 
                 $gw = $item['gross_weight'];
                 $deductionWeight = 0;
@@ -487,11 +496,11 @@ class PledgeController extends Controller
             PledgePayment::create([
                 'pledge_id' => $pledge->id,
                 'total_amount' => $loanAmount,
-                'cash_amount' => $payment['cash_amount'] ?? 0,
-                'transfer_amount' => $payment['transfer_amount'] ?? 0,
+                'cash_amount' => $payment['cash_amount'],
+                'transfer_amount' => $payment['transfer_amount'],
                 'bank_id' => $payment['bank_id'] ?? null,
                 'reference_no' => $payment['reference_no'] ?? null,
-                'payment_method' => $payment['method'],
+                'payment_method' => $paymentMethod,
                 'payment_date' => Carbon::today(),
                 'created_by' => $userId,
             ]);
