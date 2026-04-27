@@ -352,7 +352,6 @@ class PledgeController extends Controller
                 $gv = $gw * $pricePerGram;
                 $da = $item['stone_deduction_type'] === 'amount' ? $deductionAmt : ($deductionWeight * $pricePerGram);
                 $nv = $gv - $da;
-                $nv = floor($nv / 50) * 50;
 
                 $totalWeight += $nw;
                 $grossValue += $gv;
@@ -450,7 +449,6 @@ class PledgeController extends Controller
                 $gv = $gw * $pricePerGram;
                 $da = $item['stone_deduction_type'] === 'amount' ? $deductionAmt : ($deductionWeight * $pricePerGram);
                 $nv = $gv - $da;
-                $nv = floor($nv / 50) * 50;
 
                 $pledgeItem = PledgeItem::create([
                     'pledge_id' => $pledge->id,

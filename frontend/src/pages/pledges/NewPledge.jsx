@@ -872,7 +872,7 @@ export default function NewPledge() {
         ? netWeight * pricePerGram
         : Math.max(0, grossValue - deduction);
 
-    const netValue = Math.floor(netValueRaw / 50) * 50;
+    const netValue = Math.max(0, netValueRaw);
 
     return {
       gross: grossValue,
