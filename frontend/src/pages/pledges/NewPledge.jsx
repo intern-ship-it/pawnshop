@@ -485,7 +485,10 @@ export default function NewPledge() {
       totalNetValue += val.net;
     });
 
-    const currentLoanAmountRaw = totalNetValue * (loanPercentage / 100);
+    const currentEffectivePercentage = useCustomPercentage
+      ? parseFloat(customPercentage) || 0
+      : loanPercentage;
+    const currentLoanAmountRaw = totalNetValue * (currentEffectivePercentage / 100);
     const currentLoanAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
 
     let calculatedCharge = 0;
@@ -501,7 +504,7 @@ export default function NewPledge() {
     calculatedCharge = Math.round(calculatedCharge * 100) / 100;
     setHandlingCharge(calculatedCharge.toString());
     setNetPayoutAmount(currentLoanAmount);
-  }, [items, loanPercentage, handlingSettings, goldPrices]);
+  }, [items, loanPercentage, useCustomPercentage, customPercentage, handlingSettings, goldPrices]);
 
   useEffect(() => {
     const validItems = items.filter((i) => i.category && i.weight);
@@ -510,10 +513,13 @@ export default function NewPledge() {
       const val = calculateItemValue(item);
       totalNetValue += val.net;
     });
-    const currentLoanAmountRaw = totalNetValue * (loanPercentage / 100);
+    const currentEffectivePercentage = useCustomPercentage
+      ? parseFloat(customPercentage) || 0
+      : loanPercentage;
+    const currentLoanAmountRaw = totalNetValue * (currentEffectivePercentage / 100);
     const currentLoanAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
     setNetPayoutAmount(currentLoanAmount);
-  }, [handlingCharge, items, loanPercentage]);
+  }, [handlingCharge, items, loanPercentage, useCustomPercentage, customPercentage]);
 
   // ============ STORAGE API FUNCTIONS ============
 
