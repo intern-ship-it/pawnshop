@@ -364,6 +364,17 @@ class PledgeController extends Controller
             $payoutAmount = max(0, $loanAmount - $handlingFee);
             $dueDate = Carbon::today()->addMonths(6);
 
+            // Validate payment amounts match payout amount to prevent data mismatch
+            $payment = $validated['payment'];
+            $cashAmt = (float) ($payment['cash_amount'] ?? 0);
+            $transferAmt = (float) ($payment['transfer_amount'] ?? 0);
+            $totalPayment = round($cashAmt + $transferAmt, 2);
+            $expectedPayout = round($payoutAmount, 2);
+
+            if (abs($totalPayment - $expectedPayout) > 0.01) {
+                throw new \Exception("Payment breakdown (RM {$totalPayment}) does not match the calculated net payout amount (RM {$expectedPayout}).");
+            }
+
             // Fetch interest rates from database (branch specific or global)
             $interestRates = \App\Models\InterestRate::where(function($q) use ($branchId) {
                 $q->where('branch_id', $branchId)->orWhereNull('branch_id');
