@@ -289,6 +289,11 @@ class PledgeController extends Controller
             'payment.reference_no' => 'nullable|string|max:50',
             'customer_signature' => 'nullable|string',
             'terms_accepted' => 'required|boolean|accepted',
+            'gold_prices' => 'nullable|array',
+            'gold_prices.price_999' => 'nullable|numeric|min:0',
+            'gold_prices.price_916' => 'nullable|numeric|min:0',
+            'gold_prices.price_875' => 'nullable|numeric|min:0',
+            'gold_prices.price_750' => 'nullable|numeric|min:0',
         ]);
 
         $branchId = $request->user()->branch_id;
@@ -412,10 +417,10 @@ class PledgeController extends Controller
                 'pledge_date' => Carbon::today(),
                 'due_date' => $dueDate,
                 'grace_end_date' => $dueDate->copy()->addDays(7),
-                'gold_price_999' => $goldPrices->price_999,
-                'gold_price_916' => $goldPrices->price_916,
-                'gold_price_875' => $goldPrices->price_875,
-                'gold_price_750' => $goldPrices->price_750,
+                'gold_price_999' => $validated['gold_prices']['price_999'] ?? $goldPrices->price_999,
+                'gold_price_916' => $validated['gold_prices']['price_916'] ?? $goldPrices->price_916,
+                'gold_price_875' => $validated['gold_prices']['price_875'] ?? $goldPrices->price_875,
+                'gold_price_750' => $validated['gold_prices']['price_750'] ?? $goldPrices->price_750,
                 'customer_signature' => $validated['customer_signature'] ?? null,
                 'terms_accepted' => true,
                 'terms_accepted_at' => now(),

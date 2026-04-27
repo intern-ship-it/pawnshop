@@ -97,7 +97,7 @@ export default function DayEndSummary() {
 
   // Cash drawer
   const [cashDrawer, setCashDrawer] = useState({
-    openingBalance: 5000,
+    openingBalance: 0,
     closingBalance: "",
     notes: "",
   });
@@ -213,7 +213,7 @@ export default function DayEndSummary() {
           });
 
           setCashDrawer({
-            openingBalance: parseFloat(report.opening_balance) || 5000,
+            openingBalance: parseFloat(report.opening_balance) || 0,
             closingBalance: report.closing_balance
               ? String(report.closing_balance)
               : "",
@@ -265,7 +265,7 @@ export default function DayEndSummary() {
           });
 
           setCashDrawer({
-            openingBalance: 5000,
+            openingBalance: 0,
             closingBalance: "",
             notes: "",
           });
@@ -722,10 +722,6 @@ export default function DayEndSummary() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Opening Balance</td>
-                <td class="right">${formatCurrency(cashDrawer.openingBalance)}</td>
-              </tr>
               <tr>
                 <td>Expected Closing</td>
                 <td class="right">${formatCurrency(expectedClosing)}</td>
@@ -1394,16 +1390,6 @@ export default function DayEndSummary() {
             </h3>
 
             <div className="space-y-4">
-              {/* Opening Balance */}
-              <div className="p-4 bg-zinc-50 rounded-xl">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-zinc-500">Opening Balance</span>
-                  <span className="text-lg font-bold">
-                    {formatCurrency(cashDrawer.openingBalance)}
-                  </span>
-                </div>
-              </div>
-
               {/* Transactions */}
               <div className="p-4 bg-zinc-50 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-sm">

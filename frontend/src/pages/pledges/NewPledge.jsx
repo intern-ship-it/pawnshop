@@ -1975,6 +1975,12 @@ export default function NewPledge() {
         payment: payment,
         customer_signature: signature,
         terms_accepted: true,
+        gold_prices: {
+          price_999: parseFloat(getMarketPrice("999")) || 0,
+          price_916: parseFloat(getMarketPrice("916")) || 0,
+          price_875: parseFloat(getMarketPrice("875")) || 0,
+          price_750: parseFloat(getMarketPrice("750")) || 0,
+        },
       };
 
       console.log("Submitting pledge data:", JSON.stringify(pledgeData, null, 2));
