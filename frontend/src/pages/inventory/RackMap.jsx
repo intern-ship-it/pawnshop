@@ -207,7 +207,8 @@ export default function RackMap({ embedded = false }) {
         return slotNum === paddedQuery;
       }
       // For longer queries, search across all fields
-      const item = slot.current_item || slot.pledge_item;
+      const items = slot.current_items || [];
+      const item = items[0] || slot.current_item || slot.pledge_item;
       let formattedSlotObj = String(slot.slot_number);
       if (currentBox?.has_subslots) {
          formattedSlotObj = `${Math.ceil(slot.slot_number / (currentBox.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1}`;
@@ -215,6 +216,9 @@ export default function RackMap({ embedded = false }) {
       return (
         formattedSlotObj.includes(query) ||
         slot.slot_number?.toString().includes(query) ||
+        items.some(i => i.pledge?.pledge_no?.toLowerCase().includes(query)) ||
+        items.some(i => i.pledge?.customer?.name?.toLowerCase().includes(query)) ||
+        items.some(i => i.barcode?.toLowerCase().includes(query)) ||
         item?.pledge?.pledge_no?.toLowerCase().includes(query) ||
         item?.pledge?.customer?.name?.toLowerCase().includes(query) ||
         item?.barcode?.toLowerCase().includes(query)
@@ -240,12 +244,14 @@ export default function RackMap({ embedded = false }) {
     setShowSlotModal(true);
     setIsLoadingSlotItems(true);
 
-    // Use current_item_id from API response
-    const itemId = slot.current_item_id || slot.pledge_item_id;
-
-    if (slot.is_occupied && itemId) {
+    // Use current_items (plural) from the slot data - this is the HasMany relationship
+    // that returns ALL pledge items stored in this slot (supports multi-item pledges sharing one slot)
+    if (slot.is_occupied && slot.current_items && slot.current_items.length > 0) {
+      setSlotItems(slot.current_items);
+    } else if (slot.is_occupied && slot.current_item_id) {
+      // Fallback: fetch single item if current_items not available
       try {
-        const response = await inventoryService.getById(itemId);
+        const response = await inventoryService.getById(slot.current_item_id);
         if (response.success && response.data) {
           setSlotItems([response.data]);
         }
@@ -253,7 +259,6 @@ export default function RackMap({ embedded = false }) {
         console.error("Error fetching slot item:", error);
       }
     } else if (slot.is_occupied && slot.current_item) {
-      // If current_item is already loaded with slot data
       setSlotItems([slot.current_item]);
     }
     setIsLoadingSlotItems(false);
@@ -968,8 +973,8 @@ export default function RackMap({ embedded = false }) {
                       <div className="grid grid-cols-5 gap-1.5">
                         {subslots.map((slot) => {
                           const isOccupied = slot.is_occupied;
-                          const item = slot.current_item || slot.pledge_item;
-                          const hasOverdue = item?.pledge?.status === "overdue";
+                          const item = (slot.current_items && slot.current_items[0]) || slot.current_item || slot.pledge_item;
+                          const hasOverdue = item?.pledge?.status === "overdue" || (slot.current_items || []).some(i => i.pledge?.status === "overdue");
                           const subslotNum = ((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1;
 
                           return (
@@ -978,7 +983,7 @@ export default function RackMap({ embedded = false }) {
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() => handleSlotClick(slot)}
-                              title={item ? item.pledge?.pledge_no : `Subslot ${subslotNum} (Empty)`}
+                              title={item ? `${item.pledge?.pledge_no || ''} (${(slot.current_items || []).length} items)` : `Subslot ${subslotNum} (Empty)`}
                               className={cn(
                                 "aspect-square rounded flex items-center justify-center text-[11px] font-bold transition-all relative",
                                 isOccupied
@@ -1003,8 +1008,8 @@ export default function RackMap({ embedded = false }) {
               <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
                 {filteredSlots.map((slot) => {
                   const isOccupied = slot.is_occupied;
-                  const item = slot.current_item || slot.pledge_item;
-                  const hasOverdue = item?.pledge?.status === "overdue";
+                  const item = (slot.current_items && slot.current_items[0]) || slot.current_item || slot.pledge_item;
+                  const hasOverdue = item?.pledge?.status === "overdue" || (slot.current_items || []).some(i => i.pledge?.status === "overdue");
 
                   return (
                     <motion.button
@@ -1027,9 +1032,9 @@ export default function RackMap({ embedded = false }) {
                           : String(slot.slot_number).padStart(2, "0")}
                       </span>
                       {isOccupied &&
-                        (slot.current_item || slot.pledge_item) && (
+                        (slot.current_items?.length > 0 || slot.current_item || slot.pledge_item) && (
                           <span className="text-[10px] mt-0.5 truncate max-w-full px-1">
-                            {(slot.current_item || slot.pledge_item)?.pledge
+                            {((slot.current_items && slot.current_items[0]) || slot.current_item || slot.pledge_item)?.pledge
                               ?.pledge_no || "Item"}
                           </span>
                         )}
