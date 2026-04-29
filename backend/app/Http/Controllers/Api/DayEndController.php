@@ -76,13 +76,17 @@ class DayEndController extends Controller
 
         $report->load(['verifications', 'closedBy:id,name']);
 
-        // Also include purity breakdown (calculated on the fly)
+        // Also include purity breakdown and transaction details (calculated on the fly)
         $purityBreakdown = $this->calculatePurityBreakdown($branchId, $today);
+        $stats = $this->calculateDayStats($branchId, $today);
 
         return $this->success([
             'report' => $report,
             'items_in_by_purity' => $purityBreakdown['items_in_by_purity'],
             'items_out_by_purity' => $purityBreakdown['items_out_by_purity'],
+            'pledges_detail' => $stats['pledges_detail'] ?? [],
+            'redemptions_detail' => $stats['redemptions_detail'] ?? [],
+            'renewals_detail' => $stats['renewals_detail'] ?? [],
         ]);
     }
 
@@ -110,13 +114,17 @@ class DayEndController extends Controller
             ]);
         }
 
-        // Include purity breakdown alongside report
+        // Include purity breakdown and transaction details alongside report
         $purityBreakdown = $this->calculatePurityBreakdown($branchId, $date);
+        $stats = $this->calculateDayStats($branchId, $date);
 
         return $this->success([
             'report' => $report,
             'items_in_by_purity' => $purityBreakdown['items_in_by_purity'],
             'items_out_by_purity' => $purityBreakdown['items_out_by_purity'],
+            'pledges_detail' => $stats['pledges_detail'] ?? [],
+            'redemptions_detail' => $stats['redemptions_detail'] ?? [],
+            'renewals_detail' => $stats['renewals_detail'] ?? [],
         ]);
     }
 
@@ -561,6 +569,45 @@ class DayEndController extends Controller
             'weight' => round($group->sum('net_weight'), 3),
         ]);
 
+        // Individual transaction details for detailed report
+        $pledgesDetail = $pledges->map(function ($pledge) {
+            $pledge->load(['customer:id,name', 'items.category:id,name_en']);
+            $itemTypes = $pledge->items->pluck('category.name_en')->filter()->unique()->implode(', ') ?: 'Gold Item';
+            return [
+                'ref_no' => $pledge->pledge_no,
+                'customer' => $pledge->customer->name ?? 'N/A',
+                'item_type' => $itemTypes,
+                'item_count' => $pledge->items->count(),
+                'weight' => round((float)$pledge->total_weight, 3),
+                'amount' => round((float)$pledge->loan_amount, 2),
+            ];
+        })->values();
+
+        $redemptionsDetail = $redemptions->map(function ($redemption) {
+            $redemption->load(['pledge.customer:id,name', 'pledge.items.category:id,name_en']);
+            return [
+                'ref_no' => $redemption->redemption_no ?? $redemption->pledge->pledge_no,
+                'customer' => $redemption->pledge->customer->name ?? 'N/A',
+                'item_count' => $redemption->pledge->items->count(),
+                'weight' => round((float)$redemption->pledge->total_weight, 3),
+                'principal' => round((float)$redemption->principal_amount, 2),
+                'interest' => round((float)$redemption->interest_amount, 2),
+                'total_paid' => round((float)$redemption->total_payable, 2),
+            ];
+        })->values();
+
+        $renewalsDetail = $renewals->map(function ($renewal) {
+            $renewal->load(['pledge.customer:id,name', 'pledge.items.category:id,name_en']);
+            return [
+                'ref_no' => $renewal->renewal_no ?? $renewal->pledge->pledge_no,
+                'customer' => $renewal->pledge->customer->name ?? 'N/A',
+                'item_count' => $renewal->pledge->items->count(),
+                'weight' => round((float)$renewal->pledge->total_weight, 3),
+                'interest_paid' => round((float)$renewal->total_payable, 2),
+                'extension_months' => $renewal->renewal_months ?? 0,
+            ];
+        })->values();
+
         return [
             'pledges' => $pledgeStats,
             'renewals' => $renewalStats,
@@ -569,6 +616,9 @@ class DayEndController extends Controller
             'items_out' => $itemsOut,
             'items_in_by_purity' => $itemsInByPurity,
             'items_out_by_purity' => $itemsOutByPurity,
+            'pledges_detail' => $pledgesDetail,
+            'redemptions_detail' => $redemptionsDetail,
+            'renewals_detail' => $renewalsDetail,
         ];
     }
 

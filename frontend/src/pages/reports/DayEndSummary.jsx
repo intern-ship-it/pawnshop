@@ -3,6 +3,7 @@ import { useAppDispatch } from "@/app/hooks";
 import dayEndService from "@/services/dayEndService";
 import goldPriceService from "@/services/goldPriceService";
 import inventoryService from "@/services/inventoryService";
+import { settingsService } from "@/services";
 import { useNavigate } from "react-router";
 import { addToast } from "@/features/ui/uiSlice";
 import { formatCurrency } from "@/utils/formatters";
@@ -69,6 +70,13 @@ export default function DayEndSummary() {
     itemsOutByPurity: {},
   });
 
+  // Transaction details (individual pledges, redemptions, renewals)
+  const [transactionDetails, setTransactionDetails] = useState({
+    pledges: [],
+    redemptions: [],
+    renewals: [],
+  });
+
   // FIX: Daily stats from API (not localStorage)
   const [dailyStats, setDailyStats] = useState({
     newPledgesCount: 0,
@@ -100,6 +108,13 @@ export default function DayEndSummary() {
     openingBalance: 0,
     closingBalance: "",
     notes: "",
+  });
+
+  // Payment breakdown (cash vs transfer)
+  const [paymentBreakdown, setPaymentBreakdown] = useState({
+    pledges: { cash: 0, transfer: 0 },
+    renewals: { cash: 0, transfer: 0 },
+    redemptions: { cash: 0, transfer: 0 },
   });
 
   // Fetch data on mount and date change
@@ -187,6 +202,13 @@ export default function DayEndSummary() {
         const itemsOutByPurity = data.items_out_by_purity || stats?.items_out_by_purity || {};
         setStockByPurity({ itemsInByPurity, itemsOutByPurity });
 
+        // Extract transaction details
+        setTransactionDetails({
+          pledges: data.pledges_detail || stats?.pledges_detail || [],
+          redemptions: data.redemptions_detail || stats?.redemptions_detail || [],
+          renewals: data.renewals_detail || stats?.renewals_detail || [],
+        });
+
         // If we have a report (day-end was started)
         if (report && report.id) {
           setDayEndData(report);
@@ -196,6 +218,22 @@ export default function DayEndSummary() {
           const newPledgesAmount = parseFloat(report.new_pledges_amount) || 0;
           const renewalInterest = parseFloat(report.renewals_amount) || 0;
           const redemptionAmount = parseFloat(report.redemptions_amount) || 0;
+
+          // Extract payment method breakdown
+          setPaymentBreakdown({
+            pledges: {
+              cash: parseFloat(report.new_pledges_cash) || 0,
+              transfer: parseFloat(report.new_pledges_transfer) || 0,
+            },
+            renewals: {
+              cash: parseFloat(report.renewals_cash) || 0,
+              transfer: parseFloat(report.renewals_transfer) || 0,
+            },
+            redemptions: {
+              cash: parseFloat(report.redemptions_cash) || 0,
+              transfer: parseFloat(report.redemptions_transfer) || 0,
+            },
+          });
 
           setDailyStats({
             newPledgesCount: report.new_pledges_count || 0,
@@ -248,6 +286,22 @@ export default function DayEndSummary() {
           const newPledgesAmount = parseFloat(stats.pledges?.total) || 0;
           const renewalInterest = parseFloat(stats.renewals?.total) || 0;
           const redemptionAmount = parseFloat(stats.redemptions?.total) || 0;
+
+          // Extract payment method breakdown from stats
+          setPaymentBreakdown({
+            pledges: {
+              cash: parseFloat(stats.pledges?.cash) || 0,
+              transfer: parseFloat(stats.pledges?.transfer) || 0,
+            },
+            renewals: {
+              cash: parseFloat(stats.renewals?.cash) || 0,
+              transfer: parseFloat(stats.renewals?.transfer) || 0,
+            },
+            redemptions: {
+              cash: parseFloat(stats.redemptions?.cash) || 0,
+              transfer: parseFloat(stats.redemptions?.transfer) || 0,
+            },
+          });
 
           setDailyStats({
             newPledgesCount: stats.pledges?.count || 0,
@@ -474,8 +528,8 @@ export default function DayEndSummary() {
     }
   };
 
-  // Print summary — accounting-style ledger
-  const handlePrint = () => {
+  // Print summary — accounting-style ledger (PDF spec compliant)
+  const handlePrint = async () => {
     const dateLabel = new Date(selectedDate).toLocaleDateString("en-MY", {
       weekday: "long",
       year: "numeric",
@@ -483,272 +537,301 @@ export default function DayEndSummary() {
       day: "numeric",
     });
 
-    const totalTxn = dailyStats.newPledgesCount + dailyStats.renewalsCount + dailyStats.redemptionsCount;
+    // Get company info from settings
+    const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
+    const company = stored?.company || {};
+    const companyName = company.name || "PawnSys Sdn Bhd";
+    const companyLicense = company.license || "";
+    const companyAddress = company.address || "";
+    const companyPhone = company.phone || "";
+    const companyEmail = company.email || "";
+
+    // Fetch logo as base64 so it works in the unauthenticated print window
+    const baseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? "http://localhost:8000" : window.location.origin;
+    let logoDataUrl = "";
+    try {
+      const logoRes = await settingsService.getLogo();
+      const logoData = logoRes?.data || logoRes;
+      const logoUrl = logoData?.logo_url || logoData?.path;
+      if (logoUrl) {
+        let fullUrl = logoUrl;
+        if (!logoUrl.startsWith("http")) {
+          fullUrl = baseUrl + (logoUrl.startsWith("/") ? "" : "/") + logoUrl;
+        }
+        const imgResp = await fetch(fullUrl);
+        if (imgResp.ok) {
+          const blob = await imgResp.blob();
+          logoDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch logo for print:", e);
+    }
+
+    // Stock calculations
+    const totalItemsIn = dailyStats.totalItemsAdded;
+    const totalItemsOut = dailyStats.totalItemsOut;
+    const openingStock = inventorySummary.in_storage - totalItemsIn + totalItemsOut;
+    const closingStock = inventorySummary.in_storage;
+
+    // Payment breakdown calculations
+    const cashIn = paymentBreakdown.renewals.cash + paymentBreakdown.redemptions.cash;
+    const cashOut = paymentBreakdown.pledges.cash;
+    const transferIn = paymentBreakdown.renewals.transfer + paymentBreakdown.redemptions.transfer;
+    const transferOut = paymentBreakdown.pledges.transfer;
+    const totalPayIn = cashIn + transferIn;
+    const totalPayOut = cashOut + transferOut;
+
+    // Build payment rows dynamically (hide unused methods)
+    const paymentRows = [];
+    if (cashIn > 0 || cashOut > 0) {
+      paymentRows.push(`<tr><td>Cash</td><td class="right">${formatCurrency(cashIn)}</td><td class="right">${formatCurrency(cashOut)}</td></tr>`);
+    }
+    if (transferIn > 0 || transferOut > 0) {
+      paymentRows.push(`<tr><td>Bank Transfer</td><td class="right">${formatCurrency(transferIn)}</td><td class="right">${formatCurrency(transferOut)}</td></tr>`);
+    }
+    if (paymentRows.length === 0) {
+      paymentRows.push(`<tr><td>Cash</td><td class="right">${formatCurrency(0)}</td><td class="right">${formatCurrency(0)}</td></tr>`);
+    }
+
+    // Stock In/Out by Purity rows
+    const stockInRows = Object.entries(stockByPurity.itemsInByPurity).map(([code, data]) =>
+      `<tr><td style="padding-left: 20px; color: #555;">${code} Gold</td><td class="right" style="color: #555;">${data.count} items</td><td class="right" style="color: #555;">${parseFloat(data.weight).toFixed(3)}g</td></tr>`
+    ).join('');
+    const stockOutRows = Object.entries(stockByPurity.itemsOutByPurity).map(([code, data]) =>
+      `<tr><td style="padding-left: 20px; color: #555;">${code} Gold</td><td class="right" style="color: #555;">${data.count} items</td><td class="right" style="color: #555;">${parseFloat(data.weight).toFixed(3)}g</td></tr>`
+    ).join('');
 
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Day End Summary - ${selectedDate}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Arial', 'Helvetica Neue', sans-serif;
-            padding: 30px 40px;
-            max-width: 780px;
-            margin: 0 auto;
-            color: #1a1a1a;
-            font-size: 13px;
-            line-height: 1.5;
-          }
-          h1 {
-            text-align: center;
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 4px;
-            letter-spacing: 0.5px;
-          }
-          .sub-header {
-            text-align: center;
-            font-size: 12px;
-            color: #555;
-            margin-bottom: 24px;
-          }
-          .section {
-            margin-bottom: 22px;
-          }
-          .section-title {
-            font-size: 14px;
-            font-weight: 700;
-            border-bottom: 2px solid #1a1a1a;
-            padding-bottom: 4px;
-            margin-bottom: 6px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          table th {
-            text-align: left;
-            font-weight: 700;
-            font-size: 11px;
-            border-bottom: 1px solid #999;
-            padding: 4px 8px 4px 0;
-            color: #333;
-          }
-          table th.right, table td.right {
-            text-align: right;
-          }
-          table td {
-            padding: 5px 8px 5px 0;
-            border-bottom: 1px solid #e8e8e8;
-            font-size: 13px;
-          }
-          table tr:last-child td {
-            border-bottom: none;
-          }
-          .total-row td {
-            border-top: 1px solid #333;
-            border-bottom: 2px solid #333 !important;
-            font-weight: 700;
-            padding-top: 6px;
-            padding-bottom: 6px;
-          }
+          body { font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; padding: 30px 40px; max-width: 780px; margin: 0 auto; color: #1a1a1a; font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+          .company-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #1a1a1a; }
+          .company-logo { width: 120px; height: 120px; object-fit: contain; flex-shrink: 0; }
+          .company-info { flex: 1; }
+          .company-name { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+          .company-reg { font-size: 15px; color: #555; margin-bottom: 6px; }
+          .company-address { font-size: 14px; color: #333; line-height: 1.6; margin-bottom: 4px; }
+          .company-contact { font-size: 14px; color: #333; }
+          h1 { text-align: center; font-size: 20px; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.5px; margin-top: 16px; }
+          .sub-header { text-align: center; font-size: 12px; color: #555; margin-bottom: 24px; }
+          .section { margin-bottom: 24px; }
+          .section-title { font-size: 14px; font-weight: 700; border-bottom: 2px solid #1a1a1a; padding-bottom: 4px; margin-bottom: 6px; }
+          .section-number { font-weight: 800; color: #92400e; margin-right: 4px; }
+          .sub-section-title { font-size: 12px; font-weight: 700; margin-top: 10px; margin-bottom: 4px; color: #333; }
+          /* Amber-themed detail tables */
+          .detail-table { width: 100%; border-collapse: collapse; margin-top: 2px; font-size: 12px; }
+          .detail-table thead th { background: #92400e; color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 10px; text-align: left; border: none; }
+          .detail-table thead th.right { text-align: right; }
+          .detail-table tbody td { padding: 7px 10px; border-bottom: 1px solid #f3e8d0; font-size: 12px; color: #374151; }
+          .detail-table tbody td.right { text-align: right; }
+          .detail-table tbody tr:nth-child(even) { background: #fffbeb; }
+          .detail-table tbody tr:hover { background: #fef3c7; }
+          .subtotal-bar { margin-top: 0; padding: 8px 12px; background: #92400e; color: #fff; font-weight: 600; font-size: 12px; letter-spacing: 0.2px; }
+          .no-data { color: #b45309; font-size: 12px; padding: 14px 0; font-style: italic; text-align: center; border: 1px dashed #f59e0b; margin-top: 4px; background: #fffbeb; }
+          /* Summary tables */
+          table { width: 100%; border-collapse: collapse; }
+          table th { text-align: left; font-weight: 700; font-size: 11px; border-bottom: 1px solid #999; padding: 4px 8px 4px 0; color: #333; }
+          table th.right, table td.right { text-align: right; }
+          table td { padding: 5px 8px 5px 0; border-bottom: 1px solid #e8e8e8; font-size: 13px; }
+          table tr:last-child td { border-bottom: none; }
+          .total-row td { border-top: 1px solid #333; border-bottom: 2px solid #333 !important; font-weight: 700; padding-top: 6px; padding-bottom: 6px; }
+          /* Summary table with amber header */
+          .summary-table { width: 100%; border-collapse: collapse; margin-top: 2px; }
+          .summary-table thead th { background: #92400e; color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 10px; text-align: left; border: none; }
+          .summary-table thead th.right { text-align: right; }
+          .summary-table tbody td { padding: 8px 10px; border-bottom: 1px solid #f3e8d0; font-size: 13px; }
+          .summary-table tbody td.right { text-align: right; }
+          .summary-table tbody tr:nth-child(even) { background: #fffbeb; }
           .positive { color: #0a7d2e; }
           .negative { color: #c0392b; }
-          .gold-banner {
-            background: linear-gradient(135deg, #fffbeb, #fef3c7);
-            border: 1px solid #f59e0b;
-            padding: 10px 15px;
-            margin-bottom: 22px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
+          .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #f59e0b; padding: 10px 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
           .gold-banner .gold-label { font-weight: 600; color: #92400e; font-size: 13px; }
           .gold-banner .gold-value { font-size: 15px; font-weight: 700; color: #b45309; }
-          .signature-area {
-            margin-top: 50px;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 20px;
-          }
-          .signature-block {
-            text-align: center;
-            width: 160px;
-          }
-          .signature-line {
-            border-top: 1px solid #333;
-            padding-top: 6px;
-            font-size: 12px;
-            font-weight: 600;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: #999;
-            font-size: 10px;
-          }
+          .net-cash-box { background: #f8f9fa; border: 2px solid #333; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+          .net-cash-label { font-size: 16px; font-weight: 700; }
+          .net-cash-value { font-size: 20px; font-weight: 800; }
+          .signature-area { margin-top: 50px; display: flex; justify-content: space-around; padding: 0 40px; }
+          .signature-block { text-align: center; width: 180px; }
+          .signature-line { border-top: 1px solid #333; padding-top: 6px; font-size: 12px; font-weight: 600; }
+          .footer { text-align: center; margin-top: 30px; color: #999; font-size: 10px; }
           @media print {
-            body { padding: 15px 25px; }
+            body { padding: 15px 25px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            .detail-table tbody tr:hover { background: inherit; }
+            .detail-table tbody tr:nth-child(even) { background: #fffbeb !important; }
+            .detail-table thead th { background: #92400e !important; color: #fff !important; }
+            .summary-table thead th { background: #92400e !important; color: #fff !important; }
+            .summary-table tbody tr:nth-child(even) { background: #fffbeb !important; }
+            .subtotal-bar { background: #92400e !important; color: #fff !important; }
+            .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7) !important; }
+            .no-data { background: #fffbeb !important; }
           }
         </style>
       </head>
       <body>
-        <h1>Day End Summary</h1>
-        <div class="sub-header">
-          Date: ${dateLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Status: ${dayStatus === "closed" ? "CLOSED" : "OPEN"}
+        <!-- Company Header -->
+        <div class="company-header">
+          ${logoDataUrl ? `<img class="company-logo" src="${logoDataUrl}" alt="Logo" />` : ""}
+          <div class="company-info">
+            <div class="company-name">${companyName}</div>
+            ${companyLicense ? `<div class="company-reg">(${companyLicense})</div>` : ""}
+            ${companyAddress ? `<div class="company-address">${companyAddress}</div>` : ""}
+            ${companyEmail ? `<div class="company-contact">Email : ${companyEmail}</div>` : ""}
+            ${companyPhone ? `<div class="company-contact">Tel : ${companyPhone}</div>` : ""}
+          </div>
         </div>
+
+        <h1>Day End Summary</h1>
+        <div class="sub-header">Date: ${dateLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Status: ${dayStatus === "closed" ? "CLOSED" : "OPEN"}</div>
 
         <div class="gold-banner">
           <span class="gold-label">Gold Value (per gram)</span>
           <span class="gold-value">${goldPrice ? `RM ${parseFloat(goldPrice).toFixed(2)}/g` : "N/A"}</span>
         </div>
 
+        <!-- 1. New Pledges (Cash Out) Detail -->
         <div class="section">
-          <div class="section-title">Transaction Summary</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th class="right">Count</th>
-                <th class="right">Amount</th>
-              </tr>
-            </thead>
+          <div class="section-title"><span class="section-number">1.</span> New Pledges (Cash Out)</div>
+          ${transactionDetails.pledges.length > 0 ? `
+          <table class="detail-table">
+            <thead><tr><th>Ref No</th><th>Customer</th><th>Item Type</th><th class="right">No. of Items</th><th class="right">Weight (g)</th><th class="right">Amount</th></tr></thead>
             <tbody>
-              <tr>
-                <td>New Pledges (Cash Out)</td>
-                <td class="right">${dailyStats.newPledgesCount} pax</td>
-                <td class="right">${formatCurrency(dailyStats.newPledgesAmount)}</td>
-              </tr>
-              <tr>
-                <td>Redemptions (Cash In)</td>
-                <td class="right">${dailyStats.redemptionsCount} pax</td>
-                <td class="right">${formatCurrency(dailyStats.redemptionAmount)}</td>
-              </tr>
-              <tr>
-                <td>Renewals (Interest In)</td>
-                <td class="right">${dailyStats.renewalsCount} pax</td>
-                <td class="right">${formatCurrency(dailyStats.renewalInterest)}</td>
-              </tr>
-              <tr class="total-row">
-                <td>Total</td>
-                <td class="right">${totalTxn} pax</td>
-                <td class="right">${formatCurrency(dailyStats.newPledgesAmount + dailyStats.redemptionAmount + dailyStats.renewalInterest)}</td>
-              </tr>
+              ${transactionDetails.pledges.map(p => `<tr><td>${p.ref_no}</td><td>${p.customer}</td><td>${p.item_type || 'Gold Item'}</td><td class="right">${p.item_count} ${p.item_count === 1 ? 'item' : 'items'}</td><td class="right">${parseFloat(p.weight).toFixed(1)}g</td><td class="right">${formatCurrency(p.amount)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+          <div class="subtotal-bar">
+            Subtotal: ${transactionDetails.pledges.length} pax | ${transactionDetails.pledges.reduce((sum, p) => sum + p.item_count, 0)} items | ${formatCurrency(transactionDetails.pledges.reduce((sum, p) => sum + p.amount, 0))}
+          </div>
+          ` : '<div class="no-data">No new pledges today</div>'}
+        </div>
+
+        <!-- 2. Redemptions Detail -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">2.</span> Redemptions</div>
+          ${transactionDetails.redemptions.length > 0 ? `
+          <table class="detail-table">
+            <thead><tr><th>Ref No</th><th>Customer</th><th class="right">No. of Items</th><th class="right">Weight (g)</th><th class="right">Principal</th><th class="right">Interest</th><th class="right">Total Paid</th></tr></thead>
+            <tbody>
+              ${transactionDetails.redemptions.map(r => `<tr><td>${r.ref_no}</td><td>${r.customer}</td><td class="right">${r.item_count} ${r.item_count === 1 ? 'item' : 'items'}</td><td class="right">${parseFloat(r.weight).toFixed(1)}g</td><td class="right">${formatCurrency(r.principal)}</td><td class="right">${formatCurrency(r.interest)}</td><td class="right">${formatCurrency(r.total_paid)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+          <div class="subtotal-bar">
+            Subtotal: ${transactionDetails.redemptions.length} pax | ${transactionDetails.redemptions.reduce((sum, r) => sum + r.item_count, 0)} items | ${formatCurrency(transactionDetails.redemptions.reduce((sum, r) => sum + r.total_paid, 0))}
+          </div>
+          ` : '<div class="no-data">No redemptions today</div>'}
+        </div>
+
+        <!-- 3. Renewals Detail -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">3.</span> Renewals</div>
+          ${transactionDetails.renewals.length > 0 ? `
+          <table class="detail-table">
+            <thead><tr><th>Ref No</th><th>Customer</th><th class="right">No. of Items</th><th class="right">Weight (g)</th><th class="right">Interest Paid</th><th class="right">Extension Period</th></tr></thead>
+            <tbody>
+              ${transactionDetails.renewals.map(r => `<tr><td>${r.ref_no}</td><td>${r.customer}</td><td class="right">${r.item_count} ${r.item_count === 1 ? 'item' : 'items'}</td><td class="right">${parseFloat(r.weight).toFixed(1)}g</td><td class="right">${formatCurrency(r.interest_paid)}</td><td class="right">+${r.extension_months} months</td></tr>`).join('')}
+            </tbody>
+          </table>
+          <div class="subtotal-bar">
+            Subtotal: ${transactionDetails.renewals.length} pax | ${transactionDetails.renewals.reduce((sum, r) => sum + r.item_count, 0)} ${transactionDetails.renewals.reduce((sum, r) => sum + r.item_count, 0) === 1 ? 'item' : 'items'} | ${formatCurrency(transactionDetails.renewals.reduce((sum, r) => sum + r.interest_paid, 0))}
+          </div>
+          ` : '<div class="no-data">No renewals today</div>'}
+        </div>
+
+        <!-- 4. Transaction Summary -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">4.</span> Transaction Summary</div>
+          <table class="summary-table">
+            <thead><tr><th>Type</th><th class="right">Pax</th><th class="right">Items</th><th class="right">Amount</th></tr></thead>
+            <tbody>
+              <tr><td>New Pledges</td><td class="right">${dailyStats.newPledgesCount}</td><td class="right">${totalItemsIn} items</td><td class="right">${formatCurrency(dailyStats.newPledgesAmount)}</td></tr>
+              <tr><td>Redemptions</td><td class="right">${dailyStats.redemptionsCount}</td><td class="right">${totalItemsOut} items</td><td class="right">${formatCurrency(dailyStats.redemptionAmount)}</td></tr>
+              <tr><td>Renewals</td><td class="right">${dailyStats.renewalsCount}</td><td class="right">-</td><td class="right">${formatCurrency(dailyStats.renewalInterest)}</td></tr>
             </tbody>
           </table>
         </div>
 
+        <!-- 5. Stock Movement with Opening/Closing Stock and Purity breakdown -->
         <div class="section">
-          <div class="section-title">Stock Movement</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th class="right">Value</th>
-              </tr>
-            </thead>
+          <div class="section-title"><span class="section-number">5.</span> Stock Movement</div>
+          <table class="summary-table">
+            <thead><tr><th>Category</th><th class="right">Items</th><th class="right">Weight (g)</th></tr></thead>
+            <tbody><tr><td><strong>Opening Stock</strong></td><td class="right"><strong>${openingStock} items</strong></td><td class="right">-</td></tr></tbody>
+          </table>
+          <div class="sub-section-title">Stock In (Items Received)</div>
+          <table class="detail-table">
+            <thead><tr><th>Purity</th><th class="right">Items</th><th class="right">Weight (g)</th></tr></thead>
             <tbody>
-              <tr>
-                <td><strong>Stock In (Items Received)</strong></td>
-                <td class="right"><strong>${dailyStats.totalItemsAdded} items</strong></td>
-              </tr>
-              ${Object.entries(stockByPurity.itemsInByPurity).map(([code, data]) => `
-              <tr>
-                <td style="padding-left: 20px; color: #555;">&bull; Purity ${code}</td>
-                <td class="right" style="color: #555;">${data.count} items (${parseFloat(data.weight).toFixed(3)}g)</td>
-              </tr>
-              `).join('')}
-              <tr>
-                <td><strong>Stock Out (Items Released)</strong></td>
-                <td class="right"><strong>${dailyStats.totalItemsOut} items</strong></td>
-              </tr>
-              ${Object.entries(stockByPurity.itemsOutByPurity).map(([code, data]) => `
-              <tr>
-                <td style="padding-left: 20px; color: #555;">&bull; Purity ${code}</td>
-                <td class="right" style="color: #555;">${data.count} items (${parseFloat(data.weight).toFixed(3)}g)</td>
-              </tr>
-              `).join('')}
-              <tr>
-                <td>Items in Storage</td>
-                <td class="right">${inventorySummary.in_storage} items</td>
-              </tr>
-              <tr>
-                <td>Total Weight</td>
-                <td class="right">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</td>
-              </tr>
-              <tr>
-                <td>Total Value</td>
-                <td class="right">${formatCurrency(inventorySummary.total_value)}</td>
-              </tr>
+              ${stockInRows || '<tr><td colspan="3" style="color:#b45309; text-align:center; font-style:italic;">No items received</td></tr>'}
+              <tr style="border-top: 2px solid #92400e;"><td><strong>Total Stock In</strong></td><td class="right"><strong>${totalItemsIn} items</strong></td><td class="right">-</td></tr>
+            </tbody>
+          </table>
+          <div class="sub-section-title">Stock Out (Items Released)</div>
+          <table class="detail-table">
+            <thead><tr><th>Purity</th><th class="right">Items</th><th class="right">Weight (g)</th></tr></thead>
+            <tbody>
+              ${stockOutRows || '<tr><td colspan="3" style="color:#b45309; text-align:center; font-style:italic;">No items released</td></tr>'}
+              <tr style="border-top: 2px solid #92400e;"><td><strong>Total Stock Out</strong></td><td class="right"><strong>${totalItemsOut} items</strong></td><td class="right">-</td></tr>
+            </tbody>
+          </table>
+          <table class="summary-table" style="margin-top: 10px;">
+            <thead><tr><th>Closing Stock</th><th class="right">Items</th><th class="right">Weight (g)</th></tr></thead>
+            <tbody><tr><td><strong>Total</strong></td><td class="right"><strong>${closingStock} items</strong></td><td class="right"><strong>${parseFloat(inventorySummary.total_weight).toFixed(3)}g</strong></td></tr></tbody>
+          </table>
+        </div>
+
+        <!-- 6. Cash Flow (no opening balance - clean version) -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">6.</span> Cash Flow</div>
+          <table class="summary-table">
+            <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
+            <tbody>
+              <tr><td>Cash In (Received)</td><td class="right positive">+ ${formatCurrency(dailyStats.cashIn)}</td></tr>
+              <tr><td>Cash Out (Disbursed)</td><td class="right negative">- ${formatCurrency(dailyStats.cashOut)}</td></tr>
+              <tr style="border-top: 2px solid #92400e;"><td><strong>Net Cash Flow</strong></td><td class="right ${dailyStats.netCashFlow >= 0 ? "positive" : "negative"}"><strong>${dailyStats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(dailyStats.netCashFlow)}</strong></td></tr>
             </tbody>
           </table>
         </div>
 
+        <!-- 7. Payment Breakdown (dynamic - hide unused methods) -->
         <div class="section">
-          <div class="section-title">Cash Flow</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th class="right">Amount</th>
-              </tr>
-            </thead>
+          <div class="section-title"><span class="section-number">7.</span> Payment Breakdown</div>
+          <table class="summary-table">
+            <thead><tr><th>Payment Method</th><th class="right">Cash In</th><th class="right">Cash Out</th></tr></thead>
             <tbody>
-              <tr>
-                <td>Cash In (Received)</td>
-                <td class="right positive">+ ${formatCurrency(dailyStats.cashIn)}</td>
-              </tr>
-              <tr>
-                <td>Cash Out (Disbursed)</td>
-                <td class="right negative">- ${formatCurrency(dailyStats.cashOut)}</td>
-              </tr>
-              <tr class="total-row">
-                <td>Net Cash Flow</td>
-                <td class="right ${dailyStats.netCashFlow >= 0 ? "positive" : "negative"}">${dailyStats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(dailyStats.netCashFlow)}</td>
-              </tr>
+              ${paymentRows.join("")}
+              <tr style="border-top: 2px solid #92400e;"><td><strong>Total</strong></td><td class="right"><strong>${formatCurrency(totalPayIn)}</strong></td><td class="right"><strong>${formatCurrency(totalPayOut)}</strong></td></tr>
             </tbody>
           </table>
         </div>
 
+        <!-- 8. Net Cash Movement -->
         <div class="section">
-          <div class="section-title">Cash Drawer</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th class="right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Expected Closing</td>
-                <td class="right">${formatCurrency(expectedClosing)}</td>
-              </tr>
-              ${cashDrawer.closingBalance ? `<tr><td>Actual Closing</td><td class="right">${formatCurrency(parseFloat(cashDrawer.closingBalance))}</td></tr>` : ""}
-              ${cashDrawer.closingBalance ? `<tr class="total-row"><td>Variance</td><td class="right ${variance >= 0 ? "positive" : "negative"}">${variance >= 0 ? "+" : ""}${formatCurrency(variance)}</td></tr>` : ""}
-            </tbody>
-          </table>
+          <div class="section-title"><span class="section-number">8.</span> Net Cash Movement</div>
+          <div class="net-cash-box" style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 2px solid #92400e;">
+            <span class="net-cash-label" style="color: #92400e;">Net Cash Movement</span>
+            <span class="net-cash-value ${dailyStats.netCashFlow >= 0 ? "positive" : "negative"}">${dailyStats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(dailyStats.netCashFlow)}</span>
+          </div>
         </div>
 
         ${cashDrawer.notes ? `<div class="section"><div class="section-title">Notes</div><p style="padding: 5px 0; font-size: 13px;">${cashDrawer.notes}</p></div>` : ""}
 
         <div class="signature-area">
-          <div class="signature-block">
-            <div class="signature-line">Prepared By</div>
-          </div>
-          <div class="signature-block">
-            <div class="signature-line">Verified By</div>
-          </div>
-          <div class="signature-block">
-            <div class="signature-line">Manager Approval</div>
-          </div>
+          <div class="signature-block"><div class="signature-line">Prepared By</div></div>
+          <div class="signature-block"><div class="signature-line">Verified By</div></div>
         </div>
 
-        <div class="footer">
-          Generated on ${new Date().toLocaleString("en-MY")} | PawnSys
-        </div>
+        <div class="footer">Generated on ${new Date().toLocaleString("en-MY")} | PawnSys</div>
       </body>
       </html>
     `;
