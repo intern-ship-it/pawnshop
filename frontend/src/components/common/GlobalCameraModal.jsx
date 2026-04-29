@@ -590,41 +590,6 @@ export default function GlobalCameraModal() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Auto-capture toggle */}
-          {phase === "live" && (
-            <button
-              onClick={() => {
-                setAutoCapture(!autoCapture);
-                sharpCountRef.current = 0;
-                autoCapturePendingRef.current = false;
-                setCountdown(null);
-                setLiveSharpness("waiting");
-              }}
-              className={`p-2 rounded-full transition-colors backdrop-blur-sm ${
-                autoCapture
-                  ? "bg-emerald-500 text-white"
-                  : "bg-black/40 text-white hover:bg-black/60"
-              }`}
-              title={autoCapture ? "Auto-capture ON" : "Auto-capture OFF"}
-            >
-              <Zap className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* Torch toggle */}
-          {torchSupported && phase === "live" && (
-            <button
-              onClick={toggleTorch}
-              className={`p-2 rounded-full transition-colors backdrop-blur-sm ${
-                torchOn
-                  ? "bg-amber-500 text-white"
-                  : "bg-black/40 text-white hover:bg-black/60"
-              }`}
-            >
-              <Flashlight className="w-5 h-5" />
-            </button>
-          )}
-
           {/* Camera switch */}
           {phase === "live" && (
             <button
@@ -941,13 +906,47 @@ export default function GlobalCameraModal() {
         <div className="px-6 pb-8 pt-12">
           {phase === "live" || phase === "countdown" ? (
             /* ─── Live Controls ──────────────────────────────── */
-            <div className="flex items-center justify-center gap-8">
+            <div className="flex items-center justify-center gap-5">
+              {/* Cancel button */}
               <button
                 onClick={handleClose}
                 className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors backdrop-blur-sm"
               >
                 <X className="w-5 h-5" />
               </button>
+
+              {/* Auto-capture toggle (Zap) */}
+              <button
+                onClick={() => {
+                  setAutoCapture(!autoCapture);
+                  sharpCountRef.current = 0;
+                  autoCapturePendingRef.current = false;
+                  setCountdown(null);
+                  setLiveSharpness("waiting");
+                }}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors backdrop-blur-sm ${
+                  autoCapture
+                    ? "bg-emerald-500 text-white"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
+                title={autoCapture ? "Auto-capture ON" : "Auto-capture OFF"}
+              >
+                <Zap className="w-5 h-5" />
+              </button>
+
+              {/* Torch toggle */}
+              {torchSupported && (
+                <button
+                  onClick={toggleTorch}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors backdrop-blur-sm ${
+                    torchOn
+                      ? "bg-amber-500 text-white"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Flashlight className="w-5 h-5" />
+                </button>
+              )}
 
               {/* Shutter button */}
               <button
