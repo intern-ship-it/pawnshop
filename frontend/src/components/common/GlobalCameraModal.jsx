@@ -906,13 +906,13 @@ export default function GlobalCameraModal() {
         <div className="px-6 pb-8 pt-12">
           {phase === "live" || phase === "countdown" ? (
             /* ─── Live Controls ──────────────────────────────── */
-            <div className="flex items-center justify-center gap-5">
+            <div className="flex items-center justify-center gap-4">
               {/* Cancel button */}
               <button
                 onClick={handleClose}
-                className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors backdrop-blur-sm"
+                className="w-[72px] h-[72px] rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors backdrop-blur-sm"
               >
-                <X className="w-5 h-5" />
+                <X className="w-7 h-7" />
               </button>
 
               {/* Auto-capture toggle (Zap) */}
@@ -924,27 +924,27 @@ export default function GlobalCameraModal() {
                   setCountdown(null);
                   setLiveSharpness("waiting");
                 }}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors backdrop-blur-sm ${
+                className={`w-[72px] h-[72px] rounded-full flex items-center justify-center transition-colors backdrop-blur-sm ${
                   autoCapture
                     ? "bg-emerald-500 text-white"
                     : "bg-white/10 text-white hover:bg-white/20"
                 }`}
                 title={autoCapture ? "Auto-capture ON" : "Auto-capture OFF"}
               >
-                <Zap className="w-5 h-5" />
+                <Zap className="w-7 h-7" />
               </button>
 
               {/* Torch toggle */}
               {torchSupported && (
                 <button
                   onClick={toggleTorch}
-                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors backdrop-blur-sm ${
+                  className={`w-[72px] h-[72px] rounded-full flex items-center justify-center transition-colors backdrop-blur-sm ${
                     torchOn
                       ? "bg-amber-500 text-white"
                       : "bg-white/10 text-white hover:bg-white/20"
                   }`}
                 >
-                  <Flashlight className="w-5 h-5" />
+                  <Flashlight className="w-7 h-7" />
                 </button>
               )}
 
@@ -957,9 +957,6 @@ export default function GlobalCameraModal() {
                 <div className="absolute inset-0 rounded-full border-[3px] border-white" />
                 <div className="w-[60px] h-[60px] rounded-full bg-white group-hover:bg-zinc-200 group-active:scale-90 transition-all duration-150" />
               </button>
-
-              {/* Spacer for alignment */}
-              <div className="w-12 h-12" />
             </div>
           ) : (
             /* ─── Preview Controls ───────────────────────────── */
