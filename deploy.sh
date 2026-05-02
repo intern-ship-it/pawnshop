@@ -47,7 +47,13 @@ npm run build
 # Install Laravel dependencies
 echo "🎼 Installing Laravel dependencies..."
 cd ../backend
-composer install --no-dev --optimize-autoloader
+if command -v composer &> /dev/null; then
+    composer install --no-dev --optimize-autoloader
+elif [ -f ~/composer.phar ]; then
+    /opt/cpanel/ea-php82/root/usr/bin/php ~/composer.phar install --no-dev --optimize-autoloader
+else
+    echo "❌ Composer not found!"
+fi
 
 # Create storage directories if missing
 echo "📁 Creating storage directories..."
