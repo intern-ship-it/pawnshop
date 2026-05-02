@@ -95,6 +95,7 @@ export default function DayEndSummary() {
 
   // Gold price state
   const [goldPrice, setGoldPrice] = useState(null);
+  const [goldPriceSource, setGoldPriceSource] = useState("api"); // "manual" or "api"
 
   // Inventory summary state
   const [inventorySummary, setInventorySummary] = useState({
@@ -130,6 +131,9 @@ export default function DayEndSummary() {
       // Check if manual price is configured in settings (same as Header)
       const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
       const goldSettings = stored?.goldPrice || { source: "api" };
+
+      // Track the source for display in print report
+      setGoldPriceSource(goldSettings.source || "api");
 
       if (goldSettings.source === "manual") {
         // Use manual price from settings
@@ -656,8 +660,11 @@ export default function DayEndSummary() {
           .positive { color: #0a7d2e; }
           .negative { color: #c0392b; }
           .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #f59e0b; padding: 10px 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
-          .gold-banner .gold-label { font-weight: 600; color: #92400e; font-size: 13px; }
+          .gold-banner .gold-label { font-weight: 600; color: #92400e; font-size: 13px; display: flex; align-items: center; gap: 8px; }
           .gold-banner .gold-value { font-size: 15px; font-weight: 700; color: #b45309; }
+          .gold-source-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+          .gold-source-manual { background: #dbeafe; color: #1d4ed8; }
+          .gold-source-api { background: #dcfce7; color: #15803d; }
           .net-cash-box { background: #f8f9fa; border: 2px solid #333; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
           .net-cash-label { font-size: 16px; font-weight: 700; }
           .net-cash-value { font-size: 20px; font-weight: 800; }
@@ -696,7 +703,7 @@ export default function DayEndSummary() {
         <div class="sub-header">Date: ${dateLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Status: ${dayStatus === "closed" ? "CLOSED" : "OPEN"}</div>
 
         <div class="gold-banner">
-          <span class="gold-label">Gold Value (per gram)</span>
+          <span class="gold-label">Gold Value (per gram) <span class="gold-source-badge ${goldPriceSource === 'manual' ? 'gold-source-manual' : 'gold-source-api'}">${goldPriceSource === 'manual' ? 'Manual' : 'API'}</span></span>
           <span class="gold-value">${goldPrice ? `RM ${parseFloat(goldPrice).toFixed(2)}/g` : "N/A"}</span>
         </div>
 

@@ -332,6 +332,7 @@ export default function NewPledge() {
     extended: 1.5,
     overdue: 2.0,
   });
+  const [interestRatesList, setInterestRatesList] = useState([]);
 
   // Fetch gold prices on mount
   useEffect(() => {
@@ -466,6 +467,12 @@ export default function NewPledge() {
         });
 
         setInterestRates(ratesMap);
+        
+        const activeRates = rates.filter(r => r.is_active !== false).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0));
+        setInterestRatesList(activeRates);
+        if (activeRates.length > 0) {
+          setInterestScenario(activeRates[0].id);
+        }
       } catch (interestError) {
         console.error("Error fetching interest rates:", interestError);
       }
@@ -2613,106 +2620,100 @@ export default function NewPledge() {
               {/* Interest & Repayment Information */}
               <div className="border border-blue-200 bg-blue-50 rounded-xl p-4 mb-6">
                 <h5 className="font-semibold text-blue-800 mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4" />Interest Breakdown</h5>
-                <div className="flex gap-2 mb-4">
-                  {[
-                    { id: "standard", label: `Standard (${interestRates.standard}%)`, color: "blue" },
-                    { id: "renewed", label: `Renewed (${interestRates.extended}%)`, color: "amber" },
-                    { id: "overdue", label: `Overdue (${interestRates.overdue}%)`, color: "red" },
-                  ].map((scenario) => (
-                    <button key={scenario.id} type="button" onClick={() => setInterestScenario(scenario.id)} className={cn("px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1", interestScenario === scenario.id ? (scenario.color === "blue" ? "bg-blue-600 text-white" : scenario.color === "amber" ? "bg-amber-500 text-white" : "bg-red-500 text-white") : "bg-white text-zinc-600 hover:bg-zinc-100")}>
-                      {scenario.label}
-                    </button>
-                  ))}
-                </div>
+                
+                {interestRatesList.length > 0 ? (
+                  <>
+                    <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+                      {interestRatesList.map((rate) => {
+                        const isSelected = interestScenario === rate.id;
+                        let bgClass = "bg-white text-zinc-600 hover:bg-zinc-100";
+                        if (isSelected) {
+                          if (rate.rate_type === 'standard') bgClass = "bg-blue-600 text-white";
+                          else if (rate.rate_type === 'extended') bgClass = "bg-amber-500 text-white";
+                          else if (rate.rate_type === 'overdue') bgClass = "bg-red-500 text-white";
+                          else bgClass = "bg-emerald-600 text-white";
+                        }
+                        
+                        return (
+                          <button key={rate.id} type="button" onClick={() => setInterestScenario(rate.id)} className={cn("px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1 whitespace-nowrap min-w-max", bgClass)}>
+                            {rate.name || rate.rate_type} ({rate.rate_percentage}%)
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                <div className="mb-3 p-2 bg-white rounded-lg border border-blue-100">
-                  <p className="text-xs text-zinc-600">
-                    {interestScenario === "standard" && (<><strong className="text-blue-600">Standard Scenario:</strong> Customer redeems/pays within 6 months. Interest at {interestRates.standard}% per month.</>)}
-                    {interestScenario === "renewed" && (<><strong className="text-amber-600">Renewed Scenario:</strong> First 6 months at {interestRates.standard}%, then customer renews - next 6 months at {interestRates.extended}% per month.</>)}
-                    {interestScenario === "overdue" && (<><strong className="text-red-600">Overdue Scenario:</strong> First 6 months at {interestRates.standard}%, then overdue without renewal - {interestRates.overdue}% per month applies.</>)}
-                  </p>
-                </div>
+                    {(() => {
+                      const selectedRate = interestRatesList.find(r => r.id === interestScenario) || interestRatesList[0];
+                      const ratePercent = parseFloat(selectedRate.rate_percentage) || 0;
+                      const fromMonth = parseInt(selectedRate.from_month) || 1;
+                      const toMonth = parseInt(selectedRate.to_month) || (fromMonth + 5);
+                      const totalMonthsToShow = toMonth >= fromMonth ? (toMonth - fromMonth + 1) : 6;
+                      
+                      let textClass, borderClass;
+                      if (selectedRate.rate_type === 'standard') { textClass = "text-blue-600"; borderClass = "border-blue-100"; }
+                      else if (selectedRate.rate_type === 'extended') { textClass = "text-amber-600"; borderClass = "border-amber-100"; }
+                      else if (selectedRate.rate_type === 'overdue') { textClass = "text-red-600"; borderClass = "border-red-100"; }
+                      else { textClass = "text-emerald-600"; borderClass = "border-emerald-100"; }
 
-                <div className="bg-white rounded-lg border border-blue-100 overflow-hidden">
-                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-zinc-50 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium text-zinc-600">Month</th>
-                          <th className="px-3 py-2 text-right font-medium text-zinc-600">Rate</th>
-                          <th className="px-3 py-2 text-right font-medium text-zinc-600">Interest</th>
-                          <th className="px-3 py-2 text-right font-medium text-zinc-600">Cumulative</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100">
-                        {(() => {
-                          const rows = [];
-                          let cumulative = 0;
-                          const totalMonths = interestScenario === "standard" ? 6 : 12;
-                          for (let i = 1; i <= totalMonths; i++) {
-                            let ratePercent, rateColor;
-                            if (i <= 6) { ratePercent = interestRates.standard; rateColor = "text-blue-600"; }
-                            else {
-                              if (interestScenario === "renewed") { ratePercent = interestRates.extended; rateColor = "text-amber-600"; }
-                              else if (interestScenario === "overdue") { ratePercent = interestRates.overdue; rateColor = "text-red-600"; }
-                              else { ratePercent = interestRates.standard; rateColor = "text-blue-600"; }
-                            }
-                            const rate = ratePercent / 100;
-                            const monthlyInterest = loanAmount * rate;
-                            cumulative += monthlyInterest;
-                            const isNewRatePeriod = i > 6 && interestScenario !== "standard";
-                            rows.push(
-                              <tr key={i} className={cn(isNewRatePeriod && interestScenario === "renewed" && "bg-amber-50/50", isNewRatePeriod && interestScenario === "overdue" && "bg-red-50/50", i === 6 && interestScenario !== "standard" && "border-b-2 border-zinc-300")}>
-                                <td className="px-3 py-2 text-zinc-700">
-                                  <div className="flex items-center gap-2">
-                                    Month {i}
-                                    {i === 6 && interestScenario !== "standard" && <span className="text-[10px] px-1.5 py-0.5 bg-zinc-200 text-zinc-600 rounded">Due Date</span>}
-                                    {i === 7 && interestScenario === "renewed" && <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 text-amber-700 rounded">Renewed</span>}
-                                    {i === 7 && interestScenario === "overdue" && <span className="text-[10px] px-1.5 py-0.5 bg-red-200 text-red-700 rounded">Overdue</span>}
-                                  </div>
-                                </td>
-                                <td className={cn("px-3 py-2 text-right font-medium", rateColor)}>{ratePercent.toFixed(2)}%</td>
-                                <td className="px-3 py-2 text-right font-medium text-zinc-800">{formatCurrency(monthlyInterest)}</td>
-                                <td className={cn("px-3 py-2 text-right font-bold", rateColor)}>{formatCurrency(cumulative)}</td>
-                              </tr>
-                            );
-                          }
-                          return rows;
-                        })()}
-                      </tbody>
-                    </table>
+                      return (
+                        <>
+                          <div className={cn("mb-3 p-2 bg-white rounded-lg border", borderClass)}>
+                            <p className="text-xs text-zinc-600">
+                              <strong className={textClass}>{selectedRate.name || selectedRate.rate_type}:</strong> {selectedRate.description || `Applies from month ${fromMonth} to ${selectedRate.to_month ? selectedRate.to_month : 'onwards'}. Interest at ${ratePercent}% per month.`}
+                            </p>
+                          </div>
+
+                          <div className={cn("bg-white rounded-lg border overflow-hidden", borderClass)}>
+                            <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-zinc-50 sticky top-0">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left font-medium text-zinc-600">Month</th>
+                                    <th className="px-3 py-2 text-right font-medium text-zinc-600">Rate</th>
+                                    <th className="px-3 py-2 text-right font-medium text-zinc-600">Interest</th>
+                                    <th className="px-3 py-2 text-right font-medium text-zinc-600">Cumulative</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-100">
+                                  {Array.from({ length: totalMonthsToShow }).map((_, idx) => {
+                                    const currentMonth = fromMonth + idx;
+                                    const rate = ratePercent / 100;
+                                    const monthlyInterest = loanAmount * rate;
+                                    const cumulative = monthlyInterest * (idx + 1);
+                                    
+                                    return (
+                                      <tr key={currentMonth} className="hover:bg-zinc-50">
+                                        <td className="px-3 py-2 text-zinc-700">Month {currentMonth}</td>
+                                        <td className={cn("px-3 py-2 text-right font-medium", textClass)}>{ratePercent.toFixed(2)}%</td>
+                                        <td className="px-3 py-2 text-right font-medium text-zinc-800">{formatCurrency(monthlyInterest)}</td>
+                                        <td className={cn("px-3 py-2 text-right font-bold", textClass)}>{formatCurrency(cumulative)}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <div className={cn("bg-white rounded-lg p-3 text-center border", borderClass)}>
+                              <p className="text-xs text-zinc-500">Monthly Interest</p>
+                              <p className={cn("text-lg font-bold", textClass)}>{formatCurrency(loanAmount * (ratePercent / 100))}</p>
+                            </div>
+                            <div className={cn("bg-white rounded-lg p-3 text-center border", borderClass)}>
+                              <p className="text-xs text-zinc-500">Total for Period ({totalMonthsToShow} months)</p>
+                              <p className={cn("text-lg font-bold", textClass)}>{formatCurrency((loanAmount * (ratePercent / 100)) * totalMonthsToShow)}</p>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-amber-700">No active interest rates found in settings.</p>
                   </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {(() => {
-                    const standardMonthly = loanAmount * (interestRates.standard / 100);
-                    const renewedMonthly = loanAmount * (interestRates.extended / 100);
-                    const overdueMonthly = loanAmount * (interestRates.overdue / 100);
-                    let monthlyDisplay, sixMonthTotal, twelveMonthTotal;
-                    if (interestScenario === "standard") { monthlyDisplay = standardMonthly; sixMonthTotal = standardMonthly * 6; twelveMonthTotal = null; }
-                    else if (interestScenario === "renewed") { monthlyDisplay = renewedMonthly; sixMonthTotal = standardMonthly * 6; twelveMonthTotal = standardMonthly * 6 + renewedMonthly * 6; }
-                    else { monthlyDisplay = overdueMonthly; sixMonthTotal = standardMonthly * 6; twelveMonthTotal = standardMonthly * 6 + overdueMonthly * 6; }
-                    const colorClass = interestScenario === "standard" ? "text-blue-600" : interestScenario === "renewed" ? "text-amber-600" : "text-red-600";
-                    return (
-                      <>
-                        <div className="bg-white rounded-lg p-3 text-center border border-blue-100"><p className="text-xs text-zinc-500">{interestScenario === "standard" ? "Monthly Interest" : "Monthly (After Renewal/Overdue)"}</p><p className={cn("text-lg font-bold", colorClass)}>{formatCurrency(monthlyDisplay)}</p></div>
-                        <div className="bg-white rounded-lg p-3 text-center border border-blue-100"><p className="text-xs text-zinc-500">{interestScenario === "standard" ? "6 Months Total" : "First 6 Months (Standard)"}</p><p className="text-lg font-bold text-blue-600">{formatCurrency(sixMonthTotal)}</p></div>
-                        <div className="bg-white rounded-lg p-3 text-center border border-blue-100"><p className="text-xs text-zinc-500">{interestScenario === "standard" ? "If Redeemed" : "12 Months Total"}</p><p className={cn("text-lg font-bold", interestScenario === "standard" ? "text-emerald-600" : colorClass)}>{interestScenario === "standard" ? formatCurrency(sixMonthTotal) + " max" : formatCurrency(twelveMonthTotal)}</p></div>
-                      </>
-                    );
-                  })()}
-                </div>
-
-                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs text-amber-700 font-semibold mb-1">Interest Rate Rules:</p>
-                  <ul className="text-xs text-amber-700 space-y-0.5">
-                    <li className={cn(interestScenario === "standard" && "font-bold")}>• <strong>Standard ({interestRates.standard}%)</strong> - First 6 months / Redemption within term</li>
-                    <li className={cn(interestScenario === "renewed" && "font-bold")}>• <strong>Renewed ({interestRates.extended}%)</strong> - Renewal before due date (months 7-12)</li>
-                    <li className={cn(interestScenario === "overdue" && "font-bold")}>• <strong>Overdue ({interestRates.overdue}%)</strong> - Overdue &gt; 6 months without renewal</li>
-                    <li>• After settling overdue, next renewal reverts to {interestRates.extended}%</li>
-                  </ul>
-                </div>
+                )}
               </div>
 
               <div className="mt-4 p-4 bg-zinc-100 rounded-xl flex items-center justify-between">

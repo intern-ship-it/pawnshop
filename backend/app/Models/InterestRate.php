@@ -18,6 +18,7 @@ class InterestRate extends Model
         'from_month',
         'to_month',
         'is_active',
+        'sort_order',
         'effective_from',
         'effective_to',
     ];

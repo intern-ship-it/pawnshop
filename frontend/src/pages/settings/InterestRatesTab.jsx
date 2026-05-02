@@ -24,6 +24,11 @@ import {
 
 // Rate type options
 const RATE_TYPES = [
+  {
+    value: "custom",
+    label: "Custom",
+    description: "Custom rate rule",
+  },
   { value: "standard", label: "Standard", description: "First 6 months" },
   {
     value: "extended",
@@ -58,6 +63,7 @@ export default function InterestRatesTab() {
     from_month: "1",
     to_month: "",
     description: "",
+    sort_order: "0",
   });
   const [editingRate, setEditingRate] = useState(null);
   const [deletingRate, setDeletingRate] = useState(null);
@@ -93,13 +99,13 @@ export default function InterestRatesTab() {
 
   // Add new rate
   const handleAdd = async () => {
-    if (!formData.name || !formData.rate_percentage) {
+    if (!formData.name || !formData.rate_percentage || !formData.from_month || !formData.to_month) {
       dispatch(
         addToast({
           id: Date.now(),
           type: "error",
           title: "Validation Error",
-          message: "Name and rate percentage are required",
+          message: "Name, rate percentage, and months are required",
         })
       );
       return;
@@ -114,6 +120,7 @@ export default function InterestRatesTab() {
         from_month: formData.from_month ? parseInt(formData.from_month) : null,
         to_month: formData.to_month ? parseInt(formData.to_month) : null,
         description: formData.description || null,
+        sort_order: parseInt(formData.sort_order) || 0,
       };
 
       const response = await settingsService.createInterestRate(payload);
@@ -158,6 +165,7 @@ export default function InterestRatesTab() {
       from_month: rate.from_month?.toString() || "",
       to_month: rate.to_month?.toString() || "",
       description: rate.description || "",
+      sort_order: rate.sort_order?.toString() || "0",
     });
     setShowEditModal(true);
   };
@@ -165,6 +173,18 @@ export default function InterestRatesTab() {
   // Update rate
   const handleUpdate = async () => {
     if (!editingRate) return;
+
+    if (!formData.name || !formData.rate_percentage || !formData.from_month || !formData.to_month) {
+      dispatch(
+        addToast({
+          id: Date.now(),
+          type: "error",
+          title: "Validation Error",
+          message: "Name, rate percentage, and months are required",
+        })
+      );
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -175,6 +195,7 @@ export default function InterestRatesTab() {
         from_month: formData.from_month ? parseInt(formData.from_month) : null,
         to_month: formData.to_month ? parseInt(formData.to_month) : null,
         description: formData.description || null,
+        sort_order: parseInt(formData.sort_order) || 0,
       };
 
       const response = await settingsService.updateInterestRate(
@@ -296,6 +317,7 @@ export default function InterestRatesTab() {
       from_month: "1",
       to_month: "",
       description: "",
+      sort_order: "0",
     });
   };
 
@@ -516,13 +538,12 @@ export default function InterestRatesTab() {
           <div className="flex items-center gap-2 text-sm flex-wrap">
             {rates
               .filter((r) => r.is_active !== false)
-              .map((rate, idx) => (
+              .map((rate, idx, arr) => (
                 <span key={rate.id} className="flex items-center gap-1">
                   <Badge variant={getRateTypeBadge(rate.rate_type)}>
                     {Number(rate.rate_percentage || 0).toFixed(2)}%
                   </Badge>
-                  {idx <
-                    rates.filter((r) => r.is_active !== false).length - 1 && (
+                  {idx < arr.length - 1 && (
                     <span className="text-zinc-400 mx-1">→</span>
                   )}
                 </span>
@@ -541,12 +562,14 @@ export default function InterestRatesTab() {
         <div className="p-5 space-y-4">
           <Input
             label="Rate Name"
+            required
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="e.g. Standard Rate (First 6 Months)"
           />
           <Select
             label="Rate Type"
+            required
             value={formData.rate_type}
             onChange={(e) =>
               setFormData({ ...formData, rate_type: e.target.value })
@@ -558,6 +581,7 @@ export default function InterestRatesTab() {
           />
           <Input
             label="Rate Percentage"
+            required
             type="number"
             step="0.01"
             min="0"
@@ -572,6 +596,7 @@ export default function InterestRatesTab() {
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="From Month"
+              required
               type="number"
               min="1"
               value={formData.from_month}
@@ -581,7 +606,8 @@ export default function InterestRatesTab() {
               placeholder="e.g. 1"
             />
             <Input
-              label="To Month (Optional)"
+              label="To Month"
+              required
               type="number"
               min="1"
               value={formData.to_month}
@@ -589,7 +615,6 @@ export default function InterestRatesTab() {
                 setFormData({ ...formData, to_month: e.target.value })
               }
               placeholder="e.g. 6"
-              helperText="Leave empty for no limit"
             />
           </div>
           <Input
@@ -599,6 +624,16 @@ export default function InterestRatesTab() {
               setFormData({ ...formData, description: e.target.value })
             }
             placeholder="Optional description"
+          />
+          <Input
+            label="Sort Order"
+            type="number"
+            min="0"
+            value={formData.sort_order}
+            onChange={(e) =>
+              setFormData({ ...formData, sort_order: e.target.value })
+            }
+            helperText="Lower numbers appear first (e.g., 0, 1, 2)"
           />
           <div className="flex gap-3 mt-6">
             <Button
@@ -633,12 +668,14 @@ export default function InterestRatesTab() {
         <div className="p-5 space-y-4">
           <Input
             label="Rate Name"
+            required
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="e.g. Standard Rate (First 6 Months)"
           />
           <Select
             label="Rate Type"
+            required
             value={formData.rate_type}
             onChange={(e) =>
               setFormData({ ...formData, rate_type: e.target.value })
@@ -650,6 +687,7 @@ export default function InterestRatesTab() {
           />
           <Input
             label="Rate Percentage"
+            required
             type="number"
             step="0.01"
             min="0"
@@ -664,6 +702,7 @@ export default function InterestRatesTab() {
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="From Month"
+              required
               type="number"
               min="1"
               value={formData.from_month}
@@ -673,7 +712,8 @@ export default function InterestRatesTab() {
               placeholder="e.g. 1"
             />
             <Input
-              label="To Month (Optional)"
+              label="To Month"
+              required
               type="number"
               min="1"
               value={formData.to_month}
@@ -683,6 +723,16 @@ export default function InterestRatesTab() {
               placeholder="e.g. 6"
             />
           </div>
+          <Input
+            label="Sort Order"
+            type="number"
+            min="0"
+            value={formData.sort_order}
+            onChange={(e) =>
+              setFormData({ ...formData, sort_order: e.target.value })
+            }
+            helperText="Lower numbers appear first (e.g., 0, 1, 2)"
+          />
           <div className="flex gap-3 mt-6">
             <Button
               variant="outline"

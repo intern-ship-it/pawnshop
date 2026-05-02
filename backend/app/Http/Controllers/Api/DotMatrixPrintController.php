@@ -633,6 +633,31 @@ HTML;
             }
         }
 
+        // Get interest rates from InterestRate model
+        $interestRateNormal = $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '0.5';
+        $interestRateExtended = '1.0';
+        $interestRateOverdue = $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0';
+
+        try {
+            if (class_exists('\App\Models\InterestRate')) {
+                $rates = \App\Models\InterestRate::where(function ($q) use ($branch) {
+                    $q->where('branch_id', $branch->id)->orWhereNull('branch_id');
+                })->get()->keyBy('rate_type');
+
+                if (isset($rates['standard'])) {
+                    $interestRateNormal = number_format($rates['standard']->rate_percentage, 2);
+                }
+                if (isset($rates['extended'])) {
+                    $interestRateExtended = number_format($rates['extended']->rate_percentage, 2);
+                }
+                if (isset($rates['overdue'])) {
+                    $interestRateOverdue = number_format($rates['overdue']->rate_percentage, 2);
+                }
+            }
+        } catch (\Exception $e) {
+            // Fallback to normal if exception
+        }
+
         return [
             'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
             'company_name_chinese' => $settingsMap['name_chinese'] ?? '',
@@ -649,8 +674,9 @@ HTML;
             'closed_days' => $settingsMap['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA',
             'handling_fee' => $settingsMap['receipt_handling_fee'] ?? $settingsMap['handling_fee'] ?? '50 SEN',
             'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
-            'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
-            'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
+            'interest_rate_normal' => $interestRateNormal,
+            'interest_rate_extended' => $interestRateExtended,
+            'interest_rate_overdue' => $interestRateOverdue,
             'branch_code' => $branch->code ?? 'HQ',
             'insurance_policy_no' => $settingsMap['insurance_policy_no'] ?? '',
             'logo_url' => $logoUrl, // Logo URL or null - shows only if exists
@@ -1030,7 +1056,7 @@ HTML;
     {
         $n = strtoupper($customer->nationality ?? '');
         $citizenship = str_contains($n, 'MALAYSIA') ? 'MALAYSIA' : ($n ?: 'WARGANEGARA');
-        
+
         // Append race if available (e.g., MALAYSIA (INDIA))
         $race = strtoupper(trim($customer->race ?? ''));
         if ($race) {
@@ -1043,7 +1069,7 @@ HTML;
             $raceDisplay = $raceMap[$race] ?? $race;
             $citizenship .= ' (' . $raceDisplay . ')';
         }
-        
+
         return $citizenship;
     }
     private function getRace($customer): string
@@ -1746,9 +1772,9 @@ HTML;
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
-                <div class="pp-kadar-ln">1.0% Sebulan : Dalam tempoh 6 bulan</div>
-                <div class="pp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+                <div class="pp-kadar-ln">{$settings['interest_rate_normal']}% Sebulan : Untuk tempoh 6 bulan pertama</div>
+                <div class="pp-kadar-ln">{$settings['interest_rate_extended']}% Sebulan : Dalam tempoh 6 bulan</div>
+                <div class="pp-kadar-ln">{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div>
             </div>
         </div>
     </div>
@@ -1863,7 +1889,7 @@ HTML;
                 foreach ($dbTerms as $term) {
                     $content = $term->content_ms ?? $term->content_en ?? '';
                     $content = str_replace(["\r\n", "\r", "\n"], '<br>', $content);
-                    
+
                     // Dynamically format (a) and (b) if they exist to prevent overlapping
                     if (str_contains(strtolower($content), '(a)') && str_contains(strtolower($content), '(b)')) {
                         $content = preg_replace('/(?:<br>)?\s*\(\s*a\s*\)/i', '<div style="padding-left: 4mm; margin-top: 1mm;"><div>(a)', $content, 1, $countA);
@@ -2244,27 +2270,27 @@ HTML;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 113mm;
+    top: 115mm;
     text-align: center;
     font-size: 12px;
-    right: 7mm;
+    right: 46mm;
 }
 .ppo-interest-note {
     position: absolute;
     top: 111.7mm;
-    left: 95mm;
-    width: 72mm;
-    font-size: 12px;
+    left: 86mm;
+    width: 58mm;
+    font-size: 10px;
     font-weight: bold; 
 }
-/* .ppo-due-date {
+ .ppo-due-date {
     position: absolute;
     top: 115mm;
     left: 176mm;
     width: 28mm;
     font-size: 12px;
     text-align: center;
-} */
+} 
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
@@ -2327,7 +2353,7 @@ HTML;
     <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
     <div class="ppo-interest-note">{$interestNote}</div>
     <div class="ppo-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
-    <!-- <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div> -->
+    <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div>
     
     <!-- WEIGHT -->
     <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
@@ -2752,7 +2778,7 @@ HTML;
 .pp-pin-lbl { font-size: 9px; }
 .pp-pin-rm { font-size: 12px; font-weight: bold; }
 .pp-pin-sp { flex: 1; min-height: 6mm; }
-.pp-pin-stars { font-size: 12px; font-weight: bold; }
+.pp-pin-stars { position:absolute; font-size: 8px; font-weight: bold; right:11.5rem }
 .pp-dt-cell { width: 27mm; text-align: center; padding: 1.5mm; border-right: 2px solid #d42027; }
 .pp-dt-cell:last-child { border-right: none; }
 .pp-dt-lbl { font-size: 7px; font-weight: bold; }
@@ -2818,9 +2844,9 @@ HTMLSTART
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.0% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
             </div>
         </div>
     </div>
@@ -2875,9 +2901,10 @@ HTMLSTART
     <div class="pp-amt-row"><span class="pp-amt-lbl">Jumlah :</span></div>
 
     <div class="pp-bot">
-        <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">***</span></div>
-        <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div>
-        <!-- <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div> -->
+        <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">Tarikh Dipajak</span></div>
+        <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div>
+        
+        <!-- <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div> -->
     </div>
 
     <div class="pp-ftr">
@@ -3105,7 +3132,7 @@ HTML;
             \Log::error('Pre-Printed Overlay Error: ' . $e->getMessage());
             return $this->error('Print error: ' . $e->getMessage(), 500);
         }
-    } 
+    }
 
     /**
      * Generate Pledge Receipt WITH Pre-Printed Form Template
@@ -3445,9 +3472,9 @@ HTML;
         $gender = $this->getGender($customer);
         $nationality = $this->getCitizenship($customer);
         $address = $this->formatCustomerAddress($customer);
-       $interestAmount = $renewal->interest_amount ?? 0;
-$catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this->formatNumber($interestAmount);
-// Remove or skip the foreach that appends item descriptions to $catatan
+        $interestAmount = $renewal->interest_amount ?? 0;
+        $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this->formatNumber($interestAmount);
+        // Remove or skip the foreach that appends item descriptions to $catatan
 
         // Build items text
         $itemsText = '';
@@ -3587,7 +3614,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 .ppo-loan-amount {
     position: absolute;
     top: 110mm;
-    left: 48mm;
+    left: 40mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
     text-align: center;
@@ -3596,9 +3623,9 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 .ppo-interest-note {
     position: absolute;
     top: 111mm;
-    left: 96mm;
-    width: 72mm;
-    font-size: 12px;
+    left: 85mm;
+    width: 50mm;
+    font-size: 10px;
     font-weight: bold;
 }
 /* .ppo-due-date {
@@ -3610,6 +3637,12 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     text-align: center;
 } */
 
+    .ppo-due-date{
+    position: absolute;
+    bottom: 119px;
+    right: 1.8rem;
+    font-size: 13px;
+    }
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
     position: absolute;
@@ -3619,8 +3652,8 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
 }
 .ppo-pledge-date{
     position: absolute;
-    bottom: 32mm;
-    right: 8mm;
+    bottom: 31.5mm;
+    right: 44mm;
     font-size: 13px;
 }
 
@@ -3697,7 +3730,7 @@ $catatan = "SAMBUNGAN; Asal: {$pledge->pledge_no}; Faedah Dibayar: RM " . $this-
     <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
     <div class="ppo-interest-note">{$interestNote}</div>
     <div class="ppo-pledge-date">{$pledgeDate->format('d/m/Y')}</div>
-    <!-- <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div> -->
+    <div class="ppo-due-date">{$dueDate->format('d/m/Y')}</div> 
     
     <!-- WEIGHT -->
     <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
@@ -3843,9 +3876,9 @@ HTML;
             </div>
             <div class="ppp-kadar">
                 <div class="ppp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="ppp-kadar-ln">0.5% Sebulan : Untuk tempoh 6 bulan pertama</div>
-                <div class="ppp-kadar-ln">1.0% Sebulan : Dalam tempoh 6 bulan</div>
-                <div class="ppp-kadar-ln">2.0% Sebulan : Lepas tempoh 6 bulan</div>
+                <div class="ppp-kadar-ln">{$settings['interest_rate_normal']}% Sebulan : Untuk tempoh 6 bulan pertama</div>
+                <div class="ppp-kadar-ln">{$settings['interest_rate_extended']}% Sebulan : Dalam tempoh 6 bulan</div>
+                <div class="ppp-kadar-ln">{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div>
             </div>
         </div>
     </div>
@@ -4616,7 +4649,7 @@ HTML;
      * Returns the complete form (blank template + redemption data filled in)
      * For checking how redemption data looks on the actual form
      */
-  
+
 
 
     public function prePrintedPledgeReceiptA4(Request $request, Pledge $pledge): JsonResponse
@@ -4663,7 +4696,7 @@ HTML;
 
 
 
-/**
+    /**
      * Generate Data Overlay for A4 Portrait - COPY 2
      * Uses _new suffix classes for INDEPENDENT CSS positioning
      * â˜… Edit these CSS values to adjust Copy 2 WITHOUT affecting Copy 1 â˜…
@@ -4892,8 +4925,8 @@ HTML;
 
 
 
-  
-   
+
+
 
 
     /**
@@ -4901,13 +4934,13 @@ HTML;
      * Takes the existing ppo- overlay HTML and stacks 2 copies vertically
      * Page: 210mm x 297mm, each copy ~148mm tall
      */
-//     private function wrapA4PortraitOverlay(string $singleOverlayHtml): string
+    //     private function wrapA4PortraitOverlay(string $singleOverlayHtml): string
 //     {
 //         return <<<HTML
 // <style>
 // @page { size: 210mm 297mm; margin: 0; }
 
-// .a4p-wrapper {
+    // .a4p-wrapper {
 //     width: 210mm;
 //     height: 297mm;
 //     margin: 0;
@@ -4920,7 +4953,7 @@ HTML;
 //     background: transparent !important;
 // }
 
-// /* Each copy = A5 size (210mm x 148mm) */
+    // /* Each copy = A5 size (210mm x 148mm) */
 // .a4p-copy {
 //     width: 210mm;
 //     height: 148mm;
@@ -4929,13 +4962,13 @@ HTML;
 //     flex-shrink: 0;
 // }
 
-// /* Override the ppo-page inside each copy to fit */
+    // /* Override the ppo-page inside each copy to fit */
 // .a4p-copy .ppo-page {
 //     page-break-after: avoid !important;
 //     break-after: avoid !important;
 // }
 
-// @media print {
+    // @media print {
 //     html, body {
 //         margin: 0 !important;
 //         padding: 0 !important;
@@ -4951,13 +4984,13 @@ HTML;
 // }
 // </style>
 
-// <div class="a4p-wrapper">
+    // <div class="a4p-wrapper">
 //     <!-- â•â•â• COPY 1 (Top Half) â•â•â• -->
 //     <div class="a4p-copy">
 //         {$singleOverlayHtml}
 //     </div>
 
-//     <!-- â•â•â• COPY 2 (Bottom Half) â•â•â• -->
+    //     <!-- â•â•â• COPY 2 (Bottom Half) â•â•â• -->
 //     <div class="a4p-copy" style="margin-top:1.5rem !important;">
 //         {$singleOverlayHtml}
 //     </div>
@@ -4969,7 +5002,7 @@ HTML;
 
 
 
-private function wrapA4PortraitOverlay(string $overlay1Html, string $overlay2Html = ''): string
+    private function wrapA4PortraitOverlay(string $overlay1Html, string $overlay2Html = ''): string
     {
         if (empty($overlay2Html)) {
             $overlay2Html = $overlay1Html;
@@ -5238,9 +5271,11 @@ HTML;
         }
 
         $renewalDate = $renewal->created_at ?? now();
-        if (is_string($renewalDate)) $renewalDate = Carbon::parse($renewalDate);
+        if (is_string($renewalDate))
+            $renewalDate = Carbon::parse($renewalDate);
         $newDueDate = $renewal->new_due_date;
-        if (is_string($newDueDate)) $newDueDate = Carbon::parse($newDueDate);
+        if (is_string($newDueDate))
+            $newDueDate = Carbon::parse($newDueDate);
 
         $icNumber = $this->formatIC($customer->ic_number ?? '');
         $birthYear = $this->extractBirthYear($customer);
@@ -5330,9 +5365,11 @@ HTML;
         }
 
         $renewalDate = $renewal->created_at ?? now();
-        if (is_string($renewalDate)) $renewalDate = Carbon::parse($renewalDate);
+        if (is_string($renewalDate))
+            $renewalDate = Carbon::parse($renewalDate);
         $newDueDate = $renewal->new_due_date;
-        if (is_string($newDueDate)) $newDueDate = Carbon::parse($newDueDate);
+        if (is_string($newDueDate))
+            $newDueDate = Carbon::parse($newDueDate);
 
         $icNumber = $this->formatIC($customer->ic_number ?? '');
         $birthYear = $this->extractBirthYear($customer);
@@ -5402,38 +5439,38 @@ HTML;
 HTML;
     }
 
-// ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
 // METHOD 1: generatePrePrintedRedmeptionA5FrontPage
 // Blank A5 Landscape form template for Redemption receipts
 // ═══════════════════════════════════════════════════════════════
 
-private function generatePrePrintedRedmeptionA5FrontPage(array $settings): string
-{
-    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $closedDays = htmlspecialchars($settings['closed_days'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $logoUrl = $settings['logo_url'] ?? null;
+    private function generatePrePrintedRedmeptionA5FrontPage(array $settings): string
+    {
+        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $closedDays = htmlspecialchars($settings['closed_days'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $logoUrl = $settings['logo_url'] ?? null;
 
-    $phoneHtml = $phone1;
-    if ($phone2) {
-        $phoneHtml .= '<br>' . $phone2;
-    }
+        $phoneHtml = $phone1;
+        if ($phone2) {
+            $phoneHtml .= '<br>' . $phone2;
+        }
 
-    $logoHtml = '';
-    if ($logoUrl) {
-        $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
-    }
+        $logoHtml = '';
+        if ($logoUrl) {
+            $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
+        }
 
-    return <<<'HTMLSTART'
+        return <<<'HTMLSTART'
 <style>
 .pp-front {
     width: 210mm;
@@ -5577,7 +5614,7 @@ private function generatePrePrintedRedmeptionA5FrontPage(array $settings): strin
 }
 </style>
 HTMLSTART
-        . <<<HTML
+            . <<<HTML
 <div class="pp-front">
     <div class="pp-hdr">
         <div class="pp-hdr-left">
@@ -5623,9 +5660,9 @@ HTMLSTART
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.0% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
             </div>
         </div>
     </div>
@@ -5698,66 +5735,66 @@ HTMLSTART
     </div>
 </div>
 HTML;
-}
+    }
 
 
-// ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
 // METHOD 2: generatePrePrintedRedemptionOverlay
 // Data overlay for redemption - prints variable data on pre-printed form
 // ═══════════════════════════════════════════════════════════════
 
-private function generatePrePrintedRedemptionOverlay(Redemption $redemption, Pledge $pledge, array $settings): string
-{
-    $customer = $pledge->customer;
-    $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
-    $interestAmount = $redemption->interest_amount ?? 0;
-    $handlingFee = $redemption->handling_fee ?? 0;
-    $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
+    private function generatePrePrintedRedemptionOverlay(Redemption $redemption, Pledge $pledge, array $settings): string
+    {
+        $customer = $pledge->customer;
+        $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
+        $interestAmount = $redemption->interest_amount ?? 0;
+        $handlingFee = $redemption->handling_fee ?? 0;
+        $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
 
-    $redemptionDate = $redemption->created_at ?? now();
-    if (is_string($redemptionDate))
-        $redemptionDate = Carbon::parse($redemptionDate);
+        $redemptionDate = $redemption->created_at ?? now();
+        if (is_string($redemptionDate))
+            $redemptionDate = Carbon::parse($redemptionDate);
 
-    $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
-    if (is_string($pledgeDate))
-        $pledgeDate = Carbon::parse($pledgeDate);
+        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+        if (is_string($pledgeDate))
+            $pledgeDate = Carbon::parse($pledgeDate);
 
-    // Calculate total weight
-    $totalWeight = 0;
-    foreach ($pledge->items as $item) {
-        $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
-    }
+        // Calculate total weight
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
 
-    // Customer details
-    $icNumber = $this->formatIC($customer->ic_number ?? '');
-    $birthYear = $this->extractBirthYear($customer);
-    $gender = $this->getGender($customer);
-    $nationality = $this->getCitizenship($customer);
-    $address = $this->formatCustomerAddress($customer);
+        // Customer details
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
 
-    // Build items text
-    $itemsText = '';
-    $itemNumber = 1;
-    foreach ($pledge->items as $item) {
-        $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
-        $purity = $item->purity->code ?? '';
-        $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-        $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
-        $displayDesc = $desc ? " -- {$desc}" : "";
-        $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
-        $itemNumber++;
-    }
+        // Build items text
+        $itemsText = '';
+        $itemNumber = 1;
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
+            $itemNumber++;
+        }
 
-    // Format amounts
-    $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
-    $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
-    $principalFormatted = $this->formatNumber($principal, 2);
-    $interestFormatted = $this->formatNumber($interestAmount, 2);
-    $rate = $pledge->interest_rate ?? 0.5;
-    $monthlyInterest = $principal * (floatval($rate) / 100);
-    $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+        // Format amounts
+        $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
+        $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
+        $principalFormatted = $this->formatNumber($principal, 2);
+        $interestFormatted = $this->formatNumber($interestAmount, 2);
+        $rate = $pledge->interest_rate ?? 0.5;
+        $monthlyInterest = $principal * (floatval($rate) / 100);
+        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
-    return <<<HTML
+        return <<<HTML
 <style>
 @page { size: 210mm 148mm; margin: 0; }
 .ppo-page {
@@ -6074,52 +6111,52 @@ private function generatePrePrintedRedemptionOverlay(Redemption $redemption, Ple
     <div class="ppo-copy-label">SALINAN PELANGGAN</div>
 </div>
 HTML;
-}
+    }
 
 
-// ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
 // METHOD 3: prePrintedRedemptionReceiptWithForm
 // Public API endpoint - combines blank template + data overlay
 // ═══════════════════════════════════════════════════════════════
 
-public function prePrintedRedemptionReceiptWithForm(Request $request, $redemption): JsonResponse
-{
-    try {
-        if (is_numeric($redemption)) {
-            $redemption = Redemption::find($redemption);
-        } else {
-            $redemption = Redemption::where('redemption_no', $redemption)->first();
-        }
+    public function prePrintedRedemptionReceiptWithForm(Request $request, $redemption): JsonResponse
+    {
+        try {
+            if (is_numeric($redemption)) {
+                $redemption = Redemption::find($redemption);
+            } else {
+                $redemption = Redemption::where('redemption_no', $redemption)->first();
+            }
 
-        if (!$redemption) {
-            return $this->error('Redemption not found', 404);
-        }
+            if (!$redemption) {
+                return $this->error('Redemption not found', 404);
+            }
 
-        $redemption->load([
-            'pledge.customer',
-            'pledge.items.category',
-            'pledge.items.purity',
-            'pledge.branch',
-        ]);
+            $redemption->load([
+                'pledge.customer',
+                'pledge.items.category',
+                'pledge.items.purity',
+                'pledge.branch',
+            ]);
 
-        $pledge = $redemption->pledge;
+            $pledge = $redemption->pledge;
 
-        if (!$pledge) {
-            return $this->error('Pledge not found', 404);
-        }
+            if (!$pledge) {
+                return $this->error('Pledge not found', 404);
+            }
 
-        if ($pledge->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
 
-        $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->getCompanySettings($pledge->branch);
 
-        // Generate BOTH blank form template AND redemption data overlay
-        $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings);
-        $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
+            // Generate BOTH blank form template AND redemption data overlay
+            $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings);
+            $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
 
-        // Combine them - data overlay on top of blank form
-        $combinedHtml = <<<HTML
+            // Combine them - data overlay on top of blank form
+            $combinedHtml = <<<HTML
 <style>
 .pp-combined-container {
     position: relative;
@@ -6167,57 +6204,57 @@ public function prePrintedRedemptionReceiptWithForm(Request $request, $redemptio
 </div>
 HTML;
 
-        return $this->success([
-            'front_html' => $combinedHtml,
-            'back_html' => '',
-            'redemption_no' => $redemption->redemption_no,
-            'pledge_no' => $pledge->pledge_no,
-            'orientation' => 'landscape',
-            'format' => 'html',
-            'paper_size' => 'A5',
-            'type' => 'pre_printed_with_form',
-        ]);
+            return $this->success([
+                'front_html' => $combinedHtml,
+                'back_html' => '',
+                'redemption_no' => $redemption->redemption_no,
+                'pledge_no' => $pledge->pledge_no,
+                'orientation' => 'landscape',
+                'format' => 'html',
+                'paper_size' => 'A5',
+                'type' => 'pre_printed_with_form',
+            ]);
 
-    } catch (\Exception $e) {
-        \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
-        return $this->error('Print error: ' . $e->getMessage(), 500);
+        } catch (\Exception $e) {
+            \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
     }
-}
 
-// === REPRINT METHODS ===
+    // === REPRINT METHODS ===
 
-// ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
 // METHOD 1: generatePrePrintedRedmeptionA5FrontPageReprint
 // Blank A5 Landscape form template for Redemption receipts
 // ═══════════════════════════════════════════════════════════════
 
-private function generatePrePrintedRedmeptionA5FrontPageReprint(array $settings): string
-{
-    $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $closedDays = htmlspecialchars($settings['closed_days'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $logoUrl = $settings['logo_url'] ?? null;
+    private function generatePrePrintedRedmeptionA5FrontPageReprint(array $settings): string
+    {
+        $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $tamilName = htmlspecialchars($settings['company_name_tamil'] ?: 'அடகு கடை', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $address = htmlspecialchars($settings['address'] ?? 'No. 120 & 122, Jalan Besar Kepong, 52100 Kuala Lumpur.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone1 = htmlspecialchars($settings['phone'] ?? '03-6274 0480', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $phone2 = htmlspecialchars($settings['phone2'] ?? '03-6262 5562', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $estYear = htmlspecialchars($settings['established_year'] ?? '1966', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessDays = htmlspecialchars($settings['business_days'] ?? 'Everyday', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $businessHours = htmlspecialchars($settings['business_hours'] ?? '9 AM - 6 PM', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $closedDays = htmlspecialchars($settings['closed_days'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $logoUrl = $settings['logo_url'] ?? null;
 
-    $phoneHtml = $phone1;
-    if ($phone2) {
-        $phoneHtml .= '<br>' . $phone2;
-    }
+        $phoneHtml = $phone1;
+        if ($phone2) {
+            $phoneHtml .= '<br>' . $phone2;
+        }
 
-    $logoHtml = '';
-    if ($logoUrl) {
-        $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
-    }
+        $logoHtml = '';
+        if ($logoUrl) {
+            $logoHtml = '<img src="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="pp-logo" alt="Logo">';
+        }
 
-    return <<<'HTMLSTART'
+        return <<<'HTMLSTART'
 <style>
 .pp-front {
     width: 210mm;
@@ -6361,7 +6398,7 @@ private function generatePrePrintedRedmeptionA5FrontPageReprint(array $settings)
 }
 </style>
 HTMLSTART
-        . <<<HTML
+            . <<<HTML
 <div class="pp-front">
     <div class="pp-hdr">
         <div class="pp-hdr-left">
@@ -6407,9 +6444,9 @@ HTMLSTART
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> 0.5% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> 1.0% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> 2.0% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
             </div>
         </div>
     </div>
@@ -6482,66 +6519,66 @@ HTMLSTART
     </div>
 </div>
 HTML;
-}
+    }
 
 
-// ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
 // METHOD 2: generatePrePrintedRedemptionOverlayReprint
 // Data overlay for redemption - prints variable data on pre-printed form
 // ═══════════════════════════════════════════════════════════════
 
-private function generatePrePrintedRedemptionOverlayReprint(Redemption $redemption, Pledge $pledge, array $settings): string
-{
-    $customer = $pledge->customer;
-    $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
-    $interestAmount = $redemption->interest_amount ?? 0;
-    $handlingFee = $redemption->handling_fee ?? 0;
-    $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
+    private function generatePrePrintedRedemptionOverlayReprint(Redemption $redemption, Pledge $pledge, array $settings): string
+    {
+        $customer = $pledge->customer;
+        $principal = $redemption->principal_amount ?? $pledge->loan_amount ?? 0;
+        $interestAmount = $redemption->interest_amount ?? 0;
+        $handlingFee = $redemption->handling_fee ?? 0;
+        $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
 
-    $redemptionDate = $redemption->created_at ?? now();
-    if (is_string($redemptionDate))
-        $redemptionDate = Carbon::parse($redemptionDate);
+        $redemptionDate = $redemption->created_at ?? now();
+        if (is_string($redemptionDate))
+            $redemptionDate = Carbon::parse($redemptionDate);
 
-    $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
-    if (is_string($pledgeDate))
-        $pledgeDate = Carbon::parse($pledgeDate);
+        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
+        if (is_string($pledgeDate))
+            $pledgeDate = Carbon::parse($pledgeDate);
 
-    // Calculate total weight
-    $totalWeight = 0;
-    foreach ($pledge->items as $item) {
-        $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
-    }
+        // Calculate total weight
+        $totalWeight = 0;
+        foreach ($pledge->items as $item) {
+            $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
+        }
 
-    // Customer details
-    $icNumber = $this->formatIC($customer->ic_number ?? '');
-    $birthYear = $this->extractBirthYear($customer);
-    $gender = $this->getGender($customer);
-    $nationality = $this->getCitizenship($customer);
-    $address = $this->formatCustomerAddress($customer);
+        // Customer details
+        $icNumber = $this->formatIC($customer->ic_number ?? '');
+        $birthYear = $this->extractBirthYear($customer);
+        $gender = $this->getGender($customer);
+        $nationality = $this->getCitizenship($customer);
+        $address = $this->formatCustomerAddress($customer);
 
-    // Build items text
-    $itemsText = '';
-    $itemNumber = 1;
-    foreach ($pledge->items as $item) {
-        $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
-        $purity = $item->purity->code ?? '';
-        $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
-        $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
-        $displayDesc = $desc ? " -- {$desc}" : "";
-        $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
-        $itemNumber++;
-    }
+        // Build items text
+        $itemsText = '';
+        $itemNumber = 1;
+        foreach ($pledge->items as $item) {
+            $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $purity = $item->purity->code ?? '';
+            $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
+            $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
+            $displayDesc = $desc ? " -- {$desc}" : "";
+            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
+            $itemNumber++;
+        }
 
-    // Format amounts
-    $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
-    $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
-    $principalFormatted = $this->formatNumber($principal, 2);
-    $interestFormatted = $this->formatNumber($interestAmount, 2);
-    $rate = $pledge->interest_rate ?? 0.5;
-    $monthlyInterest = $principal * (floatval($rate) / 100);
-    $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+        // Format amounts
+        $amountWords = strtoupper($this->numberToMalayWords($totalPaid));
+        $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
+        $principalFormatted = $this->formatNumber($principal, 2);
+        $interestFormatted = $this->formatNumber($interestAmount, 2);
+        $rate = $pledge->interest_rate ?? 0.5;
+        $monthlyInterest = $principal * (floatval($rate) / 100);
+        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
-    return <<<HTML
+        return <<<HTML
 <style>
 @page { size: 210mm 148mm; margin: 0; }
 .ppo-page {
@@ -6858,52 +6895,52 @@ private function generatePrePrintedRedemptionOverlayReprint(Redemption $redempti
     <div class="ppo-copy-label">SALINAN PELANGGAN (REPRINT)</div>
 </div>
 HTML;
-}
+    }
 
 
-// ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
 // METHOD 3: prePrintedRedemptionReceiptWithFormReprint
 // Public API endpoint - combines blank template + data overlay
 // ═══════════════════════════════════════════════════════════════
 
-public function prePrintedRedemptionReceiptWithFormReprint(Request $request, $redemption): JsonResponse
-{
-    try {
-        if (is_numeric($redemption)) {
-            $redemption = Redemption::find($redemption);
-        } else {
-            $redemption = Redemption::where('redemption_no', $redemption)->first();
-        }
+    public function prePrintedRedemptionReceiptWithFormReprint(Request $request, $redemption): JsonResponse
+    {
+        try {
+            if (is_numeric($redemption)) {
+                $redemption = Redemption::find($redemption);
+            } else {
+                $redemption = Redemption::where('redemption_no', $redemption)->first();
+            }
 
-        if (!$redemption) {
-            return $this->error('Redemption not found', 404);
-        }
+            if (!$redemption) {
+                return $this->error('Redemption not found', 404);
+            }
 
-        $redemption->load([
-            'pledge.customer',
-            'pledge.items.category',
-            'pledge.items.purity',
-            'pledge.branch',
-        ]);
+            $redemption->load([
+                'pledge.customer',
+                'pledge.items.category',
+                'pledge.items.purity',
+                'pledge.branch',
+            ]);
 
-        $pledge = $redemption->pledge;
+            $pledge = $redemption->pledge;
 
-        if (!$pledge) {
-            return $this->error('Pledge not found', 404);
-        }
+            if (!$pledge) {
+                return $this->error('Pledge not found', 404);
+            }
 
-        if ($pledge->branch_id !== $request->user()->branch_id) {
-            return $this->error('Unauthorized', 403);
-        }
+            if ($pledge->branch_id !== $request->user()->branch_id) {
+                return $this->error('Unauthorized', 403);
+            }
 
-        $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->getCompanySettings($pledge->branch);
 
-        // Generate BOTH blank form template AND redemption data overlay
-        $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPageReprint($settings);
-        $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlayReprint($redemption, $pledge, $settings);
+            // Generate BOTH blank form template AND redemption data overlay
+            $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPageReprint($settings);
+            $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlayReprint($redemption, $pledge, $settings);
 
-        // Combine them - data overlay on top of blank form
-        $combinedHtml = <<<HTML
+            // Combine them - data overlay on top of blank form
+            $combinedHtml = <<<HTML
 <style>
 .pp-combined-container {
     position: relative;
@@ -6951,22 +6988,22 @@ public function prePrintedRedemptionReceiptWithFormReprint(Request $request, $re
 </div>
 HTML;
 
-        return $this->success([
-            'front_html' => $combinedHtml,
-            'back_html' => '',
-            'redemption_no' => $redemption->redemption_no,
-            'pledge_no' => $pledge->pledge_no,
-            'orientation' => 'landscape',
-            'format' => 'html',
-            'paper_size' => 'A5',
-            'type' => 'pre_printed_with_form',
-        ]);
+            return $this->success([
+                'front_html' => $combinedHtml,
+                'back_html' => '',
+                'redemption_no' => $redemption->redemption_no,
+                'pledge_no' => $pledge->pledge_no,
+                'orientation' => 'landscape',
+                'format' => 'html',
+                'paper_size' => 'A5',
+                'type' => 'pre_printed_with_form',
+            ]);
 
-    } catch (\Exception $e) {
-        \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
-        return $this->error('Print error: ' . $e->getMessage(), 500);
+        } catch (\Exception $e) {
+            \Log::error('Pre-Printed Redemption With Form Error: ' . $e->getMessage());
+            return $this->error('Print error: ' . $e->getMessage(), 500);
+        }
     }
-}
 
 
 

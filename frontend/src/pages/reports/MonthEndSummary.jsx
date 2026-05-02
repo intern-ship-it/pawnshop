@@ -2,9 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import reportService from "@/services/reportService";
 import inventoryService from "@/services/inventoryService";
+import goldPriceService from "@/services/goldPriceService";
+import { settingsService } from "@/services";
 import { useNavigate } from "react-router";
 import { addToast } from "@/features/ui/uiSlice";
 import { formatCurrency, formatDate } from "@/utils/formatters";
+import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
@@ -53,6 +56,10 @@ export default function MonthEndSummary() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Gold price state
+  const [goldPrice, setGoldPrice] = useState(null);
+  const [goldPriceSource, setGoldPriceSource] = useState("api"); // "manual" or "api"
+
   // Stats from report data
   const stats = useMemo(() => {
     if (!reportData?.summary) return null;
@@ -90,7 +97,42 @@ export default function MonthEndSummary() {
   useEffect(() => {
     fetchMonthEndData();
     fetchInventorySummary();
+    fetchGoldPrice();
   }, [selectedMonth]);
+
+  // Fetch gold price (mirrors DayEndSummary / Header logic)
+  const fetchGoldPrice = async () => {
+    try {
+      const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
+      const goldSettings = stored?.goldPrice || { source: "api" };
+      setGoldPriceSource(goldSettings.source || "api");
+
+      if (goldSettings.source === "manual") {
+        const manualPrices = goldSettings.manualPrices || {};
+        const price = parseFloat(manualPrices["916"]) || parseFloat(goldSettings.manualPrice) || 0;
+        if (price > 0) {
+          setGoldPrice(price);
+          return;
+        }
+      }
+
+      const response = await goldPriceService.getDashboardPrices();
+      if (response?.success && response?.data) {
+        const data = response.data;
+        const price =
+          data.purity_codes?.["916"] ||
+          data.carat?.["916"] ||
+          data.price999 ||
+          data.purity_codes?.["999"] ||
+          data.carat?.["999"] ||
+          data.current?.prices?.gold?.per_gram ||
+          null;
+        setGoldPrice(price);
+      }
+    } catch (error) {
+      console.error('Error fetching gold price:', error);
+    }
+  };
 
   const fetchMonthEndData = async () => {
     setIsLoading(true);
@@ -141,8 +183,8 @@ export default function MonthEndSummary() {
     );
   };
 
-  // Print summary — accounting-style ledger
-  const handlePrint = () => {
+  // Print summary — accounting-style ledger (matching DayEndSummary style)
+  const handlePrint = async () => {
     if (!stats) return;
 
     const monthLabel = new Date(dateRange.from).toLocaleDateString("en-MY", {
@@ -150,242 +192,245 @@ export default function MonthEndSummary() {
       month: "long",
     });
 
+    // Get company info from settings
+    const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
+    const company = stored?.company || {};
+    const companyName = company.name || "PawnSys Sdn Bhd";
+    const companyLicense = company.license || "";
+    const companyAddress = company.address || "";
+    const companyPhone = company.phone || "";
+    const companyEmail = company.email || "";
+
+    // Fetch logo as base64 so it works in the unauthenticated print window
+    const baseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? "http://localhost:8000" : window.location.origin;
+    let logoDataUrl = "";
+    try {
+      const logoRes = await settingsService.getLogo();
+      const logoData = logoRes?.data || logoRes;
+      const logoUrl = logoData?.logo_url || logoData?.path;
+      if (logoUrl) {
+        let fullUrl = logoUrl;
+        if (!logoUrl.startsWith("http")) {
+          fullUrl = baseUrl + (logoUrl.startsWith("/") ? "" : "/") + logoUrl;
+        }
+        const imgResp = await fetch(fullUrl);
+        if (imgResp.ok) {
+          const blob = await imgResp.blob();
+          logoDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch logo for print:", e);
+    }
+
+    // Derived calculations for print
+    const totalVolumePrint = (stats.cashTotal || 0) + (stats.transferTotal || 0);
+    const cashPercentPrint = totalVolumePrint > 0 ? Math.round((stats.cashTotal / totalVolumePrint) * 100) : 0;
+    const transferPercentPrint = totalVolumePrint > 0 ? 100 - cashPercentPrint : 0;
+    const avgPledgeSize = stats.newPledgesCount > 0 ? stats.newPledgesAmount / stats.newPledgesCount : 0;
+    const avgRedemption = stats.redemptionsCount > 0 ? stats.redemptionAmount / stats.redemptionsCount : 0;
+    const pledgeToRedeemRatioPrint = stats.redemptionsCount > 0
+      ? (stats.newPledgesCount / stats.redemptionsCount).toFixed(2)
+      : "N/A";
+
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Month End Summary - ${selectedMonth}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Arial', 'Helvetica Neue', sans-serif;
-            padding: 30px 40px;
-            max-width: 780px;
-            margin: 0 auto;
-            color: #1a1a1a;
-            font-size: 13px;
-            line-height: 1.5;
-          }
-          h1 {
-            text-align: center;
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 4px;
-            letter-spacing: 0.5px;
-          }
-          .sub-header {
-            text-align: center;
-            font-size: 12px;
-            color: #555;
-            margin-bottom: 24px;
-          }
-          .section {
-            margin-bottom: 22px;
-          }
-          .section-title {
-            font-size: 14px;
-            font-weight: 700;
-            border-bottom: 2px solid #1a1a1a;
-            padding-bottom: 4px;
-            margin-bottom: 6px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          table th {
-            text-align: left;
-            font-weight: 700;
-            font-size: 11px;
-            border-bottom: 1px solid #999;
-            padding: 4px 8px 4px 0;
-            color: #333;
-          }
-          table th.right, table td.right {
-            text-align: right;
-          }
-          table td {
-            padding: 5px 8px 5px 0;
-            border-bottom: 1px solid #e8e8e8;
-            font-size: 13px;
-          }
-          table tr:last-child td {
-            border-bottom: none;
-          }
-          .total-row td {
-            border-top: 1px solid #333;
-            border-bottom: 2px solid #333 !important;
-            font-weight: 700;
-            padding-top: 6px;
-            padding-bottom: 6px;
-          }
+          body { font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; padding: 30px 40px; max-width: 780px; margin: 0 auto; color: #1a1a1a; font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+          .company-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #1a1a1a; }
+          .company-logo { width: 120px; height: 120px; object-fit: contain; flex-shrink: 0; }
+          .company-info { flex: 1; }
+          .company-name { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+          .company-reg { font-size: 15px; color: #555; margin-bottom: 6px; }
+          .company-address { font-size: 14px; color: #333; line-height: 1.6; margin-bottom: 4px; }
+          .company-contact { font-size: 14px; color: #333; }
+          h1 { text-align: center; font-size: 20px; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.5px; margin-top: 16px; }
+          .sub-header { text-align: center; font-size: 12px; color: #555; margin-bottom: 24px; }
+          .section { margin-bottom: 24px; }
+          .section-title { font-size: 14px; font-weight: 700; border-bottom: 2px solid #1a1a1a; padding-bottom: 4px; margin-bottom: 6px; }
+          .section-number { font-weight: 800; color: #92400e; margin-right: 4px; }
+          /* Amber-themed tables */
+          .summary-table { width: 100%; border-collapse: collapse; margin-top: 2px; }
+          .summary-table thead th { background: #92400e; color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 10px; text-align: left; border: none; }
+          .summary-table thead th.right { text-align: right; }
+          .summary-table tbody td { padding: 8px 10px; border-bottom: 1px solid #f3e8d0; font-size: 13px; }
+          .summary-table tbody td.right { text-align: right; }
+          .summary-table tbody tr:nth-child(even) { background: #fffbeb; }
+          .subtotal-bar { margin-top: 0; padding: 8px 12px; background: #92400e; color: #fff; font-weight: 600; font-size: 12px; letter-spacing: 0.2px; }
+          /* General tables */
+          table { width: 100%; border-collapse: collapse; }
+          table th { text-align: left; font-weight: 700; font-size: 11px; border-bottom: 1px solid #999; padding: 4px 8px 4px 0; color: #333; }
+          table th.right, table td.right { text-align: right; }
+          table td { padding: 5px 8px 5px 0; border-bottom: 1px solid #e8e8e8; font-size: 13px; }
+          table tr:last-child td { border-bottom: none; }
+          .total-row td { border-top: 1px solid #333; border-bottom: 2px solid #333 !important; font-weight: 700; padding-top: 6px; padding-bottom: 6px; }
           .positive { color: #0a7d2e; }
           .negative { color: #c0392b; }
-          .signature-area {
-            margin-top: 50px;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 20px;
-          }
-          .signature-block {
-            text-align: center;
-            width: 160px;
-          }
-          .signature-line {
-            border-top: 1px solid #333;
-            padding-top: 6px;
-            font-size: 12px;
-            font-weight: 600;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: #999;
-            font-size: 10px;
-          }
+          .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #f59e0b; padding: 10px 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
+          .gold-banner .gold-label { font-weight: 600; color: #92400e; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+          .gold-banner .gold-value { font-size: 15px; font-weight: 700; color: #b45309; }
+          .gold-source-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+          .gold-source-manual { background: #dbeafe; color: #1d4ed8; }
+          .gold-source-api { background: #dcfce7; color: #15803d; }
+          .net-cash-box { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 2px solid #92400e; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+          .net-cash-label { font-size: 16px; font-weight: 700; color: #92400e; }
+          .net-cash-value { font-size: 20px; font-weight: 800; }
+          .highlights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+          .highlight-item { padding: 8px 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+          .highlight-item .hl-label { font-size: 12px; color: #6b7280; }
+          .highlight-item .hl-value { font-size: 13px; font-weight: 700; color: #1f2937; }
+          .signature-area { margin-top: 50px; display: flex; justify-content: space-around; padding: 0 20px; }
+          .signature-block { text-align: center; width: 160px; }
+          .signature-line { border-top: 1px solid #333; padding-top: 6px; font-size: 12px; font-weight: 600; }
+          .footer { text-align: center; margin-top: 30px; color: #999; font-size: 10px; }
           @media print {
-            body { padding: 15px 25px; }
+            body { padding: 15px 25px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            .summary-table thead th { background: #92400e !important; color: #fff !important; }
+            .summary-table tbody tr:nth-child(even) { background: #fffbeb !important; }
+            .subtotal-bar { background: #92400e !important; color: #fff !important; }
+            .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7) !important; }
+            .net-cash-box { background: linear-gradient(135deg, #fffbeb, #fef3c7) !important; }
+            .highlight-item { background: #f9fafb !important; }
           }
         </style>
       </head>
       <body>
+        <!-- Company Header -->
+        <div class="company-header">
+          ${logoDataUrl ? `<img class="company-logo" src="${logoDataUrl}" alt="Logo" />` : ""}
+          <div class="company-info">
+            <div class="company-name">${companyName}</div>
+            ${companyLicense ? `<div class="company-reg">(${companyLicense})</div>` : ""}
+            ${companyAddress ? `<div class="company-address">${companyAddress}</div>` : ""}
+            ${companyEmail ? `<div class="company-contact">Email : ${companyEmail}</div>` : ""}
+            ${companyPhone ? `<div class="company-contact">Tel : ${companyPhone}</div>` : ""}
+          </div>
+        </div>
+
         <h1>Month End Summary</h1>
-        <div class="sub-header">
-          Month: ${monthLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Period: ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}
+        <div class="sub-header">Month: ${monthLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Period: ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}</div>
+
+        <div class="gold-banner">
+          <span class="gold-label">Gold Value (per gram) <span class="gold-source-badge ${goldPriceSource === 'manual' ? 'gold-source-manual' : 'gold-source-api'}">${goldPriceSource === 'manual' ? 'Manual' : 'API'}</span></span>
+          <span class="gold-value">${goldPrice ? `RM ${parseFloat(goldPrice).toFixed(2)}/g` : "N/A"}</span>
         </div>
 
+        <!-- 1. Monthly Transaction Summary -->
         <div class="section">
-          <div class="section-title">Monthly Transaction Summary</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th class="right">Count</th>
-                <th class="right">Amount</th>
-              </tr>
-            </thead>
+          <div class="section-title"><span class="section-number">1.</span> Monthly Transaction Summary</div>
+          <table class="summary-table">
+            <thead><tr><th>Type</th><th class="right">Count</th><th class="right">Amount</th><th class="right">Direction</th></tr></thead>
             <tbody>
-              <tr>
-                <td>New Pledges (Cash Out)</td>
-                <td class="right">${stats.newPledgesCount} txn</td>
-                <td class="right">${formatCurrency(stats.newPledgesAmount)}</td>
-              </tr>
-              <tr>
-                <td>Redemptions (Cash In)</td>
-                <td class="right">${stats.redemptionsCount} txn</td>
-                <td class="right">${formatCurrency(stats.redemptionAmount)}</td>
-              </tr>
-              <tr>
-                <td>Renewals (Interest In)</td>
-                <td class="right">${stats.renewalsCount} txn</td>
-                <td class="right">${formatCurrency(stats.renewalInterest)}</td>
-              </tr>
-              <tr class="total-row">
-                <td>Total</td>
-                <td class="right">${stats.totalTransactionCount} txn</td>
-                <td class="right">${formatCurrency(stats.newPledgesAmount + stats.redemptionAmount + stats.renewalInterest)}</td>
-              </tr>
+              <tr><td>New Pledges</td><td class="right">${stats.newPledgesCount} txn</td><td class="right">${formatCurrency(stats.newPledgesAmount)}</td><td class="right negative">Cash Out</td></tr>
+              <tr><td>Redemptions</td><td class="right">${stats.redemptionsCount} txn</td><td class="right">${formatCurrency(stats.redemptionAmount)}</td><td class="right positive">Cash In</td></tr>
+              <tr><td>Renewals (Interest)</td><td class="right">${stats.renewalsCount} txn</td><td class="right">${formatCurrency(stats.renewalInterest)}</td><td class="right positive">Cash In</td></tr>
+            </tbody>
+          </table>
+          <div class="subtotal-bar">
+            Total: ${stats.totalTransactionCount} transactions | ${formatCurrency(stats.newPledgesAmount + stats.redemptionAmount + stats.renewalInterest)}
+          </div>
+        </div>
+
+        <!-- 2. Live Inventory Status -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">2.</span> Vault Inventory Status</div>
+          <table class="summary-table">
+            <thead><tr><th>Item</th><th class="right">Value</th></tr></thead>
+            <tbody>
+              <tr><td>Items in Storage</td><td class="right"><strong>${inventorySummary.in_storage} items</strong></td></tr>
+              <tr><td>Total Weight</td><td class="right">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</td></tr>
+              <tr><td>Total Loan Exposure</td><td class="right"><strong>${formatCurrency(inventorySummary.total_value)}</strong></td></tr>
+              <tr><td>Total Market Value (Gross)</td><td class="right"><strong>${formatCurrency(inventorySummary.total_gross_value)}</strong></td></tr>
             </tbody>
           </table>
         </div>
 
+        <!-- 3. Cash Flow Summary -->
         <div class="section">
-          <div class="section-title">Live Inventory Status</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th class="right">Value</th>
-              </tr>
-            </thead>
+          <div class="section-title"><span class="section-number">3.</span> Cash Flow Summary</div>
+          <table class="summary-table">
+            <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
             <tbody>
-              <tr>
-                <td>Items in Storage</td>
-                <td class="right">${inventorySummary.in_storage} items</td>
-              </tr>
-              <tr>
-                <td>Total Weight</td>
-                <td class="right">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</td>
-              </tr>
-              <tr>
-                <td>Total Loan Value</td>
-                <td class="right">${formatCurrency(inventorySummary.total_value)}</td>
-              </tr>
-              <tr>
-                <td>Total Market Value (Gross)</td>
-                <td class="right">${formatCurrency(inventorySummary.total_gross_value)}</td>
-              </tr>
+              <tr><td>Cash In (Redemptions + Renewals)</td><td class="right positive">+ ${formatCurrency(stats.cashIn)}</td></tr>
+              <tr><td>Cash Out (Pledges Disbursed)</td><td class="right negative">- ${formatCurrency(stats.cashOut)}</td></tr>
+              <tr style="border-top: 2px solid #92400e;"><td><strong>Net Cash Flow</strong></td><td class="right ${stats.netCashFlow >= 0 ? "positive" : "negative"}"><strong>${stats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(stats.netCashFlow)}</strong></td></tr>
             </tbody>
           </table>
         </div>
 
+        <!-- 4. Payment Methods Breakdown -->
         <div class="section">
-          <div class="section-title">Cash Flow Summary</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th class="right">Amount</th>
-              </tr>
-            </thead>
+          <div class="section-title"><span class="section-number">4.</span> Payment Methods Breakdown</div>
+          <table class="summary-table">
+            <thead><tr><th>Method</th><th class="right">Amount</th><th class="right">Share</th></tr></thead>
             <tbody>
-              <tr>
-                <td>Total Cash In (Redemptions + Renewals)</td>
-                <td class="right positive">+ ${formatCurrency(stats.cashIn)}</td>
-              </tr>
-              <tr>
-                <td>Total Cash Out (Pledges Disbursed)</td>
-                <td class="right negative">- ${formatCurrency(stats.cashOut)}</td>
-              </tr>
-              <tr class="total-row">
-                <td>Net Cash Movement</td>
-                <td class="right ${stats.netCashFlow >= 0 ? "positive" : "negative"}">${stats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(stats.netCashFlow)}</td>
-              </tr>
+              <tr><td>Physical Cash</td><td class="right">${formatCurrency(stats.cashTotal)}</td><td class="right">${cashPercentPrint}%</td></tr>
+              <tr><td>Online Transfer</td><td class="right">${formatCurrency(stats.transferTotal)}</td><td class="right">${transferPercentPrint}%</td></tr>
             </tbody>
           </table>
+          <div class="subtotal-bar">
+            Grand Total: ${formatCurrency(totalVolumePrint)}
+          </div>
         </div>
 
+        <!-- 5. Net Cash Movement -->
         <div class="section">
-          <div class="section-title">Payment Methods Breakdown</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Method</th>
-                <th class="right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Physical Cash Total</td>
-                <td class="right">${formatCurrency(stats.cashTotal)}</td>
-              </tr>
-              <tr>
-                <td>Online Transfer Total</td>
-                <td class="right">${formatCurrency(stats.transferTotal)}</td>
-              </tr>
-              <tr class="total-row">
-                <td>Grand Total</td>
-                <td class="right">${formatCurrency(stats.cashTotal + stats.transferTotal)}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="section-title"><span class="section-number">5.</span> Net Cash Movement</div>
+          <div class="net-cash-box">
+            <span class="net-cash-label">Net Cash Movement</span>
+            <span class="net-cash-value ${stats.netCashFlow >= 0 ? "positive" : "negative"}">${stats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(stats.netCashFlow)}</span>
+          </div>
+        </div>
+
+        <!-- 6. Monthly Highlights -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">6.</span> Monthly Highlights</div>
+          <div class="highlights-grid">
+            <div class="highlight-item">
+              <span class="hl-label">Avg. Pledge Size</span>
+              <span class="hl-value">${formatCurrency(avgPledgeSize)}</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-label">Avg. Redemption</span>
+              <span class="hl-value">${formatCurrency(avgRedemption)}</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-label">Interest Earned</span>
+              <span class="hl-value" style="color: #b45309;">${formatCurrency(stats.renewalInterest)}</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-label">Pledge : Redeem Ratio</span>
+              <span class="hl-value">${pledgeToRedeemRatioPrint}</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-label">Cash vs Transfer</span>
+              <span class="hl-value">${cashPercentPrint}% / ${transferPercentPrint}%</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-label">Total Transactions</span>
+              <span class="hl-value">${stats.totalTransactionCount}</span>
+            </div>
+          </div>
         </div>
 
         <div class="signature-area">
-          <div class="signature-block">
-            <div class="signature-line">Branch Manager</div>
-          </div>
-          <div class="signature-block">
-            <div class="signature-line">Accountant</div>
-          </div>
-          <div class="signature-block">
-            <div class="signature-line">Director</div>
-          </div>
+          <div class="signature-block"><div class="signature-line">Branch Manager</div></div>
+          <div class="signature-block"><div class="signature-line">Accountant</div></div>
+          <div class="signature-block"><div class="signature-line">Director</div></div>
         </div>
 
-        <div class="footer">
-          Generated on ${new Date().toLocaleString("en-MY")} | PawnSys
-        </div>
+        <div class="footer">Generated on ${new Date().toLocaleString("en-MY")} | PawnSys</div>
       </body>
       </html>
     `;

@@ -457,6 +457,7 @@ class SettingsController extends Controller
         $rates = InterestRate::where(function ($q) use ($branchId) {
             $q->where('branch_id', $branchId)->orWhereNull('branch_id');
         })
+            ->orderBy('sort_order')
             ->orderBy('rate_type')
             ->orderBy('from_month')
             ->get();
@@ -467,12 +468,18 @@ class SettingsController extends Controller
     public function storeInterestRate(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'rate_type' => 'required|in:standard,extended,overdue',
+            'name' => 'required|string|max:100',
+            'rate_type' => 'required|in:standard,extended,overdue,custom',
             'rate_percentage' => 'required|numeric|min:0|max:100',
-            'from_month' => 'nullable|integer|min:1',
-            'to_month' => 'nullable|integer',
+            'from_month' => 'required|integer|min:1',
+            'to_month' => 'required|integer|gte:from_month',
             'description' => 'nullable|string|max:255',
+            'sort_order' => 'nullable|integer|min:0',
         ]);
+
+        if (!isset($validated['effective_from'])) {
+            $validated['effective_from'] = now()->toDateString();
+        }
 
         $validated['branch_id'] = $request->user()->branch_id;
 
@@ -492,11 +499,13 @@ class SettingsController extends Controller
         }
 
         $validated = $request->validate([
+            'name' => 'sometimes|string|max:100',
             'rate_percentage' => 'sometimes|numeric|min:0|max:100',
-            'from_month' => 'nullable|integer|min:1',
-            'to_month' => 'nullable|integer',
+            'from_month' => 'sometimes|required|integer|min:1',
+            'to_month' => 'sometimes|required|integer|gte:from_month',
             'description' => 'nullable|string|max:255',
             'is_active' => 'sometimes|boolean',
+            'sort_order' => 'nullable|integer|min:0',
         ]);
 
         // If updating global rate AND user is not super admin, create branch-specific copy
