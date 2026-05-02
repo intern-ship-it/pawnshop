@@ -258,6 +258,7 @@ export default function NewPledge() {
   const [loanPercentage, setLoanPercentage] = useState(70);
   const [customPercentage, setCustomPercentage] = useState("");
   const [useCustomPercentage, setUseCustomPercentage] = useState(false);
+  const [finalLoanAmountOverride, setFinalLoanAmountOverride] = useState("");
   const [interestScenario, setInterestScenario] = useState("standard");
 
   // Step 4: Payout state
@@ -496,7 +497,8 @@ export default function NewPledge() {
       ? parseFloat(customPercentage) || 0
       : loanPercentage;
     const currentLoanAmountRaw = totalNetValue * (currentEffectivePercentage / 100);
-    const currentLoanAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
+    const currentRoundedAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
+    const currentLoanAmount = finalLoanAmountOverride !== "" ? parseFloat(finalLoanAmountOverride) || 0 : currentRoundedAmount;
 
     let calculatedCharge = 0;
     if (handlingSettings.type === "percentage") {
@@ -511,7 +513,7 @@ export default function NewPledge() {
     calculatedCharge = Math.round(calculatedCharge * 100) / 100;
     setHandlingCharge(calculatedCharge.toString());
     setNetPayoutAmount(Math.max(0, currentLoanAmount - calculatedCharge));
-  }, [items, loanPercentage, useCustomPercentage, customPercentage, handlingSettings, goldPrices]);
+  }, [items, loanPercentage, useCustomPercentage, customPercentage, handlingSettings, goldPrices, finalLoanAmountOverride]);
 
   useEffect(() => {
     const validItems = items.filter((i) => i.category && i.weight);
@@ -524,10 +526,11 @@ export default function NewPledge() {
       ? parseFloat(customPercentage) || 0
       : loanPercentage;
     const currentLoanAmountRaw = totalNetValue * (currentEffectivePercentage / 100);
-    const currentLoanAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
+    const currentRoundedAmount = Math.floor(currentLoanAmountRaw / 50) * 50;
+    const currentLoanAmount = finalLoanAmountOverride !== "" ? parseFloat(finalLoanAmountOverride) || 0 : currentRoundedAmount;
     const currentHandlingCharge = parseFloat(handlingCharge) || 0;
     setNetPayoutAmount(Math.max(0, currentLoanAmount - currentHandlingCharge));
-  }, [handlingCharge, items, loanPercentage, useCustomPercentage, customPercentage]);
+  }, [handlingCharge, items, loanPercentage, useCustomPercentage, customPercentage, finalLoanAmountOverride]);
 
   // ============ STORAGE API FUNCTIONS ============
 
@@ -907,7 +910,8 @@ export default function NewPledge() {
     ? parseFloat(customPercentage) || 0
     : loanPercentage;
   const rawLoanAmount = totals.netValue * (effectivePercentage / 100);
-  const loanAmount = Math.floor(rawLoanAmount / 50) * 50;
+  const roundedLoanAmount = Math.floor(rawLoanAmount / 50) * 50;
+  const loanAmount = finalLoanAmountOverride !== "" ? parseFloat(finalLoanAmountOverride) || 0 : roundedLoanAmount;
 
   // Customer search handler
   const performSearch = async (query = searchQuery) => {
@@ -1978,6 +1982,7 @@ export default function NewPledge() {
         customer_id: customer.id,
         items: pledgeItems,
         loan_percentage: effectivePercentage,
+        loan_amount: loanAmount,
         handling_fee: parseFloat(handlingCharge) || 0,
         payment: payment,
         customer_signature: signature,
@@ -2613,7 +2618,42 @@ export default function NewPledge() {
                   <div className="flex justify-between items-center py-2 border-b border-amber-200"><span className="text-zinc-600">Total Net Value (A)</span><span className="font-semibold text-lg text-zinc-800">{formatCurrency(totals.netValue)}</span></div>
                   <div className="flex justify-between items-center py-2 border-b border-amber-200"><span className="text-zinc-600">Loan Percentage (B)</span><span className="font-semibold text-lg text-zinc-800">{effectivePercentage}%</span></div>
                   <div className="flex justify-between items-center py-2 border-b border-amber-200"><span className="text-zinc-600">Calculation (A × B)</span><span className="text-zinc-600">{formatCurrency(totals.netValue)} × {effectivePercentage}%</span></div>
-                  <div className="flex justify-between items-center py-4 bg-amber-500 -mx-6 px-6 rounded-lg mt-2"><span className="text-white font-semibold text-lg">LOAN AMOUNT</span><span className="text-3xl font-bold text-white">{formatCurrency(loanAmount)}</span></div>
+                  <div className="flex justify-between items-center py-4 bg-amber-500 -mx-6 px-6 rounded-lg mt-2">
+                    <span className="text-white font-semibold text-lg">LOAN AMOUNT</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white text-lg font-medium">RM</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={finalLoanAmountOverride !== "" ? finalLoanAmountOverride : roundedLoanAmount.toFixed(2)}
+                        onFocus={(e) => {
+                          if (finalLoanAmountOverride === "") {
+                            setFinalLoanAmountOverride(roundedLoanAmount.toFixed(2));
+                          }
+                          setTimeout(() => e.target.select(), 0);
+                        }}
+                        onChange={(e) => setFinalLoanAmountOverride(e.target.value)}
+                        className="w-48 text-right text-2xl font-bold bg-white/20 text-white placeholder-white/60 border border-white/30 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      {finalLoanAmountOverride !== "" && (
+                        <button
+                          type="button"
+                          onClick={() => setFinalLoanAmountOverride("")}
+                          className="text-white/80 hover:text-white transition-colors"
+                          title="Reset to auto-calculated value"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {finalLoanAmountOverride !== "" && parseFloat(finalLoanAmountOverride) !== roundedLoanAmount && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-amber-700 bg-amber-100 rounded-lg px-3 py-1.5">
+                      <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>Auto-calculated: {formatCurrency(roundedLoanAmount)} — You have manually set: {formatCurrency(parseFloat(finalLoanAmountOverride) || 0)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

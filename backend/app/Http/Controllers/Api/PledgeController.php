@@ -280,6 +280,7 @@ class PledgeController extends Controller
             'items.*.box_id' => 'nullable|exists:boxes,id',
             'items.*.slot_id' => 'nullable|exists:slots,id',
             'loan_percentage' => 'required|numeric|min:1|max:100',
+            'loan_amount' => 'nullable|numeric|min:0',
             'handling_fee' => 'nullable|numeric|min:0',
             'payment' => 'required|array',
             'payment.method' => 'required|in:cash,transfer,partial',
@@ -365,7 +366,9 @@ class PledgeController extends Controller
             }
 
             $rawLoanAmount = $netValue * ($validated['loan_percentage'] / 100);
-            $loanAmount = floor($rawLoanAmount / 50) * 50;
+            $calculatedLoanAmount = floor($rawLoanAmount / 50) * 50;
+            // Use frontend-provided loan_amount if edited, otherwise use auto-calculated
+            $loanAmount = isset($validated['loan_amount']) ? round($validated['loan_amount'], 2) : $calculatedLoanAmount;
             $handlingFee = $validated['handling_fee'] ?? 0;
             $payoutAmount = max(0, $loanAmount - $handlingFee);
             $dueDate = Carbon::today()->addMonths(6);
