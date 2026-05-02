@@ -3,7 +3,7 @@
 echo "🚀 Starting deployment..."
 
 # Navigate to project
-cd ~/public_html/pajak-kedai.graspsoftwaresolutions.xyz
+cd "$(dirname "$0")"
 
 # Backup important files (to /tmp to avoid conflicts)
 echo "💾 Backing up server-specific files..."
@@ -24,7 +24,8 @@ git stash --include-untracked 2>/dev/null
 
 # Pull latest code
 echo "📥 Pulling latest code..."
-git pull origin main
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+git pull origin $BRANCH
 
 # Drop the stash (we don't need it, server-specific files are already backed up)
 git stash drop 2>/dev/null
@@ -131,7 +132,7 @@ rm -f /tmp/.htaccess.backup
 
 echo ""
 echo "✅ Deployment completed!"
-echo "🌐 Visit: https://pajak-kedai.graspsoftwaresolutions.xyz"
+echo "🌐 Deployed branch: $BRANCH"
 echo ""
 echo "📋 Storage link status:"
 ls -la public/ | grep storage
