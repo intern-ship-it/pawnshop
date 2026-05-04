@@ -25,9 +25,11 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     // Production: output to Laravel public folder
-    outDir: mode === 'production' 
-      ? '../backend/public' 
-      : 'dist',
+    // Both 'production' and 'staging' deploy to backend/public
+    // Only local 'development' uses dist/
+    outDir: mode === 'development' 
+      ? 'dist' 
+      : '../backend/public',
     emptyOutDir: false,  // Don't delete Laravel's index.php & other files
     rollupOptions: {
       output: {
