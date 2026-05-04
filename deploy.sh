@@ -38,11 +38,11 @@ echo "🔄 Restoring server-specific files..."
 cp /tmp/.env.backup backend/.env
 cp /tmp/.htaccess.backup backend/public/.htaccess
 
-# Build Frontend
+# Build Frontend (auto-detect branch → correct API URL)
 echo "📦 Building frontend..."
 cd frontend
 npm install
-npm run build
+npm run build:auto
 
 # Install Laravel dependencies
 echo "🎼 Installing Laravel dependencies..."

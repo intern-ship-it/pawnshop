@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:dev": "vite build --mode staging",
+    "build:live": "vite build --mode production",
+    "build:auto": "node scripts/auto-build.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
