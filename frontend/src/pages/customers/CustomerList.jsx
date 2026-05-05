@@ -219,7 +219,7 @@ export default function CustomerList() {
               onClick={() => navigate("/customers/new")}
               className="bg-amber-500 hover:bg-amber-600 text-white"
             >
-              Add Customer
+              Add Customersss
             </Button>
           )}
         </div>
