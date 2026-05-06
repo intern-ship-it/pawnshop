@@ -2260,33 +2260,33 @@ HTML;
     font-size: 9px;
 }
 
-/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â BOTTOM ROW Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
+/* Ã¢â€¢Â Ã¢â€¢Â Ã¢â€¢Â  BOTTOM ROW Ã¢â€¢Â Ã¢â€¢Â Ã¢â€¢Â  */
 .ppo-loan-amount {
     position: absolute;
     top: 110mm;
-    left: 48mm;
+    left: 31mm;
     font-size: 24px;
     font-family: 'Courier New', monospace;
 }
 .ppo-pledge-date {
     position: absolute;
-    top: 115mm;
+    top: 113mm; 
+    right: 39mm;
     text-align: center;
     font-size: 12px;
-    right: 46mm;
 }
 .ppo-interest-note {
     position: absolute;
-    top: 111.7mm;
+    top: 109.7mm;
     left: 86mm;
     width: 58mm;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: bold; 
 }
  .ppo-due-date {
     position: absolute;
-    top: 115mm;
-    left: 176mm;
+    top: 113mm;
+    left: 177mm;
     width: 28mm;
     font-size: 12px;
     text-align: center;
@@ -2778,7 +2778,7 @@ HTML;
 .pp-pin-lbl { font-size: 9px; }
 .pp-pin-rm { font-size: 12px; font-weight: bold; }
 .pp-pin-sp { flex: 1; min-height: 6mm; }
-.pp-pin-stars { position:absolute; font-size: 8px; font-weight: bold; right:11.5rem }
+.pp-pin-stars { position:absolute; font-size: 8px; font-weight: bold; right: 10rem;}
 .pp-dt-cell { width: 27mm; text-align: center; padding: 1.5mm; border-right: 2px solid #d42027; }
 .pp-dt-cell:last-child { border-right: none; }
 .pp-dt-lbl { font-size: 7px; font-weight: bold; }

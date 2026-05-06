@@ -371,7 +371,7 @@ class PledgeController extends Controller
             $loanAmount = isset($validated['loan_amount']) ? round($validated['loan_amount'], 2) : $calculatedLoanAmount;
             $handlingFee = $validated['handling_fee'] ?? 0;
             $payoutAmount = max(0, $loanAmount - $handlingFee);
-            $dueDate = Carbon::today()->addMonths(6);
+            $dueDate = Carbon::today()->addMonths(6)->subDay(); // Store 1 day before the 6-month mark
 
             // Auto-correct payment amounts to match server-calculated payout amount
             $payment = $validated['payment'];

@@ -274,7 +274,7 @@ class RenewalController extends Controller
             ],
             'renewal' => [
                 'months' => $renewalMonths,
-                'new_due_date' => $pledge->due_date->copy()->addMonths($renewalMonths)->toDateString(),
+                'new_due_date' => $pledge->due_date->copy()->addMonths($renewalMonths)->subDay()->toDateString(), // 1 day before
             ],
             'calculation' => [
                 'interest_breakdown' => $calculation['breakdown'],
@@ -376,7 +376,7 @@ class RenewalController extends Controller
             );
 
             // Calculate new due date
-            $newDueDate = $pledge->due_date->copy()->addMonths($renewalMonths);
+            $newDueDate = $pledge->due_date->copy()->addMonths($renewalMonths)->subDay(); // 1 day before the month mark
 
             // Create renewal
             $renewal = Renewal::create([
