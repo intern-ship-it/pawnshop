@@ -371,7 +371,6 @@ class PledgeController extends Controller
             $loanAmount = isset($validated['loan_amount']) ? round($validated['loan_amount'], 2) : $calculatedLoanAmount;
             $handlingFee = $validated['handling_fee'] ?? 0;
             $payoutAmount = max(0, $loanAmount - $handlingFee);
-            $dueDate = Carbon::today()->addMonths(6)->subDay(); // Store 1 day before the 6-month mark
 
             // Auto-correct payment amounts to match server-calculated payout amount
             $payment = $validated['payment'];
@@ -393,12 +392,20 @@ class PledgeController extends Controller
             // Fetch interest rates from database (branch specific or global)
             $interestRates = \App\Models\InterestRate::where(function($q) use ($branchId) {
                 $q->where('branch_id', $branchId)->orWhereNull('branch_id');
-            })->get()->keyBy('rate_type');
+            })->where('is_active', true)->orderBy('sort_order')->get();
 
-            // Set rates (fallback to config if not set in DB yet)
-            $rateStandard = isset($interestRates['standard']) ? $interestRates['standard']->rate_percentage : config('pawnsys.interest.standard', 0.5);
-            $rateExtended = isset($interestRates['extended']) ? $interestRates['extended']->rate_percentage : config('pawnsys.interest.extended', 1.5);
-            $rateOverdue = isset($interestRates['overdue']) ? $interestRates['overdue']->rate_percentage : config('pawnsys.interest.overdue', 2.0);
+            // Determine pledge duration from the primary rate (custom > standard)
+            $primaryRate = $interestRates->whereIn('rate_type', ['custom', 'standard'])->first();
+            $pledgeMonths = $primaryRate ? ($primaryRate->to_month ?? 6) : 6;
+            $dueDate = Carbon::today()->addMonths($pledgeMonths)->subDay();
+
+            // Set rates (use active rates keyed by type, fallback to config)
+            $ratesByType = $interestRates->keyBy('rate_type');
+            $rateStandard = isset($ratesByType['custom']) ? $ratesByType['custom']->rate_percentage
+                : (isset($ratesByType['standard']) ? $ratesByType['standard']->rate_percentage
+                : config('pawnsys.interest.standard', 0.5));
+            $rateExtended = isset($ratesByType['extended']) ? $ratesByType['extended']->rate_percentage : config('pawnsys.interest.extended', 1.5);
+            $rateOverdue = isset($ratesByType['overdue']) ? $ratesByType['overdue']->rate_percentage : config('pawnsys.interest.overdue', 2.0);
 
             // Create pledge
             $pledge = Pledge::create([
