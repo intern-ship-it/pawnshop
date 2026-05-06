@@ -188,10 +188,13 @@ export default function NewPledge() {
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Helper to calculate due date (6 months from today)
+  // Helper to calculate due date (dynamic months from interest rate settings)
   const calculateDueDate = () => {
+    const primaryRate = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard');
+    const months = primaryRate ? (parseInt(primaryRate.to_month) || 6) : 6;
     const d = new Date();
-    d.setMonth(d.getMonth() + 6);
+    d.setMonth(d.getMonth() + months);
+    d.setDate(d.getDate() - 1);
     return d;
   };
 
@@ -2759,7 +2762,7 @@ export default function NewPledge() {
               <div className="mt-4 p-4 bg-zinc-100 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Clock className="w-5 h-5 text-zinc-500" />
-                  <div><p className="text-sm font-medium text-zinc-700">Loan Period</p><p className="text-xs text-zinc-500">Standard 6 months tenure</p></div>
+                  <div><p className="text-sm font-medium text-zinc-700">Loan Period</p><p className="text-xs text-zinc-500">{(() => { const pr = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard'); return pr ? `${pr.to_month || 6} months tenure` : 'Standard 6 months tenure'; })()}</p></div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-zinc-500">Due Date</p>
