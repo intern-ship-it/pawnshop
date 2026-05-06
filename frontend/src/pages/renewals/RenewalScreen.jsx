@@ -97,6 +97,7 @@ export default function RenewalScreen() {
   // Extension state
   const [extensionMonths, setExtensionMonths] = useState(1);
   const [interestRate, setInterestRate] = useState("");
+  const [interestRateRules, setInterestRateRules] = useState([]);
 
   // Calculation state (from API)
   const [calculation, setCalculation] = useState(null);
@@ -222,6 +223,20 @@ export default function RenewalScreen() {
       }
     };
     fetchBanks();
+  }, []);
+
+  // Fetch interest rate rules on mount
+  useEffect(() => {
+    const fetchInterestRateRules = async () => {
+      try {
+        const response = await settingsService.getInterestRates();
+        const rates = response.data?.data || response.data || [];
+        setInterestRateRules(Array.isArray(rates) ? rates : []);
+      } catch (error) {
+        console.error("Failed to fetch interest rate rules:", error);
+      }
+    };
+    fetchInterestRateRules();
   }, []);
 
   // Fetch due list when dates change (Issue 2 fix - now works with date_from/date_to)
@@ -490,12 +505,45 @@ export default function RenewalScreen() {
     setPledge(enrichedPledge);
     setSearchResult("found");
     
-    // Auto-apply overdue penalty rate of 2.0% if pledge is overdue (check both string status and date)
+    // Auto-apply rate from interest rate rules based on pledge status
     const isOverdue = new Date(enrichedPledge.dueDate) < new Date();
-    const customRate = (enrichedPledge.status === "overdue" || isOverdue) ? "2.0" : "";
+    let customRate = "";
+    if (interestRateRules.length > 0) {
+      if (enrichedPledge.status === "overdue" || isOverdue) {
+        const overdueRule = interestRateRules.find(r => r.rate_type === 'overdue' && r.is_active);
+        customRate = overdueRule ? String(overdueRule.rate_percentage) : "2.0";
+      } else {
+        const extendedRule = interestRateRules.find(r => r.rate_type === 'extended' && r.is_active);
+        customRate = extendedRule ? String(extendedRule.rate_percentage) : "";
+      }
+    } else {
+      // Fallback if rules not loaded yet
+      customRate = (enrichedPledge.status === "overdue" || isOverdue) ? "2.0" : "";
+    }
     setInterestRate(customRate);
 
-    fetchCalculation(data.id, extensionMonths, customRate);
+    // Pre-fill extension months based on the applicable rate's month range
+    let prefillMonths = 6; // fallback
+    if (interestRateRules.length > 0) {
+      if (enrichedPledge.status === "overdue" || isOverdue) {
+        const overdueRule = interestRateRules.find(r => r.rate_type === 'overdue' && r.is_active);
+        if (overdueRule) {
+          const from = parseInt(overdueRule.from_month) || 1;
+          const to = parseInt(overdueRule.to_month) || 2;
+          prefillMonths = to - from + 1;
+        }
+      } else {
+        const extendedRule = interestRateRules.find(r => r.rate_type === 'extended' && r.is_active);
+        if (extendedRule) {
+          const from = parseInt(extendedRule.from_month) || 4;
+          const to = parseInt(extendedRule.to_month) || 9;
+          prefillMonths = to - from + 1;
+        }
+      }
+    }
+    setExtensionMonths(prefillMonths);
+
+    fetchCalculation(data.id, prefillMonths, customRate);
   };
 
   // Process renewal via API
@@ -1952,20 +2000,28 @@ export default function RenewalScreen() {
                     Extension Period
                   </label>
                   <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5, 6].map((months) => (
-                      <button
-                        key={months}
-                        onClick={() => setExtensionMonths(months)}
-                        className={cn(
-                          "px-4 py-2 rounded-lg border font-medium transition-all",
-                          extensionMonths === months
-                            ? "bg-amber-500 text-white border-amber-500"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-amber-300",
-                        )}
-                      >
-                        {months}M
-                      </button>
-                    ))}
+                    {(() => {
+                      // Get max months from extended rate's to_month, fallback to 6
+                      const extendedRule = interestRateRules.find(r => r.rate_type === 'extended' && r.is_active);
+                      const primaryRule = interestRateRules.find(r => (r.rate_type === 'custom' || r.rate_type === 'standard') && r.is_active);
+                      const primaryToMonth = primaryRule ? (parseInt(primaryRule.to_month) || 3) : 3;
+                      const extToMonth = extendedRule ? (parseInt(extendedRule.to_month) || 9) : 6;
+                      const maxMonths = Math.max(extToMonth - primaryToMonth, 6);
+                      return Array.from({ length: maxMonths }, (_, i) => i + 1).map((months) => (
+                        <button
+                          key={months}
+                          onClick={() => setExtensionMonths(months)}
+                          className={cn(
+                            "px-4 py-2 rounded-lg border font-medium transition-all",
+                            extensionMonths === months
+                              ? "bg-amber-500 text-white border-amber-500"
+                              : "bg-white text-zinc-600 border-zinc-200 hover:border-amber-300",
+                          )}
+                        >
+                          {months}M
+                        </button>
+                      ));
+                    })()}
                   </div>
                 </div>
 

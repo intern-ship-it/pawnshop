@@ -16,6 +16,344 @@ use Carbon\Carbon;
 class AuctionController extends Controller
 {
     /**
+     * Get overdue pledges (3+ days overdue by default, eligible for auction/forfeit)
+     */
+    public function overduePledges(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        $today = Carbon::today();
+        $minDays = $request->get('min_days_overdue', 3);
+
+        $query = Pledge::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->where('due_date', '<', $today->copy()->subDays($minDays - 1))
+            ->with([
+                'customer:id,name,ic_number,phone,country_code',
+                'items.category',
+                'items.purity',
+                'items.vault',
+                'items.box',
+                'items.slot',
+            ])
+            ->withCount('items');
+
+        // Search filter
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pledge_no', 'like', "%{$search}%")
+                  ->orWhere('receipt_no', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%")
+                        ->orWhere('ic_number', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // Sort
+        $sortBy = $request->get('sort_by', 'overdue-days');
+        switch ($sortBy) {
+            case 'amount-high':
+                $query->orderBy('loan_amount', 'desc');
+                break;
+            case 'amount-low':
+                $query->orderBy('loan_amount', 'asc');
+                break;
+            case 'newest':
+                $query->orderBy('created_at', 'desc');
+                break;
+            default: // overdue-days
+                $query->orderBy('due_date', 'asc');
+                break;
+        }
+
+        $pledges = $query->get()->map(function ($pledge) use ($today) {
+            $daysOverdue = $today->diffInDays(Carbon::parse($pledge->due_date));
+            $pledge->days_overdue = $daysOverdue;
+            $pledge->location_string = $this->buildLocationString($pledge);
+            return $pledge;
+        });
+
+        return $this->success($pledges);
+    }
+
+    /**
+     * Get forfeited pledges
+     */
+    public function forfeitedPledges(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $query = Pledge::where('branch_id', $branchId)
+            ->where('status', 'forfeited')
+            ->with([
+                'customer:id,name,ic_number,phone,country_code',
+                'items.category',
+                'items.purity',
+            ])
+            ->withCount('items');
+
+        // Search filter
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pledge_no', 'like', "%{$search}%")
+                  ->orWhere('receipt_no', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%")
+                        ->orWhere('ic_number', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $sortBy = $request->get('sort_by', 'newest');
+        switch ($sortBy) {
+            case 'amount-high':
+                $query->orderBy('loan_amount', 'desc');
+                break;
+            case 'amount-low':
+                $query->orderBy('loan_amount', 'asc');
+                break;
+            default:
+                $query->orderBy('forfeited_at', 'desc');
+                break;
+        }
+
+        $pledges = $query->get();
+
+        return $this->success($pledges);
+    }
+
+    /**
+     * Get auctioned pledges (completed sales)
+     */
+    public function auctionedPledges(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $query = Pledge::where('branch_id', $branchId)
+            ->where('status', 'auctioned')
+            ->with([
+                'customer:id,name,ic_number,phone,country_code',
+                'items.category',
+                'items.purity',
+                'items.auctionItems' => function ($q) {
+                    $q->where('status', 'sold')->with('auction');
+                },
+            ])
+            ->withCount('items');
+
+        // Search filter
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pledge_no', 'like', "%{$search}%")
+                  ->orWhere('receipt_no', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($cq) use ($search) {
+                      $cq->where('name', 'like', "%{$search}%")
+                        ->orWhere('ic_number', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $sortBy = $request->get('sort_by', 'newest');
+        switch ($sortBy) {
+            case 'amount-high':
+                $query->orderBy('loan_amount', 'desc');
+                break;
+            case 'amount-low':
+                $query->orderBy('loan_amount', 'asc');
+                break;
+            default:
+                $query->orderBy('updated_at', 'desc');
+                break;
+        }
+
+        $pledges = $query->get();
+
+        return $this->success($pledges);
+    }
+
+    /**
+     * Get auction statistics
+     */
+    public function stats(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        $today = Carbon::today();
+
+        // Overdue 3+ days
+        $overdueCount = Pledge::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->where('due_date', '<', $today->copy()->subDays(2))
+            ->count();
+
+        $overdueAmount = Pledge::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->where('due_date', '<', $today->copy()->subDays(2))
+            ->sum('loan_amount');
+
+        // Forfeited
+        $forfeitedCount = Pledge::where('branch_id', $branchId)
+            ->where('status', 'forfeited')
+            ->count();
+
+        $forfeitedValue = Pledge::where('branch_id', $branchId)
+            ->where('status', 'forfeited')
+            ->sum('net_value');
+
+        // Auctioned
+        $auctionedCount = Pledge::where('branch_id', $branchId)
+            ->where('status', 'auctioned')
+            ->count();
+
+        $auctionedRevenue = AuctionItem::whereHas('pledgeItem.pledge', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            })
+            ->where('status', 'sold')
+            ->sum('sold_price');
+
+        return $this->success([
+            'overdue' => [
+                'count' => $overdueCount,
+                'amount' => (float) $overdueAmount,
+            ],
+            'forfeited' => [
+                'count' => $forfeitedCount,
+                'value' => (float) $forfeitedValue,
+            ],
+            'auctioned' => [
+                'count' => $auctionedCount,
+                'revenue' => (float) $auctionedRevenue,
+            ],
+        ]);
+    }
+
+    /**
+     * Forfeit a pledge (change status to forfeited)
+     */
+    public function forfeitPledge(Request $request, Pledge $pledge): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        if ($pledge->branch_id !== $branchId) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        if ($pledge->status !== 'active') {
+            return $this->error('Only active pledges can be forfeited', 422);
+        }
+
+        // Check if overdue
+        if (Carbon::parse($pledge->due_date)->isFuture()) {
+            return $this->error('Pledge is not yet overdue', 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $pledge->update([
+                'status' => 'forfeited',
+                'forfeited_at' => now(),
+                'forfeited_by' => $request->user()->id,
+            ]);
+
+            // Note: pledge_items stay as 'stored' since they remain physically in storage
+            // They will be updated to 'auctioned' when actually sold at auction
+
+            DB::commit();
+
+            return $this->success($pledge->fresh()->load(['customer:id,name', 'items']), 'Pledge forfeited successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to forfeit pledge: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Sell a forfeited pledge directly (quick auction sale)
+     */
+    public function sellForfeitedPledge(Request $request, Pledge $pledge): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        if ($pledge->branch_id !== $branchId) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        if ($pledge->status !== 'forfeited') {
+            return $this->error('Only forfeited pledges can be auctioned', 422);
+        }
+
+        $validated = $request->validate([
+            'sold_price' => 'required|numeric|min:0',
+            'buyer_name' => 'required|string|max:100',
+            'buyer_ic' => 'nullable|string|max:20',
+            'buyer_phone' => 'nullable|string|max:20',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            // Update pledge status
+            $pledge->update([
+                'status' => 'auctioned',
+            ]);
+
+            // Update all pledge items to auctioned and release storage
+            foreach ($pledge->items as $item) {
+                // Release slot
+                if ($item->slot_id) {
+                    Slot::where('id', $item->slot_id)->update([
+                        'is_occupied' => false,
+                        'current_item_id' => null,
+                        'occupied_at' => null,
+                    ]);
+                }
+
+                $item->update([
+                    'status' => 'auctioned',
+                    'released_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            return $this->success([
+                'pledge' => $pledge->fresh()->load(['customer:id,name', 'items']),
+                'sale' => [
+                    'sold_price' => (float) $validated['sold_price'],
+                    'buyer_name' => $validated['buyer_name'],
+                    'buyer_ic' => $validated['buyer_ic'] ?? null,
+                    'buyer_phone' => $validated['buyer_phone'] ?? null,
+                    'notes' => $validated['notes'] ?? null,
+                    'sold_at' => now()->toISOString(),
+                ],
+            ], 'Pledge auctioned successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to process auction sale: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Build location string for a pledge
+     */
+    private function buildLocationString(Pledge $pledge): string
+    {
+        $locations = [];
+        foreach ($pledge->items as $item) {
+            $parts = [];
+            if ($item->vault) $parts[] = $item->vault->name;
+            if ($item->box) $parts[] = $item->box->name;
+            if ($item->slot) $parts[] = $item->slot->name;
+            if (!empty($parts)) {
+                $locations[] = implode('-', $parts);
+            }
+        }
+        return implode(', ', array_unique($locations));
+    }
+
+
+    /**
      * List all auctions
      */
     public function index(Request $request): JsonResponse

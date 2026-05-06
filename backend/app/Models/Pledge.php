@@ -50,6 +50,8 @@ class Pledge extends Model
         'cancelled_by',
         'cancellation_reason',
         'cancellation_notes',
+        'forfeited_at',
+        'forfeited_by',
     ];
 
     protected $casts = [

@@ -396,6 +396,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('auctions')->group(
             function () {
             Route::get('/eligible-items', [AuctionController::class , 'eligibleItems']);
+            Route::get('/overdue-pledges', [AuctionController::class , 'overduePledges']);
+            Route::get('/forfeited-pledges', [AuctionController::class , 'forfeitedPledges']);
+            Route::get('/auctioned-pledges', [AuctionController::class , 'auctionedPledges']);
+            Route::get('/stats', [AuctionController::class , 'stats']);
+            Route::post('/forfeit/{pledge}', [AuctionController::class , 'forfeitPledge']);
+            Route::post('/sell/{pledge}', [AuctionController::class , 'sellForfeitedPledge']);
             Route::get('/{auction}/items', [AuctionController::class , 'items']);
             Route::post('/{auction}/add-items', [AuctionController::class , 'addItems']);
             Route::delete('/{auction}/items/{auctionItem}', [AuctionController::class , 'removeItem']);
