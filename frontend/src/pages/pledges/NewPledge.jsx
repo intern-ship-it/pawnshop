@@ -3251,7 +3251,7 @@ export default function NewPledge() {
                   <AlertCircle className="w-5 h-5 text-amber-600" />
                   <div className="text-sm">
                     <p className="font-medium text-amber-800">Due Date: {calculateDueDate().toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" })}</p>
-                    <p className="text-amber-600">6 months from today. Interest at 0.5% per month.</p>
+                    <p className="text-amber-600">{(() => { const pr = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard'); const months = pr ? (parseInt(pr.to_month) || 6) : 6; const rate = pr ? (parseFloat(pr.rate_percentage) || 0.5) : 0.5; return `${months} months from today. Interest at ${rate}% per month.`; })()}</p>
                   </div>
                 </div>
               </div>
