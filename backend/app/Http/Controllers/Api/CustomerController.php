@@ -100,6 +100,9 @@ class CustomerController extends Controller
             'state' => 'nullable|string|max:100',
             'postcode' => 'nullable|string|max:10',
             'notes' => 'nullable|string',
+            'custom_interest_rate' => 'nullable|numeric|min:0|max:99',
+            'custom_interest_rate_extended' => 'nullable|numeric|min:0|max:99',
+            'custom_interest_rate_overdue' => 'nullable|numeric|min:0|max:99',
             // File validations
             'ic_front_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
             'ic_back_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
@@ -161,6 +164,9 @@ class CustomerController extends Controller
             'ic_back_photo' => $icBackPath,
             'selfie_photo' => $selfiePath,
             'notes' => $validated['notes'] ?? null,
+            'custom_interest_rate' => $validated['custom_interest_rate'] ?? null,
+            'custom_interest_rate_extended' => $validated['custom_interest_rate_extended'] ?? null,
+            'custom_interest_rate_overdue' => $validated['custom_interest_rate_overdue'] ?? null,
             'created_by' => $userId,
         ]);
 
@@ -236,6 +242,9 @@ class CustomerController extends Controller
             'state' => 'nullable|string|max:100',
             'postcode' => 'nullable|string|max:10',
             'notes' => 'nullable|string',
+            'custom_interest_rate' => 'nullable|numeric|min:0|max:99',
+            'custom_interest_rate_extended' => 'nullable|numeric|min:0|max:99',
+            'custom_interest_rate_overdue' => 'nullable|numeric|min:0|max:99',
             'ic_front_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
             'ic_back_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
             'selfie_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',

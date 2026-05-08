@@ -33,6 +33,7 @@ import {
   FileText,
   Loader2,
   RotateCcw,
+  TrendingUp,
 } from "lucide-react";
 
 // Malaysian states
@@ -110,6 +111,9 @@ export default function CustomerEdit() {
     dateOfBirth: "",
     gender: "",
     occupation: "",
+    customInterestRate: "",
+    customInterestRateExtended: "",
+    customInterestRateOverdue: "",
   });
 
   // Image states - for preview (base64 or URL)
@@ -164,6 +168,9 @@ export default function CustomerEdit() {
             : "",
           gender: customer.gender || "",
           occupation: customer.occupation || "",
+          customInterestRate: customer.custom_interest_rate != null ? String(customer.custom_interest_rate) : "",
+          customInterestRateExtended: customer.custom_interest_rate_extended != null ? String(customer.custom_interest_rate_extended) : "",
+          customInterestRateOverdue: customer.custom_interest_rate_overdue != null ? String(customer.custom_interest_rate_overdue) : "",
         });
 
         // Set existing images (use storage URL)
@@ -395,6 +402,9 @@ export default function CustomerEdit() {
         : "",
       gender: originalCustomer.gender || "",
       occupation: originalCustomer.occupation || "",
+      customInterestRate: originalCustomer.custom_interest_rate != null ? String(originalCustomer.custom_interest_rate) : "",
+      customInterestRateExtended: originalCustomer.custom_interest_rate_extended != null ? String(originalCustomer.custom_interest_rate_extended) : "",
+      customInterestRateOverdue: originalCustomer.custom_interest_rate_overdue != null ? String(originalCustomer.custom_interest_rate_overdue) : "",
     });
 
     // Reset images to original
@@ -483,6 +493,9 @@ export default function CustomerEdit() {
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
         occupation: formData.occupation.trim() || null,
+        custom_interest_rate: formData.customInterestRate ? parseFloat(formData.customInterestRate) : null,
+        custom_interest_rate_extended: formData.customInterestRateExtended ? parseFloat(formData.customInterestRateExtended) : null,
+        custom_interest_rate_overdue: formData.customInterestRateOverdue ? parseFloat(formData.customInterestRateOverdue) : null,
       };
 
       // Only add files if they were changed
@@ -1116,6 +1129,87 @@ export default function CustomerEdit() {
                     </motion.button>
                   )}
                 </AnimatePresence>
+              </div>
+            </Card>
+
+            {/* Custom Interest Rates */}
+            <Card>
+              <div className="p-5 border-b border-zinc-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-zinc-800">
+                      Custom Interest Rates
+                    </h3>
+                    <p className="text-sm text-zinc-500">
+                      Optional per-person rate override
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5">
+                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-700">
+                    <strong>Leave empty</strong> to use global interest rates from Settings. If set, these rates will auto-apply when creating a new pledge for this customer.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">Standard Rate (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="99"
+                      name="customInterestRate"
+                      value={formData.customInterestRate}
+                      onChange={handleChange}
+                      placeholder="e.g. 1.50"
+                      className="w-full px-3 py-2 rounded-lg border border-zinc-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">Extended Rate (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="99"
+                      name="customInterestRateExtended"
+                      value={formData.customInterestRateExtended}
+                      onChange={handleChange}
+                      placeholder="e.g. 1.00"
+                      className="w-full px-3 py-2 rounded-lg border border-zinc-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">Overdue Rate (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="99"
+                      name="customInterestRateOverdue"
+                      value={formData.customInterestRateOverdue}
+                      onChange={handleChange}
+                      placeholder="e.g. 2.00"
+                      className="w-full px-3 py-2 rounded-lg border border-zinc-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm transition-colors"
+                    />
+                  </div>
+                  {(formData.customInterestRate || formData.customInterestRateExtended || formData.customInterestRateOverdue) && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, customInterestRate: "", customInterestRateExtended: "", customInterestRateOverdue: "" }))}
+                      className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 mt-1"
+                    >
+                      <X className="w-3 h-3" /> Clear all custom rates (use global defaults)
+                    </button>
+                  )}
+                </div>
               </div>
             </Card>
 

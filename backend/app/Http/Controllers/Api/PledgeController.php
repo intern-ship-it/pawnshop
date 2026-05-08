@@ -295,6 +295,9 @@ class PledgeController extends Controller
             'gold_prices.price_916' => 'nullable|numeric|min:0',
             'gold_prices.price_875' => 'nullable|numeric|min:0',
             'gold_prices.price_750' => 'nullable|numeric|min:0',
+            'override_interest_rate' => 'nullable|numeric|min:0|max:99',
+            'override_interest_rate_extended' => 'nullable|numeric|min:0|max:99',
+            'override_interest_rate_overdue' => 'nullable|numeric|min:0|max:99',
         ]);
 
         $branchId = $request->user()->branch_id;
@@ -399,13 +402,33 @@ class PledgeController extends Controller
             $pledgeMonths = $primaryRate ? ($primaryRate->to_month ?? 6) : 6;
             $dueDate = Carbon::today()->addMonths($pledgeMonths)->subDay();
 
-            // Set rates (use active rates keyed by type, fallback to config)
+            // Set rates: Priority order:
+            // 1. Frontend override (operator manually adjusted in NewPledge)
+            // 2. Customer custom rates (per-person defaults from customer profile)
+            // 3. Global InterestRate settings (from Settings page)
+            // 4. Config fallback
             $ratesByType = $interestRates->keyBy('rate_type');
-            $rateStandard = isset($ratesByType['custom']) ? $ratesByType['custom']->rate_percentage
+            $globalStandard = isset($ratesByType['custom']) ? $ratesByType['custom']->rate_percentage
                 : (isset($ratesByType['standard']) ? $ratesByType['standard']->rate_percentage
                 : config('pawnsys.interest.standard', 0.5));
-            $rateExtended = isset($ratesByType['extended']) ? $ratesByType['extended']->rate_percentage : config('pawnsys.interest.extended', 1.5);
-            $rateOverdue = isset($ratesByType['overdue']) ? $ratesByType['overdue']->rate_percentage : config('pawnsys.interest.overdue', 2.0);
+            $globalExtended = isset($ratesByType['extended']) ? $ratesByType['extended']->rate_percentage : config('pawnsys.interest.extended', 1.5);
+            $globalOverdue = isset($ratesByType['overdue']) ? $ratesByType['overdue']->rate_percentage : config('pawnsys.interest.overdue', 2.0);
+
+            // Apply customer custom rates if set (per-person override)
+            $rateStandard = $customer->custom_interest_rate ?? $globalStandard;
+            $rateExtended = $customer->custom_interest_rate_extended ?? $globalExtended;
+            $rateOverdue = $customer->custom_interest_rate_overdue ?? $globalOverdue;
+
+            // Apply frontend manual overrides if provided (highest priority - operator decides)
+            if (isset($validated['override_interest_rate'])) {
+                $rateStandard = $validated['override_interest_rate'];
+            }
+            if (isset($validated['override_interest_rate_extended'])) {
+                $rateExtended = $validated['override_interest_rate_extended'];
+            }
+            if (isset($validated['override_interest_rate_overdue'])) {
+                $rateOverdue = $validated['override_interest_rate_overdue'];
+            }
 
             // Create pledge
             $pledge = Pledge::create([

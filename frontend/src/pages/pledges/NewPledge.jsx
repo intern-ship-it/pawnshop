@@ -338,6 +338,15 @@ export default function NewPledge() {
   });
   const [interestRatesList, setInterestRatesList] = useState([]);
 
+  // Per-person interest rate overrides
+  const [rateOverrides, setRateOverrides] = useState({
+    standard: null,
+    extended: null,
+    overdue: null,
+  });
+  const [rateSource, setRateSource] = useState('global'); // 'global' | 'customer' | 'manual'
+  const [editingRateId, setEditingRateId] = useState(null); // which rate tab is being edited
+
   // Fetch gold prices on mount
   useEffect(() => {
     fetchGoldPrices();
@@ -961,6 +970,28 @@ export default function NewPledge() {
     setShowResults(false);
     setSearchResults([]);
     setCustomerSearchResult(selectedCust);
+
+    // Auto-fill customer custom interest rates if available
+    const hasCustRate = selectedCust.custom_interest_rate != null
+      || selectedCust.custom_interest_rate_extended != null
+      || selectedCust.custom_interest_rate_overdue != null;
+
+    if (hasCustRate) {
+      setRateOverrides({
+        standard: selectedCust.custom_interest_rate != null ? parseFloat(selectedCust.custom_interest_rate) : null,
+        extended: selectedCust.custom_interest_rate_extended != null ? parseFloat(selectedCust.custom_interest_rate_extended) : null,
+        overdue: selectedCust.custom_interest_rate_overdue != null ? parseFloat(selectedCust.custom_interest_rate_overdue) : null,
+      });
+      setRateSource('customer');
+      dispatch(addToast({
+        type: 'info',
+        title: 'Custom Rates Applied',
+        message: `${selectedCust.name} has custom interest rates. You can override them in Step 3.`,
+      }));
+    } else {
+      setRateOverrides({ standard: null, extended: null, overdue: null });
+      setRateSource('global');
+    }
 
     try {
       const response = await customerService.getActivePledges(selectedCust.id);
@@ -1998,6 +2029,17 @@ export default function NewPledge() {
         },
       };
 
+      // Add interest rate overrides if manually changed or customer has custom rates
+      if (rateOverrides.standard != null) {
+        pledgeData.override_interest_rate = rateOverrides.standard;
+      }
+      if (rateOverrides.extended != null) {
+        pledgeData.override_interest_rate_extended = rateOverrides.extended;
+      }
+      if (rateOverrides.overdue != null) {
+        pledgeData.override_interest_rate_overdue = rateOverrides.overdue;
+      }
+
       console.log("Submitting pledge data:", JSON.stringify(pledgeData, null, 2));
 
       const response = await pledgeService.create(pledgeData);
@@ -2671,13 +2713,49 @@ export default function NewPledge() {
 
               {/* Interest & Repayment Information */}
               <div className="border border-blue-200 bg-blue-50 rounded-xl p-4 mb-6">
-                <h5 className="font-semibold text-blue-800 mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4" />Interest Breakdown</h5>
+                <div className="flex items-center justify-between mb-4">
+                  <h5 className="font-semibold text-blue-800 flex items-center gap-2"><TrendingUp className="w-4 h-4" />Interest Breakdown</h5>
+                  <div className="flex items-center gap-2">
+                    {rateSource === 'customer' && (
+                      <span className="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs font-medium rounded-full flex items-center gap-1">
+                        <User className="w-3 h-3" /> Customer Rate
+                      </span>
+                    )}
+                    {rateSource === 'manual' && (
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full flex items-center gap-1">
+                        <Edit className="w-3 h-3" /> Manual Override
+                      </span>
+                    )}
+                    {rateSource === 'global' && (
+                      <span className="px-2 py-0.5 bg-zinc-100 text-zinc-600 text-xs font-medium rounded-full">
+                        Global Rate
+                      </span>
+                    )}
+                    {rateSource !== 'global' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRateOverrides({ standard: null, extended: null, overdue: null });
+                          setRateSource('global');
+                          setEditingRateId(null);
+                          dispatch(addToast({ type: 'info', title: 'Reset', message: 'Interest rates reset to global defaults' }));
+                        }}
+                        className="px-2 py-0.5 bg-white text-zinc-500 text-xs rounded-full hover:bg-zinc-100 flex items-center gap-1 border border-zinc-200"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Reset to Global
+                      </button>
+                    )}
+                  </div>
+                </div>
                 
                 {interestRatesList.length > 0 ? (
                   <>
                     <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
                       {interestRatesList.map((rate) => {
                         const isSelected = interestScenario === rate.id;
+                        const rateType = rate.rate_type === 'custom' ? 'standard' : rate.rate_type;
+                        const hasOverride = rateOverrides[rateType] != null;
+                        const displayRate = hasOverride ? rateOverrides[rateType] : parseFloat(rate.rate_percentage);
                         let bgClass = "bg-white text-zinc-600 hover:bg-zinc-100";
                         if (isSelected) {
                           if (rate.rate_type === 'standard') bgClass = "bg-blue-600 text-white";
@@ -2687,16 +2765,59 @@ export default function NewPledge() {
                         }
                         
                         return (
-                          <button key={rate.id} type="button" onClick={() => setInterestScenario(rate.id)} className={cn("px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1 whitespace-nowrap min-w-max", bgClass)}>
-                            {rate.name || rate.rate_type} ({rate.rate_percentage}%)
-                          </button>
+                          <div key={rate.id} className="flex items-center gap-1 flex-1 min-w-max">
+                            <button type="button" onClick={() => { setInterestScenario(rate.id); setEditingRateId(null); }} className={cn("px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1 whitespace-nowrap", bgClass)}>
+                              {rate.name || rate.rate_type} ({displayRate.toFixed(2)}%)
+                              {hasOverride && <span className="ml-1 text-xs opacity-75">✎</span>}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setInterestScenario(rate.id); setEditingRateId(editingRateId === rate.id ? null : rate.id); }}
+                              className="p-1.5 rounded-lg transition-all bg-zinc-100 text-zinc-500 hover:bg-violet-100 hover:text-violet-600 border border-zinc-200"
+                              title="Edit rate for this pledge"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
 
+                    {/* Inline rate editor */}
+                    {editingRateId && (() => {
+                      const editRate = interestRatesList.find(r => r.id === editingRateId);
+                      if (!editRate) return null;
+                      const rateType = editRate.rate_type === 'custom' ? 'standard' : editRate.rate_type;
+                      const currentVal = rateOverrides[rateType] != null ? rateOverrides[rateType] : parseFloat(editRate.rate_percentage);
+                      return (
+                        <div className="mb-3 p-3 bg-white rounded-lg border border-violet-200 flex items-center gap-3">
+                          <Edit className="w-4 h-4 text-violet-500 flex-shrink-0" />
+                          <span className="text-sm text-zinc-700 font-medium whitespace-nowrap">{editRate.name || editRate.rate_type} Rate:</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="99"
+                            value={currentVal}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                              setRateOverrides(prev => ({ ...prev, [rateType]: val }));
+                              setRateSource(val != null ? 'manual' : (customer?.custom_interest_rate != null ? 'customer' : 'global'));
+                            }}
+                            className="w-24 px-2 py-1 text-sm border border-violet-300 rounded-lg focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-center font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-sm text-zinc-500">% per month</span>
+                          <button type="button" onClick={() => setEditingRateId(null)} className="ml-auto p-1 hover:bg-zinc-100 rounded">
+                            <Check className="w-4 h-4 text-emerald-600" />
+                          </button>
+                        </div>
+                      );
+                    })()}
+
                     {(() => {
                       const selectedRate = interestRatesList.find(r => r.id === interestScenario) || interestRatesList[0];
-                      const ratePercent = parseFloat(selectedRate.rate_percentage) || 0;
+                      const rateType = selectedRate.rate_type === 'custom' ? 'standard' : selectedRate.rate_type;
+                      const ratePercent = rateOverrides[rateType] != null ? rateOverrides[rateType] : (parseFloat(selectedRate.rate_percentage) || 0);
                       const fromMonth = parseInt(selectedRate.from_month) || 1;
                       const toMonth = parseInt(selectedRate.to_month) || (fromMonth + 5);
                       const totalMonthsToShow = toMonth >= fromMonth ? (toMonth - fromMonth + 1) : 6;
@@ -2711,7 +2832,8 @@ export default function NewPledge() {
                         <>
                           <div className={cn("mb-3 p-2 bg-white rounded-lg border", borderClass)}>
                             <p className="text-xs text-zinc-600">
-                              <strong className={textClass}>{selectedRate.name || selectedRate.rate_type}:</strong> {selectedRate.description || `Applies from month ${fromMonth} to ${selectedRate.to_month ? selectedRate.to_month : 'onwards'}. Interest at ${ratePercent}% per month.`}
+                              <strong className={textClass}>{selectedRate.name || selectedRate.rate_type}:</strong> {selectedRate.description || `Applies from month ${fromMonth} to ${selectedRate.to_month ? selectedRate.to_month : 'onwards'}. Interest at ${ratePercent.toFixed(2)}% per month.`}
+                              {rateOverrides[rateType] != null && <span className="ml-1 text-violet-600 font-medium">(overridden)</span>}
                             </p>
                           </div>
 
@@ -3258,10 +3380,15 @@ export default function NewPledge() {
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
                 <div className="flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-600" />
-                  <div className="text-sm">
+                  <div className="text-sm flex-1">
                     <p className="font-medium text-amber-800">Due Date: {calculateDueDate().toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" })}</p>
-                    <p className="text-amber-600">{(() => { const pr = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard'); const months = pr ? (parseInt(pr.to_month) || 6) : 6; const rate = pr ? (parseFloat(pr.rate_percentage) || 0.5) : 0.5; return `${months} months from today. Interest at ${rate}% per month.`; })()}</p>
+                    <p className="text-amber-600">{(() => { const pr = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard'); const months = pr ? (parseInt(pr.to_month) || 6) : 6; const prType = pr ? (pr.rate_type === 'custom' ? 'standard' : pr.rate_type) : 'standard'; const rate = rateOverrides[prType] != null ? rateOverrides[prType] : (pr ? (parseFloat(pr.rate_percentage) || 0.5) : 0.5); return `${months} months from today. Interest at ${rate.toFixed ? rate.toFixed(2) : rate}% per month.`; })()}</p>
                   </div>
+                  {rateSource !== 'global' && (
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${rateSource === 'customer' ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {rateSource === 'customer' ? '👤 Customer Rate' : '✏️ Manual'}
+                    </span>
+                  )}
                 </div>
               </div>
             </motion.div>

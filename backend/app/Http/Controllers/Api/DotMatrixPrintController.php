@@ -40,6 +40,7 @@ class DotMatrixPrintController extends Controller
 
             // Get company settings including logo
             $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             $receiptHtml = $this->generatePledgeReceiptHtml($pledge, $settings, $validated['copy_type']);
             $termsHtml = $this->generateTermsPageHtml($pledge, $settings);
@@ -685,6 +686,25 @@ HTML;
             'insurance_policy_no' => $settingsMap['insurance_policy_no'] ?? '',
             'logo_url' => $logoUrl, // Logo URL or null - shows only if exists
         ];
+    }
+
+    /**
+     * Override settings interest rates with pledge-specific rates.
+     * Used to print the actual rates stored on the pledge (per-person overrides)
+     * instead of the global defaults.
+     */
+    private function applyPledgeRatesToSettings(array $settings, Pledge $pledge): array
+    {
+        if ($pledge->interest_rate !== null) {
+            $settings['interest_rate_normal'] = number_format((float) $pledge->interest_rate, 2);
+        }
+        if ($pledge->interest_rate_extended !== null) {
+            $settings['interest_rate_extended'] = number_format((float) $pledge->interest_rate_extended, 2);
+        }
+        if ($pledge->interest_rate_overdue !== null) {
+            $settings['interest_rate_overdue'] = number_format((float) $pledge->interest_rate_overdue, 2);
+        }
+        return $settings;
     }
 
     /**
@@ -3157,6 +3177,7 @@ HTML;
             ]);
 
             $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
@@ -3290,6 +3311,7 @@ HTML;
             ]);
 
             $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
@@ -4167,6 +4189,7 @@ HTML;
             }
 
             $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
@@ -4291,6 +4314,7 @@ HTML;
             }
 
             $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
@@ -6166,6 +6190,7 @@ HTML;
             }
 
             $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND redemption data overlay
             $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings);
@@ -6954,6 +6979,7 @@ HTML;
             }
 
             $settings = $this->getCompanySettings($pledge->branch);
+            $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND redemption data overlay
             $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPageReprint($settings);
