@@ -93,6 +93,11 @@ export default function RedemptionScreen() {
   const [selectedItemIds, setSelectedItemIds] = useState([]);
   const [isPartialRedemption, setIsPartialRedemption] = useState(false);
 
+  // Custom interest rate override (like Renewal screen)
+  const [interestRate, setInterestRate] = useState("");
+  const [globalRate, setGlobalRate] = useState(null); // Global default rate from settings
+  const [rateSource, setRateSource] = useState(""); // 'global' | 'customer' | 'manual'
+
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [amountReceived, setAmountReceived] = useState("");
@@ -171,6 +176,28 @@ export default function RedemptionScreen() {
     fetchBanks();
   }, []);
 
+  // Fetch global interest rates on mount
+  useEffect(() => {
+    const fetchGlobalRates = async () => {
+      try {
+        const response = await settingsService.getInterestRates();
+        const rates = response.data?.data || response.data || [];
+        if (Array.isArray(rates) && rates.length > 0) {
+          // Find the standard/normal rate
+          const standardRule = rates.find(r => r.rate_type === 'standard' && r.is_active)
+            || rates.find(r => r.rate_type === 'normal' && r.is_active)
+            || rates.find(r => r.is_active);
+          if (standardRule) {
+            setGlobalRate(parseFloat(standardRule.rate_percentage));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch global interest rates:", error);
+      }
+    };
+    fetchGlobalRates();
+  }, []);
+
   // Issue 1 FIX: Clear selectedPledge on mount WITHOUT loading it
   // This prevents auto-showing previously viewed pledges
   useEffect(() => {
@@ -193,7 +220,7 @@ export default function RedemptionScreen() {
 
   // Fetch redemption calculation from API
   // Issue 2: Now supports item_ids for partial redemption
-  const fetchCalculation = async (pledgeId, itemIds = null) => {
+  const fetchCalculation = async (pledgeId, itemIds = null, rate = interestRate) => {
     setIsCalculating(true);
     try {
       const params = { pledge_id: pledgeId };
@@ -201,6 +228,11 @@ export default function RedemptionScreen() {
       // Issue 2: Pass selected item IDs for partial calculation
       if (itemIds && itemIds.length > 0) {
         params.item_ids = itemIds;
+      }
+
+      // Pass custom interest rate if provided
+      if (rate !== "" && rate !== null && !isNaN(parseFloat(rate))) {
+        params.interest_rate = parseFloat(rate);
       }
 
       const response = await redemptionService.calculate(params);
@@ -248,7 +280,7 @@ export default function RedemptionScreen() {
 
       // Recalculate with new selection
       if (newSelection.length > 0 && pledge?.id) {
-        fetchCalculation(pledge.id, newSelection);
+        fetchCalculation(pledge.id, newSelection, interestRate);
       }
 
       return newSelection;
@@ -271,7 +303,7 @@ export default function RedemptionScreen() {
       const allIds = allItems.map((i) => i.id);
       setSelectedItemIds(allIds);
       setIsPartialRedemption(false);
-      fetchCalculation(pledge.id, allIds);
+      fetchCalculation(pledge.id, allIds, interestRate);
     }
   };
 
@@ -330,6 +362,7 @@ export default function RedemptionScreen() {
     setCalculation(null);
     setItems([]);
     setPledgeList([]); // Clear previous list
+    setInterestRate(""); // Clear custom rate
 
     try {
       // Try direct search first
@@ -436,6 +469,16 @@ export default function RedemptionScreen() {
         if (pledgeData.status === "active" || pledgeData.status === "overdue") {
           setPledge(pledgeData);
           setSearchResult("found");
+          // Auto-fill custom interest rate from pledge's stored rate
+          if (pledgeData.interestRate && pledgeData.interestRate > 0) {
+            setInterestRate(String(pledgeData.interestRate));
+            // Determine rate source
+            if (globalRate !== null && Math.abs(pledgeData.interestRate - globalRate) > 0.001) {
+              setRateSource("customer");
+            } else {
+              setRateSource("global");
+            }
+          }
           dispatch(
             addToast({
               type: "success",
@@ -443,7 +486,7 @@ export default function RedemptionScreen() {
               message: `Pledge ${pledgeData.pledgeNo} loaded`,
             }),
           );
-          fetchCalculation(pledgeData.id);
+          fetchCalculation(pledgeData.id, null, String(pledgeData.interestRate || ""));
         } else {
           setSearchResult("invalid");
           dispatch(
@@ -604,6 +647,11 @@ export default function RedemptionScreen() {
         reference_no: referenceNo || undefined,
         terms_accepted: true,
       };
+
+      // Include custom interest rate if provided
+      if (interestRate !== "" && interestRate !== null && !isNaN(parseFloat(interestRate))) {
+        redemptionData.interest_rate = parseFloat(interestRate);
+      }
 
       // Issue 2: Add item_ids for partial redemption
       if (
@@ -1337,7 +1385,17 @@ export default function RedemptionScreen() {
                   onClick={() => {
                     setPledge(p);
                     setSearchResult("found");
-                    fetchCalculation(p.id);
+                    // Auto-fill custom interest rate from pledge's stored rate
+                    if (p.interestRate && p.interestRate > 0) {
+                      setInterestRate(String(p.interestRate));
+                      // Determine rate source
+                      if (globalRate !== null && Math.abs(p.interestRate - globalRate) > 0.001) {
+                        setRateSource("customer");
+                      } else {
+                        setRateSource("global");
+                      }
+                    }
+                    fetchCalculation(p.id, null, String(p.interestRate || ""));
                   }}
                 >
                   <div className="flex justify-between items-start">
@@ -1793,9 +1851,91 @@ export default function RedemptionScreen() {
                       {formatCurrency(principal)}
                     </span>
                   </div>
+
+                  {/* Custom Interest Rate */}
+                  <div className="mt-2 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-zinc-600">
+                        Custom Interest Rate (%) <span className="text-xs text-zinc-400 font-normal">(Leave empty for default)</span>
+                      </label>
+                      {rateSource && (
+                        <Badge
+                          variant={rateSource === 'customer' ? 'warning' : rateSource === 'manual' ? 'info' : 'success'}
+                          size="sm"
+                        >
+                          {rateSource === 'customer' && '👤 Customer Rate'}
+                          {rateSource === 'global' && '🌐 Global Rate'}
+                          {rateSource === 'manual' && '✏️ Manual Override'}
+                        </Badge>
+                      )}
+                    </div>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g. 1.0"
+                      value={interestRate}
+                      onChange={(e) => {
+                        setInterestRate(e.target.value);
+                        setRateSource("manual"); // Mark as manually overridden
+                        // Debounced recalculation
+                        if (pledge?.id) {
+                          clearTimeout(window._redemptionRateTimer);
+                          window._redemptionRateTimer = setTimeout(() => {
+                            fetchCalculation(pledge.id, isPartialRedemption ? selectedItemIds : null, e.target.value);
+                          }, 400);
+                        }
+                      }}
+                      leftIcon={TrendingUp}
+                    />
+                  </div>
+
+                  {/* Interest Breakdown - detailed per-month like Renewal screen */}
+                  {calculation?.interest_breakdown && (
+                    <div className="mt-2 p-4 bg-zinc-50 rounded-lg border border-zinc-100">
+                      <h5 className="text-sm font-semibold text-zinc-700 mb-3">Interest Breakdown</h5>
+                      <div className="space-y-1.5">
+                        {Array.isArray(calculation.interest_breakdown) ? (
+                          // Standard/Renewed scenario - array of monthly entries
+                          calculation.interest_breakdown.map((entry, idx) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <span className="text-zinc-500">
+                                Month {entry.month} ({entry.rate}%)
+                              </span>
+                              <span className="font-medium text-zinc-700">
+                                {formatCurrency(entry.interest)}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          // Overdue scenario - object with summary
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-zinc-500">
+                                Monthly Interest ({calculation.interest_breakdown.rate_applied}% × {calculation.interest_breakdown.months_elapsed} months)
+                              </span>
+                              <span className="font-medium text-zinc-700">
+                                {formatCurrency(calculation.interest_breakdown.total_monthly_interest)}
+                              </span>
+                            </div>
+                            {calculation.interest_breakdown.daily_penalty > 0 && (
+                              <div className="flex justify-between text-sm text-red-600">
+                                <span>
+                                  Daily Penalty ({calculation.interest_breakdown.days_overdue} days @ {calculation.interest_breakdown.rate_applied}%)
+                                </span>
+                                <span className="font-medium">
+                                  {formatCurrency(calculation.interest_breakdown.daily_penalty)}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex justify-between">
                     <span className="text-zinc-500">
-                      Interest ({monthsElapsed} months)
+                      Interest Amount ({monthsElapsed} months)
                     </span>
                     <span className="font-medium">
                       {formatCurrency(totalInterest)}
