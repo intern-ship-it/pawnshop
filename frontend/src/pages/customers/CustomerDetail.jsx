@@ -3,8 +3,10 @@
  */
 import { jsPDF } from "jspdf";
 import { getStorageUrl } from "@/utils/helpers";
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { settingsService } from "@/services";
+import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { customerService } from "@/services";
@@ -37,6 +39,7 @@ import {
   TrendingUp,
   Calendar,
   Download,
+  Printer,
 } from "lucide-react";
 
 // Status config
@@ -52,7 +55,9 @@ const statusConfig = {
 export default function CustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
+  const autoPrintTriggered = useRef(false);
 
   // State
   const [customer, setCustomer] = useState(null);
@@ -116,6 +121,20 @@ export default function CustomerDetail() {
     }
   }, [id]);
 
+  // Auto-print when navigated from customer list with ?print=1
+  useEffect(() => {
+    if (
+      searchParams.get("print") === "1" &&
+      !autoPrintTriggered.current &&
+      customer &&
+      !isLoading &&
+      !isPledgesLoading
+    ) {
+      autoPrintTriggered.current = true;
+      handlePrintCustomerPdf();
+    }
+  }, [customer, isLoading, isPledgesLoading, searchParams]);
+
   // Handle refresh
   const handleRefresh = () => {
     fetchCustomer();
@@ -128,6 +147,245 @@ export default function CustomerDetail() {
   const handleBack = () => navigate("/customers");
   const handleNewPledge = () => navigate(`/pledges/new?customer=${id}`);
   const handleViewPledge = (pledgeId) => navigate(`/pledges/${pledgeId}`);
+
+  // Print customer profile + active pledges PDF
+  const handlePrintCustomerPdf = async () => {
+    if (!customer) return;
+
+    // Get company info from settings
+    const stored = getStorageItem(STORAGE_KEYS.SETTINGS, null);
+    const company = stored?.company || {};
+    const companyName = company.name || "PawnSys Sdn Bhd";
+    const companyLicense = company.license || "";
+    const companyAddress = company.address || "";
+    const companyPhone = company.phone || "";
+    const companyEmail = company.email || "";
+
+    // Fetch logo as base64
+    const baseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? "http://localhost:8000" : window.location.origin;
+    let logoDataUrl = "";
+    try {
+      const logoRes = await settingsService.getLogo();
+      const logoData = logoRes?.data || logoRes;
+      const logoUrl = logoData?.logo_url || logoData?.path;
+      if (logoUrl) {
+        let fullUrl = logoUrl;
+        if (!logoUrl.startsWith("http")) {
+          fullUrl = baseUrl + (logoUrl.startsWith("/") ? "" : "/") + logoUrl;
+        }
+        const imgResp = await fetch(fullUrl);
+        if (imgResp.ok) {
+          const blob = await imgResp.blob();
+          logoDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch logo for print:", e);
+    }
+
+    // Fetch selfie photo as base64
+    let selfieDataUrl = "";
+    if (customer.selfie_photo) {
+      try {
+        const selfieUrl = getStorageUrl(customer.selfie_photo);
+        const selfieResp = await fetch(selfieUrl);
+        if (selfieResp.ok) {
+          const blob = await selfieResp.blob();
+          selfieDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch selfie for print:", e);
+      }
+    }
+
+    // Filter active pledges
+    const activePledges = pledges.filter(p => p.status === "active" || p.status === "overdue");
+
+    // Build phone display
+    const phoneDisplay = customer.phone
+      ? `${customer.country_code ? (customer.country_code.startsWith("+") ? "" : "+") + customer.country_code + " " : ""}${customer.phone}`
+      : "N/A";
+    const whatsappDisplay = customer.whatsapp
+      ? `${customer.country_code ? (customer.country_code.startsWith("+") ? "" : "+") + customer.country_code + " " : ""}${customer.whatsapp}`
+      : "";
+
+    // Build address
+    let fullAddress = customer.address || "";
+    if (customer.city) fullAddress += `, ${customer.city}`;
+    if (customer.postcode) fullAddress += ` ${customer.postcode}`;
+    if (customer.state) fullAddress += `, ${customer.state}`;
+
+    const dateLabel = new Date().toLocaleDateString("en-MY", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+
+    // Build pledge rows
+    const pledgeRows = activePledges.map(p => {
+      const principal = parseFloat(p.loan_amount || p.principal_amount || 0);
+      const rate = parseFloat(p.interest_rate || 0.5);
+      const months = p.months_elapsed || 1;
+      const interest = p.accrued_interest || principal * (rate / 100) * months;
+      const total = p.total_payable || principal + interest;
+      const itemTypes = (p.items || []).map(i => i.description || i.category?.name || i.category_name || "Gold Item").join(", ") || "Gold Item";
+      return `<tr>
+        <td>${p.pledge_no || p.pledge_number || p.id}</td>
+        <td>${formatDate(p.pledge_date || p.created_at)}</td>
+        <td>${itemTypes}</td>
+        <td class="right">${p.items_count || (p.items || []).length || 0} ${(p.items_count || (p.items || []).length || 0) === 1 ? 'item' : 'items'}</td>
+        <td class="right">${formatCurrency(principal)}</td>
+        <td class="right">${formatCurrency(interest)}</td>
+        <td class="right"><strong>${formatCurrency(total)}</strong></td>
+        <td class="right">${formatDate(p.due_date || p.maturity_date)}</td>
+      </tr>`;
+    }).join("");
+
+    const totalPrincipal = activePledges.reduce((s, p) => s + parseFloat(p.loan_amount || p.principal_amount || 0), 0);
+    const totalInterest = activePledges.reduce((s, p) => {
+      const pr = parseFloat(p.loan_amount || p.principal_amount || 0);
+      const rt = parseFloat(p.interest_rate || 0.5);
+      const mo = p.months_elapsed || 1;
+      return s + (p.accrued_interest || pr * (rt / 100) * mo);
+    }, 0);
+    const totalPayable = activePledges.reduce((s, p) => {
+      const pr = parseFloat(p.loan_amount || p.principal_amount || 0);
+      const rt = parseFloat(p.interest_rate || 0.5);
+      const mo = p.months_elapsed || 1;
+      const interest = p.accrued_interest || pr * (rt / 100) * mo;
+      return s + (p.total_payable || pr + interest);
+    }, 0);
+    const totalItems = activePledges.reduce((s, p) => s + (p.items_count || (p.items || []).length || 0), 0);
+
+    const printContent = `<!DOCTYPE html><html><head>
+      <title>Customer Profile - ${customer.name}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; padding: 30px 40px; max-width: 780px; margin: 0 auto; color: #1a1a1a; font-size: 13px; line-height: 1.5; }
+        .company-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #1a1a1a; }
+        .company-logo { width: 120px; height: 120px; object-fit: contain; flex-shrink: 0; }
+        .company-info { flex: 1; }
+        .company-name { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+        .company-reg { font-size: 15px; color: #555; margin-bottom: 6px; }
+        .company-address { font-size: 14px; color: #333; line-height: 1.6; margin-bottom: 4px; }
+        .company-contact { font-size: 14px; color: #333; }
+        h1 { text-align: center; font-size: 20px; font-weight: 700; margin-bottom: 4px; margin-top: 16px; }
+        .sub-header { text-align: center; font-size: 12px; color: #555; margin-bottom: 24px; }
+        .section { margin-bottom: 24px; }
+        .section-title { font-size: 14px; font-weight: 700; border-bottom: 2px solid #1a1a1a; padding-bottom: 4px; margin-bottom: 6px; }
+        .section-number { font-weight: 800; color: #92400e; margin-right: 4px; }
+        .profile-section { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 8px; }
+        .profile-photo { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #f59e0b; flex-shrink: 0; }
+        .profile-photo-placeholder { width: 100px; height: 100px; border-radius: 50%; background: #fef3c7; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; color: #92400e; border: 3px solid #f59e0b; flex-shrink: 0; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; flex: 1; }
+        .info-item { display: flex; flex-direction: column; padding: 4px 0; }
+        .info-label { font-size: 10px; text-transform: uppercase; color: #888; font-weight: 600; letter-spacing: 0.5px; }
+        .info-value { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+        .info-full { grid-column: 1 / -1; }
+        .detail-table { width: 100%; border-collapse: collapse; margin-top: 2px; font-size: 12px; }
+        .detail-table thead th { background: #92400e; color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 10px; text-align: left; border: none; }
+        .detail-table thead th.right { text-align: right; }
+        .detail-table tbody td { padding: 7px 10px; border-bottom: 1px solid #f3e8d0; font-size: 12px; color: #374151; }
+        .detail-table tbody td.right { text-align: right; }
+        .detail-table tbody tr:nth-child(even) { background: #fffbeb; }
+        .subtotal-bar { margin-top: 0; padding: 8px 12px; background: #92400e; color: #fff; font-weight: 600; font-size: 12px; }
+        .no-data { color: #b45309; font-size: 12px; padding: 14px 0; font-style: italic; text-align: center; border: 1px dashed #f59e0b; margin-top: 4px; background: #fffbeb; }
+        .status-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .status-active { background: #dcfce7; color: #15803d; }
+        .status-inactive { background: #fee2e2; color: #dc2626; }
+        .footer { text-align: center; margin-top: 30px; color: #999; font-size: 10px; }
+        @media print {
+          body { padding: 15px 25px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .detail-table thead th { background: #92400e !important; color: #fff !important; }
+          .detail-table tbody tr:nth-child(even) { background: #fffbeb !important; }
+          .subtotal-bar { background: #92400e !important; color: #fff !important; }
+          .no-data { background: #fffbeb !important; }
+        }
+      </style>
+    </head><body>
+      <div class="company-header">
+        ${logoDataUrl ? `<img class="company-logo" src="${logoDataUrl}" alt="Logo" />` : ""}
+        <div class="company-info">
+          <div class="company-name">${companyName}</div>
+          ${companyLicense ? `<div class="company-reg">(${companyLicense})</div>` : ""}
+          ${companyAddress ? `<div class="company-address">${companyAddress}</div>` : ""}
+          ${companyEmail ? `<div class="company-contact">Email : ${companyEmail}</div>` : ""}
+          ${companyPhone ? `<div class="company-contact">Tel : ${companyPhone}</div>` : ""}
+        </div>
+      </div>
+
+      <h1>Customer Profile</h1>
+      <div class="sub-header">Date: ${dateLabel}</div>
+
+      <!-- 1. Personal Information -->
+      <div class="section">
+        <div class="section-title"><span class="section-number">1.</span> Personal Information</div>
+        <div style="margin-top: 12px;">
+          <div class="profile-section">
+            ${selfieDataUrl
+              ? `<img class="profile-photo" src="${selfieDataUrl}" alt="Profile" />`
+              : `<div class="profile-photo-placeholder">${(customer.name || "C").charAt(0).toUpperCase()}</div>`
+            }
+            <div class="info-grid">
+              <div class="info-item"><span class="info-label">Full Name</span><span class="info-value">${customer.name || "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">IC Number</span><span class="info-value">${customer.ic_number || "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-value">${customer.date_of_birth ? formatDate(customer.date_of_birth) : "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">Gender</span><span class="info-value" style="text-transform:capitalize;">${customer.gender || "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">Occupation</span><span class="info-value">${customer.occupation || "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">Nationality</span><span class="info-value">${customer.nationality || "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">Race</span><span class="info-value">${customer.race || "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">Status</span><span class="info-value"><span class="status-badge ${customer.is_active ? 'status-active' : 'status-inactive'}">${customer.is_active ? "Active" : "Inactive"}</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Contact Information -->
+      <div class="section">
+        <div class="section-title"><span class="section-number">2.</span> Contact Information</div>
+        <div style="margin-top: 8px;">
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Phone Number</span><span class="info-value">${phoneDisplay}</span></div>
+            <div class="info-item"><span class="info-label">WhatsApp</span><span class="info-value">${whatsappDisplay || phoneDisplay}</span></div>
+            <div class="info-item"><span class="info-label">Email</span><span class="info-value">${customer.email || "N/A"}</span></div>
+            <div class="info-item"><span class="info-label">Member Since</span><span class="info-value">${formatDate(customer.created_at)}</span></div>
+            <div class="info-item info-full"><span class="info-label">Full Address</span><span class="info-value">${fullAddress || "N/A"}</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Active Pledges -->
+      <div class="section">
+        <div class="section-title"><span class="section-number">3.</span> Active Pledges (${activePledges.length})</div>
+        ${activePledges.length > 0 ? `
+        <table class="detail-table">
+          <thead><tr><th>Ref No</th><th>Date</th><th>Item Type</th><th class="right">Items</th><th class="right">Principal</th><th class="right">Interest</th><th class="right">Total Payable</th><th class="right">Due Date</th></tr></thead>
+          <tbody>${pledgeRows}</tbody>
+        </table>
+        <div class="subtotal-bar">
+          Total: ${activePledges.length} pledge(s) | ${totalItems} item(s) | Principal: ${formatCurrency(totalPrincipal)} | Interest: ${formatCurrency(totalInterest)} | Payable: ${formatCurrency(totalPayable)}
+        </div>
+        ` : '<div class="no-data">No active pledges</div>'}
+      </div>
+
+      <div class="footer">Generated on ${new Date().toLocaleString("en-MY")} | PawnSys</div>
+    </body></html>`;
+
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+  };
 
   // Download IC images as a single PDF
   const handleDownloadIcPdf = async () => {
@@ -353,6 +611,10 @@ export default function CustomerDetail() {
           <Button variant="secondary" onClick={handleEdit}>
             <Edit2 className="w-4 h-4 mr-2" />
             Edit
+          </Button>
+          <Button variant="secondary" onClick={handlePrintCustomerPdf}>
+            <Printer className="w-4 h-4 mr-2" />
+            Print
           </Button>
           <Button onClick={handleNewPledge}>
             <Plus className="w-4 h-4 mr-2" />

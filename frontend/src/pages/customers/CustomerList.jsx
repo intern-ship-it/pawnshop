@@ -31,6 +31,7 @@ import {
   Mail,
   RefreshCw,
   CreditCard,
+  Printer,
 } from "lucide-react";
 
 export default function CustomerList() {
@@ -464,6 +465,16 @@ export default function CustomerList() {
                           <Edit className="w-4 h-4" />
                         </button>
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/customers/${customer.id}?print=1`);
+                        }}
+                        className="p-2 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="Print Profile"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
                       {canDelete && (
                         <button
                           onClick={(e) => handleDeleteClick(e, customer)}
