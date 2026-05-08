@@ -892,16 +892,42 @@ export default function PledgeDetail() {
                     Amount paid to customer
                   </p>
                 </div>
-                <div className="p-4 bg-zinc-50 rounded-lg border border-zinc-200">
-                  <p className="text-sm text-zinc-600 font-medium">
-                    Interest Rate
-                  </p>
-                  <p className="text-xl font-bold text-zinc-700">
-                    {pledge.interestRate}%
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    Per month (first 6 months)
-                  </p>
+              </div>
+
+              {/* Interest Rates - All 3 tiers */}
+              <div className="mt-4">
+                <p className="text-sm font-medium text-zinc-500 mb-2">Interest Rates (applied to this pledge)</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-blue-600 font-medium">Standard Rate</p>
+                      <span className="text-xs text-blue-400">Per month</span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-700 mt-1">{pledge.interestRate}%</p>
+                    <p className="text-xs text-blue-500 mt-1">
+                      Monthly: {formatCurrency(pledge.loanAmount * (pledge.interestRate / 100))}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-amber-600 font-medium">Extended Rate</p>
+                      <span className="text-xs text-amber-400">Per month</span>
+                    </div>
+                    <p className="text-2xl font-bold text-amber-700 mt-1">{pledge.interestRateExtended}%</p>
+                    <p className="text-xs text-amber-500 mt-1">
+                      Monthly: {formatCurrency(pledge.loanAmount * (pledge.interestRateExtended / 100))}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-red-600 font-medium">Overdue Rate</p>
+                      <span className="text-xs text-red-400">Per month</span>
+                    </div>
+                    <p className="text-2xl font-bold text-red-700 mt-1">{pledge.interestRateOverdue}%</p>
+                    <p className="text-xs text-red-500 mt-1">
+                      Monthly: {formatCurrency(pledge.loanAmount * (pledge.interestRateOverdue / 100))}
+                    </p>
+                  </div>
                 </div>
               </div>
             </Card>

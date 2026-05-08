@@ -42,6 +42,9 @@ class Customer extends Model
         'is_blacklisted',
         'blacklist_reason',
         'notes',
+        'custom_interest_rate',
+        'custom_interest_rate_extended',
+        'custom_interest_rate_overdue',
         'created_by',
     ];
 
@@ -49,6 +52,9 @@ class Customer extends Model
         'date_of_birth' => 'date',
         'is_blacklisted' => 'boolean',
         'total_loan_amount' => 'decimal:2',
+        'custom_interest_rate' => 'decimal:2',
+        'custom_interest_rate_extended' => 'decimal:2',
+        'custom_interest_rate_overdue' => 'decimal:2',
     ];
 
     /**
