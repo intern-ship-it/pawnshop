@@ -12,7 +12,7 @@ return [
     'pledge' => [
         'prefix' => 'PLG',
         'default_loan_percentages' => [80, 70, 60],
-        'max_renewal_months' => 6,
+        'max_renewal_months' => 12,
         'grace_period_days' => 7,
     ],
 

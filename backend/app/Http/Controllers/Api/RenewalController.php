@@ -195,9 +195,12 @@ class RenewalController extends Controller
      */
     public function calculate(Request $request): JsonResponse
     {
+        $maxMonths = (int) (\App\Models\Setting::where('key_name', 'max_renewal_months')->value('value')
+            ?? config('pawnsys.pledge.max_renewal_months', 12));
+
         $validated = $request->validate([
             'pledge_id' => 'required|exists:pledges,id',
-            'renewal_months' => 'required|integer|min:1|max:6',
+            'renewal_months' => "required|integer|min:1|max:{$maxMonths}",
             'interest_rate' => 'nullable|numeric|min:0|max:100',
         ]);
 
@@ -290,9 +293,12 @@ class RenewalController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $maxMonths = (int) (\App\Models\Setting::where('key_name', 'max_renewal_months')->value('value')
+            ?? config('pawnsys.pledge.max_renewal_months', 12));
+
         $validated = $request->validate([
             'pledge_id' => 'required|exists:pledges,id',
-            'renewal_months' => 'required|integer|min:1|max:6',
+            'renewal_months' => "required|integer|min:1|max:{$maxMonths}",
             'payment_method' => 'required|in:cash,transfer,partial',
             'cash_amount' => 'nullable|numeric|min:0',
             'transfer_amount' => 'nullable|numeric|min:0',
