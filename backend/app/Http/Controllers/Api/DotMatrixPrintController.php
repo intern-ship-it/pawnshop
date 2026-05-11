@@ -700,6 +700,22 @@ HTML;
         if ($pledge->interest_rate_overdue !== null) {
             $settings['interest_rate_overdue'] = number_format((float) $pledge->interest_rate_overdue, 2);
         }
+
+        // Dynamically calculate redemption period from pledge dates
+        if ($pledge->pledge_date && $pledge->due_date) {
+            $pledgeDate = $pledge->pledge_date instanceof Carbon
+                ? $pledge->pledge_date
+                : Carbon::parse($pledge->pledge_date);
+            $dueDate = $pledge->due_date instanceof Carbon
+                ? $pledge->due_date
+                : Carbon::parse($pledge->due_date);
+            // due_date is typically pledge_date + N months - 1 day, so add 1 day to get exact month count
+            $months = (int) $pledgeDate->diffInMonths($dueDate->copy()->addDay());
+            if ($months > 0) {
+                $settings['redemption_period'] = $months . ' BULAN';
+            }
+        }
+
         return $settings;
     }
 
@@ -785,7 +801,7 @@ HTML;
         <div class="right-section">
             <div class="ticket-box"><div class="ticket-label">NO. TIKET:</div><div class="ticket-number">{$pledge->pledge_no}</div></div>
             <div class="info-box"><div class="info-row"><span>CAJ PENGENDALIAN</span><span>TEMPOH TAMAT</span></div><div class="info-row"><b>{$settings['handling_fee']}</b><b>{$settings['redemption_period']}</b></div></div>
-            <div class="info-box"><div style="font-weight:bold;">KADAR FAEDAH BULANAN</div><div>{$settings['interest_rate_normal']}% Sebulan : Dalam tempoh 6 bulan</div><div>{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div></div>
+            <div class="info-box"><div style="font-weight:bold;">KADAR FAEDAH BULANAN</div><div>{$settings['interest_rate_normal']}% Sebulan : Dalam tempoh {$settings['redemption_period']}</div><div>{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh {$settings['redemption_period']}</div></div>
             <div class="catatan-box"><div class="catatan-label">Catatan:</div><div>{$catatan}</div></div>
             <div class="keuntungan-box">FAEDAH DIKENA = RM {$this->formatNumber($monthlyInterest)} SEBULAN</div>
         </div>
@@ -1792,9 +1808,9 @@ HTML;
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln">{$settings['interest_rate_normal']}% Sebulan : Untuk tempoh 6 bulan pertama</div>
-                <div class="pp-kadar-ln">{$settings['interest_rate_extended']}% Sebulan : Dalam tempoh 6 bulan</div>
-                <div class="pp-kadar-ln">{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div>
+                <div class="pp-kadar-ln">{$settings['interest_rate_normal']}% Sebulan : Untuk tempoh {$redemptionPeriod} pertama</div>
+                <div class="pp-kadar-ln">{$settings['interest_rate_extended']}% Sebulan : Dalam tempoh {$redemptionPeriod}</div>
+                <div class="pp-kadar-ln">{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh {$redemptionPeriod}</div>
             </div>
         </div>
     </div>
@@ -2864,9 +2880,9 @@ HTMLSTART
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}</span></div>
             </div>
         </div>
     </div>
@@ -3898,9 +3914,9 @@ HTML;
             </div>
             <div class="ppp-kadar">
                 <div class="ppp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="ppp-kadar-ln">{$settings['interest_rate_normal']}% Sebulan : Untuk tempoh 6 bulan pertama</div>
-                <div class="ppp-kadar-ln">{$settings['interest_rate_extended']}% Sebulan : Dalam tempoh 6 bulan</div>
-                <div class="ppp-kadar-ln">{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh 6 bulan</div>
+                <div class="ppp-kadar-ln">{$settings['interest_rate_normal']}% Sebulan : Untuk tempoh {$redemptionPeriod} pertama</div>
+                <div class="ppp-kadar-ln">{$settings['interest_rate_extended']}% Sebulan : Dalam tempoh {$redemptionPeriod}</div>
+                <div class="ppp-kadar-ln">{$settings['interest_rate_overdue']}% Sebulan : Lepas tempoh {$redemptionPeriod}</div>
             </div>
         </div>
     </div>
@@ -5684,9 +5700,9 @@ HTMLSTART
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}</span></div>
             </div>
         </div>
     </div>
@@ -6469,9 +6485,9 @@ HTMLSTART
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}</span></div>
+                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}</span></div>
             </div>
         </div>
     </div>

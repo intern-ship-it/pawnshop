@@ -281,6 +281,19 @@ export default function RedemptionScreen() {
       // Recalculate with new selection
       if (newSelection.length > 0 && pledge?.id) {
         fetchCalculation(pledge.id, newSelection, interestRate);
+      } else if (newSelection.length === 0) {
+        // No items selected - reset calculation to zeros
+        setCalculation({
+          principal: 0,
+          regular_interest: 0,
+          overdue_interest: 0,
+          total_interest: 0,
+          handling_fee: 0,
+          total_payable: 0,
+          months_elapsed: calculation?.months_elapsed || 0,
+          days_overdue: calculation?.days_overdue || 0,
+          interest_breakdown: null,
+        });
       }
 
       return newSelection;
