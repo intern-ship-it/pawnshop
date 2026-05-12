@@ -748,4 +748,167 @@ class ReportController extends Controller
 
         return $csv;
     }
+
+    /**
+     * Month End Report — daily breakdown + payment flow for print
+     */
+    public function monthEndReport(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        $fromDate = $request->get('from_date', Carbon::today()->startOfMonth()->toDateString());
+        $toDate = $request->get('to_date', Carbon::today()->toDateString());
+
+        // --- Pledges ---
+        $pledges = Pledge::where('branch_id', $branchId)
+            ->whereBetween('pledge_date', [$fromDate, $toDate])
+            ->with('payments')
+            ->get();
+
+        // Daily breakdown (grouped by pledge_date)
+        $dailyBreakdown = $pledges->groupBy(function ($p) {
+            return $p->pledge_date instanceof Carbon
+                ? $p->pledge_date->toDateString()
+                : Carbon::parse($p->pledge_date)->toDateString();
+        })->map(function ($dayPledges, $date) {
+            // Get the gold_price_916 from the first pledge of the day (all same day should be same price)
+            $goldPrice916 = $dayPledges->first()->gold_price_916 ?? null;
+
+            return [
+                'date' => $date,
+                'count' => $dayPledges->count(),
+                'total_loan' => round($dayPledges->sum('loan_amount'), 2),
+                'actual_disbursed' => round($dayPledges->sum('payout_amount') ?: $dayPledges->sum('loan_amount'), 2),
+                'gold_price_916' => $goldPrice916 ? round($goldPrice916, 2) : null,
+            ];
+        })->sortKeys()->values();
+
+        // Fill in missing dates (days with no pledges)
+        $start = Carbon::parse($fromDate);
+        $end = Carbon::parse($toDate);
+        $allDays = [];
+        $dailyMap = $dailyBreakdown->keyBy('date');
+
+        for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
+            $dateStr = $day->toDateString();
+            if (isset($dailyMap[$dateStr])) {
+                $allDays[] = $dailyMap[$dateStr];
+            } else {
+                $allDays[] = [
+                    'date' => $dateStr,
+                    'count' => 0,
+                    'total_loan' => 0,
+                    'actual_disbursed' => 0,
+                    'gold_price_916' => null,
+                ];
+            }
+        }
+
+        $pledgeCash = $pledges->sum(fn($p) => $p->payments->sum('cash_amount'));
+        $pledgeTransfer = $pledges->sum(fn($p) => $p->payments->sum('transfer_amount'));
+
+        // --- Renewals ---
+        $renewals = Renewal::where('branch_id', $branchId)
+            ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
+            ->get();
+
+        $renewalCash = $renewals->sum('cash_amount');
+        $renewalTransfer = $renewals->sum('transfer_amount');
+
+        // --- Redemptions ---
+        $redemptions = Redemption::where('branch_id', $branchId)
+            ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
+            ->get();
+
+        $redemptionCash = $redemptions->sum('cash_amount');
+        $redemptionTransfer = $redemptions->sum('transfer_amount');
+
+        // --- Vault inventory for this month's pledges only ---
+        $monthPledgeIds = $pledges->pluck('id');
+        $monthItems = PledgeItem::whereIn('pledge_id', $monthPledgeIds)->get();
+
+        $vault = [
+            'new_pledged_items' => $monthItems->count(),
+            'total_weight' => round($monthItems->sum('net_weight'), 3),
+            'total_loan_exposure' => round($pledges->sum('loan_amount'), 2),
+        ];
+
+        // --- Payment flow ---
+        $cashIn = $renewalCash + $redemptionCash;
+        $cashOut = $pledgeCash;
+        $transferIn = $renewalTransfer + $redemptionTransfer;
+        $transferOut = $pledgeTransfer;
+        $netFlow = ($cashIn + $transferIn) - ($cashOut + $transferOut);
+
+        // --- Totals ---
+        $totalCash = $pledgeCash + $renewalCash + $redemptionCash;
+        $totalTransfer = $pledgeTransfer + $renewalTransfer + $redemptionTransfer;
+        $grandTotal = $totalCash + $totalTransfer;
+
+        // Total amount section: receive vs deduction
+        $totalReceive = $cashIn + $transferIn; // money coming in
+        $totalDeduction = $cashOut + $transferOut; // money going out
+
+        return $this->success([
+            'period' => ['from' => $fromDate, 'to' => $toDate],
+
+            // Section 1: Monthly Transaction Summary
+            'pledges' => [
+                'count' => $pledges->count(),
+                'total' => round($pledges->sum('loan_amount'), 2),
+                'cash' => round($pledgeCash, 2),
+                'transfer' => round($pledgeTransfer, 2),
+            ],
+            'renewals' => [
+                'count' => $renewals->count(),
+                'total' => round($renewals->sum('total_payable'), 2),
+                'cash' => round($renewalCash, 2),
+                'transfer' => round($renewalTransfer, 2),
+            ],
+            'redemptions' => [
+                'count' => $redemptions->count(),
+                'total' => round($redemptions->sum('total_payable'), 2),
+                'cash' => round($redemptionCash, 2),
+                'transfer' => round($redemptionTransfer, 2),
+            ],
+
+            // Section 2: Daily breakdown
+            'daily_breakdown' => $allDays,
+
+            // Section 3: Vault (month only)
+            'vault' => $vault,
+
+            // Section 4: Payment flow
+            'payment_flow' => [
+                'cash_in' => round($cashIn, 2),
+                'cash_out' => round($cashOut, 2),
+                'transfer_in' => round($transferIn, 2),
+                'transfer_out' => round($transferOut, 2),
+                'net_flow' => round($netFlow, 2),
+            ],
+
+            // Section 5: Payment method breakdown
+            'payment_methods' => [
+                'cash' => round($totalCash, 2),
+                'transfer' => round($totalTransfer, 2),
+                'total' => round($grandTotal, 2),
+                'cash_percent' => $grandTotal > 0 ? round(($totalCash / $grandTotal) * 100, 1) : 0,
+                'transfer_percent' => $grandTotal > 0 ? round(($totalTransfer / $grandTotal) * 100, 1) : 0,
+            ],
+
+            // Section 6: Total amount
+            'total_amount' => [
+                'receive' => round($totalReceive, 2),
+                'deduction' => round($totalDeduction, 2),
+                'net' => round($totalReceive - $totalDeduction, 2),
+            ],
+
+            // Summary (for backward compat with existing UI cards)
+            'summary' => [
+                'cash_total' => round($totalCash, 2),
+                'transfer_total' => round($totalTransfer, 2),
+                'total' => round($grandTotal, 2),
+                'transaction_count' => $pledges->count() + $renewals->count() + $redemptions->count(),
+            ],
+        ]);
+    }
 }
