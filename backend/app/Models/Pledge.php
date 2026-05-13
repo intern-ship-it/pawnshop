@@ -185,7 +185,7 @@ class Pledge extends Model
         $year = date('Y');
         $lastPledge = static::where('branch_id', $branchId)
             ->whereYear('created_at', $year)
-            ->orderBy('id', 'desc')
+            ->orderBy('pledge_no', 'desc')
             ->first();
 
         $number = $lastPledge ? (int) substr($lastPledge->pledge_no, -4) + 1 : 1;
@@ -198,7 +198,7 @@ class Pledge extends Model
         $year = date('Y');
         $lastPledge = static::where('branch_id', $branchId)
             ->whereYear('created_at', $year)
-            ->orderBy('id', 'desc')
+            ->orderBy('receipt_no', 'desc')
             ->first();
 
         $number = $lastPledge ? (int) substr($lastPledge->receipt_no, -4) + 1 : 1;
