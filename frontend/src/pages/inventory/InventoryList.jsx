@@ -304,7 +304,7 @@ export default function InventoryList() {
   const getPurityName = (purity) => {
     if (!purity) return "916";
     if (typeof purity === "string") return purity;
-    return purity.name_en || purity.name || purity.code || "916";
+    return purity.code || purity.name_en || purity.name || "916";
   };
 
   // Get unique categories
@@ -755,7 +755,7 @@ export default function InventoryList() {
                 + '<svg id="barcode-' + index + '"></svg>'
                 + '</div>'
                 + '<div class="footer-row">'
-                + (storageLocation !== "N/A" ? '<div class="storage-loc">' + storageLocation + '</div>' : '<div>' + (getPurityName(item.purity) || "916") + '</div>')
+                + (storageLocation !== "N/A" ? '<div class="storage-loc">' + storageLocation + '</div>' : '<div>' + (purityLabels[getPurityName(item.purity)] || getPurityName(item.purity) || "916") + '</div>')
                 + '<div>' + parseFloat(item.net_weight || item.weight || 0).toFixed(2) + 'g</div>'
                 + '</div>'
                 + '<div class="reprint-badge">' + badgeText + '</div>'
@@ -819,7 +819,8 @@ export default function InventoryList() {
   // Print single item label - 50mm x 50mm thermal label
   const handlePrintSingleLabel = (item, isRelocated = false) => {
     const catName = getCategoryName(item.category);
-    const purName = getPurityName(item.purity);
+    const basePurity = getPurityName(item.purity);
+    const purName = purityLabels[basePurity] || basePurity;
     const barcodeValue = item.barcode || "NOCODE";
     let storageLocation = "N/A";
     if (item.vault || item.box || item.slot) {
@@ -1038,7 +1039,7 @@ export default function InventoryList() {
         "Pledge No": item.pledge?.pledge_no || "",
         Customer: item.pledge?.customer?.name || "",
         Category: getCategoryName(item.category),
-        Purity: getPurityName(item.purity),
+        Purity: purityLabels[getPurityName(item.purity)] || getPurityName(item.purity),
         "Weight (g)": item.net_weight || item.weight || 0,
         "Value (RM)": item.net_value || item.estimated_value || 0,
         Location: locationStr,
@@ -1596,7 +1597,7 @@ export default function InventoryList() {
                             </td>
                             <td className="p-4">
                               <Badge variant="default">
-                                {getPurityName(item.purity)}
+                                {purityLabels[getPurityName(item.purity)] || getPurityName(item.purity)}
                               </Badge>
                             </td>
                             <td className="p-4">
