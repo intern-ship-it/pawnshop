@@ -761,7 +761,7 @@ class ReportController extends Controller
         // --- Pledges ---
         $pledges = Pledge::where('branch_id', $branchId)
             ->whereBetween('pledge_date', [$fromDate, $toDate])
-            ->with('payments')
+            ->with(['payments', 'items.purity'])
             ->get();
 
         // Daily breakdown (grouped by pledge_date)
@@ -770,15 +770,29 @@ class ReportController extends Controller
                 ? $p->pledge_date->toDateString()
                 : Carbon::parse($p->pledge_date)->toDateString();
         })->map(function ($dayPledges, $date) {
-            // Get the gold_price_916 from the first pledge of the day (all same day should be same price)
-            $goldPrice916 = $dayPledges->first()->gold_price_916 ?? null;
+            $purities = collect();
+            foreach ($dayPledges as $pledge) {
+                foreach ($pledge->items as $item) {
+                    if ($item->purity) {
+                        $purityCode = $item->purity->code;
+                        $price = $item->price_per_gram;
+                        $key = $purityCode . '_' . $price;
+                        if (!$purities->has($key)) {
+                            $purities->put($key, [
+                                'purity' => $purityCode,
+                                'price' => $price
+                            ]);
+                        }
+                    }
+                }
+            }
 
             return [
                 'date' => $date,
                 'count' => $dayPledges->count(),
                 'total_loan' => round($dayPledges->sum('loan_amount'), 2),
                 'actual_disbursed' => round($dayPledges->sum('payout_amount') ?: $dayPledges->sum('loan_amount'), 2),
-                'gold_price_916' => $goldPrice916 ? round($goldPrice916, 2) : null,
+                'purities_used' => $purities->values()->toArray(),
             ];
         })->sortKeys()->values();
 
@@ -798,7 +812,7 @@ class ReportController extends Controller
                     'count' => 0,
                     'total_loan' => 0,
                     'actual_disbursed' => 0,
-                    'gold_price_916' => null,
+                    'purities_used' => [],
                 ];
             }
         }

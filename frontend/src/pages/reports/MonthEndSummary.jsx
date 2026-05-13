@@ -256,14 +256,27 @@ export default function MonthEndSummary() {
     // Build daily breakdown rows
     const dailyRows = (stats.dailyBreakdown || []).map(day => {
       if (day.count === 0) {
-        return `<tr><td>${formatDate(day.date)}</td><td class="right">-</td><td class="right">-</td><td class="right">-</td><td class="right">-</td></tr>`;
+        return `<tr><td>${formatDate(day.date)}</td><td class="right">-</td><td class="right">-</td><td class="right">-</td><td class="right">-</td><td class="right">-</td></tr>`;
       }
+      
+      let purityCol = '-';
+      let priceCol = '-';
+      
+      if (day.purities_used && day.purities_used.length > 0) {
+          purityCol = day.purities_used.map(p => p.purity).join('<br/>');
+          priceCol = day.purities_used.map(p => `RM ${parseFloat(p.price).toFixed(2)}`).join('<br/>');
+      } else if (day.gold_price_916) {
+          purityCol = '916';
+          priceCol = `RM ${parseFloat(day.gold_price_916).toFixed(2)}`;
+      }
+      
       return `<tr>
         <td>${formatDate(day.date)}</td>
         <td class="right">${day.count}</td>
         <td class="right">${formatCurrency(day.total_loan)}</td>
         <td class="right">${formatCurrency(day.actual_disbursed)}</td>
-        <td class="right">${day.gold_price_916 ? `RM ${parseFloat(day.gold_price_916).toFixed(2)}` : '-'}</td>
+        <td class="right">${purityCol}</td>
+        <td class="right">${priceCol}</td>
       </tr>`;
     }).join('');
 
@@ -373,7 +386,8 @@ export default function MonthEndSummary() {
                 <th class="right">No. of Pledges</th>
                 <th class="right">Total Loan Amount</th>
                 <th class="right">Actual Disbursed</th>
-                <th class="right">Gold Price (916)</th>
+                <th class="right">Gold Purity</th>
+                <th class="right">Gold Price</th>
               </tr>
             </thead>
             <tbody>
