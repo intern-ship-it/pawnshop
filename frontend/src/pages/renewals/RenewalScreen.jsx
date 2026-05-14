@@ -98,6 +98,7 @@ export default function RenewalScreen() {
   const [extensionMonths, setExtensionMonths] = useState(1);
   const [interestRate, setInterestRate] = useState("");
   const [interestRateRules, setInterestRateRules] = useState([]);
+  const [rateSource, setRateSource] = useState(""); // 'global' | 'customer' | 'manual'
 
   // Calculation state (from API)
   const [calculation, setCalculation] = useState(null);
@@ -521,6 +522,22 @@ export default function RenewalScreen() {
       customRate = (enrichedPledge.status === "overdue" || isOverdue) ? "2.0" : "";
     }
     setInterestRate(customRate);
+
+    // Determine rate source badge
+    if (customRate && enrichedPledge.interestRate) {
+      // Compare pledge rate with the global rule rate
+      const pledgeRate = enrichedPledge.interestRate;
+      const globalRule = interestRateRules.find(r => r.rate_type === 'standard' && r.is_active)
+        || interestRateRules.find(r => r.rate_type === 'normal' && r.is_active);
+      const globalRateVal = globalRule ? parseFloat(globalRule.rate_percentage) : 0.5;
+      if (Math.abs(pledgeRate - globalRateVal) > 0.001) {
+        setRateSource("customer");
+      } else {
+        setRateSource("global");
+      }
+    } else {
+      setRateSource("global");
+    }
 
     // Pre-fill extension months based on the applicable rate's month range
     let prefillMonths = 6; // fallback
@@ -2027,15 +2044,30 @@ export default function RenewalScreen() {
 
                 {/* Custom Interest Rate */}
                 <div className="mb-4">
-                  <label className="text-sm text-zinc-600 mb-2 block">
-                    Custom Interest Rate (%) <span className="text-xs text-zinc-400 font-normal">(Leave empty for default)</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-zinc-600">
+                      Custom Interest Rate (%) <span className="text-xs text-zinc-400 font-normal">(Leave empty for default)</span>
+                    </label>
+                    {rateSource && (
+                      <Badge
+                        variant={rateSource === 'customer' ? 'warning' : rateSource === 'manual' ? 'info' : 'success'}
+                        size="sm"
+                      >
+                        {rateSource === 'customer' && '👤 Customer Rate'}
+                        {rateSource === 'global' && '🌐 Global Rate'}
+                        {rateSource === 'manual' && '✏️ Manual Override'}
+                      </Badge>
+                    )}
+                  </div>
                   <Input
                     type="number"
                     step="0.01"
                     placeholder="e.g. 1.0"
                     value={interestRate}
-                    onChange={(e) => setInterestRate(e.target.value)}
+                    onChange={(e) => {
+                      setInterestRate(e.target.value);
+                      setRateSource("manual");
+                    }}
                     leftIcon={TrendingUp}
                   />
                 </div>

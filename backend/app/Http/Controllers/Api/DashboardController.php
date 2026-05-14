@@ -62,6 +62,27 @@ class DashboardController extends Controller
         // Total customers
         $totalCustomers = Customer::where('branch_id', $branchId)->count();
 
+        // Total outstanding = sum of loan_amount for all active pledges
+        $totalOutstanding = Pledge::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->sum('loan_amount');
+
+        // Overdue amount = sum of loan_amount for overdue pledges
+        $overdueAmount = Pledge::where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->where('due_date', '<', $today)
+            ->sum('loan_amount');
+
+        // Monthly revenue = this month's renewal interest + redemption interest
+        $monthStart = Carbon::now()->startOfMonth();
+        $monthlyRenewalRevenue = Renewal::where('branch_id', $branchId)
+            ->where('created_at', '>=', $monthStart)
+            ->sum('interest_amount');
+        $monthlyRedemptionRevenue = Redemption::where('branch_id', $branchId)
+            ->where('created_at', '>=', $monthStart)
+            ->sum('interest_amount');
+        $monthlyRevenue = (float) $monthlyRenewalRevenue + (float) $monthlyRedemptionRevenue;
+
         return $this->success([
             'today' => [
                 'pledges' => [
@@ -79,6 +100,9 @@ class DashboardController extends Controller
             ],
             'active_pledges' => $activePledges,
             'overdue_pledges' => $overduePledges,
+            'overdue_amount' => (float) $overdueAmount,
+            'total_outstanding' => (float) $totalOutstanding,
+            'monthly_revenue' => $monthlyRevenue,
             'total_customers' => $totalCustomers,
             'pledge_breakdown' => [
                 'total' => (int) $pledgeBreakdown->total,

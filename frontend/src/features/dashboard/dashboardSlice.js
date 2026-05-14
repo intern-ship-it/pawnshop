@@ -31,12 +31,10 @@ export const fetchDashboardSummary = createAsyncThunk(
       return {
         totalPledges: data.active_pledges || 0,
         totalCustomers: data.total_customers || 0,
-        totalOutstanding: data.today?.pledges?.total || 0,
+        totalOutstanding: data.total_outstanding || 0,
         totalOverdue: data.overdue_pledges || 0,
         overdueAmount: data.overdue_amount || 0,
-        monthlyRevenue: (data.today?.pledges?.total || 0) +
-          (data.today?.renewals?.total || 0) +
-          (data.today?.redemptions?.total || 0),
+        monthlyRevenue: data.monthly_revenue || 0,
         monthlyGrowth: data.monthly_growth || 0,
         today: data.today || {},
         pledgeBreakdown: data.pledge_breakdown || null,

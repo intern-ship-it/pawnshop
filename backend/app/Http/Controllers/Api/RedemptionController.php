@@ -80,6 +80,7 @@ class RedemptionController extends Controller
             'pledge_id' => 'required|exists:pledges,id',
             'item_ids' => 'nullable|array', // Issue 2: Optional item selection
             'item_ids.*' => 'exists:pledge_items,id',
+            'interest_rate' => 'nullable|numeric|min:0|max:100', // Custom rate override
         ]);
 
         $branchId = $request->user()->branch_id;
@@ -122,9 +123,9 @@ class RedemptionController extends Controller
                 $monthsElapsed,
                 $daysOverdue,
                 $pledge->status,
-                $pledge->interest_rate,
-                $pledge->interest_rate_extended,
-                $pledge->interest_rate_overdue
+                $validated['interest_rate'] ?? $pledge->interest_rate,
+                $validated['interest_rate'] ?? $pledge->interest_rate_extended,
+                $validated['interest_rate'] ?? $pledge->interest_rate_overdue
             );
 
             // Add partial redemption info
@@ -167,9 +168,9 @@ class RedemptionController extends Controller
             $monthsElapsed,
             $daysOverdue,
             $pledge->status,
-            $pledge->interest_rate,
-            $pledge->interest_rate_extended,
-            $pledge->interest_rate_overdue
+            $validated['interest_rate'] ?? $pledge->interest_rate,
+            $validated['interest_rate'] ?? $pledge->interest_rate_extended,
+            $validated['interest_rate'] ?? $pledge->interest_rate_overdue
         );
 
         $calculation['is_partial'] = false;
@@ -235,6 +236,7 @@ class RedemptionController extends Controller
             'reference_no' => 'nullable|string|max:50',
             'customer_signature' => 'nullable|string',
             'terms_accepted' => 'required|boolean',
+            'interest_rate' => 'nullable|numeric|min:0|max:100', // Custom rate override
         ]);
 
         $branchId = $request->user()->branch_id;
@@ -286,9 +288,9 @@ class RedemptionController extends Controller
                 $monthsElapsed,
                 $daysOverdue,
                 $pledge->status,
-                $pledge->interest_rate,
-                $pledge->interest_rate_extended,
-                $pledge->interest_rate_overdue
+                $validated['interest_rate'] ?? $pledge->interest_rate,
+                $validated['interest_rate'] ?? $pledge->interest_rate_extended,
+                $validated['interest_rate'] ?? $pledge->interest_rate_overdue
             );
 
             // Verify payment amount

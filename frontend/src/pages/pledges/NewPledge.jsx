@@ -2021,12 +2021,25 @@ export default function NewPledge() {
         payment: payment,
         customer_signature: signature,
         terms_accepted: true,
-        gold_prices: {
-          price_999: parseFloat(getMarketPrice("999")) || 0,
-          price_916: parseFloat(getMarketPrice("916")) || 0,
-          price_875: parseFloat(getMarketPrice("875")) || 0,
-          price_750: parseFloat(getMarketPrice("750")) || 0,
-        },
+        gold_prices: (() => {
+          // For each purity, use the actual price from pledge items if available
+          // (this captures manual overrides), otherwise fall back to market price
+          const usedPrices = {};
+          pledgeItems.forEach((pi) => {
+            const matchedItem = items.find(
+              (it) => getCategoryId(it.category) === pi.category_id && getPurityId(it.purity) === pi.purity_id
+            );
+            if (matchedItem) {
+              usedPrices[matchedItem.purity] = pi.price_per_gram;
+            }
+          });
+          return {
+            price_999: usedPrices["999"] || parseFloat(getMarketPrice("999")) || 0,
+            price_916: usedPrices["916"] || parseFloat(getMarketPrice("916")) || 0,
+            price_875: usedPrices["875"] || parseFloat(getMarketPrice("875")) || 0,
+            price_750: usedPrices["750"] || parseFloat(getMarketPrice("750")) || 0,
+          };
+        })(),
       };
 
       // Add interest rate overrides if manually changed or customer has custom rates

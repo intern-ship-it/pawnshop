@@ -62,11 +62,16 @@ export default function MonthEndSummary() {
 
   // Stats from report data
   const stats = useMemo(() => {
-    if (!reportData?.summary) return null;
-    const summary = reportData.summary;
+    if (!reportData) return null;
+
+    const summary = reportData.summary || {};
     const pledges = reportData.pledges || {};
     const renewals = reportData.renewals || {};
     const redemptions = reportData.redemptions || {};
+    const paymentFlow = reportData.payment_flow || {};
+    const paymentMethods = reportData.payment_methods || {};
+    const vault = reportData.vault || {};
+    const totalAmount = reportData.total_amount || {};
 
     return {
       newPledgesCount: pledges.count || 0,
@@ -75,12 +80,31 @@ export default function MonthEndSummary() {
       renewalInterest: renewals.total || 0,
       redemptionsCount: redemptions.count || 0,
       redemptionAmount: redemptions.total || 0,
-      cashIn: renewals.cash + redemptions.cash,
-      cashOut: pledges.cash,
-      netCashFlow: (renewals.cash + redemptions.cash) - (pledges.cash),
+      // Payment flow (cash/transfer in/out)
+      cashIn: paymentFlow.cash_in || 0,
+      cashOut: paymentFlow.cash_out || 0,
+      transferIn: paymentFlow.transfer_in || 0,
+      transferOut: paymentFlow.transfer_out || 0,
+      netFlow: paymentFlow.net_flow || 0,
+      // Legacy net cash flow for UI cards
+      netCashFlow: paymentFlow.net_flow || 0,
+      // Transaction count
       totalTransactionCount: summary.transaction_count || 0,
-      cashTotal: summary.cash_total || 0,
-      transferTotal: summary.transfer_total || 0,
+      // Payment methods
+      cashTotal: paymentMethods.cash || summary.cash_total || 0,
+      transferTotal: paymentMethods.transfer || summary.transfer_total || 0,
+      cashPercent: paymentMethods.cash_percent || 0,
+      transferPercent: paymentMethods.transfer_percent || 0,
+      // Vault (month only)
+      vaultItems: vault.new_pledged_items || 0,
+      vaultWeight: vault.total_weight || 0,
+      vaultLoanExposure: vault.total_loan_exposure || 0,
+      // Total amount
+      totalReceive: totalAmount.receive || 0,
+      totalDeduction: totalAmount.deduction || 0,
+      totalNet: totalAmount.net || 0,
+      // Daily breakdown
+      dailyBreakdown: reportData.daily_breakdown || [],
     };
   }, [reportData]);
 
@@ -137,7 +161,8 @@ export default function MonthEndSummary() {
   const fetchMonthEndData = async () => {
     setIsLoading(true);
     try {
-      const response = await reportService.getPaymentSplitReport({
+      // Use the new month-end-report endpoint
+      const response = await reportService.getMonthEndReport({
         from_date: dateRange.from,
         to_date: dateRange.to,
       });
@@ -228,15 +253,42 @@ export default function MonthEndSummary() {
       console.error("Failed to fetch logo for print:", e);
     }
 
-    // Derived calculations for print
-    const totalVolumePrint = (stats.cashTotal || 0) + (stats.transferTotal || 0);
+    // Build daily breakdown rows
+    const dailyRows = (stats.dailyBreakdown || []).map(day => {
+      if (day.count === 0) {
+        return `<tr><td>${formatDate(day.date)}</td><td class="right">-</td><td class="right">-</td><td class="right">-</td><td class="right">-</td><td class="right">-</td></tr>`;
+      }
+      
+      let purityCol = '-';
+      let priceCol = '-';
+      
+      if (day.purities_used && day.purities_used.length > 0) {
+          purityCol = day.purities_used.map(p => p.purity).join('<br/>');
+          priceCol = day.purities_used.map(p => `RM ${parseFloat(p.price).toFixed(2)}`).join('<br/>');
+      } else if (day.gold_price_916) {
+          purityCol = '916';
+          priceCol = `RM ${parseFloat(day.gold_price_916).toFixed(2)}`;
+      }
+      
+      return `<tr>
+        <td>${formatDate(day.date)}</td>
+        <td class="right">${day.count}</td>
+        <td class="right">${formatCurrency(day.total_loan)}</td>
+        <td class="right">${formatCurrency(day.actual_disbursed)}</td>
+        <td class="right">${purityCol}</td>
+        <td class="right">${priceCol}</td>
+      </tr>`;
+    }).join('');
+
+    // Totals for daily breakdown
+    const dailyTotalCount = (stats.dailyBreakdown || []).reduce((s, d) => s + d.count, 0);
+    const dailyTotalLoan = (stats.dailyBreakdown || []).reduce((s, d) => s + d.total_loan, 0);
+    const dailyTotalDisbursed = (stats.dailyBreakdown || []).reduce((s, d) => s + d.actual_disbursed, 0);
+
+    // Payment methods
+    const totalVolumePrint = stats.cashTotal + stats.transferTotal;
     const cashPercentPrint = totalVolumePrint > 0 ? Math.round((stats.cashTotal / totalVolumePrint) * 100) : 0;
     const transferPercentPrint = totalVolumePrint > 0 ? 100 - cashPercentPrint : 0;
-    const avgPledgeSize = stats.newPledgesCount > 0 ? stats.newPledgesAmount / stats.newPledgesCount : 0;
-    const avgRedemption = stats.redemptionsCount > 0 ? stats.redemptionAmount / stats.redemptionsCount : 0;
-    const pledgeToRedeemRatioPrint = stats.redemptionsCount > 0
-      ? (stats.newPledgesCount / stats.redemptionsCount).toFixed(2)
-      : "N/A";
 
     const printContent = `
       <!DOCTYPE html>
@@ -259,7 +311,6 @@ export default function MonthEndSummary() {
           .section { margin-bottom: 24px; }
           .section-title { font-size: 14px; font-weight: 700; border-bottom: 2px solid #1a1a1a; padding-bottom: 4px; margin-bottom: 6px; }
           .section-number { font-weight: 800; color: #92400e; margin-right: 4px; }
-          /* Amber-themed tables */
           .summary-table { width: 100%; border-collapse: collapse; margin-top: 2px; }
           .summary-table thead th { background: #92400e; color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 10px; text-align: left; border: none; }
           .summary-table thead th.right { text-align: right; }
@@ -267,7 +318,6 @@ export default function MonthEndSummary() {
           .summary-table tbody td.right { text-align: right; }
           .summary-table tbody tr:nth-child(even) { background: #fffbeb; }
           .subtotal-bar { margin-top: 0; padding: 8px 12px; background: #92400e; color: #fff; font-weight: 600; font-size: 12px; letter-spacing: 0.2px; }
-          /* General tables */
           table { width: 100%; border-collapse: collapse; }
           table th { text-align: left; font-weight: 700; font-size: 11px; border-bottom: 1px solid #999; padding: 4px 8px 4px 0; color: #333; }
           table th.right, table td.right { text-align: right; }
@@ -276,32 +326,21 @@ export default function MonthEndSummary() {
           .total-row td { border-top: 1px solid #333; border-bottom: 2px solid #333 !important; font-weight: 700; padding-top: 6px; padding-bottom: 6px; }
           .positive { color: #0a7d2e; }
           .negative { color: #c0392b; }
-          .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #f59e0b; padding: 10px 15px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
-          .gold-banner .gold-label { font-weight: 600; color: #92400e; font-size: 13px; display: flex; align-items: center; gap: 8px; }
-          .gold-banner .gold-value { font-size: 15px; font-weight: 700; color: #b45309; }
-          .gold-source-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-          .gold-source-manual { background: #dbeafe; color: #1d4ed8; }
-          .gold-source-api { background: #dcfce7; color: #15803d; }
           .net-cash-box { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 2px solid #92400e; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
           .net-cash-label { font-size: 16px; font-weight: 700; color: #92400e; }
           .net-cash-value { font-size: 20px; font-weight: 800; }
-          .highlights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
-          .highlight-item { padding: 8px 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
-          .highlight-item .hl-label { font-size: 12px; color: #6b7280; }
-          .highlight-item .hl-value { font-size: 13px; font-weight: 700; color: #1f2937; }
           .signature-area { margin-top: 50px; display: flex; justify-content: space-around; padding: 0 20px; }
           .signature-block { text-align: center; width: 160px; }
           .signature-line { border-top: 1px solid #333; padding-top: 6px; font-size: 12px; font-weight: 600; }
           .footer { text-align: center; margin-top: 30px; color: #999; font-size: 10px; }
+          .page-break { page-break-before: always; }
           @media print {
             body { padding: 15px 25px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
             .summary-table thead th { background: #92400e !important; color: #fff !important; }
             .summary-table tbody tr:nth-child(even) { background: #fffbeb !important; }
             .subtotal-bar { background: #92400e !important; color: #fff !important; }
-            .gold-banner { background: linear-gradient(135deg, #fffbeb, #fef3c7) !important; }
             .net-cash-box { background: linear-gradient(135deg, #fffbeb, #fef3c7) !important; }
-            .highlight-item { background: #f9fafb !important; }
           }
         </style>
       </head>
@@ -321,11 +360,6 @@ export default function MonthEndSummary() {
         <h1>Month End Summary</h1>
         <div class="sub-header">Month: ${monthLabel} &nbsp;&nbsp;|&nbsp;&nbsp; Period: ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}</div>
 
-        <div class="gold-banner">
-          <span class="gold-label">Gold Value (per gram) <span class="gold-source-badge ${goldPriceSource === 'manual' ? 'gold-source-manual' : 'gold-source-api'}">${goldPriceSource === 'manual' ? 'Manual' : 'API'}</span></span>
-          <span class="gold-value">${goldPrice ? `RM ${parseFloat(goldPrice).toFixed(2)}/g` : "N/A"}</span>
-        </div>
-
         <!-- 1. Monthly Transaction Summary -->
         <div class="section">
           <div class="section-title"><span class="section-number">1.</span> Monthly Transaction Summary</div>
@@ -342,40 +376,67 @@ export default function MonthEndSummary() {
           </div>
         </div>
 
-        <!-- 2. Live Inventory Status -->
+        <!-- 2. Daily Loan Distribution Summary -->
         <div class="section">
-          <div class="section-title"><span class="section-number">2.</span> Vault Inventory Status</div>
+          <div class="section-title"><span class="section-number">2.</span> Daily Loan Distribution Summary</div>
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th class="right">No. of Pledges</th>
+                <th class="right">Total Loan Amount</th>
+                <th class="right">Actual Disbursed</th>
+                <th class="right">Gold Purity</th>
+                <th class="right">Gold Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${dailyRows}
+            </tbody>
+          </table>
+          <div class="subtotal-bar">
+            Total: ${dailyTotalCount} pledges | Loan: ${formatCurrency(dailyTotalLoan)} | Disbursed: ${formatCurrency(dailyTotalDisbursed)}
+          </div>
+        </div>
+
+        <!-- 3. Vault Inventory Status (Month Only) -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">3.</span> Vault Inventory Status (${monthLabel})</div>
           <table class="summary-table">
             <thead><tr><th>Item</th><th class="right">Value</th></tr></thead>
             <tbody>
-              <tr><td>Items in Storage</td><td class="right"><strong>${inventorySummary.in_storage} items</strong></td></tr>
-              <tr><td>Total Weight</td><td class="right">${parseFloat(inventorySummary.total_weight).toFixed(3)}g</td></tr>
-              <tr><td>Total Loan Exposure</td><td class="right"><strong>${formatCurrency(inventorySummary.total_value)}</strong></td></tr>
-              <tr><td>Total Market Value (Gross)</td><td class="right"><strong>${formatCurrency(inventorySummary.total_gross_value)}</strong></td></tr>
+              <tr><td>New Pledged Items (${monthLabel})</td><td class="right"><strong>${stats.vaultItems} items</strong></td></tr>
+              <tr><td>Total Weight</td><td class="right">${parseFloat(stats.vaultWeight).toFixed(3)}g</td></tr>
+              <tr><td>Total Loan Exposure</td><td class="right"><strong>${formatCurrency(stats.vaultLoanExposure)}</strong></td></tr>
             </tbody>
           </table>
         </div>
 
-        <!-- 3. Cash Flow Summary -->
+        <!-- 4. Payment Flow Summary -->
         <div class="section">
-          <div class="section-title"><span class="section-number">3.</span> Cash Flow Summary</div>
+          <div class="section-title"><span class="section-number">4.</span> Payment Flow Summary</div>
           <table class="summary-table">
             <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
             <tbody>
               <tr><td>Cash In (Redemptions + Renewals)</td><td class="right positive">+ ${formatCurrency(stats.cashIn)}</td></tr>
               <tr><td>Cash Out (Pledges Disbursed)</td><td class="right negative">- ${formatCurrency(stats.cashOut)}</td></tr>
-              <tr style="border-top: 2px solid #92400e;"><td><strong>Net Cash Flow</strong></td><td class="right ${stats.netCashFlow >= 0 ? "positive" : "negative"}"><strong>${stats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(stats.netCashFlow)}</strong></td></tr>
+              <tr><td>Online Transfer In (Redemptions + Renewals)</td><td class="right positive">+ ${formatCurrency(stats.transferIn)}</td></tr>
+              <tr><td>Online Transfer Out (Pledges Disbursed)</td><td class="right negative">- ${formatCurrency(stats.transferOut)}</td></tr>
             </tbody>
           </table>
+          <div class="net-cash-box">
+            <span class="net-cash-label">Net Amount Flow</span>
+            <span class="net-cash-value ${stats.netFlow >= 0 ? "positive" : "negative"}">${stats.netFlow >= 0 ? "+" : ""}${formatCurrency(stats.netFlow)}</span>
+          </div>
         </div>
 
-        <!-- 4. Payment Methods Breakdown -->
+        <!-- 5. Payment Methods Breakdown -->
         <div class="section">
-          <div class="section-title"><span class="section-number">4.</span> Payment Methods Breakdown</div>
+          <div class="section-title"><span class="section-number">5.</span> Payment Methods Breakdown</div>
           <table class="summary-table">
             <thead><tr><th>Method</th><th class="right">Amount</th><th class="right">Share</th></tr></thead>
             <tbody>
-              <tr><td>Physical Cash</td><td class="right">${formatCurrency(stats.cashTotal)}</td><td class="right">${cashPercentPrint}%</td></tr>
+              <tr><td>Cash</td><td class="right">${formatCurrency(stats.cashTotal)}</td><td class="right">${cashPercentPrint}%</td></tr>
               <tr><td>Online Transfer</td><td class="right">${formatCurrency(stats.transferTotal)}</td><td class="right">${transferPercentPrint}%</td></tr>
             </tbody>
           </table>
@@ -384,53 +445,57 @@ export default function MonthEndSummary() {
           </div>
         </div>
 
-        <!-- 5. Net Cash Movement -->
+        <!-- 6. Total Amount -->
         <div class="section">
-          <div class="section-title"><span class="section-number">5.</span> Net Cash Movement</div>
+          <div class="section-title"><span class="section-number">6.</span> Total Amount</div>
+          <table class="summary-table">
+            <thead><tr><th>Description</th><th class="right">Amount</th></tr></thead>
+            <tbody>
+              <tr><td>Total Received (Cash In + Transfer In)</td><td class="right positive"><strong>+ ${formatCurrency(stats.totalReceive)}</strong></td></tr>
+              <tr><td>Total Deduction (Cash Out + Transfer Out)</td><td class="right negative"><strong>- ${formatCurrency(stats.totalDeduction)}</strong></td></tr>
+            </tbody>
+          </table>
           <div class="net-cash-box">
-            <span class="net-cash-label">Net Cash Movement</span>
-            <span class="net-cash-value ${stats.netCashFlow >= 0 ? "positive" : "negative"}">${stats.netCashFlow >= 0 ? "+" : ""}${formatCurrency(stats.netCashFlow)}</span>
+            <span class="net-cash-label">Net Total</span>
+            <span class="net-cash-value ${stats.totalNet >= 0 ? "positive" : "negative"}">${stats.totalNet >= 0 ? "+" : ""}${formatCurrency(stats.totalNet)}</span>
           </div>
         </div>
 
-        <!-- 6. Monthly Highlights -->
+        <!-- 7. Monthly Performance Highlights -->
         <div class="section">
-          <div class="section-title"><span class="section-number">6.</span> Monthly Highlights</div>
-          <div class="highlights-grid">
-            <div class="highlight-item">
-              <span class="hl-label">Avg. Pledge Size</span>
-              <span class="hl-value">${formatCurrency(avgPledgeSize)}</span>
-            </div>
-            <div class="highlight-item">
-              <span class="hl-label">Avg. Redemption</span>
-              <span class="hl-value">${formatCurrency(avgRedemption)}</span>
-            </div>
-            <div class="highlight-item">
-              <span class="hl-label">Interest Earned</span>
-              <span class="hl-value" style="color: #b45309;">${formatCurrency(stats.renewalInterest)}</span>
-            </div>
-            <div class="highlight-item">
-              <span class="hl-label">Pledge : Redeem Ratio</span>
-              <span class="hl-value">${pledgeToRedeemRatioPrint}</span>
-            </div>
-            <div class="highlight-item">
-              <span class="hl-label">Cash vs Transfer</span>
-              <span class="hl-value">${cashPercentPrint}% / ${transferPercentPrint}%</span>
-            </div>
-            <div class="highlight-item">
-              <span class="hl-label">Total Transactions</span>
-              <span class="hl-value">${stats.totalTransactionCount}</span>
-            </div>
-          </div>
+          <div class="section-title"><span class="section-number">7.</span> Monthly Performance Highlights</div>
+          <table class="summary-table">
+            <thead><tr><th>KPI</th><th class="right">Result</th></tr></thead>
+            <tbody>
+              <tr><td>Total Transactions</td><td class="right">${stats.totalTransactionCount}</td></tr>
+              <tr><td>Average Pledge Size</td><td class="right">${stats.newPledgesCount > 0 ? formatCurrency(stats.newPledgesAmount / stats.newPledgesCount) : 'RM 0.00'}</td></tr>
+              <tr><td>Average Redemption Amount</td><td class="right">${stats.redemptionsCount > 0 ? formatCurrency(stats.redemptionAmount / stats.redemptionsCount) : 'RM 0.00'}</td></tr>
+              <tr><td>Interest Earned</td><td class="right">${formatCurrency(stats.renewalInterest)}</td></tr>
+              <tr><td>Pledge : Redemption Ratio</td><td class="right">${stats.redemptionsCount > 0 ? (stats.newPledgesCount / stats.redemptionsCount).toFixed(2) : 'N/A'}</td></tr>
+              <tr><td>Cash vs Transfer Ratio</td><td class="right">${cashPercentPrint}% / ${transferPercentPrint}%</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 8. Management Observations -->
+        <div class="section">
+          <div class="section-title"><span class="section-number">8.</span> Management Observations</div>
+          <ul style="padding-left: 20px; font-size: 13px; line-height: 2; color: #333;">
+            <li>${stats.newPledgesCount > 0 ? 'Pledge activity recorded with ' + stats.newPledgesCount + ' new pledges totalling ' + formatCurrency(stats.newPledgesAmount) + '.' : 'No new pledge activity recorded during the reporting period.'}</li>
+            <li>${stats.transferTotal > stats.cashTotal ? 'Digital transfer transactions dominate operational disbursement methods.' : 'Physical cash transactions dominate operational disbursement methods.'}</li>
+            <li>${stats.redemptionsCount > 0 ? stats.redemptionsCount + ' redemption(s) processed totalling ' + formatCurrency(stats.redemptionAmount) + '.' : 'No redemption activity recorded during the reporting period.'}</li>
+            <li>${stats.renewalsCount > 0 ? stats.renewalsCount + ' renewal(s) processed with ' + formatCurrency(stats.renewalInterest) + ' interest collected.' : 'No renewal activity recorded during the reporting period.'}</li>
+            <li>Current focus should remain on monitoring cash exposure, tracking pledge maturity, managing vault utilization, and increasing renewal conversion rates.</li>
+          </ul>
         </div>
 
         <div class="signature-area">
-          <div class="signature-block"><div class="signature-line">Branch Manager</div></div>
-          <div class="signature-block"><div class="signature-line">Accountant</div></div>
-          <div class="signature-block"><div class="signature-line">Director</div></div>
+          <div class="signature-block"><div class="signature-line">Prepared By</div><div style="font-size:11px;color:#666;margin-top:4px;">Branch Manager</div></div>
+          <div class="signature-block"><div class="signature-line">Reviewed By</div><div style="font-size:11px;color:#666;margin-top:4px;">Accountant</div></div>
+          <div class="signature-block"><div class="signature-line">Approved By</div><div style="font-size:11px;color:#666;margin-top:4px;">Director</div></div>
         </div>
 
-        <div class="footer">Generated on ${new Date().toLocaleString("en-MY")} | PawnSys</div>
+        <div class="footer">Generated on ${new Date().toLocaleString("en-MY")} | System: PawnSys</div>
       </body>
       </html>
     `;
@@ -778,7 +843,7 @@ export default function MonthEndSummary() {
             <Card className="p-6">
               <h3 className="font-semibold text-zinc-800 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
                 <Banknote className="w-4 h-4 text-amber-500" />
-                Cash Flow Analysis
+                Payment Flow Analysis
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -790,16 +855,16 @@ export default function MonthEndSummary() {
                     </div>
                   </div>
                   <p className="text-2xl font-black text-emerald-700 tabular-nums">
-                    {formatCurrency(stats?.cashIn || 0)}
+                    {formatCurrency((stats?.cashIn || 0) + (stats?.transferIn || 0))}
                   </p>
                   <div className="mt-3 pt-3 border-t border-emerald-200/60 space-y-1.5">
                     <div className="flex justify-between text-xs">
-                      <span className="text-emerald-600">Redemptions</span>
-                      <span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(stats?.redemptionAmount || 0)}</span>
+                      <span className="text-emerald-600">Cash In</span>
+                      <span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(stats?.cashIn || 0)}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-emerald-600">Interest</span>
-                      <span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(stats?.renewalInterest || 0)}</span>
+                      <span className="text-emerald-600">Transfer In</span>
+                      <span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(stats?.transferIn || 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -812,32 +877,36 @@ export default function MonthEndSummary() {
                     </div>
                   </div>
                   <p className="text-2xl font-black text-red-700 tabular-nums">
-                    {formatCurrency(stats?.cashOut || 0)}
+                    {formatCurrency((stats?.cashOut || 0) + (stats?.transferOut || 0))}
                   </p>
                   <div className="mt-3 pt-3 border-t border-red-200/60 space-y-1.5">
                     <div className="flex justify-between text-xs">
-                      <span className="text-red-600">Pledges Disbursed</span>
-                      <span className="font-semibold text-red-700 tabular-nums">{formatCurrency(stats?.newPledgesAmount || 0)}</span>
+                      <span className="text-red-600">Cash Out</span>
+                      <span className="font-semibold text-red-700 tabular-nums">{formatCurrency(stats?.cashOut || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-red-600">Transfer Out</span>
+                      <span className="font-semibold text-red-700 tabular-nums">{formatCurrency(stats?.transferOut || 0)}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className={cn(
                   "p-5 rounded-2xl border",
-                  stats?.netCashFlow >= 0
+                  stats?.netFlow >= 0
                     ? "bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200"
                     : "bg-gradient-to-br from-orange-50 to-orange-100/50 border-orange-200",
                 )}>
                   <div className="flex items-center justify-between mb-4">
                     <span className={cn(
                       "text-xs font-bold uppercase tracking-wider",
-                      stats?.netCashFlow >= 0 ? "text-amber-700" : "text-orange-700",
+                      stats?.netFlow >= 0 ? "text-amber-700" : "text-orange-700",
                     )}>Net Movement</span>
                     <div className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center",
-                      stats?.netCashFlow >= 0 ? "bg-amber-200/60" : "bg-orange-200/60",
+                      stats?.netFlow >= 0 ? "bg-amber-200/60" : "bg-orange-200/60",
                     )}>
-                      {stats?.netCashFlow >= 0 ? (
+                      {stats?.netFlow >= 0 ? (
                         <TrendingUp className="w-4 h-4 text-amber-600" />
                       ) : (
                         <TrendingDown className="w-4 h-4 text-orange-600" />
@@ -846,15 +915,15 @@ export default function MonthEndSummary() {
                   </div>
                   <p className={cn(
                     "text-2xl font-black tabular-nums",
-                    stats?.netCashFlow >= 0 ? "text-amber-700" : "text-orange-700",
+                    stats?.netFlow >= 0 ? "text-amber-700" : "text-orange-700",
                   )}>
-                    {stats?.netCashFlow >= 0 ? "+" : ""}{formatCurrency(stats?.netCashFlow || 0)}
+                    {stats?.netFlow >= 0 ? "+" : ""}{formatCurrency(stats?.netFlow || 0)}
                   </p>
                   <p className={cn(
                     "text-[10px] mt-3 font-semibold uppercase tracking-wider",
-                    stats?.netCashFlow >= 0 ? "text-amber-500" : "text-orange-500",
+                    stats?.netFlow >= 0 ? "text-amber-500" : "text-orange-500",
                   )}>
-                    {stats?.netCashFlow >= 0 ? "Positive Cash Position" : "Net Cash Deficit"}
+                    {stats?.netFlow >= 0 ? "Positive Cash Position" : "Net Cash Deficit"}
                   </p>
                 </div>
               </div>
@@ -956,19 +1025,6 @@ export default function MonthEndSummary() {
                     <span className="text-sm font-semibold text-amber-800">Loan Exposure</span>
                   </div>
                   <span className="text-sm font-bold text-amber-700 tabular-nums">{formatCurrency(inventorySummary.total_value)}</span>
-                </div>
-
-                <div className="p-4 flex items-center justify-between bg-amber-50/30 hover:bg-amber-50/60 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4 text-amber-600" />
-                    </div>
-                    <div>
-                      <span className="text-sm font-semibold text-amber-800 block">Market Value</span>
-                      <span className="text-[10px] text-amber-400">Gross valuation</span>
-                    </div>
-                  </div>
-                  <span className="text-sm font-bold text-amber-700 tabular-nums">{formatCurrency(inventorySummary.total_gross_value)}</span>
                 </div>
               </div>
             </Card>

@@ -94,6 +94,15 @@ const reportService = {
   },
 
   /**
+   * Get month end report (daily breakdown + payment flow)
+   * @param {Object} params - from_date, to_date
+   * @returns {Promise}
+   */
+  async getMonthEndReport(params = {}) {
+    return apiGet('/reports/month-end-report', params)
+  },
+
+  /**
    * Export report as CSV download
    * Uses raw axios to bypass response interceptor (which breaks blob handling)
    * @param {string} reportType - pledges, renewals, redemptions, etc.

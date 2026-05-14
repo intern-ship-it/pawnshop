@@ -446,6 +446,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/customers', [ReportController::class , 'customers']);
             Route::get('/transactions', [ReportController::class , 'transactions']);
             Route::get('/reprints', [ReportController::class , 'reprints']);
+            Route::get('/month-end-report', [ReportController::class , 'monthEndReport']);
             Route::post('/export', [ReportController::class , 'export'])
                 ->middleware('check.permission:reports,export');
         }

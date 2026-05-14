@@ -665,9 +665,24 @@ class ReportController extends Controller
                 break;
 
             case 'inventory':
-                fputcsv($output, ['Pledge No', 'Customer', 'Category', 'Purity', 'Weight (g)', 'Value', 'Vault', 'Box', 'Slot', 'Status']);
+                fputcsv($output, ['Pledge No', 'Customer', 'Category', 'Purity', 'Weight (g)', 'Value', 'Location', 'Status']);
                 if (isset($data->items) && is_countable($data->items)) {
                     foreach ($data->items as $item) {
+                        $locationStr = 'Not Assigned';
+                        if ($item->vault && $item->box && $item->slot) {
+                            $lockerName = strtoupper($item->vault->name ?? $item->vault->code ?? 'Locker');
+                            $drawerName = strtoupper($item->box->box_number ?? $item->box->name ?? 'Drawer');
+                            
+                            if ($item->box->has_subslots) {
+                                $subslotsPerSlot = $item->box->subslots_per_slot ?: 1;
+                                $sNum = ceil($item->slot->slot_number / $subslotsPerSlot);
+                                $subNum = (($item->slot->slot_number - 1) % $subslotsPerSlot) + 1;
+                                $locationStr = sprintf('%s > DRAWER %s > SLOT %d > SUBSLOT %d', $lockerName, $drawerName, $sNum, $subNum);
+                            } else {
+                                $locationStr = sprintf('%s > DRAWER %s > SLOT %d', $lockerName, $drawerName, $item->slot->slot_number);
+                            }
+                        }
+
                         fputcsv($output, [
                             $item->pledge->pledge_no ?? '',
                             $item->pledge->customer->name ?? '',
@@ -675,9 +690,7 @@ class ReportController extends Controller
                             $item->purity->code ?? '',
                             number_format($item->net_weight ?? 0, 3),
                             number_format($item->net_value ?? 0, 2),
-                            $item->vault->name ?? '',
-                            $item->box->code ?? '',
-                            $item->slot->code ?? '',
+                            $locationStr,
                             ucfirst($item->status ?? ''),
                         ]);
                     }
