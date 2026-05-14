@@ -119,6 +119,11 @@ class Pledge extends Model
         return $this->hasMany(Redemption::class);
     }
 
+    public function interestPayments(): HasMany
+    {
+        return $this->hasMany(InterestPayment::class);
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\DotMatrixPrintController;
 use App\Http\Controllers\Api\HardwareController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\MykadProxyController;
+use App\Http\Controllers\Api\InterestPaymentController;
 
 /* |-------------------------------------------------------------------------- | API Routes |-------------------------------------------------------------------------- */
 
@@ -280,6 +281,25 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('check.permission:renewals,view');
         Route::post('/renewals', [RenewalController::class , 'store'])
             ->middleware('check.permission:renewals,create');
+
+        // Interest Payments (interest-only, no term extension)
+        Route::prefix('interest-payments')->group(
+            function () {
+            Route::get('/today', [InterestPaymentController::class, 'today']);
+            Route::get('/eligible-list', [InterestPaymentController::class, 'eligibleList']);
+            Route::get('/calculate', [InterestPaymentController::class, 'calculate']);
+            Route::post('/{interestPayment}/print-receipt', [InterestPaymentController::class, 'printReceipt'])
+                ->middleware('check.permission:interest-payments,print');
+        }
+        );
+
+        // Interest Payment CRUD with permissions
+        Route::get('/interest-payments', [InterestPaymentController::class, 'index'])
+            ->middleware('check.permission:interest-payments,view');
+        Route::get('/interest-payments/{interestPayment}', [InterestPaymentController::class, 'show'])
+            ->middleware('check.permission:interest-payments,view');
+        Route::post('/interest-payments', [InterestPaymentController::class, 'store'])
+            ->middleware('check.permission:interest-payments,create');
 
         // Redemptions
         Route::prefix('redemptions')->group(

@@ -29,6 +29,7 @@ import {
   Grid3X3,
   Calendar,
   Printer,
+  Banknote,
 } from "lucide-react";
 
 /**
@@ -71,6 +72,13 @@ const menuConfig = [
         icon: RefreshCw,
         exact: true,
         permission: "renewals.view",
+      },
+      {
+        name: "Interest Payments",
+        path: "/interest-payments",
+        icon: Banknote,
+        exact: true,
+        permission: "interest-payments.view",
       },
       {
         name: "Redemptions",
