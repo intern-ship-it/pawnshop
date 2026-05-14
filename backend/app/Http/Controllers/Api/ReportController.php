@@ -78,18 +78,31 @@ class ReportController extends Controller
 
         $renewals = $query->orderBy('created_at', 'desc')->get();
 
+        $interestQuery = \App\Models\InterestPayment::where('branch_id', $branchId)
+            ->with(['pledge.customer:id,name,ic_number', 'createdBy:id,name']);
+
+        if ($from) {
+            $interestQuery->whereDate('created_at', '>=', $from);
+        }
+        if ($to) {
+            $interestQuery->whereDate('created_at', '<=', $to);
+        }
+
+        $interestPayments = $interestQuery->orderBy('created_at', 'desc')->get();
+        $combinedRenewals = $renewals->concat($interestPayments)->sortByDesc('created_at')->values();
+
         $summary = [
-            'total_renewals' => $renewals->count(),
-            'total_interest' => $renewals->sum('interest_amount'),
-            'average_interest' => $renewals->count() > 0 ? $renewals->avg('interest_amount') : 0,
-            'total_payable' => $renewals->sum('total_payable'),
-            'total_collected' => $renewals->sum('total_payable'),
-            'cash_collected' => $renewals->sum('cash_amount'),
-            'transfer_collected' => $renewals->sum('transfer_amount'),
+            'total_renewals' => $combinedRenewals->count(),
+            'total_interest' => $combinedRenewals->sum('interest_amount'),
+            'average_interest' => $combinedRenewals->count() > 0 ? $combinedRenewals->avg('interest_amount') : 0,
+            'total_payable' => $combinedRenewals->sum('total_payable'),
+            'total_collected' => $combinedRenewals->sum('total_payable'),
+            'cash_collected' => $combinedRenewals->sum('cash_amount'),
+            'transfer_collected' => $combinedRenewals->sum('transfer_amount'),
         ];
 
         return $this->success([
-            'renewals' => $renewals,
+            'renewals' => $combinedRenewals,
             'summary' => $summary,
         ]);
     }
@@ -241,16 +254,20 @@ class ReportController extends Controller
             'transfer' => $pledges->sum(fn($p) => $p->payments->sum('transfer_amount')),
         ];
 
-        // Renewals
+        // Renewals & Interest Payments
         $renewals = Renewal::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
             ->get();
 
+        $interestPayments = \App\Models\InterestPayment::where('branch_id', $branchId)
+            ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
+            ->get();
+
         $renewalPayments = [
-            'count' => $renewals->count(),
-            'total' => $renewals->sum('total_payable'),
-            'cash' => $renewals->sum('cash_amount'),
-            'transfer' => $renewals->sum('transfer_amount'),
+            'count' => $renewals->count() + $interestPayments->count(),
+            'total' => $renewals->sum('total_payable') + $interestPayments->sum('total_payable'),
+            'cash' => $renewals->sum('cash_amount') + $interestPayments->sum('cash_amount'),
+            'transfer' => $renewals->sum('transfer_amount') + $interestPayments->sum('transfer_amount'),
         ];
 
         // Redemptions
@@ -422,12 +439,18 @@ class ReportController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        // Renewals
+        // Renewals & Interest Payments
         $renewals = Renewal::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
             ->with(['pledge.customer:id,name', 'createdBy:id,name'])
-            ->orderBy('created_at')
             ->get();
+
+        $interestPayments = \App\Models\InterestPayment::where('branch_id', $branchId)
+            ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
+            ->with(['pledge.customer:id,name', 'createdBy:id,name'])
+            ->get();
+
+        $combinedRenewals = $renewals->concat($interestPayments)->sortByDesc('created_at')->values();
 
         // Redemptions
         $redemptions = Redemption::where('branch_id', $branchId)
@@ -445,9 +468,9 @@ class ReportController extends Controller
                 'total' => $pledges->sum('loan_amount'),
             ],
             'renewals' => [
-                'items' => $renewals,
-                'count' => $renewals->count(),
-                'total' => $renewals->sum('total_payable'),
+                'items' => $combinedRenewals,
+                'count' => $combinedRenewals->count(),
+                'total' => $combinedRenewals->sum('total_payable'),
             ],
             'redemptions' => [
                 'items' => $redemptions,
@@ -584,11 +607,11 @@ class ReportController extends Controller
                     foreach ($data->renewals as $renewal) {
                         fputcsv($output, [
                             date('d/m/Y H:i', strtotime($renewal->created_at ?? '')),
-                            $renewal->receipt_no ?? '',
+                            $renewal->receipt_no ?? ($renewal->payment_no ?? ''),
                             $renewal->pledge->pledge_no ?? '',
                             $renewal->pledge->customer->name ?? '',
                             number_format($renewal->interest_amount ?? 0, 2),
-                            date('d/m/Y', strtotime($renewal->new_due_date ?? '')),
+                            !empty($renewal->new_due_date) ? date('d/m/Y', strtotime($renewal->new_due_date)) : 'N/A (Interest Only)',
                             $renewal->payment_method ?? '',
                             'Completed',
                         ]);
@@ -833,13 +856,17 @@ class ReportController extends Controller
         $pledgeCash = $pledges->sum(fn($p) => $p->payments->sum('cash_amount'));
         $pledgeTransfer = $pledges->sum(fn($p) => $p->payments->sum('transfer_amount'));
 
-        // --- Renewals ---
+        // --- Renewals & Interest Payments ---
         $renewals = Renewal::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
             ->get();
 
-        $renewalCash = $renewals->sum('cash_amount');
-        $renewalTransfer = $renewals->sum('transfer_amount');
+        $interestPayments = \App\Models\InterestPayment::where('branch_id', $branchId)
+            ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
+            ->get();
+
+        $renewalCash = $renewals->sum('cash_amount') + $interestPayments->sum('cash_amount');
+        $renewalTransfer = $renewals->sum('transfer_amount') + $interestPayments->sum('transfer_amount');
 
         // --- Redemptions ---
         $redemptions = Redemption::where('branch_id', $branchId)

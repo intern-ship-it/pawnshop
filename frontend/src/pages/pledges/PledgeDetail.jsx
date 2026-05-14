@@ -24,6 +24,7 @@ import {
   Calendar,
   Clock,
   DollarSign,
+  Banknote,
   RefreshCw,
   CheckCircle,
   AlertTriangle,
@@ -197,6 +198,18 @@ export default function PledgeDetail() {
             totalAmount: parseFloat(renewal.total_amount) || 0,
             renewalMonths: renewal.renewal_months || 1,
             paymentMethod: renewal.payment_method,
+          })),
+          interestPayments: (data.interest_payments || []).map((payment) => ({
+            id: payment.id,
+            paymentNo: payment.payment_no,
+            paymentDate: payment.created_at,
+            interestAmount: parseFloat(payment.interest_amount) || 0,
+            totalPayable: parseFloat(payment.total_payable) || 0,
+            interestRate: parseFloat(payment.interest_rate) || 0,
+            interestMonths: payment.interest_months,
+            periodFrom: payment.period_from,
+            periodTo: payment.period_to,
+            paymentMethod: payment.payment_method,
           })),
           createdAt: data.created_at,
           updatedAt: data.updated_at,
@@ -1251,14 +1264,50 @@ export default function PledgeDetail() {
                         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
                           <RefreshCw className="w-5 h-5 text-amber-600" />
                         </div>
+                        <div className="w-px h-full bg-zinc-200" />
                       </div>
-                      <div>
+                      <div className="pb-6">
                         <p className="font-semibold text-zinc-800">
-                          Renewed {pledge.renewalCount} time(s)
+                          Renewals ({pledge.renewalCount})
+                        </p>
+                        <p className="text-sm text-zinc-500">
+                          Legacy data
                         </p>
                       </div>
                     </div>
                   )}
+
+                {/* Interest Payments */}
+                {pledge.interestPayments?.length > 0 && pledge.interestPayments.map((payment, idx) => (
+                  <div key={payment.id || idx} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white">
+                        <Banknote className="w-5 h-5" />
+                      </div>
+                      <div className="w-px h-full bg-zinc-200" />
+                    </div>
+                    <div className="pb-6">
+                      <p className="font-semibold text-zinc-800">
+                        Interest Payment
+                        {payment.paymentNo && (
+                          <span className="ml-2 text-xs font-mono text-zinc-400">
+                            ({payment.paymentNo})
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm text-zinc-500">
+                        {formatDate(payment.paymentDate)}
+                      </p>
+                      <div className="text-sm text-zinc-600 mt-1">
+                        <p>Paid for {payment.interestMonths} month(s) at {payment.interestRate}%</p>
+                        <p className="text-xs text-zinc-500">From {formatDate(payment.periodFrom)} to {formatDate(payment.periodTo)}</p>
+                        <p className="mt-1 font-medium">
+                          Amount paid: {formatCurrency(payment.totalPayable)} <span className="text-xs font-normal text-zinc-500">({formatCurrency(payment.totalPayable / payment.interestMonths)} / month)</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card>
           </motion.div>

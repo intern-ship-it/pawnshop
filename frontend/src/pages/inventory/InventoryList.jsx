@@ -447,19 +447,45 @@ export default function InventoryList() {
 
   // Toggle item selection
   const toggleItemSelection = (id) => {
-    setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-    );
+    setSelectedItems((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((i) => i !== id);
+      } else {
+        if (prev.length >= 4) {
+          dispatch(
+            addToast({
+              type: "warning",
+              title: "Limit Reached",
+              message: "You can only select a maximum of 4 items at a time.",
+            })
+          );
+          return prev;
+        }
+        return [...prev, id];
+      }
+    });
   };
 
   // Toggle select all
   const toggleSelectAll = () => {
     if (selectAll) {
       setSelectedItems([]);
+      setSelectAll(false);
     } else {
-      setSelectedItems(filteredItems.map((i) => i.id));
+      if (filteredItems.length > 4) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Selection Limited",
+            message: "Only the first 4 items were selected due to the maximum limit.",
+          })
+        );
+        setSelectedItems(filteredItems.slice(0, 4).map((i) => i.id));
+      } else {
+        setSelectedItems(filteredItems.map((i) => i.id));
+      }
+      setSelectAll(true);
     }
-    setSelectAll(!selectAll);
   };
 
   // Clear selection

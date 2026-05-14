@@ -36,6 +36,9 @@ const PledgeDetail = lazy(() => import("@/pages/pledges/PledgeDetail"));
 
 // Transaction pages
 const RenewalScreen = lazy(() => import("@/pages/renewals/RenewalScreen"));
+const InterestPaymentScreen = lazy(
+  () => import("@/pages/interest-payments/InterestPaymentScreen"),
+);
 const RedemptionScreen = lazy(
   () => import("@/pages/redemptions/RedemptionScreen"),
 );
@@ -127,6 +130,7 @@ export const router = createBrowserRouter([
 
       // TRANSACTION ROUTES
       { path: "renewals", element: withPermission(RenewalScreen, "renewals.view") },
+      { path: "interest-payments", element: withPermission(InterestPaymentScreen, "interest-payments.view") },
       { path: "redemptions", element: withPermission(RedemptionScreen, "redemptions.view") },
 
       // INVENTORY ROUTES
@@ -179,6 +183,7 @@ export const ROUTES = {
   PLEDGE_NEW: "/pledges/new",
   PLEDGE_DETAIL: (id) => `/pledges/${id}`,
   RENEWALS: "/renewals",
+  INTEREST_PAYMENTS: "/interest-payments",
   REDEMPTIONS: "/redemptions",
   INVENTORY: "/inventory",
   RACK_MAP: "/inventory/rack-map",

@@ -628,6 +628,7 @@ class PledgeController extends Controller
             'items.slot',
             'payments.bank',
             'renewals',
+            'interestPayments',
             'receipts',
             'createdBy:id,name',
         ]);
