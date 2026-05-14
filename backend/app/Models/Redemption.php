@@ -34,6 +34,8 @@ class Redemption extends Model
         'released_at',
         'released_by',
         'created_by',
+        'is_partial',
+        'redeemed_item_ids',
     ];
 
     protected $casts = [
@@ -48,6 +50,8 @@ class Redemption extends Model
         'terms_accepted' => 'boolean',
         'items_released' => 'boolean',
         'released_at' => 'datetime',
+        'is_partial' => 'boolean',
+        'redeemed_item_ids' => 'array',
     ];
 
     public function branch(): BelongsTo

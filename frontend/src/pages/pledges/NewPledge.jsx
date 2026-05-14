@@ -2431,12 +2431,12 @@ export default function NewPledge() {
                   <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center"><Package className="w-5 h-5 text-amber-600" /></div>
                   <div>
                     <h3 className="text-lg font-semibold text-zinc-800">Pledge Items</h3>
-                    <p className="text-sm text-zinc-500">Add gold items for this pledge ({items.length}/{MAX_PLEDGE_ITEMS} max)</p>
+                    <p className="text-sm text-zinc-500">Add gold items for this pledge</p>
                   </div>
                 </div>
-                <Button variant="outline" leftIcon={Plus} onClick={addItem} disabled={items.length >= MAX_PLEDGE_ITEMS} title={items.length >= MAX_PLEDGE_ITEMS ? "Maximum 4 items allowed" : "Add new item"}>
-                  Add Item ({items.length}/{MAX_PLEDGE_ITEMS})
-                </Button>
+                <div className="px-4 py-2 bg-zinc-100 border border-zinc-200 text-zinc-600 rounded-lg text-sm font-semibold">
+                  Item Limit: {items.length} / {MAX_PLEDGE_ITEMS}
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -2505,7 +2505,16 @@ export default function NewPledge() {
                 ))}
               </div>
 
-
+              {items.length < MAX_PLEDGE_ITEMS && (
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="w-full mt-4 py-4 border-2 border-dashed border-zinc-300 rounded-xl text-zinc-500 font-medium hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50/50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Another Item ({items.length}/{MAX_PLEDGE_ITEMS})
+                </button>
+              )}
 
               <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

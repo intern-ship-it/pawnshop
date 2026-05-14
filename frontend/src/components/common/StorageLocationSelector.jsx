@@ -138,30 +138,24 @@ export default function StorageLocationSelector({
   };
 
   // Format vault options
-  const vaultOptions = [
-    { value: "", label: "Select Locker" },
-    ...vaults.map((vault) => ({
+  const vaultOptions = vaults.map((vault) => ({
       value: vault.id.toString(),
       label: `${vault.name || vault.code}${
         showAvailability && vault.available_slots !== undefined
           ? ` (${vault.available_slots} available)`
           : ""
       }`,
-    })),
-  ];
+  }));
 
   // Format box options
-  const boxOptions = [
-    { value: "", label: "Select Drawer" },
-    ...boxes.map((box) => ({
+  const boxOptions = boxes.map((box) => ({
       value: box.id.toString(),
       label: `Drawer ${box.box_number || box.name}${
         showAvailability && box.available_slots !== undefined
           ? ` (${box.available_slots} available)`
           : ""
       }`,
-    })),
-  ];
+  }));
 
   const parentBox = boxes.find((b) => String(b.id) === String(value.box_id));
   const hasSubslots = parentBox && parentBox.has_subslots;
@@ -176,20 +170,15 @@ export default function StorageLocationSelector({
       activeLogicalSlots.add(Math.ceil(s.slot_number / subslotsPerSlot));
     });
 
-    mainSlotOptions = [
-      { value: "", label: "Select Slot" },
-      ...Array.from(activeLogicalSlots)
+    mainSlotOptions = Array.from(activeLogicalSlots)
         .sort((a, b) => a - b)
         .map((num) => ({
           value: num.toString(),
           label: `Slot ${num}`,
-        })),
-    ];
+        }));
 
     if (logicalSlot) {
-      subslotOptions = [
-        { value: "", label: "Select Subslot" },
-        ...slots
+      subslotOptions = slots
           .filter(
             (s) =>
               Math.ceil(s.slot_number / subslotsPerSlot) ===
@@ -201,20 +190,16 @@ export default function StorageLocationSelector({
               ((s.slot_number - 1) % subslotsPerSlot) + 1
             }${s.is_occupied ? " (Occupied)" : " (Available)"}`,
             disabled: s.is_occupied,
-          })),
-      ];
+          }));
     }
   } else {
-    mainSlotOptions = [
-      { value: "", label: "Select Slot" },
-      ...slots.map((slot) => ({
+    mainSlotOptions = slots.map((slot) => ({
         value: slot.id.toString(),
         label: `Slot ${slot.slot_number}${
           slot.is_occupied ? " (Occupied)" : " (Available)"
         }`,
         disabled: slot.is_occupied,
-      })),
-    ];
+      }));
   }
 
   return (
@@ -231,6 +216,7 @@ export default function StorageLocationSelector({
           value={value.vault_id}
           onChange={handleVaultChange}
           options={vaultOptions}
+          placeholder="Select Locker"
           disabled={disabled || loading.vaults}
         />
         {loading.vaults && (
@@ -252,6 +238,7 @@ export default function StorageLocationSelector({
           value={value.box_id}
           onChange={handleBoxChange}
           options={boxOptions}
+          placeholder="Select Drawer"
           disabled={disabled || !value.vault_id || loading.boxes}
         />
         {loading.boxes && (
@@ -274,6 +261,7 @@ export default function StorageLocationSelector({
             value={value.slot_id}
             onChange={handleSlotChange}
             options={mainSlotOptions}
+            placeholder="Select Slot"
             disabled={disabled || !value.box_id || loading.slots}
           />
           {loading.slots && (
@@ -298,6 +286,7 @@ export default function StorageLocationSelector({
                 onChange({ ...value, slot_id: "" });
               }}
               options={mainSlotOptions}
+              placeholder="Select Slot"
               disabled={disabled || !value.box_id || loading.slots}
             />
           </div>
@@ -312,6 +301,7 @@ export default function StorageLocationSelector({
               value={value.slot_id}
               onChange={handleSlotChange}
               options={subslotOptions}
+              placeholder="Select Subslot"
               disabled={disabled || !logicalSlot || loading.slots}
             />
           </div>

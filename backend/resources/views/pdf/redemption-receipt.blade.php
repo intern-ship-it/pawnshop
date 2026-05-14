@@ -479,8 +479,12 @@
         $handlingFee = $redemption->handling_fee ?? 0;
         $totalPayable = $redemption->total_payable ?? ($principalAmount + $interestAmount + $overdueInterest + $handlingFee);
 
+        $itemsToPrint = ($redemption->is_partial && !empty($redemption->redeemed_item_ids))
+            ? $pledge->items->whereIn('id', $redemption->redeemed_item_ids)
+            : $pledge->items;
+
         $totalWeight = 0;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
@@ -529,7 +533,7 @@
 
         $catatan = $pledge->reference_no ?? $pledge->notes ?? '';
         $usedDescriptions = [];
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $desc = $item->description ?? '';
             if ($desc && !in_array($desc, $usedDescriptions, true) && !str_contains($catatan, $desc)) {
                 if ($catatan) $catatan .= '; ';
@@ -609,7 +613,7 @@
                 <td class="items-cell">
                     <div class="items-title">Barang dilepaskan / Items released:-</div>
                     <div class="items-area">
-                        @foreach($pledge->items as $index => $item)
+                        @foreach($itemsToPrint as $index => $item)
                             <div class="item-line">
                                 {{ $index + 1 }}. {{ $item->category->name_ms ?? $item->category->name_en ?? 'Item' }}
                                 {{ $item->purity->code ?? '' }}
