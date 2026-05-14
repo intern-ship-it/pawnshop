@@ -55,7 +55,9 @@ import {
 // Status config
 const statusConfig = {
   active: { label: "Active", color: "emerald", icon: CheckCircle },
+  partial: { label: "Active (Partial)", color: "emerald", icon: CheckCircle },
   overdue: { label: "Overdue", color: "red", icon: AlertTriangle },
+  overdue_partial: { label: "Overdue (Partial)", color: "red", icon: AlertTriangle },
   redeemed: { label: "Redeemed", color: "blue", icon: DollarSign },
   forfeited: { label: "Forfeited", color: "amber", icon: XCircle },
   auctioned: { label: "Auctioned", color: "zinc", icon: Package },
@@ -128,6 +130,9 @@ export default function PledgeDetail() {
           dueDate: data.due_date,
           graceEndDate: data.grace_end_date,
           status: data.status,
+          displayStatus: (data.status === "active" || data.status === "overdue") && (data.items || []).some(item => item.status === "redeemed")
+            ? (data.status === "overdue" ? "overdue_partial" : "partial")
+            : data.status,
           renewalCount: data.renewal_count || 0,
           goldPrice999: parseFloat(data.gold_price_999) || 0,
           goldPrice916: parseFloat(data.gold_price_916) || 0,
@@ -137,6 +142,7 @@ export default function PledgeDetail() {
             id: item.id,
             itemNo: item.item_no,
             barcode: item.barcode,
+            status: item.status,
             category:
               item.category?.name_en || item.category?.name || "Unknown",
             categoryMs: item.category?.name_ms || "",
@@ -568,7 +574,7 @@ export default function PledgeDetail() {
     );
   }
 
-  const status = statusConfig[pledge.status] || statusConfig.active;
+  const status = statusConfig[pledge.displayStatus] || statusConfig[pledge.status] || statusConfig.active;
   const StatusIcon = status.icon;
   const daysUntilDue = getDaysUntilDue();
 
@@ -1105,9 +1111,13 @@ export default function PledgeDetail() {
                             </p>
                           </td>
                           <td className="p-4">
-                            <p className="text-sm text-zinc-600">
-                              {item.location || "Not Assigned"}
-                            </p>
+                            {item.status === "redeemed" ? (
+                              <Badge variant="info">Redeemed</Badge>
+                            ) : (
+                              <p className="text-sm text-zinc-600">
+                                {item.location || "Not Assigned"}
+                              </p>
+                            )}
                           </td>
                           <td className="p-4">
                             <div className="flex items-center gap-2">

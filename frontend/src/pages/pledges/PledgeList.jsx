@@ -45,7 +45,9 @@ import {
 // Status badge config
 const statusConfig = {
   active: { label: "Active", variant: "success", icon: CheckCircle },
+  partial: { label: "Active (Partial)", variant: "success", icon: CheckCircle },
   overdue: { label: "Overdue", variant: "error", icon: AlertTriangle },
+  overdue_partial: { label: "Overdue (Partial)", variant: "error", icon: AlertTriangle },
   redeemed: { label: "Redeemed", variant: "info", icon: DollarSign },
   forfeited: { label: "Forfeited", variant: "warning", icon: XCircle },
   auctioned: { label: "Auctioned", variant: "default", icon: Package },
@@ -137,6 +139,9 @@ export default function PledgeList() {
         dueDate: pledge.due_date,
         graceEndDate: pledge.grace_end_date,
         status: pledge.status,
+        displayStatus: (pledge.status === "active" || pledge.status === "overdue") && pledge.redemption && pledge.redemption.length > 0 
+          ? (pledge.status === "overdue" ? "overdue_partial" : "partial") 
+          : pledge.status,
         renewalCount: pledge.renewal_count || 0,
         latestRenewalId: pledge.renewals?.[0]?.id || null,
         latestRedemptionId: pledge.redemption?.[0]?.id || null,
@@ -1163,6 +1168,8 @@ export default function PledgeList() {
           const now = new Date();
           const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
           if (diffDays > 7 || diffDays < 0) return false;
+        } else if (statusFilter === "partial" || statusFilter === "overdue_partial") {
+          if (pledge.displayStatus !== statusFilter) return false;
         } else if (pledge.status !== statusFilter) {
           return false;
         }
@@ -1194,6 +1201,10 @@ export default function PledgeList() {
           return new Date(b.createdAt) - new Date(a.createdAt);
         case "oldest":
           return new Date(a.createdAt) - new Date(b.createdAt);
+        case "receipt-desc":
+          return (b.receiptNo || "").localeCompare(a.receiptNo || "");
+        case "receipt-asc":
+          return (a.receiptNo || "").localeCompare(b.receiptNo || "");
         case "amount-high":
           return (b.loanAmount || 0) - (a.loanAmount || 0);
         case "amount-low":
@@ -1254,7 +1265,7 @@ export default function PledgeList() {
     >
       {/* Stats Cards */}
       <motion.div
-        className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -1305,7 +1316,7 @@ export default function PledgeList() {
           </Card>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="col-span-2">
+        <motion.div variants={itemVariants} className="sm:col-span-2 lg:col-span-2">
           <Card className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-100">
@@ -1342,6 +1353,7 @@ export default function PledgeList() {
             options={[
               { value: "all", label: "All Status" },
               { value: "active", label: "Active" },
+              { value: "partial", label: "Active (Partial)" },
               { value: "overdue", label: "Overdue" },
               { value: "redeemed", label: "Redeemed" },
               { value: "due_soon", label: "7 Days" },
@@ -1389,6 +1401,8 @@ export default function PledgeList() {
             options={[
               { value: "newest", label: "Newest First" },
               { value: "oldest", label: "Oldest First" },
+              { value: "receipt-desc", label: "Ticket (Highest)" },
+              { value: "receipt-asc", label: "Ticket (Lowest)" },
               { value: "amount-high", label: "Amount: High to Low" },
               { value: "amount-low", label: "Amount: Low to High" },
               { value: "due-soon", label: "Due Soon" },
@@ -1404,25 +1418,25 @@ export default function PledgeList() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
-                <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                <th className="text-left p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   TICKET
                 </th>
-                <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                <th className="text-left p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   CUSTOMER
                 </th>
-                <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                <th className="text-left p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   ITEMS
                 </th>
-                <th className="text-right p-4 text-sm font-semibold text-zinc-600">
+                <th className="text-right p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   LOAN AMOUNT
                 </th>
-                <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                <th className="text-left p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   DUE DATE
                 </th>
-                <th className="text-left p-4 text-sm font-semibold text-zinc-600">
+                <th className="text-left p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   STATUS
                 </th>
-                <th className="text-center p-4 text-sm font-semibold text-zinc-600">
+                <th className="text-center p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   ACTIONS
                 </th>
               </tr>
@@ -1454,7 +1468,7 @@ export default function PledgeList() {
               ) : (
                 filteredPledges.map((pledge) => {
                   const statusConf =
-                    statusConfig[pledge.status] || statusConfig.active;
+                    statusConfig[pledge.displayStatus] || statusConfig[pledge.status] || statusConfig.active;
                   const StatusIcon = statusConf.icon;
                   const daysUntilDue = getDaysUntilDue(pledge.dueDate);
 
@@ -1471,10 +1485,10 @@ export default function PledgeList() {
                             <FileText className="w-5 h-5 text-amber-600" />
                           </div>
                           <div>
-                            <p className="font-semibold text-zinc-800">
+                            <p className="font-semibold text-zinc-800 xl:text-base 2xl:text-lg whitespace-nowrap">
                               {pledge.receiptNo}
                             </p>
-                            <p className="text-xs text-zinc-500">
+                            <p className="text-xs xl:text-sm text-zinc-500 whitespace-nowrap">
                               {formatDate(
                                 pledge.pledgeDate || pledge.createdAt,
                               )}
@@ -1501,10 +1515,10 @@ export default function PledgeList() {
                             {pledge.customerName?.charAt(0) || '?'}
                           </div>
                           <div>
-                            <p className="font-medium text-zinc-800">
+                            <p className="font-medium text-zinc-800 xl:text-base 2xl:text-lg whitespace-nowrap">
                               {pledge.customerName}
                             </p>
-                            <p className="text-xs text-zinc-500 font-mono">
+                            <p className="text-xs xl:text-sm text-zinc-500 font-mono whitespace-nowrap">
                               {formatIC(pledge.customerIC)}
                             </p>
                           </div>
@@ -1514,33 +1528,33 @@ export default function PledgeList() {
                       {/* Items */}
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <Scale className="w-4 h-4 text-zinc-400" />
-                          <span className="text-zinc-600">
+                          <Scale className="w-4 h-4 xl:w-5 xl:h-5 text-zinc-400" />
+                          <span className="text-zinc-600 xl:text-base whitespace-nowrap">
                             {pledge.itemsCount || pledge.items?.length || 0}{" "}
                             items
                           </span>
                         </div>
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-xs xl:text-sm text-zinc-500 whitespace-nowrap">
                           ({pledge.totalWeight?.toFixed(3) || "0.000"}g)
                         </p>
                       </td>
 
                       {/* Loan Amount */}
                       <td className="p-4 text-right">
-                        <span className="font-semibold text-zinc-800">
+                        <span className="font-semibold text-zinc-800 xl:text-lg whitespace-nowrap">
                           {formatCurrency(pledge.loanAmount)}
                         </span>
                       </td>
 
                       {/* Due Date */}
                       <td className="p-4">
-                        <span className="text-zinc-600 text-sm">
+                        <span className="text-zinc-600 text-sm xl:text-base whitespace-nowrap">
                           {formatDate(pledge.dueDate)}
                         </span>
                         {pledge.status === "active" && (
                           <p
                             className={cn(
-                              "text-xs mt-0.5",
+                              "text-xs xl:text-sm mt-0.5 whitespace-nowrap",
                               daysUntilDue <= 7
                                 ? "text-red-500"
                                 : daysUntilDue <= 30

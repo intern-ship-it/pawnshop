@@ -467,13 +467,17 @@ HTML;
             $logoHtml = '<img src="' . htmlspecialchars($settings['logo_url'], ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" class="logo" alt="Logo" onerror="this.style.display=\'none\'">';
         }
 
+        $itemsToPrint = ($redemption->is_partial && !empty($redemption->redeemed_item_ids))
+            ? $pledge->items->whereIn('id', $redemption->redeemed_item_ids)
+            : $pledge->items;
+
         // Build items list
-        $itemsHtml = $this->buildItemsHtml($pledge->items);
-        $itemCount = count($pledge->items);
+        $itemsHtml = $this->buildItemsHtml($itemsToPrint);
+        $itemCount = count($itemsToPrint);
 
         // Total weight
         $totalWeight = 0;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
@@ -5125,8 +5129,12 @@ HTML;
         $handlingFee = $redemption->handling_fee ?? 0;
         $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
 
+        $itemsToPrint = ($redemption->is_partial && !empty($redemption->redeemed_item_ids))
+            ? $pledge->items->whereIn('id', $redemption->redeemed_item_ids)
+            : $pledge->items;
+
         $totalWeight = 0;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
@@ -5142,7 +5150,7 @@ HTML;
 
         $itemsText = '';
         $itemNumber = 1;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
@@ -5216,8 +5224,12 @@ HTML;
         $handlingFee = $redemption->handling_fee ?? 0;
         $totalPaid = $redemption->total_payable ?? ($principal + $interestAmount + $handlingFee);
 
+        $itemsToPrint = ($redemption->is_partial && !empty($redemption->redeemed_item_ids))
+            ? $pledge->items->whereIn('id', $redemption->redeemed_item_ids)
+            : $pledge->items;
+
         $totalWeight = 0;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
@@ -5233,7 +5245,7 @@ HTML;
 
         $itemsText = '';
         $itemNumber = 1;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
@@ -5799,9 +5811,13 @@ HTML;
         if (is_string($pledgeDate))
             $pledgeDate = Carbon::parse($pledgeDate);
 
+        $itemsToPrint = ($redemption->is_partial && !empty($redemption->redeemed_item_ids))
+            ? $pledge->items->whereIn('id', $redemption->redeemed_item_ids)
+            : $pledge->items;
+
         // Calculate total weight
         $totalWeight = 0;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
@@ -5815,7 +5831,7 @@ HTML;
         // Build items text
         $itemsText = '';
         $itemNumber = 1;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
@@ -6584,9 +6600,13 @@ HTML;
         if (is_string($pledgeDate))
             $pledgeDate = Carbon::parse($pledgeDate);
 
+        $itemsToPrint = ($redemption->is_partial && !empty($redemption->redeemed_item_ids))
+            ? $pledge->items->whereIn('id', $redemption->redeemed_item_ids)
+            : $pledge->items;
+
         // Calculate total weight
         $totalWeight = 0;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
@@ -6600,7 +6620,7 @@ HTML;
         // Build items text
         $itemsText = '';
         $itemNumber = 1;
-        foreach ($pledge->items as $item) {
+        foreach ($itemsToPrint as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);

@@ -208,11 +208,9 @@ class InventoryController extends Controller
         DB::beginTransaction();
 
         try {
-            // Check if new slot is available
             $newSlot = Slot::find($validated['slot_id']);
-            if ($newSlot->is_occupied && $newSlot->current_item_id !== $pledgeItem->id) {
-                return $this->error('Selected slot is already occupied', 422);
-            }
+            
+            // Allow multiple items in the same slot (no validation check for is_occupied)
 
             $oldSlotId = $pledgeItem->slot_id;
 
@@ -321,12 +319,8 @@ class InventoryController extends Controller
                     continue;
                 }
 
-                // Check slot availability
                 $newSlot = Slot::find($itemData['slot_id']);
-                if ($newSlot->is_occupied && $newSlot->current_item_id !== $item->id) {
-                    $errors[] = "Item {$item->barcode}: slot occupied";
-                    continue;
-                }
+                // Allow multiple items in the same slot (no validation check or auto-spill)
 
                 $oldSlotId = $item->slot_id;
 

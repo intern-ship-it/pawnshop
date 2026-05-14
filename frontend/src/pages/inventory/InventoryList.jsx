@@ -131,6 +131,7 @@ export default function InventoryList() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [bulkRelocateMode, setBulkRelocateMode] = useState(false);
   const [newLocation, setNewLocation] = useState({
     vault_id: "",
     box_id: "",
@@ -336,6 +337,7 @@ export default function InventoryList() {
         const matches =
           item.barcode?.toLowerCase().includes(query) ||
           item.pledge?.pledge_no?.toLowerCase().includes(query) ||
+          item.pledge?.receipt_no?.toLowerCase().includes(query) ||
           item.pledge?.customer?.name?.toLowerCase().includes(query) ||
           getCategoryName(item.category).toLowerCase().includes(query);
         if (!matches) return false;
@@ -951,10 +953,8 @@ export default function InventoryList() {
     handleActionWithPasskey("set_location", item);
   };
 
-  // Save location via API
+  // Save location via API (single item or bulk)
   const handleSaveLocation = async () => {
-    if (!editingItem) return;
-
     // Validate that all fields are filled
     if (!newLocation.vault_id || !newLocation.box_id || !newLocation.slot_id) {
       dispatch(
@@ -969,53 +969,94 @@ export default function InventoryList() {
 
     setIsSaving(true);
     try {
-      const response = await inventoryService.updateLocation(editingItem.id, {
-        vault_id: parseInt(newLocation.vault_id),
-        box_id: parseInt(newLocation.box_id),
-        slot_id: parseInt(newLocation.slot_id),
-        reason: "Manual assignment from inventory list",
-      });
+      // BULK RELOCATE MODE
+      if (bulkRelocateMode && selectedItems.length > 0) {
+        const itemsPayload = selectedItems.map((itemId) => ({
+          item_id: itemId,
+          vault_id: parseInt(newLocation.vault_id),
+          box_id: parseInt(newLocation.box_id),
+          slot_id: parseInt(newLocation.slot_id),
+        }));
 
-      if (response.success) {
-        dispatch(
-          addToast({
-            type: "success",
-            title: "Location Updated",
-            message: "Item location has been updated",
-          }),
-        );
-        setShowLocationModal(false);
-        // After location updated, prompt to print relocated label
-        setRelocatedItemToPrint(editingItem);
-        
-        // Fetch reprint reasons for the modal
-        try {
-          const reasons = await getReprintReasons();
-          setReprintReasons(reasons || []);
+        const response = await inventoryService.bulkUpdateLocation({
+          items: itemsPayload,
+          reason: "Bulk relocation from inventory list",
+        });
+
+        if (response.success) {
+          const updatedCount = response.data?.updated || selectedItems.length;
+          const errors = response.data?.errors || [];
+          dispatch(
+            addToast({
+              type: errors.length > 0 ? "warning" : "success",
+              title: "Bulk Relocate Complete",
+              message: `${updatedCount} item(s) relocated successfully${errors.length > 0 ? `. ${errors.length} error(s).` : ""}`,
+            }),
+          );
+          setShowLocationModal(false);
+          setBulkRelocateMode(false);
+          clearSelection();
+          fetchInventory();
+          fetchSummary();
+        } else {
+          dispatch(
+            addToast({
+              type: "error",
+              title: "Error",
+              message: response.message || "Failed to bulk relocate",
+            }),
+          );
+        }
+      } else if (editingItem) {
+        // SINGLE ITEM MODE
+        const response = await inventoryService.updateLocation(editingItem.id, {
+          vault_id: parseInt(newLocation.vault_id),
+          box_id: parseInt(newLocation.box_id),
+          slot_id: parseInt(newLocation.slot_id),
+          reason: "Manual assignment from inventory list",
+        });
+
+        if (response.success) {
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Location Updated",
+              message: "Item location has been updated",
+            }),
+          );
+          setShowLocationModal(false);
+          // After location updated, prompt to print relocated label
+          setRelocatedItemToPrint(editingItem);
           
-          // Pre-select "Storage Relocation" or set it as default
-          const relocateReason = reasons?.find(r => r.reason.toLowerCase().includes("reloc"));
-          if (relocateReason) {
-            setRelocationPrintReason(relocateReason.reason);
-          } else {
+          // Fetch reprint reasons for the modal
+          try {
+            const reasons = await getReprintReasons();
+            setReprintReasons(reasons || []);
+            
+            // Pre-select "Storage Relocation" or set it as default
+            const relocateReason = reasons?.find(r => r.reason.toLowerCase().includes("reloc"));
+            if (relocateReason) {
+              setRelocationPrintReason(relocateReason.reason);
+            } else {
+              setRelocationPrintReason("Storage Relocation");
+            }
+          } catch (err) {
+            console.error("Failed to fetch reprint reasons:", err);
             setRelocationPrintReason("Storage Relocation");
           }
-        } catch (err) {
-          console.error("Failed to fetch reprint reasons:", err);
-          setRelocationPrintReason("Storage Relocation");
+          
+          setShowPostRelocatePrintConfirm(true);
+          setEditingItem(null);
+          fetchInventory(); // Refresh data from API
+        } else {
+          dispatch(
+            addToast({
+              type: "error",
+              title: "Error",
+              message: response.message || "Failed to update location",
+            }),
+          );
         }
-        
-        setShowPostRelocatePrintConfirm(true);
-        setEditingItem(null);
-        fetchInventory(); // Refresh data from API
-      } else {
-        dispatch(
-          addToast({
-            type: "error",
-            title: "Error",
-            message: response.message || "Failed to update location",
-          }),
-        );
       }
     } catch (error) {
       dispatch(
@@ -1028,6 +1069,20 @@ export default function InventoryList() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Open bulk relocate modal
+  const openBulkRelocateModal = () => {
+    if (selectedItems.length === 0) {
+      dispatch(
+        addToast({ type: "warning", title: "No Items", message: "Please select items to relocate" }),
+      );
+      return;
+    }
+    setBulkRelocateMode(true);
+    setEditingItem(null);
+    setNewLocation({ vault_id: "", box_id: "", slot_id: "" });
+    setShowLocationModal(true);
   };
 
   // Export to CSV
@@ -1376,6 +1431,14 @@ export default function InventoryList() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="accent"
+                  leftIcon={MapPin}
+                  onClick={openBulkRelocateModal}
+                >
+                  Relocate Selected
+                </Button>
                 <Button
                   size="sm"
                   variant="accent"
@@ -2037,7 +2100,59 @@ export default function InventoryList() {
         size="sm"
       >
         <div className="p-5">
-          {editingItem && (
+          {/* Bulk Relocate Mode */}
+          {bulkRelocateMode && (
+            <>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin className="w-5 h-5 text-amber-600" />
+                  <p className="font-semibold text-amber-800">
+                    Relocating {selectedItems.length} item(s)
+                  </p>
+                </div>
+                <div className="text-sm text-amber-700 space-y-1">
+                  {filteredItems
+                    .filter((i) => selectedItems.includes(i.id))
+                    .map((item) => (
+                      <p key={item.id}>
+                        • {getCategoryName(item.category)} - {item.barcode} ({item.pledge?.pledge_no})
+                      </p>
+                    ))}
+                </div>
+              </div>
+
+              <StorageLocationSelector
+                value={newLocation}
+                onChange={setNewLocation}
+                showAvailability={true}
+              />
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="outline"
+                  fullWidth
+                  onClick={() => {
+                    setShowLocationModal(false);
+                    setBulkRelocateMode(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="accent"
+                  fullWidth
+                  leftIcon={MapPin}
+                  onClick={handleSaveLocation}
+                  loading={isSaving}
+                >
+                  Relocate {selectedItems.length} Item(s)
+                </Button>
+              </div>
+            </>
+          )}
+
+          {/* Single Item Mode */}
+          {!bulkRelocateMode && editingItem && (
             <>
               <div className="bg-zinc-50 rounded-lg p-4 mb-4">
                 <p className="text-sm text-zinc-500">Item</p>

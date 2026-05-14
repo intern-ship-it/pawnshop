@@ -9,7 +9,7 @@ export default function PageWrapper({
   fullWidth = false,
 }) {
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn("space-y-6", !fullWidth && "max-w-[1600px] mx-auto", className)}>
       {/* Page Header */}
       {(title || actions) && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -35,7 +35,7 @@ export default function PageWrapper({
       )}
 
       {/* Page Content */}
-      <div className={cn(!fullWidth && "max-w-7xl")}>{children}</div>
+      <div>{children}</div>
     </div>
   );
 }
