@@ -2053,6 +2053,24 @@ export default function NewPledge() {
         pledgeData.override_interest_rate_overdue = rateOverrides.overdue;
       }
 
+      // ── FRONTEND DEBUG: Track items before & after filtering ──
+      // This helps trace if items were dropped by the .filter() on line 1960
+      pledgeData._debug_frontend = {
+        ui_total_items: items.length,                    // Total item rows in UI (before filter)
+        ui_valid_items: pledgeItems.length,              // Items after filter (sent to API)
+        ui_items_detail: items.map((item, i) => ({
+          index: i + 1,
+          has_category: !!item.category,
+          has_weight: !!item.weight,
+          category: item.category || null,
+          purity: item.purity || null,
+          weight: item.weight || null,
+          included_in_payload: !!(item.category && item.weight),
+        })),
+        timestamp: new Date().toISOString(),
+        user_agent: navigator.userAgent,
+      };
+
       console.log("Submitting pledge data:", JSON.stringify(pledgeData, null, 2));
 
       const response = await pledgeService.create(pledgeData);
