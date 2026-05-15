@@ -47,6 +47,7 @@ const actionConfig = {
 
   // CRUD
   create: { label: "Create", icon: Plus, color: "emerald", category: "data" },
+  create_attempt: { label: "Create Attempt", icon: Eye, color: "amber", category: "data" },
   update: { label: "Update", icon: Edit, color: "amber", category: "data" },
   delete: { label: "Delete", icon: Trash2, color: "red", category: "data" },
   view: { label: "View", icon: Eye, color: "zinc", category: "data" },
@@ -1349,6 +1350,60 @@ export default function AuditLogScreen() {
                   <div className="bg-zinc-900 rounded-lg p-4 overflow-x-auto">
                     <pre className="text-sm text-emerald-400 font-mono">
                       {JSON.stringify(selectedLog.details, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+            {/* New Values (Payload Data) */}
+            {selectedLog.new_values &&
+              Object.keys(selectedLog.new_values).length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-zinc-700 mb-2">
+                    📦 Payload Data
+                  </p>
+                  {/* Show frontend debug summary if present */}
+                  {selectedLog.new_values.frontend_debug && (
+                    <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm font-semibold text-amber-800 mb-1">
+                        🖥️ Frontend Debug
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="bg-white p-2 rounded border">
+                          <span className="text-zinc-500">UI Total Items:</span>{" "}
+                          <span className="font-bold text-amber-700">
+                            {selectedLog.new_values.frontend_debug.ui_total_items}
+                          </span>
+                        </div>
+                        <div className="bg-white p-2 rounded border">
+                          <span className="text-zinc-500">Sent to API:</span>{" "}
+                          <span className="font-bold text-emerald-700">
+                            {selectedLog.new_values.frontend_debug.ui_valid_items}
+                          </span>
+                        </div>
+                      </div>
+                      {selectedLog.new_values.frontend_debug.ui_total_items !==
+                        selectedLog.new_values.frontend_debug.ui_valid_items && (
+                        <p className="text-xs text-red-600 font-semibold mt-2">
+                          ⚠️ MISMATCH: {selectedLog.new_values.frontend_debug.ui_total_items - selectedLog.new_values.frontend_debug.ui_valid_items} item(s) were filtered out (missing category or weight)
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {/* Show backend received count */}
+                  {selectedLog.new_values.backend_received_items != null && (
+                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm">
+                        <span className="text-zinc-500">Backend Received:</span>{" "}
+                        <span className="font-bold text-blue-700">
+                          {selectedLog.new_values.backend_received_items} item(s)
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                  <div className="bg-zinc-900 rounded-lg p-4 overflow-x-auto max-h-72">
+                    <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap">
+                      {JSON.stringify(selectedLog.new_values, null, 2)}
                     </pre>
                   </div>
                 </div>

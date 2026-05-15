@@ -327,6 +327,49 @@ class PledgeController extends Controller
             return $this->error('Gold prices not set', 422);
         }
 
+        // ── PRE-CREATION AUDIT: Log the raw payload BEFORE saving ──
+        // This captures exactly what the frontend sent so we can trace
+        // if items were missing from the request vs lost during save.
+        try {
+            $payloadItems = array_map(function ($item, $index) {
+                return [
+                    'index' => $index + 1,
+                    'category_id' => $item['category_id'] ?? null,
+                    'purity_id' => $item['purity_id'] ?? null,
+                    'gross_weight' => $item['gross_weight'] ?? 0,
+                    'stone_deduction_type' => $item['stone_deduction_type'] ?? null,
+                    'stone_deduction_value' => $item['stone_deduction_value'] ?? 0,
+                    'description' => $item['description'] ?? null,
+                ];
+            }, $validated['items'], array_keys($validated['items']));
+
+            AuditLog::create([
+                'branch_id' => $branchId,
+                'user_id' => $userId,
+                'action' => 'create_attempt',
+                'module' => 'pledge',
+                'description' => "Pledge creation attempt for {$customer->name} - Items: " . count($validated['items']) . ", Loan%: {$validated['loan_percentage']}",
+                'record_type' => 'Pledge',
+                'record_id' => 0, // Not created yet
+                'new_values' => [
+                    'customer_id' => $customer->id,
+                    'customer_name' => $customer->name,
+                    'backend_received_items' => count($validated['items']),
+                    'items_payload' => $payloadItems,
+                    'loan_percentage' => $validated['loan_percentage'],
+                    'loan_amount_override' => $validated['loan_amount'] ?? 'auto',
+                    'handling_fee' => $validated['handling_fee'] ?? 0,
+                    'payment_method' => $validated['payment']['method'] ?? null,
+                    'frontend_debug' => $request->input('_debug_frontend', null),
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'created_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Pre-creation audit log failed: ' . $e->getMessage());
+        }
+
         DB::beginTransaction();
 
         try {
