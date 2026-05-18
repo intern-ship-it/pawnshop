@@ -896,6 +896,56 @@ export default function PrintTestPage() {
     }
   };
 
+  // Download Owner Dashboard PDF
+  const testDownloadOwnerDashboard = async () => {
+    setPrinting(true);
+    setPreviewType("Owner Dashboard Download");
+    const startTime = Date.now();
+
+    try {
+      const token = getToken();
+
+      const response = await fetch(
+        `${apiUrl}/print/owner-dashboard-test`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/pdf",
+          },
+        },
+      );
+
+      const duration = Date.now() - startTime;
+      if (!response.ok) throw new Error("Failed to generate Owner Dashboard PDF");
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `Owner_Dashboard.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+        if (match) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      logResult("Owner Dashboard", true, `Download started`, duration);
+      dispatch(addToast({ type: "success", title: "Success", message: `Owner Dashboard PDF downloaded (${duration}ms)` }));
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logResult("Owner Dashboard", false, error.message, duration);
+      dispatch(addToast({ type: "error", title: "PDF Error", message: error.message }));
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const [redemptionIdInput, setRedemptionIdInput] = useState("16");
   
   // Download Redemption PDF — downloads redemption by ID
@@ -4207,6 +4257,33 @@ export default function PrintTestPage() {
                   </Button>
                   <p className="text-xs text-rose-400 mt-2">
                     🔗 GET /print/pdf/redemption/{redemptionIdInput || "..."}
+                  </p>
+                </div>
+
+                {/* Owner Dashboard PDF */}
+                <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-300 mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-emerald-800">Owner Dashboard</p>
+                      <p className="text-xs text-emerald-600">Daily WhatsApp PDF Test</p>
+                    </div>
+                    <Badge className="bg-emerald-500 text-white">Dashboard</Badge>
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={FileDown}
+                    onClick={testDownloadOwnerDashboard}
+                    loading={printing && previewType === "Owner Dashboard Download"}
+                    disabled={printing}
+                    fullWidth
+                    className="border-emerald-500 text-emerald-700 hover:bg-emerald-100"
+                  >
+                    Download Daily Dashboard
+                  </Button>
+                  <p className="text-xs text-emerald-400 mt-2">
+                    🔗 GET /print/owner-dashboard-test
                   </p>
                 </div>
               </div>

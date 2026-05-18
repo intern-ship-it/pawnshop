@@ -728,4 +728,45 @@ class PrintController extends Controller
             'branch' => $pledge->branch,
         ]);
     }
+
+    /**
+     * Test download for Owner Dashboard — renders in-memory and streams the PDF.
+     */
+    public function ownerDashboardTest(Request $request)
+    {
+        $branch = \App\Models\Branch::find($request->user()->branch_id);
+        if (!$branch) {
+            return $this->error('Branch not found for current user', 404);
+        }
+
+        $date = $request->query('date')
+            ? \Carbon\Carbon::parse($request->query('date'))
+            : \Carbon\Carbon::today();
+
+        try {
+            $command = app(\App\Console\Commands\SendDailyOwnerDashboard::class);
+            $data    = $command->buildData($branch, $date);
+
+            $pdf = Pdf::loadView('pdf.owner-dashboard', $data)
+                ->setPaper('a4', 'portrait');
+
+            $fileName = sprintf(
+                'Owner_Dashboard_%s_%s.pdf',
+                preg_replace('/[^A-Za-z0-9_-]/', '_', $branch->code ?: $branch->name),
+                $date->format('Y-m-d')
+            );
+
+            return response($pdf->output(), 200, [
+                'Content-Type'        => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Owner dashboard test render failed', [
+                'branch_id' => $branch->id,
+                'date'      => $date->toDateString(),
+                'exception' => $e,
+            ]);
+            return $this->error('Failed to generate dashboard PDF: ' . $e->getMessage(), 500);
+        }
+    }
 }
