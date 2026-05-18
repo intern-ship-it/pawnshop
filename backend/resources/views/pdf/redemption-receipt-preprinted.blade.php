@@ -470,6 +470,18 @@
             height: 48pt;
             border: 1pt solid #006600;
         }
+        .sig-text-table {
+            width: 100%;
+            height: 100%;
+            border-collapse: collapse;
+        }
+        .sig-text-cell {
+            vertical-align: bottom;
+            text-align: center;
+            font-size: 5.5pt;
+            color: #006600;
+            padding-bottom: 2pt;
+        }
         .footer-right {
             text-align: right;
             width: 80pt;
@@ -511,8 +523,20 @@
         $businessDays = $settings['business_days'] ?? 'ISNIN - AHAD';
         $businessHours = $settings['business_hours'] ?? '9.00AM - 6.00PM';
         $redemptionPeriod = $settings['redemption_period'] ?? '6 BULAN';
-        $interestRateNormal = $settings['interest_rate_normal'] ?? '1.0';
+        $interestRateNormal = $settings['interest_rate_normal'] ?? '0.5';
+        $interestRateExtended = $settings['interest_rate_extended'] ?? '1.0';
         $interestRateOverdue = $settings['interest_rate_overdue'] ?? '2.0';
+
+        // Override with pledge-specific rates if available
+        if (isset($pledge->interest_rate) && $pledge->interest_rate !== null) {
+            $interestRateNormal = number_format((float) $pledge->interest_rate, 2);
+        }
+        if (isset($pledge->interest_rate_extended) && $pledge->interest_rate_extended !== null) {
+            $interestRateExtended = number_format((float) $pledge->interest_rate_extended, 2);
+        }
+        if (isset($pledge->interest_rate_overdue) && $pledge->interest_rate_overdue !== null) {
+            $interestRateOverdue = number_format((float) $pledge->interest_rate_overdue, 2);
+        }
         $logoUrl = $settings['logo_url'] ?? null;
 
         $customer = $pledge->customer;
@@ -545,6 +569,14 @@
         // Due date
         $dueDate = $pledge->due_date;
         if (is_string($dueDate)) $dueDate = \Carbon\Carbon::parse($dueDate);
+
+        // Dynamically calculate redemption period from original pledge dates
+        if ($pledgeDate && $dueDate) {
+            $months = (int) $pledgeDate->diffInMonths($dueDate->copy()->addDay());
+            if ($months > 0) {
+                $redemptionPeriod = $months . ' BULAN';
+            }
+        }
 
         $ic = preg_replace('/[^0-9]/', '', $customer->ic_number ?? '');
         $icFormatted = strlen($ic) === 12
@@ -694,9 +726,9 @@
                     </div>
                     <div class="kadar-section">
                         <div class="kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ $settings['interest_rate_normal'] ?? '0.5' }}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ $settings['interest_rate_extended'] ?? '1.0' }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ $settings['interest_rate_overdue'] ?? '2.0' }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ $interestRateNormal }}% SEBULAN : UNTUK TEMPOH {{ strtoupper($redemptionPeriod) }} PERTAMA</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ $interestRateExtended }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {{ strtoupper($redemptionPeriod) }}</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ $interestRateOverdue }}% SEBULAN : LEPAS MATANG TEMPOH {{ strtoupper($redemptionPeriod) }}</div>
                     </div>
                 </td>
             </tr>
@@ -805,7 +837,13 @@
                     <div class="copy-label">{{ $copyLabel }}</div>
                 </td>
                 <td class="sig-cell">
-                    <div class="sig-box"></div>
+                    <div class="sig-box">
+                        <table class="sig-text-table">
+                            <tr>
+                                <td class="sig-text-cell">Tandatangan Pelanggan / Customer's Signature</td>
+                            </tr>
+                        </table>
+                    </div>
                 </td>
                 <td class="footer-right">
                     <div class="weight-label">Termasuk Emas, Batu<br>dan lain-lain</div>
