@@ -172,6 +172,40 @@ const emptyItem = {
   photo: null,
 };
 
+// Helper: Open a popup window for printing. If popup is blocked, fall back to a
+// hidden iframe so the content can still be printed without the user needing to
+// change browser settings.  Returns { window, fallback: bool }.
+const safeWindowOpen = (features = "width=800,height=600") => {
+  const win = window.open("", "_blank", features);
+  if (win) {
+    return { window: win, fallback: false };
+  }
+
+  // Popup was blocked — create a hidden iframe fallback
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "none";
+  iframe.style.opacity = "0";
+  document.body.appendChild(iframe);
+
+  // Wrap iframe.contentWindow with a helper close() that removes the iframe
+  const proxy = {
+    document: iframe.contentDocument || iframe.contentWindow.document,
+    focus: () => iframe.contentWindow?.focus(),
+    print: () => iframe.contentWindow?.print(),
+    close: () => { try { document.body.removeChild(iframe); } catch (_) {} },
+    closed: false,
+    _iframe: iframe,
+    _isIframeFallback: true,
+  };
+
+  return { window: proxy, fallback: true };
+};
+
 export default function NewPledge() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -1126,17 +1160,21 @@ export default function NewPledge() {
         throw new Error("Invalid response from server");
       }
 
-      const printWindow = window.open("", "_blank", "width=600,height=800");
+      const { window: printWindow, fallback } = safeWindowOpen("width=600,height=800");
 
       if (!printWindow) {
         dispatch(
           addToast({
             type: "error",
             title: "Popup Blocked",
-            message: "Please allow popups for this site to print.",
+            message: "Could not open print window. Please allow popups for this site.",
           }),
         );
         return;
+      }
+
+      if (fallback) {
+        dispatch(addToast({ type: "info", title: "Popup Blocked", message: "Printing via fallback mode. Allow popups for better experience." }));
       }
 
       printWindow.document.write(
@@ -1226,8 +1264,12 @@ export default function NewPledge() {
         backHtml = backHtml.replace(/@page\s*\{[^}]*\}/gi, "");
         const pledgeNo = data.data.pledge_no || "N/A";
 
-        officeWindow = window.open("", "_blank", "width=800,height=600");
+        const result = safeWindowOpen("width=800,height=600");
+        officeWindow = result.window;
         if (officeWindow) {
+          if (result.fallback) {
+            dispatch(addToast({ type: "info", title: "Popup Blocked", message: "Printing via fallback. Please allow popups for this site for a better experience." }));
+          }
           officeWindow.document.write(`
               <!DOCTYPE html>
               <html>
@@ -1358,8 +1400,12 @@ export default function NewPledge() {
       const data = await response.json();
 
       if (data.success && data.data) {
-        barcodeWindow = window.open("", "_blank", "width=400,height=600");
+        const barcodeResult = safeWindowOpen("width=400,height=600");
+        barcodeWindow = barcodeResult.window;
         if (barcodeWindow) {
+          if (barcodeResult.fallback) {
+            dispatch(addToast({ type: "info", title: "Popup Blocked", message: "Barcode printing via fallback. Allow popups for better experience." }));
+          }
           barcodeWindow.document.open();
           const pledgeBarcodeData = {
             barcode_image:
@@ -1885,13 +1931,34 @@ export default function NewPledge() {
           return false;
         }
         return true;
-      case 2:
+      case 2: {
         const validItems = items.filter((item) => item.category && item.weight && parseFloat(item.weight) > 0);
         if (validItems.length === 0) {
           dispatch(addToast({ type: "error", title: "Required", message: "Please add at least one item with category and weight" }));
           return false;
         }
+        // Check for INCOMPLETE items — items where user started filling but missed category or weight
+        const incompleteItems = items.filter((item) => {
+          const hasCategory = !!item.category;
+          const hasWeight = !!item.weight && parseFloat(item.weight) > 0;
+          // Item is incomplete if it has one field but not the other
+          return (hasCategory && !hasWeight) || (!hasCategory && hasWeight);
+        });
+        if (incompleteItems.length > 0) {
+          const incompleteIndices = incompleteItems.map((inc) => {
+            const idx = items.indexOf(inc);
+            const missing = !inc.category ? 'category' : 'weight';
+            return `Item ${idx + 1} (missing ${missing})`;
+          }).join(', ');
+          dispatch(addToast({
+            type: "warning",
+            title: "Incomplete Items",
+            message: `${incompleteItems.length} item(s) have incomplete data: ${incompleteIndices}. Please complete or remove them before proceeding.`,
+          }));
+          return false;
+        }
         return true;
+      }
       case 3:
         if (effectivePercentage <= 0 || effectivePercentage > 100) {
           dispatch(addToast({ type: "error", title: "Invalid", message: "Loan percentage must be between 1-100%" }));
@@ -1951,6 +2018,24 @@ export default function NewPledge() {
 
     if (storageBlocked) {
       dispatch(addToast({ type: "error", title: "Storage Full", message: "Cannot create new pledge: Global storage is full." }));
+      return;
+    }
+
+    // ── SAFETY CHECK: Detect items that would be silently dropped ──
+    const validForSubmit = items.filter((item) => item.category && item.weight);
+    const droppedCount = items.length - validForSubmit.length;
+    if (droppedCount > 0) {
+      const droppedItems = items
+        .map((item, idx) => ({ ...item, _idx: idx + 1 }))
+        .filter((item) => !(item.category && item.weight));
+      const droppedDesc = droppedItems
+        .map((d) => `Item ${d._idx} (${!d.category ? 'no category' : 'no weight'})`)
+        .join(', ');
+      dispatch(addToast({
+        type: "error",
+        title: "Incomplete Items Detected",
+        message: `${droppedCount} item(s) are missing required data and would not be saved: ${droppedDesc}. Please complete or remove them.`,
+      }));
       return;
     }
 
