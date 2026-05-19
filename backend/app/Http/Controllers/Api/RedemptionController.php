@@ -316,7 +316,7 @@ class RedemptionController extends Controller
                 'interest_months' => $monthsElapsed,
                 'interest_rate' => $pledge->interest_rate,
                 'interest_amount' => $calculation['total_interest'],
-                'handling_fee' => $calculation['handling_fee'],
+                'handling_fee' => 0,
                 'total_payable' => $calculation['total_payable'],
                 'payment_method' => $validated['payment_method'],
                 'cash_amount' => $validated['cash_amount'] ?? 0,

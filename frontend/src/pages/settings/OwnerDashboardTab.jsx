@@ -17,6 +17,13 @@ import {
 
 const MAX_RECIPIENTS = 5;
 
+const formatTime12h = (hhmm) => {
+  const [h, m] = (hhmm || "20:00").split(":").map((p) => parseInt(p, 10));
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+};
+
 /**
  * Owner Dashboard settings.
  *
@@ -31,7 +38,8 @@ export default function OwnerDashboardTab() {
 
   const [enabled, setEnabled] = useState(false);
   const [recipients, setRecipients] = useState([]);
-  const [sendTime, setSendTime] = useState("20:00");
+  // Read-only — fixed by the server cron entry.
+  const [sendTime, setSendTime] = useState("20:00"); // eslint-disable-line no-unused-vars
   const [draftNumber, setDraftNumber] = useState("");
 
   useEffect(() => {
@@ -342,16 +350,27 @@ export default function OwnerDashboardTab() {
           </p>
         </div>
 
-        {/* Send time */}
+        {/* Send time — read-only; controlled by the cPanel cron schedule */}
         <div className="py-4">
-          <Input
-            type="time"
-            label="Daily send time"
-            leftIcon={Clock}
-            value={sendTime}
-            onChange={(e) => setSendTime(e.target.value)}
-            helperText="Server timezone is Asia/Kuala_Lumpur. Default 20:00 (8 PM)."
-          />
+          <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+            Daily send time
+          </label>
+          <div className="flex items-center gap-3 px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg">
+            <Clock className="w-4 h-4 text-zinc-400" />
+            <span className="text-base font-mono font-semibold text-zinc-800">
+              {sendTime || "20:00"}
+            </span>
+            <span className="text-sm text-zinc-500">
+              ({formatTime12h(sendTime || "20:00")})
+            </span>
+            <span className="text-xs text-zinc-400 ml-auto">
+              Asia/Kuala_Lumpur
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500 mt-2">
+            This time is fixed by the server cron schedule. To change it,
+            update the cron entry in cPanel.
+          </p>
         </div>
 
         {/* Save */}

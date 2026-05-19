@@ -3,7 +3,6 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-use App\Models\Setting;
 use App\Services\GoldPriceService;
 
 /*
@@ -100,32 +99,13 @@ Schedule::command('pawnsys:generate-monthly-report')
 // OWNER DASHBOARD — Daily PDF to WhatsApp
 // ==========================================================================
 //
-// Runs every minute and self-gates on the `owner_dashboard.send_time` setting
-// configured in the UI (Settings → Owner Dashboard). The `enabled` flag is
-// re-checked inside the command, per branch.
-Schedule::command('dashboard:send-owner-daily')
-    ->everyMinute()
-    ->timezone('Asia/Kuala_Lumpur')
-    ->when(function () {
-        try {
-            $enabled = Setting::where('category', 'owner_dashboard')
-                ->where('key_name', 'enabled')
-                ->value('value');
-            if ($enabled !== '1' && $enabled !== 'true') {
-                return false;
-            }
-            $sendTime = Setting::where('category', 'owner_dashboard')
-                ->where('key_name', 'send_time')
-                ->value('value') ?? '20:00';
-            return now('Asia/Kuala_Lumpur')->format('H:i') === $sendTime;
-        } catch (\Throwable $e) {
-            \Log::warning('Owner dashboard schedule check failed', ['error' => $e->getMessage()]);
-            return false;
-        }
-    })
-    ->name('owner-daily-dashboard')
-    ->withoutOverlapping()
-    ->onOneServer();
+// Triggered directly by a dedicated cPanel cron entry at a fixed time
+// (e.g. `0 20 * * *`), NOT via the Laravel scheduler. This keeps the cron
+// firing only once per day. The `enabled` flag is still re-checked inside
+// the command, so disabling delivery in the UI takes effect immediately.
+//
+// To change the send time: edit the cPanel cron entry — the value shown in
+// Settings → Owner Dashboard is read-only and informational.
 
 // Weekly cleanup of owner-dashboard PDFs older than 30 days.
 // UltraMsg fetches the file once at send time; after that the local copy is
