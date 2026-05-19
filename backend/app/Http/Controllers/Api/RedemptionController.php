@@ -217,6 +217,26 @@ class RedemptionController extends Controller
     }
 
     /**
+     * Build the full rack-path location string used for display
+     * (e.g. "LOCKER 1 > DRAWER C > SLOT 5 > SUBSLOT 3")
+     */
+    private function buildRackPathString($item): ?string
+    {
+        if (!$item->vault_id || !$item->vault || !$item->box || !$item->slot) {
+            return null;
+        }
+        $lockerName = strtoupper($item->vault->name ?? $item->vault->code ?? 'Locker');
+        $drawerName = $item->box->box_number ?? $item->box->name ?? 'Drawer';
+        if ($item->box->has_subslots && $item->slot->slot_number) {
+            $subPerSlot = $item->box->subslots_per_slot ?: 5;
+            $sNum = (int) ceil($item->slot->slot_number / $subPerSlot);
+            $subNum = (($item->slot->slot_number - 1) % $subPerSlot) + 1;
+            return sprintf('%s > DRAWER %s > SLOT %d > SUBSLOT %d', $lockerName, $drawerName, $sNum, $subNum);
+        }
+        return sprintf('%s > DRAWER %s > SLOT %s', $lockerName, $drawerName, $item->slot->slot_number);
+    }
+
+    /**
      * Process redemption
      * 
      * FIXES:
@@ -248,7 +268,8 @@ class RedemptionController extends Controller
             ->whereIn('status', ['active', 'overdue']) // Changed from just 'active'
             ->with(['items' => function ($q) {
             // Only load items that have NOT been redeemed yet
-            $q->whereNotIn('status', ['redeemed', 'released']);
+            $q->whereNotIn('status', ['redeemed', 'released'])
+                ->with(['vault', 'box', 'slot']);
         }])
             ->first();
 
@@ -346,11 +367,15 @@ class RedemptionController extends Controller
                     }
                 }
 
+                // Snapshot rack path before clearing slot references
+                $rackPath = $this->buildRackPathString($item);
+
                 // Update item status
                 $item->update([
                     'status' => 'redeemed',
                     'redeemed_at' => now(),
                     'redemption_id' => $redemption->id,
+                    'redeemed_from_location' => $rackPath,
                     'vault_id' => null,
                     'box_id' => null,
                     'slot_id' => null,

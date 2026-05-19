@@ -208,6 +208,20 @@
             padding: 3pt 4pt;
             border-bottom: 1.5pt solid #1a4a7a;
         }
+        .rate-split {
+            width: 100%;
+            border-collapse: collapse;
+            border-bottom: 1.5pt solid #1a4a7a;
+        }
+        .rate-cell {
+            text-align: center;
+            padding: 3pt 4pt;
+            vertical-align: middle;
+            width: 50%;
+        }
+        .rate-cell-left {
+            border-right: 1.5pt solid #1a4a7a;
+        }
         .rate-label {
             font-size: 5.5pt;
             font-weight: bold;
@@ -323,7 +337,6 @@
             font-size: 12pt;
             font-weight: bold;
             color: #000;
-            float: right;
         }
         .keuntungan-text {
             font-size: 9.5pt;
@@ -571,10 +584,18 @@
                         <div class="ticket-label">NO. TIKET:</div>
                         <div class="ticket-number">{{ $pledge->pledge_no }}</div>
                     </div>
-                    <div class="rate-section">
-                        <div class="rate-label">TEMPOH TAMAT</div>
-                        <div class="rate-value">{{ $redemptionPeriod }}</div>
-                    </div>
+                    <table class="rate-split">
+                        <tr>
+                            <td class="rate-cell rate-cell-left">
+                                <div class="rate-label">CAJ PENGENDALIAN</div>
+                                <div class="rate-value">{{ $settings['handling_fee'] ?? '50 SEN' }}</div>
+                            </td>
+                            <td class="rate-cell">
+                                <div class="rate-label">TEMPOH TAMAT</div>
+                                <div class="rate-value">{{ $redemptionPeriod }}</div>
+                            </td>
+                        </tr>
+                    </table>
                     <div class="kadar-section">
                         <div class="kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                         <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ $interestRateNormal }}% SEBULAN : UNTUK TEMPOH {{ strtoupper($redemptionPeriod) }} PERTAMA</div>
@@ -627,11 +648,19 @@
         <table class="bottom-table">
             <tr>
                 <td class="pinjaman-cell">
-                    <span class="pinjaman-label">Pinjaman</span>
-                    <span class="pinjaman-rm">RM</span>
-                    <span class="pinjaman-amount">{{ number_format($loanAmount, 2) }}</span>
-                    <span class="keuntungan-text">Keuntungan Dikena RM {{ number_format($monthlyInterest, 2) }} sebulan</span>
-                    <span class="pinjaman-stars">***</span>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <tr>
+                            <td style="border:none; padding:0; vertical-align:middle;">
+                                <span class="pinjaman-label">Pinjaman</span>
+                                <span class="pinjaman-rm">RM</span>
+                                <span class="pinjaman-amount">{{ number_format($loanAmount, 2) }}</span>
+                                <span class="keuntungan-text">Keuntungan Dikena RM {{ number_format($monthlyInterest, 2) }} sebulan</span>
+                            </td>
+                            <td style="border:none; padding:0; vertical-align:middle; text-align:right; width:30pt;">
+                                <span class="pinjaman-stars">***</span>
+                            </td>
+                        </tr>
+                    </table>
                 </td>
                 <td class="date-cell">
                     <div class="date-label">Tarikh Dipajak</div>

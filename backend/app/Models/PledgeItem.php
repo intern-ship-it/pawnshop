@@ -35,9 +35,13 @@ class PledgeItem extends Model
         'location_assigned_by',
         'status',
         'released_at',
+        'redeemed_at',
+        'redemption_id',
+        'redeemed_from_location',
     ];
 
     protected $casts = [
+        'redeemed_at' => 'datetime',
         'gross_weight' => 'decimal:3',
         'stone_deduction_value' => 'decimal:3',
         'net_weight' => 'decimal:3',

@@ -44,7 +44,10 @@ class PledgeController extends Controller
             $q->select('id', 'pledge_id', 'redemption_no')->latest()->limit(1);
         }])
             // Count all items in the pledge
-            ->withCount('items as items_count');
+            ->withCount('items as items_count')
+            // Interest payment summary (additive, does not affect existing fields)
+            ->withSum('interestPayments as interest_paid_months_total', 'interest_months')
+            ->withMax('interestPayments as interest_paid_through', 'period_to');
 
         if ($request->boolean('with_items')) {
             // Only load items that have NOT been redeemed/released
@@ -674,6 +677,8 @@ class PledgeController extends Controller
             'interestPayments',
             'receipts',
             'createdBy:id,name',
+            'redemption.createdBy:id,name',
+            'redemption.bank:id,name',
         ]);
 
         // Add interest breakdown

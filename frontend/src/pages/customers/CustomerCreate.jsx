@@ -52,6 +52,7 @@ export default function CustomerCreate() {
   const [formData, setFormData] = useState({
     name: "",
     icNumber: searchParams.get("ic") || "",
+    passportNumber: "",
     phone: "",
     whatsapp: "",
     email: "",
@@ -66,6 +67,9 @@ export default function CustomerCreate() {
     gender: "",
     occupation: "",
   });
+
+  // Foreigner detection — passport flow when nationality is not Malaysian
+  const isForeigner = formData.nationality && formData.nationality !== "Malaysian";
 
   // Malaysian states
   const malaysianStates = [
@@ -146,8 +150,9 @@ export default function CustomerCreate() {
     }
   }, [formData.phone, sameAsPhone]);
 
-  // Extract DOB and Gender from IC
+  // Extract DOB and Gender from IC (Malaysian only)
   useEffect(() => {
+    if (isForeigner) return;
     const ic = formData.icNumber.replace(/[-\s]/g, "");
 
     if (ic.length >= 6) {
@@ -184,7 +189,7 @@ export default function CustomerCreate() {
       const gender = lastDigit % 2 === 0 ? "female" : "male";
       setFormData((prev) => ({ ...prev, gender }));
     }
-  }, [formData.icNumber]);
+  }, [formData.icNumber, isForeigner]);
 
   // Fields that should NOT be auto-uppercased (dropdowns need internal values to match exactly)
   const noUppercaseFields = ["email", "gender", "state", "nationality", "race"];
@@ -254,6 +259,18 @@ export default function CustomerCreate() {
           if (exists) error = "Customer with this IC already exists";
         }
         break;
+      case "passportNumber":
+        const cleanPassport = (value || "").trim();
+        if (!cleanPassport) error = "Passport number is required";
+        else if (!/^[A-Z0-9]{5,15}$/i.test(cleanPassport))
+          error = "Passport must be 5-15 alphanumeric characters";
+        if (!error && cleanPassport) {
+          const exists = customers.find(
+            (c) => c.icNumber?.replace(/[-\s]/g, "").toUpperCase() === cleanPassport.toUpperCase()
+          );
+          if (exists) error = "Customer with this passport already exists";
+        }
+        break;
       case "phone":
         if (!value || !value.trim()) error = "Phone number is required";
         else if (!value.startsWith("+"))
@@ -274,7 +291,8 @@ export default function CustomerCreate() {
 
   // Validate all fields
   const validateAll = () => {
-    const fieldsToValidate = ["name", "icNumber", "phone", "address"];
+    const idField = isForeigner ? "passportNumber" : "icNumber";
+    const fieldsToValidate = ["name", idField, "phone", "address"];
     let isValid = true;
 
     fieldsToValidate.forEach((field) => {
@@ -284,13 +302,15 @@ export default function CustomerCreate() {
       setTouched((prev) => ({ ...prev, [field]: true }));
     });
 
-    // Check IC images (KPKT requirement)
+    // Check ID images (KPKT requirement)
+    const frontLabel = isForeigner ? "Passport front" : "IC front";
+    const backLabel = isForeigner ? "Passport back" : "IC back";
     if (!icFrontImage) {
-      setErrors((prev) => ({ ...prev, icFront: "IC front image is required" }));
+      setErrors((prev) => ({ ...prev, icFront: `${frontLabel} image is required` }));
       isValid = false;
     }
     if (!icBackImage) {
-      setErrors((prev) => ({ ...prev, icBack: "IC back image is required" }));
+      setErrors((prev) => ({ ...prev, icBack: `${backLabel} image is required` }));
       isValid = false;
     }
 
@@ -508,8 +528,10 @@ export default function CustomerCreate() {
       // Prepare data for API
       const customerData = {
         name: formData.name.trim(),
-        ic_number: formData.icNumber.replace(/[-\s]/g, ""),
-        ic_type: "mykad",
+        ic_number: isForeigner
+          ? formData.passportNumber.trim().toUpperCase()
+          : formData.icNumber.replace(/[-\s]/g, ""),
+        ic_type: isForeigner ? "passport" : "mykad",
         phone: parsedPhone.phone,
         country_code: parsedPhone.countryCode,
         whatsapp: parsedWhatsApp.phone,
@@ -562,7 +584,7 @@ export default function CustomerCreate() {
         const formattedErrors = {};
         Object.keys(apiErrors).forEach((key) => {
           const fieldMap = {
-            ic_number: "icNumber",
+            ic_number: isForeigner ? "passportNumber" : "icNumber",
             date_of_birth: "dateOfBirth",
             ic_type: "icType",
           };
@@ -628,9 +650,8 @@ export default function CustomerCreate() {
             {/* Personal Information */}
             <Card>
               <div className="border-b border-gray-100 bg-gray-50/50 rounded-t-xl overflow-hidden">
-                <MyKadScanner 
-                  onDataReceived={handleScanData} 
-                  header={
+                {isForeigner ? (
+                  <div className="p-5">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
                         <User className="w-5 h-5 text-orange-600" />
@@ -644,8 +665,27 @@ export default function CustomerCreate() {
                         </p>
                       </div>
                     </div>
-                  }
-                />
+                  </div>
+                ) : (
+                  <MyKadScanner
+                    onDataReceived={handleScanData}
+                    header={
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <User className="w-5 h-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900">
+                            Personal Information
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Basic customer details
+                          </p>
+                        </div>
+                      </div>
+                    }
+                  />
+                )}
               </div>
 
               <div className="p-5 space-y-4">
@@ -665,26 +705,60 @@ export default function CustomerCreate() {
                     />
                   </div>
 
-                  {/* IC Number */}
+                  {/* Nationality */}
                   <div>
-                    <Input
-                      label="IC Number"
-                      name="icNumber"
-                      placeholder="XXXXXX-XX-XXXX"
-                      value={formData.icNumber}
+                    <Select
+                      label="Nationality"
+                      name="nationality"
+                      value={formData.nationality}
                       onChange={handleChange}
-                      onBlur={handleBlur}
-                      error={touched.icNumber && errors.icNumber}
+                      options={[
+                        { value: "", label: "Select an option" },
+                        ...nationalityOptions.map((n) => ({
+                          value: n,
+                          label: n.toUpperCase(),
+                        })),
+                      ]}
                       required
-                      leftIcon={CreditCard}
                     />
-                    {formData.icNumber && !errors.icNumber && (
-                      <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        Formatted: {formatIC(formData.icNumber)}
-                      </p>
-                    )}
                   </div>
+
+                  {/* IC Number or Passport Number */}
+                  {isForeigner ? (
+                    <div>
+                      <Input
+                        label="Passport Number"
+                        name="passportNumber"
+                        placeholder="Enter passport number"
+                        value={formData.passportNumber}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        error={touched.passportNumber && errors.passportNumber}
+                        required
+                        leftIcon={CreditCard}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <Input
+                        label="IC Number"
+                        name="icNumber"
+                        placeholder="XXXXXX-XX-XXXX"
+                        value={formData.icNumber}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        error={touched.icNumber && errors.icNumber}
+                        required
+                        leftIcon={CreditCard}
+                      />
+                      {formData.icNumber && !errors.icNumber && (
+                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          Formatted: {formatIC(formData.icNumber)}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Date of Birth */}
                   <div>
@@ -695,7 +769,7 @@ export default function CustomerCreate() {
                       value={formData.dateOfBirth}
                       onChange={handleChange}
                       leftIcon={Calendar}
-                      hint="Auto-filled from IC"
+                      hint={isForeigner ? "Enter date of birth" : "Auto-filled from IC"}
                     />
                   </div>
 
@@ -870,23 +944,6 @@ export default function CustomerCreate() {
                     />
                   </div>
 
-                  {/* Nationality */}
-                  <div>
-                    <Select
-                      label="Nationality"
-                      name="nationality"
-                      value={formData.nationality}
-                      onChange={handleChange}
-                      options={[
-                        { value: "", label: "Select an option" },
-                        ...nationalityOptions.map((n) => ({
-                          value: n,
-                          label: n.toUpperCase(),
-                        })),
-                      ]}
-                    />
-                  </div>
-
                   {/* Race */}
                   <div>
                     <Select
@@ -929,10 +986,10 @@ export default function CustomerCreate() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-zinc-800">
-                      IC Copy (KPKT Requirement)
+                      {isForeigner ? "Passport Copy (KPKT Requirement)" : "IC Copy (KPKT Requirement)"}
                     </h3>
                     <p className="text-sm text-zinc-500">
-                      Upload front and back of IC
+                      {isForeigner ? "Upload front and back of passport" : "Upload front and back of IC"}
                     </p>
                   </div>
                 </div>
@@ -940,10 +997,10 @@ export default function CustomerCreate() {
            
               <div className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* IC Front */}
+                  {/* IC/Passport Front */}
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 mb-2">
-                      IC Front <span className="text-red-500">*</span>
+                      {isForeigner ? "Passport Front" : "IC Front"} <span className="text-red-500">*</span>
                     </label>
                     <input
                       ref={icFrontRef}
@@ -999,7 +1056,7 @@ export default function CustomerCreate() {
                           >
                             <Upload className="w-8 h-8" />
                             <span className="text-sm font-medium">
-                              Upload IC Front
+                              {isForeigner ? "Upload Passport Front" : "Upload IC Front"}
                             </span>
                             <span className="text-xs">
                               Click to upload or use camera
@@ -1024,10 +1081,10 @@ export default function CustomerCreate() {
                     )}
                   </div>
 
-                  {/* IC Back */}
+                  {/* IC/Passport Back */}
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 mb-2">
-                      IC Back <span className="text-red-500">*</span>
+                      {isForeigner ? "Passport Back" : "IC Back"} <span className="text-red-500">*</span>
                     </label>
                     <input
                       ref={icBackRef}
@@ -1083,7 +1140,7 @@ export default function CustomerCreate() {
                           >
                             <Upload className="w-8 h-8" />
                             <span className="text-sm font-medium">
-                              Upload IC Back
+                              {isForeigner ? "Upload Passport Back" : "Upload IC Back"}
                             </span>
                             <span className="text-xs">
                               Click to upload or use camera

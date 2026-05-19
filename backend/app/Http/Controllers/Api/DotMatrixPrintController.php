@@ -2669,7 +2669,7 @@ HTML;
      * FRONT PAGE Ã¢â‚¬â€ Pre-Printed Blank Form (A5 Landscape)
      * UPDATED: 3-column customer layout matching physical form
      */
-    private function generatePrePrintedFrontPage(array $settings): string
+    private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false): string
     {
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -2685,6 +2685,14 @@ HTML;
         $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $logoUrl = $settings['logo_url'] ?? null;
 
+
+        if ($showHandlingFee) {
+            $handlingFee = htmlspecialchars($settings['handling_fee'] ?? '50 SEN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $rateRowCells = '<div class="pp-rate-cell" style="flex: 1; border-right: 1px solid #1a4a7a;"><div class="pp-rate-lbl">CAJ PENGENDALIAN</div><div class="pp-rate-val pp-rate-big">' . $handlingFee . '</div></div>'
+                . '<div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">' . $redemptionPeriod . '</div></div>';
+        } else {
+            $rateRowCells = '<div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">' . $redemptionPeriod . '</div></div>';
+        }
         $phoneHtml = $phone1;
         if ($phone2) {
             $phoneHtml .= '<br>' . $phone2;
@@ -2880,7 +2888,7 @@ HTMLSTART
         <div class="pp-rcol">
             <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
             <div class="pp-rate-row">
-                <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
+                {$rateRowCells}
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
@@ -3196,7 +3204,7 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true);
             $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
 
             // Combine them - data overlay on top of blank form
@@ -3330,7 +3338,7 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true);
             $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
 
             // Combine them - data overlay on top of blank form
@@ -6101,7 +6109,7 @@ HTML;
     font-weight: bold;
 }
 
-/* ═══ SALINAN PELANGGAN ═══ */
+/* ═══ ORIGINAL ═══ */
 .ppo-copy-label {
     position: absolute;
     bottom: 8mm;
@@ -6163,8 +6171,8 @@ HTML;
     <!-- WEIGHT -->
     <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
 
-    <!-- SALINAN PELANGGAN -->
-    <div class="ppo-copy-label">SALINAN PELANGGAN</div>
+    <!-- ORIGINAL -->
+    <div class="ppo-copy-label">ORIGINAL</div>
 </div>
 HTML;
     }
@@ -6893,7 +6901,7 @@ HTML;
     font-weight: bold;
 }
 
-/* ═══ SALINAN PELANGGAN (REPRINT) ═══ */
+/* ═══ ORIGINAL (REPRINT) ═══ */
 .ppo-copy-label {
     position: absolute;
     bottom: 8mm;
@@ -6955,8 +6963,8 @@ HTML;
     <!-- WEIGHT -->
     <div class="ppo-weight">{$this->formatNumber($totalWeight, 2)}g</div>
 
-    <!-- SALINAN PELANGGAN (REPRINT) -->
-    <div class="ppo-copy-label">SALINAN PELANGGAN (REPRINT)</div>
+    <!-- ORIGINAL (REPRINT) -->
+    <div class="ppo-copy-label">ORIGINAL (REPRINT)</div>
 </div>
 HTML;
     }
