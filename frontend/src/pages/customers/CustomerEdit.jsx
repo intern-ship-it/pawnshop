@@ -5,7 +5,7 @@ import {
   updateCustomer,
   setCustomers,
 } from "@/features/customers/customersSlice";
-import { addToast } from "@/features/ui/uiSlice";
+import { addToast, openCamera } from "@/features/ui/uiSlice";
 import { customerService } from "@/services";
 import { getStorageUrl, compressImage } from "@/utils/helpers";
 import { validateIC, validatePhone, validateEmail } from "@/utils/validators";
@@ -89,6 +89,10 @@ export default function CustomerEdit() {
   const icFrontRef = useRef(null);
   const icBackRef = useRef(null);
   const profilePhotoRef = useRef(null);
+
+  // Camera capture state
+  const [currentCaptureType, setCurrentCaptureType] = useState(null);
+  const { capturedImage } = useAppSelector((state) => state.ui.camera);
 
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -379,6 +383,61 @@ export default function CustomerEdit() {
         break;
     }
   };
+
+  // Handle camera capture
+  const handleCameraCapture = (type) => {
+    setCurrentCaptureType(type);
+    const mode = type === "profile" ? "selfie" : "document";
+    dispatch(openCamera({ contextId: type, mode }));
+  };
+
+  // Process captured image from camera
+  useEffect(() => {
+    if (capturedImage && currentCaptureType) {
+      fetch(capturedImage)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const isPng = blob.type === "image/png";
+          const file = new File([blob], `${currentCaptureType}.${isPng ? "png" : "jpg"}`, {
+            type: blob.type || "image/jpeg",
+          });
+
+          switch (currentCaptureType) {
+            case "icFront":
+              setIcFrontImage(capturedImage);
+              setIcFrontFile(file);
+              setImagesChanged((prev) => ({ ...prev, icFront: true }));
+              break;
+            case "icBack":
+              setIcBackImage(capturedImage);
+              setIcBackFile(file);
+              setImagesChanged((prev) => ({ ...prev, icBack: true }));
+              break;
+            case "profile":
+              setProfilePhoto(capturedImage);
+              setProfilePhotoFile(file);
+              setImagesChanged((prev) => ({ ...prev, profile: true }));
+              break;
+          }
+
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Photo Captured",
+              message: `${
+                currentCaptureType === "icFront"
+                  ? "IC Front"
+                  : currentCaptureType === "icBack"
+                    ? "IC Back"
+                    : "Profile Photo"
+              } captured successfully`,
+            })
+          );
+
+          setCurrentCaptureType(null);
+        });
+    }
+  }, [capturedImage, currentCaptureType, dispatch]);
 
   // Reset to original
   const handleReset = () => {
@@ -958,20 +1017,33 @@ export default function CustomerEdit() {
                           )}
                         </motion.div>
                       ) : (
-                        <motion.button
-                          key="upload"
-                          type="button"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          onClick={() => icFrontRef.current?.click()}
-                          className="w-full h-48 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
-                        >
-                          <Upload className="w-8 h-8" />
-                          <span className="text-sm font-medium">
-                            Upload IC Front
-                          </span>
-                        </motion.button>
+                        <div className="space-y-2">
+                          <motion.button
+                            key="upload"
+                            type="button"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            onClick={() => icFrontRef.current?.click()}
+                            className="w-full h-48 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
+                          >
+                            <Upload className="w-8 h-8" />
+                            <span className="text-sm font-medium">
+                              Upload IC Front
+                            </span>
+                            <span className="text-xs">
+                              Click to upload or use camera
+                            </span>
+                          </motion.button>
+                          <button
+                            type="button"
+                            onClick={() => handleCameraCapture("icFront")}
+                            className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                          >
+                            <Camera className="w-4 h-4" />
+                            Take Photo with Camera
+                          </button>
+                        </div>
                       )}
                     </AnimatePresence>
                   </div>
@@ -1026,20 +1098,33 @@ export default function CustomerEdit() {
                           )}
                         </motion.div>
                       ) : (
-                        <motion.button
-                          key="upload"
-                          type="button"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          onClick={() => icBackRef.current?.click()}
-                          className="w-full h-48 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
-                        >
-                          <Upload className="w-8 h-8" />
-                          <span className="text-sm font-medium">
-                            Upload IC Back
-                          </span>
-                        </motion.button>
+                        <div className="space-y-2">
+                          <motion.button
+                            key="upload"
+                            type="button"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            onClick={() => icBackRef.current?.click()}
+                            className="w-full h-48 border-2 border-dashed border-zinc-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-amber-500 hover:bg-amber-50 text-zinc-400 hover:text-amber-500 transition-colors"
+                          >
+                            <Upload className="w-8 h-8" />
+                            <span className="text-sm font-medium">
+                              Upload IC Back
+                            </span>
+                            <span className="text-xs">
+                              Click to upload or use camera
+                            </span>
+                          </motion.button>
+                          <button
+                            type="button"
+                            onClick={() => handleCameraCapture("icBack")}
+                            className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                          >
+                            <Camera className="w-4 h-4" />
+                            Take Photo with Camera
+                          </button>
+                        </div>
                       )}
                     </AnimatePresence>
                   </div>
@@ -1110,23 +1195,33 @@ export default function CustomerEdit() {
                       )}
                     </motion.div>
                   ) : (
-                    <motion.button
-                      key="upload"
-                      type="button"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      onClick={() => profilePhotoRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-zinc-300 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-amber-500 hover:bg-amber-50 transition-colors text-zinc-400 hover:text-amber-500"
-                    >
-                      <div className="w-20 h-20 rounded-full bg-zinc-100 flex items-center justify-center">
-                        <Image className="w-8 h-8" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium">Upload Photo</p>
-                        <p className="text-xs">JPG, PNG up to 5MB</p>
-                      </div>
-                    </motion.button>
+                    <div className="space-y-3">
+                      <motion.button
+                        key="upload"
+                        type="button"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        onClick={() => profilePhotoRef.current?.click()}
+                        className="w-full aspect-square border-2 border-dashed border-zinc-300 rounded-xl flex flex-col items-center justify-center gap-3 hover:border-amber-500 hover:bg-amber-50 transition-colors text-zinc-400 hover:text-amber-500"
+                      >
+                        <div className="w-20 h-20 rounded-full bg-zinc-100 flex items-center justify-center">
+                          <Image className="w-8 h-8" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium">Upload Photo</p>
+                          <p className="text-xs">JPG, PNG up to 5MB</p>
+                        </div>
+                      </motion.button>
+                      <button
+                        type="button"
+                        onClick={() => handleCameraCapture("profile")}
+                        className="w-full py-2.5 px-4 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                      >
+                        <Camera className="w-4 h-4" />
+                        Take Selfie with Camera
+                      </button>
+                    </div>
                   )}
                 </AnimatePresence>
               </div>

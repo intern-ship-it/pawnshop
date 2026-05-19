@@ -274,7 +274,7 @@
             padding: 1pt 0;
         }
         .cust-box {
-            border: 1.5pt solid #d42027;
+            border: 1.5pt solid #1a4a7a;
             padding: 2pt 6pt;
             margin-bottom: 2pt;
         }
@@ -303,7 +303,7 @@
         /* ═══ RENEWAL PAYMENT SUMMARY ═══ */
         .renewal-summary {
             width: 100%;
-            border: 1.5pt solid #d42027;
+            border: 1.5pt solid #1a4a7a;
             border-collapse: collapse;
             margin-bottom: 2pt;
         }
@@ -334,7 +334,7 @@
 
         /* ═══ AMOUNT ═══ */
         .amount-box {
-            border: 1.5pt solid #d42027;
+            border: 1.5pt solid #1a4a7a;
             border-bottom: none;
             padding: 4pt 6pt;
             overflow: hidden;
@@ -356,10 +356,10 @@
         .bottom-table {
             width: 100%;
             border-collapse: collapse;
-            border: 1.5pt solid #d42027;
+            border: 1.5pt solid #1a4a7a;
         }
         .bottom-table td {
-            border: 1.5pt solid #d42027;
+            border: 1.5pt solid #1a4a7a;
             padding: 2pt 6pt;
             vertical-align: middle;
         }
@@ -396,7 +396,7 @@
         }
         .date-cell {
             text-align: center;
-            width: 38%;
+            width: 19%;
         }
         .date-label {
             font-size: 6pt;
@@ -475,8 +475,20 @@
         $businessDays = $settings['business_days'] ?? 'ISNIN - AHAD';
         $businessHours = $settings['business_hours'] ?? '9.00AM - 6.00PM';
         $redemptionPeriod = $settings['redemption_period'] ?? '6 BULAN';
-        $interestRateNormal = $settings['interest_rate_normal'] ?? '1.0';
+        $interestRateNormal = $settings['interest_rate_normal'] ?? '0.5';
+        $interestRateExtended = $settings['interest_rate_extended'] ?? '1.0';
         $interestRateOverdue = $settings['interest_rate_overdue'] ?? '2.0';
+
+        // Override with pledge-specific rates if available
+        if (isset($pledge->interest_rate) && $pledge->interest_rate !== null) {
+            $interestRateNormal = number_format((float) $pledge->interest_rate, 2);
+        }
+        if (isset($pledge->interest_rate_extended) && $pledge->interest_rate_extended !== null) {
+            $interestRateExtended = number_format((float) $pledge->interest_rate_extended, 2);
+        }
+        if (isset($pledge->interest_rate_overdue) && $pledge->interest_rate_overdue !== null) {
+            $interestRateOverdue = number_format((float) $pledge->interest_rate_overdue, 2);
+        }
         $logoUrl = $settings['logo_url'] ?? null;
 
         $customer = $pledge->customer;
@@ -509,6 +521,14 @@
         // Original pledge date
         $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
         if (is_string($pledgeDate)) $pledgeDate = \Carbon\Carbon::parse($pledgeDate);
+
+        // Dynamically calculate redemption period from renewal dates
+        if ($renewalDate && $newDueDate) {
+            $months = (int) $renewalDate->diffInMonths($newDueDate->copy()->addDay());
+            if ($months > 0) {
+                $redemptionPeriod = $months . ' BULAN';
+            }
+        }
 
         $ic = preg_replace('/[^0-9]/', '', $customer->ic_number ?? '');
         $icFormatted = strlen($ic) === 12
@@ -649,9 +669,9 @@
                     </div>
                     <div class="kadar-section">
                         <div class="kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ $settings['interest_rate_normal'] ?? '0.5' }}% SEBULAN : UNTUK TEMPOH 6 BULAN PERTAMA</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ $settings['interest_rate_extended'] ?? '1.0' }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH 6 BULAN</div>
-                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ $settings['interest_rate_overdue'] ?? '2.0' }}% SEBULAN : LEPAS MATANG TEMPOH 6 BULAN</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 1.</span> {{ $interestRateNormal }}% SEBULAN : UNTUK TEMPOH {{ strtoupper($redemptionPeriod) }} PERTAMA</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 2.</span> {{ $interestRateExtended }}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {{ strtoupper($redemptionPeriod) }}</div>
+                        <div class="kadar-line"><span style="font-weight: bold;color:black;"> 3.</span> {{ $interestRateOverdue }}% SEBULAN : LEPAS MATANG TEMPOH {{ strtoupper($redemptionPeriod) }}</div>
                     </div>
                 </td>
             </tr>
@@ -714,6 +734,10 @@
                     <span class="pinjaman-amount">{{ number_format($loanAmount, 2) }}</span>
                     <span class="keuntungan-text">Keuntungan Dikena RM {{ number_format($monthlyInterest, 2) }} sebulan</span>
                     <span class="pinjaman-stars">***</span>
+                </td>
+                <td class="date-cell">
+                    <div class="date-label">Tarikh Pembaharuan / Renewal Date</div>
+                    <div class="date-value">{{ $renewalDate ? $renewalDate->format('d/m/Y') : '-' }}</div>
                 </td>
                 <td class="date-cell">
                     <div class="date-new-label">Tarikh Tamat Baru / New Due Date</div>

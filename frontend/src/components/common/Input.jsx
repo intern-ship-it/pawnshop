@@ -135,6 +135,12 @@ const Input = forwardRef(
               type={inputType}
               disabled={disabled}
               className={baseInputClasses}
+              onWheel={(e) => {
+                if (inputType === "number") {
+                  e.target.blur();
+                }
+                props.onWheel?.(e);
+              }}
               {...props}
             />
           )}

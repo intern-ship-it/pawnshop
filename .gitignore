@@ -79,6 +79,9 @@ backend/storage/app/public/profile-photos/*
 backend/storage/app/public/logos/*
 !backend/storage/app/public/logos/.gitkeep
 
+backend/storage/app/public/owner-dashboards/*
+!backend/storage/app/public/owner-dashboards/.gitkeep
+
 # Bootstrap cache
 backend/bootstrap/cache/*
 !backend/bootstrap/cache/.gitkeep

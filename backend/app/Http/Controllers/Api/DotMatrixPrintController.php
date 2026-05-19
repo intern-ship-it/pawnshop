@@ -6443,7 +6443,8 @@ HTML;
 /* Footer */
 .pp-ftr { font-size: 11px; line-height: 1.3; margin-top: 1.5mm; display: flex; justify-content: space-between; align-items: flex-end; }
 .pp-ftr-left { flex: 1; position: relative;}
-.pp-sig-box { width: 40mm; height: 16mm; border: 1px solid #008000; margin: 0 4mm; flex-shrink: 0; }
+.pp-sig-box { width: 40mm; height: 16mm; border: 1px solid #008000; margin: 0 4mm; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; }
+.pp-sig-text { font-size: 7px; color: #008000; text-align: center; margin-top: 2px; }
 .pp-ftr-right { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 30mm; }
 .pp-ftr-label { font-size: 11px; line-height: 1.3; margin-bottom: 1mm; }
 .pp-ftr-weight-area { font-size: 10px; font-weight: bold; min-height: 5mm; }
@@ -6567,7 +6568,9 @@ HTMLSTART
             <div>Anda diminta memeriksa barang gadaian dan butir-butir di atas dengan teliti sebelum meninggalkan kedai ini.</div>
             <div>Sebarang tuntutan selepas meninggalkan kedai ini tidak akan dilayan. Lindungan insuran di bawah <b>polisi No : {$settings['insurance_policy_no']}</b></div>
         </div>
-        <div class="pp-sig-box"></div>
+        <div class="pp-sig-box">
+            <div class="pp-sig-text">Tandatangan Pelanggan</div>
+        </div>
         <div class="pp-ftr-right">
             <div class="pp-ftr-label">Termasuk Emas, Batu<br>dan lain-lain</div>
             

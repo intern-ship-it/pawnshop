@@ -787,6 +787,8 @@ Route::middleware('auth:sanctum')->group(function () {
                     Route::get('/preview/pledge/{pledge}', [PrintController::class , 'pledgeReceiptPreview']);
                 }
                 );
+
+                Route::get('/owner-dashboard-test', [PrintController::class, 'ownerDashboardTest']);
             }
             );
 

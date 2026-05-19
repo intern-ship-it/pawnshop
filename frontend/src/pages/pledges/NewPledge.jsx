@@ -1885,13 +1885,33 @@ export default function NewPledge() {
           return false;
         }
         return true;
-      case 2:
+      case 2: {
         const validItems = items.filter((item) => item.category && item.weight && parseFloat(item.weight) > 0);
         if (validItems.length === 0) {
           dispatch(addToast({ type: "error", title: "Required", message: "Please add at least one item with category and weight" }));
           return false;
         }
+        // Check for INCOMPLETE items — has category but no weight, or vice versa
+        const incompleteItems = items.filter((item) => {
+          const hasCategory = !!item.category;
+          const hasWeight = !!item.weight && parseFloat(item.weight) > 0;
+          return (hasCategory && !hasWeight) || (!hasCategory && hasWeight);
+        });
+        if (incompleteItems.length > 0) {
+          const incompleteIndices = incompleteItems.map((inc) => {
+            const idx = items.indexOf(inc);
+            const missing = !inc.category ? 'category' : 'weight';
+            return `Item ${idx + 1} (missing ${missing})`;
+          }).join(', ');
+          dispatch(addToast({
+            type: "warning",
+            title: "Incomplete Items",
+            message: `${incompleteItems.length} item(s) have incomplete data: ${incompleteIndices}. Please complete or remove them before proceeding.`,
+          }));
+          return false;
+        }
         return true;
+      }
       case 3:
         if (effectivePercentage <= 0 || effectivePercentage > 100) {
           dispatch(addToast({ type: "error", title: "Invalid", message: "Loan percentage must be between 1-100%" }));
@@ -1951,6 +1971,24 @@ export default function NewPledge() {
 
     if (storageBlocked) {
       dispatch(addToast({ type: "error", title: "Storage Full", message: "Cannot create new pledge: Global storage is full." }));
+      return;
+    }
+
+    // ── SAFETY CHECK: Block submission if any items would be silently dropped ──
+    const validForSubmit = items.filter((item) => item.category && item.weight);
+    const droppedCount = items.length - validForSubmit.length;
+    if (droppedCount > 0) {
+      const droppedItems = items
+        .map((item, idx) => ({ ...item, _idx: idx + 1 }))
+        .filter((item) => !(item.category && item.weight));
+      const droppedDesc = droppedItems
+        .map((d) => `Item ${d._idx} (${!d.category ? 'no category' : 'no weight'})`)
+        .join(', ');
+      dispatch(addToast({
+        type: "error",
+        title: "Incomplete Items Detected",
+        message: `${droppedCount} item(s) are missing required data and would not be saved: ${droppedDesc}. Please complete or remove them.`,
+      }));
       return;
     }
 
