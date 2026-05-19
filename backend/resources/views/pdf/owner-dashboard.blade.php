@@ -13,14 +13,40 @@
 <meta charset="utf-8">
 <title>Daily Owner Dashboard — {{ $meta['date_label'] }}</title>
 <style>
+    /* ─── Inter font family (registered for DomPDF) ─── */
+    @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 400;
+        src: url('{{ storage_path("fonts/Inter-Regular.ttf") }}') format('truetype');
+    }
+    @font-face {
+        font-family: 'Inter';
+        font-style: italic;
+        font-weight: 400;
+        src: url('{{ storage_path("fonts/Inter-Italic.ttf") }}') format('truetype');
+    }
+    @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 600;
+        src: url('{{ storage_path("fonts/Inter-SemiBold.ttf") }}') format('truetype');
+    }
+    @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 700;
+        src: url('{{ storage_path("fonts/Inter-Bold.ttf") }}') format('truetype');
+    }
+
     @page { size: A4 portrait; margin: 22pt 22pt 32pt 22pt; }
 
     body {
-        font-family: 'DejaVu Sans', Arial, sans-serif;
+        font-family: 'Inter', 'DejaVu Sans', Arial, sans-serif;
         font-size: 8.5pt;
         color: #1e293b;
         margin: 0; padding: 0;
-        line-height: 1.4;
+        line-height: 1.45;
     }
 
     /* ─── Header ─── */
@@ -56,28 +82,65 @@
         padding-left: 14pt !important;
     }
     .hdr-company {
-        font-size: 14pt;
+        font-size: 17pt;
         font-weight: bold;
         color: #1e3a5f;
         letter-spacing: 0.3pt;
+        line-height: 1.1;
     }
     .hdr-reg {
         font-size: 7.5pt;
-        color: #64748b;
+        color: #c8973e;
+        font-weight: bold;
         margin-top: 1pt;
+        letter-spacing: 0.3pt;
     }
     .hdr-contact {
-        font-size: 7.5pt;
-        color: #475569;
-        margin-top: 3pt;
-        line-height: 1.45;
+        font-size: 7.8pt;
+        color: #334155;
+        margin-top: 4pt;
+        line-height: 1.55;
+    }
+    .hdr-contact .lbl {
+        color: #c8973e;
+        font-weight: bold;
+        letter-spacing: 0.2pt;
+    }
+    .hdr-contact .val {
+        color: #1e3a5f;
+        font-weight: bold;
+    }
+    .hdr-contact .sep {
+        color: #cbd5e1;
+        margin: 0 4pt;
     }
     .hdr-right { text-align: right; vertical-align: top !important; }
     .hdr-date {
-        font-size: 11pt; font-weight: bold; color: #1e3a5f;
+        font-size: 12pt; font-weight: bold; color: #1e3a5f;
+        letter-spacing: 0.2pt;
     }
     .hdr-meta {
-        font-size: 7pt; color: #64748b; margin-top: 2pt;
+        font-size: 7.5pt;
+        margin-top: 4pt;
+        line-height: 1.55;
+    }
+    .hdr-meta .day {
+        color: #c8973e;
+        font-weight: bold;
+    }
+    .hdr-meta .branch {
+        color: #1e3a5f;
+        font-weight: bold;
+    }
+    .hdr-meta .label {
+        color: #1e3a5f;
+        font-weight: bold;
+        letter-spacing: 0.3pt;
+    }
+    .hdr-meta .gen {
+        color: #94a3b8;
+        font-size: 6.8pt;
+        font-style: italic;
     }
     .hdr-badge {
         display: inline-block;
@@ -99,18 +162,19 @@
         margin-bottom: 8pt;
     }
     .sec-title table { width: 100%; border-collapse: collapse; }
-    .sec-title td { border: none; padding: 0; vertical-align: middle; }
+    .sec-title td { border: none; padding: 0; vertical-align: top; }
     .sec-title .num {
         background: #c8973e;
         color: #ffffff;
         width: 16pt; height: 16pt;
         text-align: center;
-        line-height: 16pt;
+        line-height: 12pt;
         font-size: 9pt;
         font-weight: bold;
+        padding-top: 2pt;
     }
     .sec-title .label {
-        padding-left: 8pt;
+        padding: 2pt 0 0 8pt;
         font-size: 9.5pt;
         font-weight: bold;
         color: #1e3a5f;
@@ -274,21 +338,23 @@
                 <div class="hdr-reg">({{ $meta['registration_no'] }})</div>
             @endif
             <div class="hdr-contact">
-                @if($meta['address']){{ $meta['address'] }}<br>@endif
-                @if($meta['email'])Email: {{ $meta['email'] }}@endif
+                @if($meta['address'])<span class="val">{{ $meta['address'] }}</span><br>@endif
+                @if($meta['email'])<span class="lbl">Email:</span> <span class="val">{{ $meta['email'] }}</span>@endif
                 @if($meta['phone'])
-                    @if($meta['email']) &nbsp;·&nbsp; @endif
-                    Tel: {{ $meta['phone'] }}
+                    @if($meta['email'])<span class="sep">·</span>@endif
+                    <span class="lbl">Tel:</span> <span class="val">{{ $meta['phone'] }}</span>
                 @endif
-                @if($meta['license_no']) &nbsp;·&nbsp; KPKT {{ $meta['license_no'] }} @endif
+                @if($meta['license_no'])<span class="sep">·</span><span class="lbl">KPKT</span> <span class="val">{{ $meta['license_no'] }}</span>@endif
             </div>
         </td>
-        <td class="hdr-right" style="width:130pt;">
+        <td class="hdr-right" style="width:140pt;">
             <div class="hdr-date">{{ $meta['date_label'] }}</div>
             <div class="hdr-meta">
-                {{ $meta['day_name'] }} · {{ $meta['branch_name'] }}<br>
-                Daily Owner Dashboard<br>
-                Generated {{ $meta['generated_at']->format('d/m/Y H:i') }}
+                <span class="day">{{ $meta['day_name'] }}</span>
+                <span style="color:#cbd5e1;"> · </span>
+                <span class="branch">{{ $meta['branch_name'] }}</span><br>
+                <span class="label">Daily Owner Dashboard</span><br>
+                <span class="gen">Generated {{ $meta['generated_at']->format('d/m/Y H:i') }}</span>
             </div>
             @if($meta['status'])
                 <div class="hdr-badge">{{ strtoupper($meta['status']) }}</div>
@@ -795,9 +861,17 @@
         </tr>
     </table>
 
+    @if(!empty($final['trend_chart']) && $final['trend_has_data'])
+        <div class="chart-box" style="margin-bottom:8pt;">
+            <div class="chart-caption">7-Day Income &amp; Outflow Trend</div>
+            <div class="chart-subcaption">Daily totals over the last week — green is money received, red is money paid out</div>
+            <img src="{{ $final['trend_chart'] }}" alt="7-Day Trend">
+        </div>
+    @endif
+
     @if($final['chart'])
         <div class="chart-box">
-            <div class="chart-caption">Income vs Outflow</div>
+            <div class="chart-caption">Today: Income vs Outflow</div>
             <div class="chart-subcaption">Side-by-side comparison of money received vs money paid out today</div>
             <img src="{{ $final['chart'] }}" alt="Income vs Outflow">
         </div>

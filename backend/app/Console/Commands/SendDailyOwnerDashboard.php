@@ -204,6 +204,9 @@ class SendDailyOwnerDashboard extends Command
         $totalOutflow = $netReleased;
         $netMovement  = $totalIncome - $totalOutflow;
 
+        // ── 7-day trend (ending today, inclusive) ──
+        $trend = $this->buildWeeklyTrend($branchId, $date);
+
         // ── Charts (QuickChart.io → base64 PNG) ──
         $txChart = $this->chartTransactions(
             $pledgeCount, $renewalCount, $redemptionCount, $intPayCount
@@ -219,6 +222,7 @@ class SendDailyOwnerDashboard extends Command
         );
         $purityChart   = $this->chartPurity($byPurity);
         $incomeChart   = $this->chartIncomeVsOutflow($totalIncome, $totalOutflow);
+        $trendChart    = $this->chartWeeklyTrend($trend);
 
         $company = $this->companySettings($branch);
 
@@ -315,9 +319,61 @@ class SendDailyOwnerDashboard extends Command
                 'outflow'      => $totalOutflow,
                 'net_movement' => $netMovement,
                 'chart'        => $incomeChart,
+                'trend_chart'  => $trendChart,
+                'trend_has_data' => array_sum($trend['income']) + array_sum($trend['outflow']) > 0,
                 'has_data'     => ($totalIncome + $totalOutflow) > 0,
             ],
         ];
+    }
+
+    /**
+     * Build a 7-day series of total income vs total outflow ending on $endDate (inclusive).
+     * One DB roundtrip per source, grouped by day in PHP — keeps it simple and fast.
+     */
+    protected function buildWeeklyTrend(int $branchId, Carbon $endDate): array
+    {
+        $start = $endDate->copy()->subDays(6)->startOfDay();
+        $end   = $endDate->copy()->endOfDay();
+
+        $labels  = [];
+        $income  = [];
+        $outflow = [];
+        $cursor  = $start->copy();
+
+        // Pre-fetch each source within the window and bucket by date string
+        $pledgeOut = Pledge::where('branch_id', $branchId)
+            ->whereBetween('pledge_date', [$start, $end])
+            ->get(['pledge_date', 'payout_amount'])
+            ->groupBy(fn ($p) => Carbon::parse($p->pledge_date)->toDateString())
+            ->map(fn ($g) => (float) $g->sum('payout_amount'));
+
+        $renIn = Renewal::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$start, $end])
+            ->get(['created_at', 'total_payable'])
+            ->groupBy(fn ($r) => Carbon::parse($r->created_at)->toDateString())
+            ->map(fn ($g) => (float) $g->sum('total_payable'));
+
+        $redIn = Redemption::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$start, $end])
+            ->get(['created_at', 'total_payable'])
+            ->groupBy(fn ($r) => Carbon::parse($r->created_at)->toDateString())
+            ->map(fn ($g) => (float) $g->sum('total_payable'));
+
+        $ipIn = InterestPayment::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$start, $end])
+            ->get(['created_at', 'total_payable'])
+            ->groupBy(fn ($r) => Carbon::parse($r->created_at)->toDateString())
+            ->map(fn ($g) => (float) $g->sum('total_payable'));
+
+        for ($i = 0; $i < 7; $i++) {
+            $key       = $cursor->toDateString();
+            $labels[]  = $cursor->format('d M');
+            $income[]  = ($renIn[$key] ?? 0) + ($redIn[$key] ?? 0) + ($ipIn[$key] ?? 0);
+            $outflow[] = $pledgeOut[$key] ?? 0;
+            $cursor->addDay();
+        }
+
+        return ['labels' => $labels, 'income' => $income, 'outflow' => $outflow];
     }
 
     /**
@@ -440,32 +496,30 @@ class SendDailyOwnerDashboard extends Command
             'data' => [
                 'labels'   => ['Cash', 'Bank Transfer'],
                 'datasets' => [[
-                    'label'           => 'Amount (RM)',
+                    'label'           => '',
                     'data'            => [$cash, $transfer],
                     'backgroundColor' => ['#f59e0b', '#3b82f6'],
                     'borderRadius'    => 6,
-                    'barThickness'    => 36,
+                    'barThickness'    => 56,
                 ]],
             ],
             'options' => [
-                'indexAxis' => 'y',
-                'layout'    => ['padding' => ['top' => 6, 'bottom' => 4, 'left' => 8, 'right' => 60]],
-                'plugins'   => [
+                'layout'  => ['padding' => ['top' => 30, 'bottom' => 4, 'left' => 12, 'right' => 12]],
+                'plugins' => [
                     'legend' => false,
-                    'title'  => ['display' => true, 'text' => $title, 'font' => ['size' => 13, 'weight' => 'bold']],
                     'datalabels' => [
-                        'anchor' => 'end', 'align' => 'end',
+                        'anchor' => 'end', 'align' => 'top', 'offset' => 4,
                         'color'  => '#1e293b',
-                        'font'   => ['weight' => 'bold', 'size' => 11],
-                        'formatter' => "(v) => 'RM ' + v.toLocaleString()",
+                        'font'   => ['weight' => 'bold', 'size' => 12],
+                        'formatter' => "(v) => 'RM ' + Math.round(v).toLocaleString()",
                     ],
                 ],
                 'scales' => [
-                    'x' => ['display' => false, 'grid' => ['display' => false]],
-                    'y' => ['grid' => ['display' => false], 'ticks' => ['font' => ['size' => 12, 'weight' => 'bold']]],
+                    'x' => ['grid' => ['display' => false], 'ticks' => ['font' => ['size' => 12, 'weight' => 'bold'], 'color' => '#475569']],
+                    'y' => ['display' => false, 'beginAtZero' => true],
                 ],
             ],
-        ], 500, 180);
+        ], 540, 230);
     }
 
     private function chartInterestSources(float $r, float $d, float $i): ?string
@@ -575,6 +629,79 @@ class SendDailyOwnerDashboard extends Command
                 ],
             ],
         ], 540, 230);
+    }
+
+    private function chartWeeklyTrend(array $trend): ?string
+    {
+        $totalAll = array_sum($trend['income']) + array_sum($trend['outflow']);
+        if ($totalAll <= 0) return null;
+
+        return $this->quickChart([
+            'type' => 'line',
+            'data' => [
+                'labels'   => $trend['labels'],
+                'datasets' => [
+                    [
+                        'label'           => 'Income',
+                        'data'            => $trend['income'],
+                        'borderColor'     => '#10b981',
+                        'backgroundColor' => 'rgba(16,185,129,0.15)',
+                        'borderWidth'     => 2.5,
+                        'tension'         => 0.35,
+                        'fill'            => true,
+                        'pointRadius'     => 4,
+                        'pointBackgroundColor' => '#10b981',
+                        'pointBorderColor'     => '#ffffff',
+                        'pointBorderWidth'     => 2,
+                    ],
+                    [
+                        'label'           => 'Outflow',
+                        'data'            => $trend['outflow'],
+                        'borderColor'     => '#ef4444',
+                        'backgroundColor' => 'rgba(239,68,68,0.12)',
+                        'borderWidth'     => 2.5,
+                        'tension'         => 0.35,
+                        'fill'            => true,
+                        'pointRadius'     => 4,
+                        'pointBackgroundColor' => '#ef4444',
+                        'pointBorderColor'     => '#ffffff',
+                        'pointBorderWidth'     => 2,
+                    ],
+                ],
+            ],
+            'options' => [
+                'layout'  => ['padding' => ['top' => 24, 'bottom' => 8, 'left' => 12, 'right' => 12]],
+                'plugins' => [
+                    'legend' => [
+                        'position' => 'top',
+                        'align'    => 'end',
+                        'labels'   => [
+                            'usePointStyle' => true,
+                            'pointStyle'    => 'circle',
+                            'font'          => ['size' => 11, 'weight' => 'bold'],
+                            'color'         => '#334155',
+                            'padding'       => 12,
+                        ],
+                    ],
+                    'datalabels' => ['display' => false],
+                ],
+                'scales' => [
+                    'x' => [
+                        'grid'  => ['display' => false],
+                        'ticks' => ['font' => ['size' => 11, 'weight' => 'bold'], 'color' => '#475569'],
+                    ],
+                    'y' => [
+                        'beginAtZero' => true,
+                        'grid'  => ['color' => '#f1f5f9', 'drawBorder' => false],
+                        'ticks' => [
+                            'font'   => ['size' => 10],
+                            'color'  => '#94a3b8',
+                            'callback' => "(v) => 'RM ' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)",
+                        ],
+                    ],
+                ],
+            ],
+        ], 720, 260);
     }
 
     private function chartIncomeVsOutflow(float $income, float $outflow): ?string
