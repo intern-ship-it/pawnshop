@@ -896,6 +896,11 @@ export default function PrintTestPage() {
     }
   };
 
+  // Owner Dashboard test — date picker, defaults to today
+  const [ownerDashboardDate, setOwnerDashboardDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+
   // Download Owner Dashboard PDF
   const testDownloadOwnerDashboard = async () => {
     setPrinting(true);
@@ -905,8 +910,12 @@ export default function PrintTestPage() {
     try {
       const token = getToken();
 
+      const requestUrl = ownerDashboardDate
+        ? `${apiUrl}/print/owner-dashboard-test?date=${ownerDashboardDate}`
+        : `${apiUrl}/print/owner-dashboard-test`;
+
       const response = await fetch(
-        `${apiUrl}/print/owner-dashboard-test`,
+        requestUrl,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -4269,7 +4278,34 @@ export default function PrintTestPage() {
                     </div>
                     <Badge className="bg-emerald-500 text-white">Dashboard</Badge>
                   </div>
-                  
+
+                  {/* Date picker — choose any date with data to verify the populated layout */}
+                  <div className="mb-2">
+                    <label className="block text-xs font-medium text-emerald-700 mb-1">
+                      Report Date
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={ownerDashboardDate}
+                        onChange={(e) => setOwnerDashboardDate(e.target.value)}
+                        disabled={printing}
+                        max={new Date().toISOString().slice(0, 10)}
+                        className="flex-1 px-2 py-1.5 text-sm border border-emerald-300 rounded bg-white text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOwnerDashboardDate(new Date().toISOString().slice(0, 10))
+                        }
+                        disabled={printing}
+                        className="px-2 py-1.5 text-xs font-medium text-emerald-700 border border-emerald-300 rounded hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        Today
+                      </button>
+                    </div>
+                  </div>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -4280,10 +4316,10 @@ export default function PrintTestPage() {
                     fullWidth
                     className="border-emerald-500 text-emerald-700 hover:bg-emerald-100"
                   >
-                    Download Daily Dashboard
+                    Download Dashboard for {ownerDashboardDate}
                   </Button>
                   <p className="text-xs text-emerald-400 mt-2">
-                    🔗 GET /print/owner-dashboard-test
+                    🔗 GET /print/owner-dashboard-test?date={ownerDashboardDate}
                   </p>
                 </div>
               </div>
