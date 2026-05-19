@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use App\Models\Setting;
 use App\Services\GoldPriceService;
 
 /*
@@ -94,3 +95,59 @@ Schedule::command('pawnsys:generate-monthly-report')
     ->monthlyOn(1, '06:00')
     ->timezone('Asia/Kuala_Lumpur')
     ->name('pawnsys-monthly-report');
+
+// ==========================================================================
+// OWNER DASHBOARD — Daily PDF to WhatsApp
+// ==========================================================================
+//
+// Runs every minute and self-gates on the `owner_dashboard.send_time` setting
+// configured in the UI (Settings → Owner Dashboard). The `enabled` flag is
+// re-checked inside the command, per branch.
+Schedule::command('dashboard:send-owner-daily')
+    ->everyMinute()
+    ->timezone('Asia/Kuala_Lumpur')
+    ->when(function () {
+        try {
+            $enabled = Setting::where('category', 'owner_dashboard')
+                ->where('key_name', 'enabled')
+                ->value('value');
+            if ($enabled !== '1' && $enabled !== 'true') {
+                return false;
+            }
+            $sendTime = Setting::where('category', 'owner_dashboard')
+                ->where('key_name', 'send_time')
+                ->value('value') ?? '20:00';
+            return now('Asia/Kuala_Lumpur')->format('H:i') === $sendTime;
+        } catch (\Throwable $e) {
+            \Log::warning('Owner dashboard schedule check failed', ['error' => $e->getMessage()]);
+            return false;
+        }
+    })
+    ->name('owner-daily-dashboard')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Weekly cleanup of owner-dashboard PDFs older than 30 days.
+// UltraMsg fetches the file once at send time; after that the local copy is
+// only useful for audit/debug. 30 days keeps recent reports retrievable
+// without letting storage grow unbounded.
+Schedule::call(function () {
+    $disk    = \Storage::disk('public');
+    $cutoff  = now()->subDays(30)->getTimestamp();
+    $deleted = 0;
+
+    foreach ($disk->files('owner-dashboards') as $file) {
+        if ($disk->lastModified($file) < $cutoff) {
+            $disk->delete($file);
+            $deleted++;
+        }
+    }
+
+    if ($deleted > 0) {
+        \Log::info("Owner dashboard cleanup: deleted {$deleted} file(s) older than 30 days");
+    }
+})
+    ->weeklyOn(0, '03:00')
+    ->timezone('Asia/Kuala_Lumpur')
+    ->name('owner-dashboard-cleanup')
+    ->onOneServer();

@@ -63,6 +63,7 @@ mkdir -p storage/app/public/documents
 mkdir -p storage/app/public/photos
 mkdir -p storage/app/public/receipts
 mkdir -p storage/app/public/signatures
+mkdir -p storage/app/public/owner-dashboards
 mkdir -p storage/framework/cache/data
 mkdir -p storage/framework/sessions
 mkdir -p storage/framework/views

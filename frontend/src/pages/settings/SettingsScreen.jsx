@@ -58,6 +58,7 @@ import HandlingChargesTab from "./HandlingChargesTab";
 import TermsConditionsTab from "./TermsConditionsTab";
 import PrintSettingsTab from "./PrintSettingsTab";
 import ReprintReasonsTab from "./ReprintReasonsTab";
+import OwnerDashboardTab from "./OwnerDashboardTab";
 
 // Default settings structure
 const defaultSettings = {
@@ -138,6 +139,7 @@ const tabs = [
   { id: "racks", label: "Lockers", icon: Grid3X3 },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "whatsappReminder", label: "WhatsApp Reminder", icon: MessageCircle, route: "/settings/whatsapp/reminders" },
+  { id: "ownerDashboard", label: "Owner Dashboard", icon: FileText, superAdminOnly: true },
   // { id: "printSettings", label: "Print Settings", icon: Printer }, // Hidden
   { id: "reprintReasons", label: "Reprint Reasons", icon: RotateCcw },
   { id: "printTest", label: "Print Test", icon: Printer, route: "/settings/print-test" },
@@ -501,6 +503,8 @@ export default function SettingsScreen() {
         return <PrintSettingsTab settings={settings} updateSettings={updateSettings} />;
       case "reprintReasons":
         return <ReprintReasonsTab />;
+      case "ownerDashboard":
+        return <OwnerDashboardTab />;
       default:
         return null;
     }
@@ -528,7 +532,7 @@ export default function SettingsScreen() {
           <Card className="p-2">
             <nav className="space-y-1">
               {tabs
-                .filter((t) => t.id !== "printSettings" && (isSuperAdmin || t.id !== "whatsappReminder"))
+                .filter((t) => t.id !== "printSettings" && (isSuperAdmin || (t.id !== "whatsappReminder" && !t.superAdminOnly)))
                 .map((tab) => {
                 const Icon = tab.icon;
                 return (
