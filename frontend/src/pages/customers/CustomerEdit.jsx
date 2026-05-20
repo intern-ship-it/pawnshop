@@ -102,6 +102,7 @@ export default function CustomerEdit() {
   const [formData, setFormData] = useState({
     name: "",
     icNumber: "",
+    passportNumber: "",
     phone: "",
     whatsapp: "",
     email: "",
@@ -110,6 +111,7 @@ export default function CustomerEdit() {
     state: "",
     postcode: "",
     nationality: "Malaysian",
+    nationalityOther: "",
     race: "",
     raceOther: "",
     dateOfBirth: "",
@@ -119,6 +121,10 @@ export default function CustomerEdit() {
     customInterestRateExtended: "",
     customInterestRateOverdue: "",
   });
+
+  // Foreigner detection — passport flow when nationality is not Malaysian
+  const isForeigner = formData.nationality && formData.nationality !== "Malaysian";
+  const isOtherNationality = formData.nationality === "Other";
 
   // Image states - for preview (base64 or URL)
   const [icFrontImage, setIcFrontImage] = useState(null);
@@ -154,9 +160,11 @@ export default function CustomerEdit() {
         setOriginalCustomer(customer);
 
         // Populate form data
+        const isPassport = customer.ic_type === "passport";
         setFormData({
           name: customer.name || "",
-          icNumber: customer.ic_number || "",
+          icNumber: isPassport ? "" : (customer.ic_number || ""),
+          passportNumber: isPassport ? (customer.ic_number || "") : "",
           phone: (customer.country_code || "+60") + (customer.phone || ""),
           whatsapp: (customer.country_code || "+60") + (customer.phone_alt || customer.phone || ""),
           email: customer.email || "",
@@ -164,7 +172,12 @@ export default function CustomerEdit() {
           city: customer.city || "",
           state: customer.state || "",
           postcode: customer.postcode || "",
-          nationality: customer.nationality || "Malaysian",
+          nationality: customer.nationality
+            ? (nationalityOptions.includes(customer.nationality) ? customer.nationality : "Other")
+            : "Malaysian",
+          nationalityOther: customer.nationality && !nationalityOptions.includes(customer.nationality)
+            ? customer.nationality
+            : "",
           race: ["Indian", "Malay", "Chinese"].includes(customer.race) ? customer.race : (customer.race ? "Other" : ""),
           raceOther: ["Indian", "Malay", "Chinese"].includes(customer.race) ? "" : (customer.race || ""),
           dateOfBirth: customer.date_of_birth
@@ -261,6 +274,12 @@ export default function CustomerEdit() {
           }
         }
         break;
+      case "passportNumber":
+        const cleanPassport = (value || "").trim();
+        if (!cleanPassport) error = "Passport number is required";
+        else if (!/^[A-Z0-9]{5,15}$/i.test(cleanPassport))
+          error = "Passport must be 5-15 alphanumeric characters";
+        break;
       case "phone":
         if (!value || !value.trim()) error = "Phone number is required";
         else if (value.length < 10) error = "Phone number is too short";
@@ -279,7 +298,8 @@ export default function CustomerEdit() {
 
   // Validate all fields
   const validateAll = () => {
-    const fieldsToValidate = ["name", "icNumber", "phone", "address"];
+    const idField = isForeigner ? "passportNumber" : "icNumber";
+    const fieldsToValidate = ["name", idField, "phone", "address"];
     let isValid = true;
 
     fieldsToValidate.forEach((field) => {
@@ -443,9 +463,11 @@ export default function CustomerEdit() {
   const handleReset = () => {
     if (!originalCustomer) return;
 
+    const isPassport = originalCustomer.ic_type === "passport";
     setFormData({
       name: originalCustomer.name || "",
-      icNumber: originalCustomer.ic_number || "",
+      icNumber: isPassport ? "" : (originalCustomer.ic_number || ""),
+      passportNumber: isPassport ? (originalCustomer.ic_number || "") : "",
       phone: (originalCustomer.country_code || "+60") + (originalCustomer.phone || ""),
       whatsapp: (originalCustomer.country_code || "+60") + (originalCustomer.phone_alt || originalCustomer.phone || ""),
       email: originalCustomer.email || "",
@@ -453,7 +475,12 @@ export default function CustomerEdit() {
       city: originalCustomer.city || "",
       state: originalCustomer.state || "",
       postcode: originalCustomer.postcode || "",
-      nationality: originalCustomer.nationality || "Malaysian",
+      nationality: originalCustomer.nationality
+        ? (nationalityOptions.includes(originalCustomer.nationality) ? originalCustomer.nationality : "Other")
+        : "Malaysian",
+      nationalityOther: originalCustomer.nationality && !nationalityOptions.includes(originalCustomer.nationality)
+        ? originalCustomer.nationality
+        : "",
       race: ["Indian", "Malay", "Chinese"].includes(originalCustomer.race) ? originalCustomer.race : (originalCustomer.race ? "Other" : ""),
       raceOther: ["Indian", "Malay", "Chinese"].includes(originalCustomer.race) ? "" : (originalCustomer.race || ""),
       dateOfBirth: originalCustomer.date_of_birth
@@ -537,8 +564,10 @@ export default function CustomerEdit() {
 
       const customerData = {
         name: formData.name.trim(),
-        ic_number: formData.icNumber.replace(/[-\s]/g, ""),
-        ic_type: "mykad",
+        ic_number: isForeigner
+          ? formData.passportNumber.trim().toUpperCase()
+          : formData.icNumber.replace(/[-\s]/g, ""),
+        ic_type: isForeigner ? "passport" : "mykad",
         phone: parsedPhone.phone,
         country_code: parsedPhone.countryCode,
         whatsapp: parsedWhatsApp.phone,
@@ -547,7 +576,9 @@ export default function CustomerEdit() {
         city: formData.city.trim() || null,
         state: formData.state || null,
         postcode: formData.postcode.trim() || null,
-        nationality: formData.nationality || "Malaysian",
+        nationality: formData.nationality === "Other"
+          ? (formData.nationalityOther.trim() || "Other")
+          : (formData.nationality || "Malaysian"),
         race: formData.race === "Other" ? (formData.raceOther.trim() || "Other") : (formData.race || null),
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
@@ -601,7 +632,7 @@ export default function CustomerEdit() {
         const formattedErrors = {};
         Object.keys(apiErrors).forEach((key) => {
           const fieldMap = {
-            ic_number: "icNumber",
+            ic_number: isForeigner ? "passportNumber" : "icNumber",
             date_of_birth: "dateOfBirth",
           };
           const formField = fieldMap[key] || key;
@@ -707,25 +738,74 @@ export default function CustomerEdit() {
                     />
                   </div>
 
+                  {/* Nationality */}
                   <div>
-                    <Input
-                      label="IC Number"
-                      name="icNumber"
-                      placeholder="XXXXXX-XX-XXXX"
-                      value={formData.icNumber}
+                    <Select
+                      label="Nationality"
+                      name="nationality"
+                      value={formData.nationality}
                       onChange={handleChange}
-                      onBlur={handleBlur}
-                      error={touched.icNumber && errors.icNumber}
+                      options={[
+                        { value: "", label: "Select an option" },
+                        ...nationalityOptions.map((n) => ({
+                          value: n,
+                          label: n.toUpperCase(),
+                        })),
+                      ]}
                       required
-                      leftIcon={CreditCard}
                     />
-                    {formData.icNumber && !errors.icNumber && (
-                      <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        Formatted: {formatIC(formData.icNumber)}
-                      </p>
-                    )}
                   </div>
+
+                  {/* Nationality Other - Manual Input */}
+                  {isOtherNationality && (
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Specify Nationality"
+                        name="nationalityOther"
+                        placeholder="Enter nationality"
+                        value={formData.nationalityOther}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {/* IC Number or Passport Number */}
+                  {isForeigner ? (
+                    <div>
+                      <Input
+                        label="Passport Number"
+                        name="passportNumber"
+                        placeholder="Enter passport number"
+                        value={formData.passportNumber}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        error={touched.passportNumber && errors.passportNumber}
+                        required
+                        leftIcon={CreditCard}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <Input
+                        label="IC Number"
+                        name="icNumber"
+                        placeholder="XXXXXX-XX-XXXX"
+                        value={formData.icNumber}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        error={touched.icNumber && errors.icNumber}
+                        required
+                        leftIcon={CreditCard}
+                      />
+                      {formData.icNumber && !errors.icNumber && (
+                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          Formatted: {formatIC(formData.icNumber)}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <Input
@@ -898,22 +978,6 @@ export default function CustomerEdit() {
                     />
                   </div>
 
-                  <div>
-                    <Select
-                      label="Nationality"
-                      name="nationality"
-                      value={formData.nationality}
-                      onChange={handleChange}
-                      options={[
-                        { value: "", label: "Select an option" },
-                        ...nationalityOptions.map((n) => ({
-                          value: n,
-                          label: n.toUpperCase(),
-                        })),
-                      ]}
-                    />
-                  </div>
-
                   {/* Race */}
                   <div>
                     <Select
@@ -956,10 +1020,10 @@ export default function CustomerEdit() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-zinc-800">
-                      IC Copy (KPKT Requirement)
+                      {isForeigner ? "Passport Copy (KPKT Requirement)" : "IC Copy (KPKT Requirement)"}
                     </h3>
                     <p className="text-sm text-zinc-500">
-                      Upload front and back of IC
+                      {isForeigner ? "Upload front and back of passport" : "Upload front and back of IC"}
                     </p>
                   </div>
                 </div>
@@ -1029,7 +1093,7 @@ export default function CustomerEdit() {
                           >
                             <Upload className="w-8 h-8" />
                             <span className="text-sm font-medium">
-                              Upload IC Front
+                              {isForeigner ? "Upload Passport Front" : "Upload IC Front"}
                             </span>
                             <span className="text-xs">
                               Click to upload or use camera
@@ -1110,7 +1174,7 @@ export default function CustomerEdit() {
                           >
                             <Upload className="w-8 h-8" />
                             <span className="text-sm font-medium">
-                              Upload IC Back
+                              {isForeigner ? "Upload Passport Back" : "Upload IC Back"}
                             </span>
                             <span className="text-xs">
                               Click to upload or use camera

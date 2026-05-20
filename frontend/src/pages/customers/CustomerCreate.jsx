@@ -61,6 +61,7 @@ export default function CustomerCreate() {
     state: "",
     postcode: "",
     nationality: "Malaysian",
+    nationalityOther: "",
     race: "",
     raceOther: "",
     dateOfBirth: "",
@@ -70,6 +71,7 @@ export default function CustomerCreate() {
 
   // Foreigner detection — passport flow when nationality is not Malaysian
   const isForeigner = formData.nationality && formData.nationality !== "Malaysian";
+  const isOtherNationality = formData.nationality === "Other";
 
   // Malaysian states
   const malaysianStates = [
@@ -540,7 +542,9 @@ export default function CustomerCreate() {
         city: formData.city.trim() || null,
         state: formData.state || null,
         postcode: formData.postcode.trim() || null,
-        nationality: formData.nationality || "Malaysian",
+        nationality: formData.nationality === "Other"
+          ? (formData.nationalityOther.trim() || "Other")
+          : (formData.nationality || "Malaysian"),
         race: formData.race === "Other" ? (formData.raceOther.trim() || "Other") : (formData.race || null),
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
@@ -722,6 +726,20 @@ export default function CustomerCreate() {
                       required
                     />
                   </div>
+
+                  {/* Nationality Other - Manual Input */}
+                  {isOtherNationality && (
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Specify Nationality"
+                        name="nationalityOther"
+                        placeholder="Enter nationality"
+                        value={formData.nationalityOther}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                  )}
 
                   {/* IC Number or Passport Number */}
                   {isForeigner ? (
