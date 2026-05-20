@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(php -l backend/app/Http/Controllers/Api/DotMatrixPrintController.php)"
+      "Bash(php -l backend/app/Http/Controllers/Api/DotMatrixPrintController.php)",
+      "Bash(php -l resources/views/pdf/owner-dashboard.blade.php)",
+      "Bash(php -l app/Console/Commands/SendDailyOwnerDashboard.php)"
     ]
   }
 }
