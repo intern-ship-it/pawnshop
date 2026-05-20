@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -l backend/app/Http/Controllers/Api/DotMatrixPrintController.php)"
+    ]
+  }
+}

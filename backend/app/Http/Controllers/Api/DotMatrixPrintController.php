@@ -2161,6 +2161,8 @@ HTML;
         // Customer details
         $icNumber = $this->formatIC($customer->ic_number ?? '');
         $birthYear = $this->extractBirthYear($customer);
+        $age = $this->calculateAge($customer);
+        $birthYearDisplay = ($birthYear !== '-' && $age !== '-') ? "{$birthYear} ({$age})" : $birthYear;
         $gender = $this->getGender($customer);
         $nationality = $this->getCitizenship($customer);
         $address = $this->formatCustomerAddress($customer);
@@ -2367,28 +2369,28 @@ HTML;
     
     <!-- BARCODE -->
     <div class="ppo-barcode">
-        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:16mm;width:auto;max-width:25mm;">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:16mm;width:auto;max-width:32mm;">
         <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
     </div>
-    
+
     <!-- ROW 1: IC | NAME | NATIONALITY -->
     <div class="ppo-ic">{$icNumber}</div>
     <div class="ppo-name">{$customer->name}</div>
     <div class="ppo-nationality">{$nationality}</div>
-    
+
     <!-- ROW 2: BIRTH YEAR | GENDER -->
-    <div class="ppo-birthyear">{$birthYear}</div>
+    <div class="ppo-birthyear">{$birthYearDisplay}</div>
     <div class="ppo-gender">{$gender}</div>
-    
+
     <!-- ROW 3: ADDRESS -->
     <div class="ppo-address">{$address}</div>
-    
+
     <!-- ROW 4: CATATAN -->
     <div class="ppo-catatan">{$catatan}</div>
-    
+
     <!-- AMOUNT IN WORDS -->
     <div class="ppo-amount-words">{$amountWords} SAHAJA</div>
-    
+
     <!-- BOTTOM ROW -->
     <div class="ppo-loan-amount">{$loanAmountFormatted}</div>
     <div class="ppo-interest-note">{$interestNote}</div>
@@ -2669,8 +2671,11 @@ HTML;
      * FRONT PAGE Ã¢â‚¬â€ Pre-Printed Blank Form (A5 Landscape)
      * UPDATED: 3-column customer layout matching physical form
      */
-    private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false): string
+    private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false, $customer = null): string
     {
+        // Dynamic ID label: "No. Pasport" for foreign customers (passport), else "No. Kad Pengenalan"
+        $isPassport = $customer && (($customer->ic_type ?? 'mykad') === 'passport');
+        $idLabel = $isPassport ? 'No.<br>Pasport :' : 'No. Kad<br>Pengenalan :';
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -2908,7 +2913,7 @@ HTMLSTART
         <!-- ROW 1: No. Kad Pengenalan | Nama | Kerakyatan (3 columns) -->
         <div class="pp-cust-row">
             <div class="pp-cust-col">
-                <span class="pp-cust-lbl">No. Kad<br>Pengenalan :</span>
+                <span class="pp-cust-lbl">{$idLabel}</span>
                 <span class="pp-cust-val"></span>
             </div>
             <div class="pp-cust-col">
@@ -2950,8 +2955,8 @@ HTMLSTART
 
     <div class="pp-bot">
         <div class="pp-pin-cell"><span class="pp-pin-lbl">Pinjaman</span><span class="pp-pin-rm">RM</span><span class="pp-pin-sp"></span><span class="pp-pin-stars">Tarikh Dipajak</span></div>
-        <div class="pp-dt-cell"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div>
-        
+        <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Cukup Tempoh</div><div class="pp-dt-sp"></div></div>
+
         <!-- <div class="pp-dt-cell pp-dt-yel"><div class="pp-dt-lbl">Tarikh Dipajak</div><div class="pp-dt-sp"></div></div> -->
     </div>
 
@@ -3204,7 +3209,7 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true);
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
 
             // Combine them - data overlay on top of blank form
@@ -3338,7 +3343,7 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true);
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
 
             // Combine them - data overlay on top of blank form
@@ -3519,6 +3524,8 @@ HTML;
         // Customer details
         $icNumber = $this->formatIC($customer->ic_number ?? '');
         $birthYear = $this->extractBirthYear($customer);
+        $age = $this->calculateAge($customer);
+        $birthYearDisplay = ($birthYear !== '-' && $age !== '-') ? "{$birthYear} ({$age})" : $birthYear;
         $gender = $this->getGender($customer);
         $nationality = $this->getCitizenship($customer);
         $address = $this->formatCustomerAddress($customer);
@@ -3703,7 +3710,7 @@ HTML;
 .ppo-pledge-date{
     position: absolute;
     bottom: 31.5mm;
-    right: 44mm;
+    right: 39mm;
     font-size: 13px;
 }
 
@@ -3754,19 +3761,19 @@ HTML;
     
     <!-- BARCODE -->
     <div class="ppo-barcode">
-        <img src="https://barcode.tec-it.com/barcode.ashx?data={$renewal->renewal_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:16mm;width:auto;max-width:25mm;">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$renewal->renewal_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:16mm;width:auto;max-width:32mm;">
         <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$renewal->renewal_no}</div>
     </div>
-    
+
     <!-- ROW 1: IC | NAME | NATIONALITY -->
     <div class="ppo-ic">{$icNumber}</div>
     <div class="ppo-name">{$customer->name}</div>
     <div class="ppo-nationality">{$nationality}</div>
-    
+
     <!-- ROW 2: BIRTH YEAR | GENDER -->
-    <div class="ppo-birthyear">{$birthYear}</div>
+    <div class="ppo-birthyear">{$birthYearDisplay}</div>
     <div class="ppo-gender">{$gender}</div>
-    
+
     <!-- ROW 3: ADDRESS -->
     <div class="ppo-address">{$address}</div>
     
@@ -4216,7 +4223,7 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
 
             // Combine them - data overlay on top of blank form
@@ -4341,7 +4348,7 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings);
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
 
             // Combine them - data overlay on top of blank form
@@ -5504,8 +5511,11 @@ HTML;
 // Blank A5 Landscape form template for Redemption receipts
 // ═══════════════════════════════════════════════════════════════
 
-    private function generatePrePrintedRedmeptionA5FrontPage(array $settings): string
+    private function generatePrePrintedRedmeptionA5FrontPage(array $settings, $customer = null): string
     {
+        // Dynamic ID label: "No. Pasport" for foreign customers, else "No. Kad Pengenalan"
+        $isPassport = $customer && (($customer->ic_type ?? 'mykad') === 'passport');
+        $idLabel = $isPassport ? 'No.<br>Pasport :' : 'No. Kad<br>Pengenalan :';
         $companyName = htmlspecialchars($settings['company_name'] ?? 'PAJAK GADAI SIN THYE TONG SDN. BHD.', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $regNo = htmlspecialchars($settings['registration_no'] ?? '(1363773-U)', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $chineseName = htmlspecialchars($settings['company_name_chinese'] ?: '新泰當', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -5736,7 +5746,7 @@ HTMLSTART
         <!-- ROW 1: No. Kad Pengenalan | Nama | Kerakyatan (3 columns) -->
         <div class="pp-cust-row">
             <div class="pp-cust-col">
-                <span class="pp-cust-lbl">No. Kad<br>Pengenalan :</span>
+                <span class="pp-cust-lbl">{$idLabel}</span>
                 <span class="pp-cust-val"></span>
             </div>
             <div class="pp-cust-col">
@@ -5832,6 +5842,8 @@ HTML;
         // Customer details
         $icNumber = $this->formatIC($customer->ic_number ?? '');
         $birthYear = $this->extractBirthYear($customer);
+        $age = $this->calculateAge($customer);
+        $birthYearDisplay = ($birthYear !== '-' && $age !== '-') ? "{$birthYear} ({$age})" : $birthYear;
         $gender = $this->getGender($customer);
         $nationality = $this->getCitizenship($customer);
         $address = $this->formatCustomerAddress($customer);
@@ -6142,7 +6154,7 @@ HTML;
 
     <!-- BARCODE -->
     <div class="ppo-barcode">
-        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:14mm;width:auto;max-width:25mm;">
+        <img src="https://barcode.tec-it.com/barcode.ashx?data={$pledge->pledge_no}&code=Code128&translate-esc=on&dmsize=Default&unit=Fit&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&qunit=Mm&quiet=0&hidehrt=1" alt="{$pledge->pledge_no}" style="height:14mm;width:auto;max-width:32mm;">
         <div style="font-size:8px;font-family:'Courier New',monospace;text-align:center;margin-top:1mm;">{$pledge->pledge_no}</div>
     </div>
 
@@ -6152,7 +6164,7 @@ HTML;
     <div class="ppo-nationality">{$nationality}</div>
 
     <!-- ROW 2: BIRTH YEAR | GENDER -->
-    <div class="ppo-birthyear">{$birthYear}</div>
+    <div class="ppo-birthyear">{$birthYearDisplay}</div>
     <div class="ppo-gender">{$gender}</div>
 
     <!-- ROW 3: ADDRESS -->
@@ -6217,7 +6229,7 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND redemption data overlay
-            $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings);
+            $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
 
             // Combine them - data overlay on top of blank form

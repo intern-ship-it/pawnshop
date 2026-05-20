@@ -235,11 +235,12 @@ export default function CustomerDetail() {
       const months = p.months_elapsed || 1;
       const interest = p.accrued_interest || principal * (rate / 100) * months;
       const total = p.total_payable || principal + interest;
-      const itemTypes = (p.items || []).map(i => i.description || i.category?.name || i.category_name || "Gold Item").join(", ") || "Gold Item";
+      const itemTypesRaw = (p.items || []).map(i => i.description || i.category?.name || i.category_name || "Gold Item").join(", ") || "Gold Item";
+      const itemTypes = itemTypesRaw.length > 40 ? itemTypesRaw.slice(0, 40) + "…" : itemTypesRaw;
       return `<tr>
         <td>${p.pledge_no || p.pledge_number || p.id}</td>
         <td>${formatDate(p.pledge_date || p.created_at)}</td>
-        <td>${itemTypes}</td>
+        <td class="item-type-cell" title="${itemTypesRaw.replace(/"/g, '&quot;')}">${itemTypes}</td>
         <td class="right">${p.items_count || (p.items || []).length || 0} ${(p.items_count || (p.items || []).length || 0) === 1 ? 'item' : 'items'}</td>
         <td class="right">${formatCurrency(principal)}</td>
         <td class="right">${formatCurrency(interest)}</td>
@@ -294,6 +295,7 @@ export default function CustomerDetail() {
         .detail-table thead th { background: #92400e; color: #fff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 10px; text-align: left; border: none; }
         .detail-table thead th.right { text-align: right; }
         .detail-table tbody td { padding: 7px 10px; border-bottom: 1px solid #f3e8d0; font-size: 12px; color: #374151; }
+        .detail-table tbody td.item-type-cell { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: break-all; }
         .detail-table tbody td.right { text-align: right; }
         .detail-table tbody tr:nth-child(even) { background: #fffbeb; }
         .subtotal-bar { margin-top: 0; padding: 8px 12px; background: #92400e; color: #fff; font-weight: 600; font-size: 12px; }
