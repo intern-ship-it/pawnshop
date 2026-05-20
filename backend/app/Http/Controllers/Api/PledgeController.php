@@ -72,10 +72,29 @@ class PledgeController extends Controller
             });
         }
 
-        // Filter by status
+        // Filter by status (supports virtual statuses: due_soon, partial, overdue_partial)
         if ($status = $request->get('status')) {
             $statuses = explode(',', $status);
-            $query->whereIn('status', $statuses);
+            $realStatuses = [];
+            foreach ($statuses as $s) {
+                if ($s === 'due_soon') {
+                    $today = Carbon::today();
+                    $weekAhead = (clone $today)->addDays(7);
+                    $query->where('status', 'active')
+                        ->whereBetween('due_date', [$today, $weekAhead]);
+                } elseif ($s === 'partial') {
+                    $query->where('status', 'active')
+                        ->whereHas('redemption');
+                } elseif ($s === 'overdue_partial') {
+                    $query->where('status', 'overdue')
+                        ->whereHas('redemption');
+                } else {
+                    $realStatuses[] = $s;
+                }
+            }
+            if (!empty($realStatuses)) {
+                $query->whereIn('status', $realStatuses);
+            }
         }
 
         // Filter by date range
@@ -86,10 +105,62 @@ class PledgeController extends Controller
             $query->whereDate('pledge_date', '<=', $to);
         }
 
-        $pledges = $query->orderBy('created_at', 'desc')
-            ->paginate($request->get('per_page', 15));
+        // Sorting
+        $sortBy = $request->get('sort_by', 'newest');
+        switch ($sortBy) {
+            case 'oldest':
+                $query->orderBy('created_at', 'asc');
+                break;
+            case 'receipt-desc':
+                $query->orderBy('receipt_no', 'desc');
+                break;
+            case 'receipt-asc':
+                $query->orderBy('receipt_no', 'asc');
+                break;
+            case 'amount-high':
+                $query->orderBy('loan_amount', 'desc');
+                break;
+            case 'amount-low':
+                $query->orderBy('loan_amount', 'asc');
+                break;
+            case 'due-soon':
+                $query->orderBy('due_date', 'asc');
+                break;
+            case 'newest':
+            default:
+                $query->orderBy('created_at', 'desc');
+                break;
+        }
+
+        $pledges = $query->paginate($request->get('per_page', 15));
 
         return $this->paginated($pledges);
+    }
+
+    /**
+     * Aggregate pledge stats (branch-scoped). Reflects full dataset, not the current page.
+     */
+    public function stats(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $base = Pledge::where('branch_id', $branchId);
+
+        $total = (clone $base)->count();
+        $active = (clone $base)->where('status', 'active')->count();
+        $overdue = (clone $base)->where('status', 'overdue')->count();
+        $redeemed = (clone $base)->where('status', 'redeemed')->count();
+        $totalValue = (clone $base)
+            ->whereIn('status', ['active', 'overdue'])
+            ->sum('loan_amount');
+
+        return $this->success([
+            'total' => $total,
+            'active' => $active,
+            'overdue' => $overdue,
+            'redeemed' => $redeemed,
+            'total_value' => (float) $totalValue,
+        ]);
     }
 
     /**

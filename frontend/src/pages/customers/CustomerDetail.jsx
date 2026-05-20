@@ -337,7 +337,7 @@ export default function CustomerDetail() {
             }
             <div class="info-grid">
               <div class="info-item"><span class="info-label">Full Name</span><span class="info-value">${customer.name || "N/A"}</span></div>
-              <div class="info-item"><span class="info-label">IC Number</span><span class="info-value">${customer.ic_number || "N/A"}</span></div>
+              <div class="info-item"><span class="info-label">${customer.ic_type === "passport" ? "Passport Number" : "IC Number"}</span><span class="info-value">${customer.ic_number || "N/A"}</span></div>
               <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-value">${customer.date_of_birth ? formatDate(customer.date_of_birth) : "N/A"}</span></div>
               <div class="info-item"><span class="info-label">Gender</span><span class="info-value" style="text-transform:capitalize;">${customer.gender || "N/A"}</span></div>
               <div class="info-item"><span class="info-label">Occupation</span><span class="info-value">${customer.occupation || "N/A"}</span></div>
@@ -429,7 +429,7 @@ export default function CustomerDetail() {
       if (customer.ic_front_photo) {
         try {
           const img = await loadImage(getLocalStorageUrl(customer.ic_front_photo));
-          images.push({ img, label: "IC Front" });
+          images.push({ img, label: customer.ic_type === "passport" ? "Passport Front" : "IC Front" });
         } catch (e) {
           console.warn("Failed to load IC front photo", e);
         }
@@ -437,7 +437,7 @@ export default function CustomerDetail() {
       if (customer.ic_back_photo) {
         try {
           const img = await loadImage(getLocalStorageUrl(customer.ic_back_photo));
-          images.push({ img, label: "IC Back" });
+          images.push({ img, label: customer.ic_type === "passport" ? "Passport Back" : "IC Back" });
         } catch (e) {
           console.warn("Failed to load IC back photo", e);
         }
@@ -458,13 +458,13 @@ export default function CustomerDetail() {
       // Header
       pdf.setFontSize(16);
       pdf.setFont("helvetica", "bold");
-      pdf.text("IC Documents", margin, margin + 5);
+      pdf.text(customer.ic_type === "passport" ? "Passport Documents" : "IC Documents", margin, margin + 5);
 
       pdf.setFontSize(11);
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(100);
       pdf.text(`Name: ${customer.name || "N/A"}`, margin, margin + 13);
-      pdf.text(`IC Number: ${customer.ic_number || "N/A"}`, margin, margin + 20);
+      pdf.text(`${customer.ic_type === "passport" ? "Passport No" : "IC Number"}: ${customer.ic_number || "N/A"}`, margin, margin + 20);
       const phoneDisplay = customer.phone
         ? `${customer.country_code ? (customer.country_code.startsWith("+") ? "" : "+") + customer.country_code + " " : ""}${customer.phone}`
         : "N/A";
@@ -523,7 +523,8 @@ export default function CustomerDetail() {
         pageHeight - 10,
       );
 
-      const fileName = `IC_${(customer.ic_number || customer.name || "document").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      const filePrefix = customer.ic_type === "passport" ? "Passport" : "IC";
+      const fileName = `${filePrefix}_${(customer.ic_number || customer.name || "document").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
       pdf.save(fileName);
 
       dispatch(addToast({ type: "success", message: "IC PDF downloaded successfully" }));
@@ -597,7 +598,7 @@ export default function CustomerDetail() {
   return (
     <PageWrapper
       title={customer.name}
-      subtitle={`IC: ${customer.ic_number || "N/A"}`}
+      subtitle={`${customer.ic_type === "passport" ? "Passport" : "IC"}: ${customer.ic_number || "N/A"}`}
       actions={
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={handleBack}>
@@ -756,7 +757,7 @@ export default function CustomerDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-amber-500" />
-                  <h3 className="font-semibold text-zinc-800">IC Documents</h3>
+                  <h3 className="font-semibold text-zinc-800">{customer.ic_type === "passport" ? "Passport Documents" : "IC Documents"}</h3>
                 </div>
                 {(customer.ic_front_photo || customer.ic_back_photo) && (
                   <button

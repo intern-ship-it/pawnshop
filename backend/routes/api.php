@@ -249,6 +249,8 @@ Route::middleware('auth:sanctum')->group(function () {
         );
 
         // Pledge CRUD with permissions
+        Route::get('/pledges/stats', [PledgeController::class , 'stats'])
+            ->middleware('check.permission:pledges,view');
         Route::get('/pledges', [PledgeController::class , 'index'])
             ->middleware('check.permission:pledges,view');
         Route::get('/pledges/{pledge}', [PledgeController::class , 'show'])

@@ -8,10 +8,20 @@ const pledgeService = {
   /**
    * Get all pledges with pagination
    * @param {Object} params - Query parameters
+   * @param {Object} options - { signal } for AbortController
    * @returns {Promise}
    */
-  async getAll(params = {}) {
-    return apiGet('/pledges', params)
+  async getAll(params = {}, options = {}) {
+    return apiGet('/pledges', params, options)
+  },
+
+  /**
+   * Aggregate pledge stats (branch-scoped). Reflects full dataset.
+   * @param {Object} options - { signal }
+   * @returns {Promise}
+   */
+  async getStats(options = {}) {
+    return apiGet('/pledges/stats', {}, options)
   },
 
   /**
