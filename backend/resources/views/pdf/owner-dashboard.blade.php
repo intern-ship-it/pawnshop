@@ -570,24 +570,32 @@
 
     <table class="kpi">
         <tr>
-            <td style="width:34%;">
+            <td style="width:25%;">
                 <div class="card green">
                     <div class="card-label">Total Interest Collected</div>
-                    <div class="card-value green">{{ $rm($interest['total']) }}</div>
+                    <div class="card-value sm green" style="white-space:nowrap;">{{ $rm($interest['total']) }}</div>
                     <div class="card-sub">All sources combined</div>
                 </div>
             </td>
-            <td style="width:33%;">
+            <td style="width:25%;">
                 <div class="card warn">
                     <div class="card-label">From Renewals</div>
-                    <div class="card-value sm">{{ $rm($interest['from_renewals']) }}</div>
+                    <div class="card-value sm" style="white-space:nowrap;">{{ $rm($interest['from_renewals']) }}</div>
+                    <div class="card-sub">Interest on rollover</div>
                 </div>
             </td>
-            <td style="width:33%;">
+            <td style="width:25%;">
+                <div class="card green">
+                    <div class="card-label">From Redemptions</div>
+                    <div class="card-value sm" style="white-space:nowrap;">{{ $rm($interest['from_redemptions']) }}</div>
+                    <div class="card-sub">Interest portion only</div>
+                </div>
+            </td>
+            <td style="width:25%;">
                 <div class="card blue">
-                    <div class="card-label">Redemption Interest + Interest Pay</div>
-                    <div class="card-value sm">{{ $rm($interest['from_redemptions'] + $interest['from_interest_pay']) }}</div>
-                    <div class="card-sub">Interest portion only — principal excluded</div>
+                    <div class="card-label">Interest Payments</div>
+                    <div class="card-value sm" style="white-space:nowrap;">{{ $rm($interest['from_interest_pay']) }}</div>
+                    <div class="card-sub">Standalone interest</div>
                 </div>
             </td>
         </tr>
@@ -645,76 +653,90 @@
         </tr></table>
     </div>
 
+    {{-- CASH row --}}
+    <div class="chart-caption" style="margin-bottom:4pt;">Cash</div>
     <table class="kpi">
         <tr>
             <td style="width:25%;">
                 <div class="card navy">
                     <div class="card-label">Opening Balance</div>
-                    <div class="card-value sm navy">{{ $rm($cash_flow['opening']) }}</div>
+                    <div class="card-value sm navy" style="white-space:nowrap;">{{ $rm($cash_flow['opening']) }}</div>
+                    <div class="card-sub">Start of day</div>
                 </div>
             </td>
             <td style="width:25%;">
                 <div class="card green">
                     <div class="card-label">Cash In</div>
-                    <div class="card-value sm green">+ {{ $rm($cash_flow['cash_in']) }}</div>
+                    <div class="card-value sm green" style="white-space:nowrap;">+ {{ $rm($cash_flow['cash_in']) }}</div>
                     <div class="card-sub">Collections received</div>
                 </div>
             </td>
             <td style="width:25%;">
                 <div class="card red">
                     <div class="card-label">Cash Out</div>
-                    <div class="card-value sm red">- {{ $rm($cash_flow['cash_out']) }}</div>
+                    <div class="card-value sm red" style="white-space:nowrap;">- {{ $rm($cash_flow['cash_out']) }}</div>
                     <div class="card-sub">Loans paid out</div>
                 </div>
             </td>
             <td style="width:25%;">
                 <div class="card gold">
                     <div class="card-label">Closing Amount</div>
-                    <div class="card-value sm gold">{{ $rm($cash_flow['actual_closing'] ?? $cash_flow['expected_closing']) }}</div>
+                    <div class="card-value sm gold" style="white-space:nowrap;">{{ $rm($cash_flow['actual_closing'] ?? $cash_flow['expected_closing']) }}</div>
                     @if($cash_flow['has_actual'])
                         @php $v = $cash_flow['variance']; @endphp
                         <div class="card-sub" style="color: {{ abs($v) < 1 ? '#10b981' : '#ef4444' }};">
                             Variance: {{ $v >= 0 ? '+' : '' }}{{ $rm($v) }}
                         </div>
+                    @else
+                        <div class="card-sub">End of day</div>
                     @endif
                 </div>
             </td>
         </tr>
     </table>
 
+    {{-- ONLINE row — same column widths as cash row above --}}
+    <div class="chart-caption" style="margin:10pt 0 4pt 0;">Online Payment</div>
+    <table class="kpi">
+        <tr>
+            <td style="width:25%;">
+                <div class="card navy">
+                    <div class="card-label">Opening Balance (Online)</div>
+                    <div class="card-value sm navy" style="white-space:nowrap;">{{ $rm(0) }}</div>
+                    <div class="card-sub">Start of day</div>
+                </div>
+            </td>
+            <td style="width:25%;">
+                <div class="card green">
+                    <div class="card-label">Online Payment In</div>
+                    <div class="card-value sm green" style="white-space:nowrap;">+ {{ $rm($cash_flow['online_in']) }}</div>
+                    <div class="card-sub">Bank transfers received</div>
+                </div>
+            </td>
+            <td style="width:25%;">
+                <div class="card red">
+                    <div class="card-label">Online Payment Out</div>
+                    <div class="card-value sm red" style="white-space:nowrap;">- {{ $rm($cash_flow['online_out']) }}</div>
+                    <div class="card-sub">Bank transfers paid</div>
+                </div>
+            </td>
+            <td style="width:25%;">
+                <div class="card gold">
+                    <div class="card-label">Closing Amount (Online)</div>
+                    <div class="card-value sm gold" style="white-space:nowrap;">{{ $rm($cash_flow['online_closing']) }}</div>
+                    <div class="card-sub">End of day</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
     @if($cash_flow['chart'])
-        <div class="chart-box">
+        <div class="chart-box" style="margin-top:10pt;">
             <div class="chart-caption">Cash Flow Movement</div>
             <div class="chart-subcaption">Opening balance, money in / out, and the resulting closing position</div>
             <img src="{{ $cash_flow['chart'] }}" alt="Cash Flow">
         </div>
     @endif
-
-    {{-- Online (bank transfer) flow --}}
-    <table class="kpi" style="margin-top:10pt;">
-        <tr>
-            <td style="width:33%;">
-                <div class="card green">
-                    <div class="card-label">Online Payment In</div>
-                    <div class="card-value sm green">+ {{ $rm($cash_flow['online_in']) }}</div>
-                    <div class="card-sub">Bank transfers received</div>
-                </div>
-            </td>
-            <td style="width:33%;">
-                <div class="card red">
-                    <div class="card-label">Online Payment Out</div>
-                    <div class="card-value sm red">- {{ $rm($cash_flow['online_out']) }}</div>
-                    <div class="card-sub">Bank transfers paid</div>
-                </div>
-            </td>
-            <td style="width:34%;">
-                <div class="card gold">
-                    <div class="card-label">Closing Amount (Online)</div>
-                    <div class="card-value sm gold">{{ $rm($cash_flow['online_closing']) }}</div>
-                </div>
-            </td>
-        </tr>
-    </table>
 
     @if($cash_flow['online_chart'])
         <div style="page-break-before: always;"></div>
@@ -770,7 +792,6 @@
                     <div class="card green">
                         <div class="card-label">Receipts Received</div>
                         <div class="card-value green">{{ $inventory['receipts_in'] }}</div>
-                        <div class="card-sub">{{ $inventory['items_in'] }} item{{ $inventory['items_in'] === 1 ? '' : 's' }} · {{ number_format($inventory['total_weight'], 2) }} g total</div>
                     </div>
                 </td>
                 <td style="width:50%;">
