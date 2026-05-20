@@ -197,7 +197,7 @@ api.interceptors.response.use(
 )
 
 // Helper methods
-export const apiGet = (url, params = {}) => api.get(url, { params })
+export const apiGet = (url, params = {}, config = {}) => api.get(url, { params, ...config })
 export const apiPost = (url, data = {}) => api.post(url, data)
 export const apiPut = (url, data = {}) => api.put(url, data)
 export const apiPatch = (url, data = {}) => api.patch(url, data)

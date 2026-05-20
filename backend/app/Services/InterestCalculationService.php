@@ -301,9 +301,6 @@ class InterestCalculationService
             );
         }
 
-        // Fetch handling fee settings
-        $handlingFee = $this->getHandlingFee($principal);
-
         return [
             'principal' => $principal,
             'months_elapsed' => $monthsElapsed,
@@ -317,8 +314,7 @@ class InterestCalculationService
             ],
             'interest_breakdown' => $interestBreakdown,
             'total_interest' => round($totalInterest, 2),
-            'handling_fee' => $handlingFee,
-            'total_payable' => round($principal + $totalInterest + $handlingFee, 2),
+            'total_payable' => round($principal + $totalInterest, 2),
         ];
     }
 
@@ -335,7 +331,7 @@ class InterestCalculationService
         ])->get()->pluck('value', 'key_name');
 
         $type = $settings['handling_charge_type'] ?? 'fixed';
-        $value = (float) ($settings['handling_charge_value'] ?? $settings['handling_fee'] ?? 0.50);
+        $value = (float) ($settings['handling_charge_value'] ?? $settings['handling_fee'] ?? 0);
         $min = (float) ($settings['handling_charge_min'] ?? 0);
 
         $handlingFee = 0;

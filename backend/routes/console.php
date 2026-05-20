@@ -94,3 +94,40 @@ Schedule::command('pawnsys:generate-monthly-report')
     ->monthlyOn(1, '06:00')
     ->timezone('Asia/Kuala_Lumpur')
     ->name('pawnsys-monthly-report');
+
+// ==========================================================================
+// OWNER DASHBOARD — Daily PDF to WhatsApp
+// ==========================================================================
+//
+// Triggered directly by a dedicated cPanel cron entry at a fixed time
+// (e.g. `0 20 * * *`), NOT via the Laravel scheduler. This keeps the cron
+// firing only once per day. The `enabled` flag is still re-checked inside
+// the command, so disabling delivery in the UI takes effect immediately.
+//
+// To change the send time: edit the cPanel cron entry — the value shown in
+// Settings → Owner Dashboard is read-only and informational.
+
+// Weekly cleanup of owner-dashboard PDFs older than 30 days.
+// UltraMsg fetches the file once at send time; after that the local copy is
+// only useful for audit/debug. 30 days keeps recent reports retrievable
+// without letting storage grow unbounded.
+Schedule::call(function () {
+    $disk    = \Storage::disk('public');
+    $cutoff  = now()->subDays(30)->getTimestamp();
+    $deleted = 0;
+
+    foreach ($disk->files('owner-dashboards') as $file) {
+        if ($disk->lastModified($file) < $cutoff) {
+            $disk->delete($file);
+            $deleted++;
+        }
+    }
+
+    if ($deleted > 0) {
+        \Log::info("Owner dashboard cleanup: deleted {$deleted} file(s) older than 30 days");
+    }
+})
+    ->weeklyOn(0, '03:00')
+    ->timezone('Asia/Kuala_Lumpur')
+    ->name('owner-dashboard-cleanup')
+    ->onOneServer();

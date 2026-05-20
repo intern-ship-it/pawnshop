@@ -68,6 +68,7 @@ const statusConfig = {
 const tabs = [
   { id: "overview", label: "Overview", icon: FileText },
   { id: "items", label: "Items", icon: Package },
+  { id: "redemption", label: "Redemption", icon: DollarSign, redeemedOnly: true },
   { id: "history", label: "History", icon: History },
 ];
 
@@ -175,8 +176,12 @@ export default function PledgeDetail() {
                 }
                 return `${lockerName} > DRAWER ${drawerName} > SLOT ${item.slot.slot_number}`;
               }
+              if (item.redeemed_from_location) return item.redeemed_from_location;
               return "Not Assigned";
             })(),
+            redeemedAt: item.redeemed_at,
+            redeemedFromLocation: item.redeemed_from_location,
+            redemptionId: item.redemption_id,
           })),
           payments: (data.payments || []).map((payment) => ({
             id: payment.id,
@@ -210,6 +215,26 @@ export default function PledgeDetail() {
             periodFrom: payment.period_from,
             periodTo: payment.period_to,
             paymentMethod: payment.payment_method,
+          })),
+          redemptions: (data.redemption || []).map((r) => ({
+            id: r.id,
+            redemptionNo: r.redemption_no,
+            redemptionDate: r.created_at,
+            principalAmount: parseFloat(r.principal_amount) || 0,
+            interestMonths: r.interest_months,
+            interestRate: parseFloat(r.interest_rate) || 0,
+            interestAmount: parseFloat(r.interest_amount) || 0,
+            handlingFee: parseFloat(r.handling_fee) || 0,
+            otherCharges: parseFloat(r.other_charges) || 0,
+            totalPayable: parseFloat(r.total_payable) || 0,
+            paymentMethod: r.payment_method,
+            cashAmount: parseFloat(r.cash_amount) || 0,
+            transferAmount: parseFloat(r.transfer_amount) || 0,
+            bankName: r.bank?.name || "",
+            referenceNo: r.reference_no,
+            isPartial: !!r.is_partial,
+            redeemedItemIds: r.redeemed_item_ids || [],
+            createdBy: r.created_by_user?.name || r.created_by?.name || "",
           })),
           createdAt: data.created_at,
           updatedAt: data.updated_at,
@@ -716,7 +741,11 @@ export default function PledgeDetail() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-zinc-200 pb-2">
-        {tabs.map((tab) => {
+        {tabs
+          .filter((tab) =>
+            !tab.redeemedOnly || (pledge?.redemptions && pledge.redemptions.length > 0),
+          )
+          .map((tab) => {
           const TabIcon = tab.icon;
           return (
             <button
@@ -1124,12 +1153,37 @@ export default function PledgeDetail() {
                             </p>
                           </td>
                           <td className="p-4">
-                            {item.status === "redeemed" ? (
-                              <Badge variant="info">Redeemed</Badge>
+                            {item.location && item.location !== "Not Assigned" ? (
+                              <div className="flex items-start gap-2">
+                                <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" />
+                                <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs leading-relaxed">
+                                  {item.location.split(/\s*>\s*/).map((part, i, arr) => (
+                                    <span key={i} className="flex items-center gap-1">
+                                      <span className={cn(
+                                        "font-medium",
+                                        i === arr.length - 1 ? "text-emerald-700" : "text-zinc-500",
+                                      )}>
+                                        {part}
+                                      </span>
+                                      {i < arr.length - 1 && (
+                                        <span className="text-zinc-300">/</span>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : item.status === "redeemed" ? (
+                              <span className="text-xs text-zinc-400 italic">
+                                Location not recorded
+                              </span>
                             ) : (
-                              <p className="text-sm text-zinc-600">
-                                {item.location || "Not Assigned"}
-                              </p>
+                              <span className="text-sm text-zinc-400">Not Assigned</span>
+                            )}
+                            {item.status === "redeemed" && (
+                              <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-semibold uppercase tracking-wide">
+                                <CheckCircle className="w-3 h-3" />
+                                Redeemed
+                              </div>
                             )}
                           </td>
                           <td className="p-4">
@@ -1147,6 +1201,146 @@ export default function PledgeDetail() {
                 </table>
               </div>
             </Card>
+          </motion.div>
+        )}
+
+        {activeTab === "redemption" && (
+          <motion.div
+            key="redemption"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            {(pledge.redemptions || []).map((r) => {
+              const redeemedItems = (pledge.items || []).filter(
+                (it) => it.status === "redeemed" &&
+                  (r.redeemedItemIds.length === 0 || r.redeemedItemIds.includes(it.id)),
+              );
+              return (
+                <Card key={r.id} className="p-6 mb-4">
+                  <div className="flex items-start justify-between mb-4 pb-4 border-b border-zinc-200">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-zinc-800">
+                          {r.redemptionNo}
+                        </h3>
+                        {r.isPartial && (
+                          <Badge variant="warning">Partial</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Redeemed on {formatDate(r.redemptionDate)}
+                        {r.createdBy && ` by ${r.createdBy}`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-zinc-500">Total Paid</p>
+                      <p className="text-xl font-bold text-emerald-600">
+                        {formatCurrency(r.totalPayable)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Principal</p>
+                      <p className="text-lg font-semibold text-zinc-800 mt-1">{formatCurrency(r.principalAmount)}</p>
+                    </div>
+                    <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-amber-700">
+                        Interest <span className="normal-case font-normal text-amber-600">({r.interestMonths} mo @ {r.interestRate}%)</span>
+                      </p>
+                      <p className="text-lg font-semibold text-amber-700 mt-1">{formatCurrency(r.interestAmount)}</p>
+                    </div>
+                    <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Handling Fee</p>
+                      <p className="text-lg font-semibold text-zinc-800 mt-1">{formatCurrency(r.handlingFee)}</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-blue-700">Payment</p>
+                      <p className="text-lg font-semibold text-blue-700 capitalize mt-1">{r.paymentMethod}</p>
+                      {r.bankName && (
+                        <p className="text-[11px] text-blue-600 mt-0.5">{r.bankName} {r.referenceNo && `· ${r.referenceNo}`}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      Items Redeemed — Original Storage Location
+                    </h4>
+                    {redeemedItems.length === 0 ? (
+                      <p className="text-sm text-zinc-500">No item details available.</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-zinc-200">
+                        <table className="w-full text-sm">
+                          <thead className="bg-zinc-50 text-[11px] uppercase tracking-wide text-zinc-500 border-b border-zinc-200">
+                            <tr>
+                              <th className="text-left py-3 px-4 font-semibold">Item</th>
+                              <th className="text-left py-3 px-4 font-semibold">Barcode</th>
+                              <th className="text-right py-3 px-4 font-semibold">Weight</th>
+                              <th className="text-left py-3 px-4 font-semibold">Stored At (before redemption)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-100">
+                            {redeemedItems.map((it) => (
+                              <tr key={it.id} className="hover:bg-amber-50/40 transition-colors">
+                                <td className="py-3 px-4">
+                                  <p className="font-semibold text-zinc-800">{it.category}</p>
+                                  {it.description && (
+                                    <p className="text-xs text-zinc-500 mt-0.5">{it.description}</p>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 font-mono text-xs text-zinc-600">
+                                  {it.barcode || it.itemNo}
+                                </td>
+                                <td className="py-3 px-4 text-right tabular-nums font-medium text-zinc-700">
+                                  {it.netWeight?.toFixed(3)}g
+                                </td>
+                                <td className="py-3 px-4">
+                                  {(() => {
+                                    const loc = it.redeemedFromLocation || (it.location !== "Not Assigned" ? it.location : null);
+                                    if (!loc) {
+                                      return (
+                                        <span className="text-xs text-zinc-400 italic">
+                                          Not recorded (redeemed before location tracking was added)
+                                        </span>
+                                      );
+                                    }
+                                    const parts = loc.split(/\s*>\s*/);
+                                    return (
+                                      <div className="flex items-start gap-2">
+                                        <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-500" />
+                                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
+                                          {parts.map((part, i) => (
+                                            <span key={i} className="flex items-center gap-1">
+                                              <span className={cn(
+                                                "font-medium",
+                                                i === parts.length - 1 ? "text-emerald-700" : "text-zinc-500",
+                                              )}>
+                                                {part}
+                                              </span>
+                                              {i < parts.length - 1 && (
+                                                <span className="text-zinc-300">/</span>
+                                              )}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
           </motion.div>
         )}
 
@@ -1281,29 +1475,83 @@ export default function PledgeDetail() {
                 {pledge.interestPayments?.length > 0 && pledge.interestPayments.map((payment, idx) => (
                   <div key={payment.id || idx} className="flex gap-4">
                     <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white">
+                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white shadow-sm">
                         <Banknote className="w-5 h-5" />
+                      </div>
+                      <div className="w-px h-full bg-zinc-200" />
+                    </div>
+                    <div className="pb-6 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-zinc-800">Interest Payment</p>
+                        {payment.paymentNo && (
+                          <span className="text-xs font-mono text-zinc-400">
+                            ({payment.paymentNo})
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
+                          {payment.interestMonths} mo paid
+                        </span>
+                      </div>
+                      <p className="text-sm text-zinc-500 mt-0.5">
+                        {formatDate(payment.paymentDate)}
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-zinc-50 rounded-lg p-2.5 border border-zinc-100">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Period</p>
+                          <p className="text-xs font-medium text-zinc-700 mt-0.5">{payment.interestMonths} month(s)</p>
+                          <p className="text-[10px] text-zinc-500">at {payment.interestRate}%</p>
+                        </div>
+                        <div className="bg-zinc-50 rounded-lg p-2.5 border border-zinc-100">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Coverage</p>
+                          <p className="text-xs font-medium text-zinc-700 mt-0.5">{formatDate(payment.periodFrom)}</p>
+                          <p className="text-[10px] text-zinc-500">to {formatDate(payment.periodTo)}</p>
+                        </div>
+                        <div className="bg-emerald-50 rounded-lg p-2.5 border border-emerald-100">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-700">Amount Paid</p>
+                          <p className="text-sm font-bold text-emerald-700 mt-0.5">{formatCurrency(payment.totalPayable)}</p>
+                        </div>
+                        <div className="bg-amber-50 rounded-lg p-2.5 border border-amber-100">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-amber-700">Per Month</p>
+                          <p className="text-sm font-bold text-amber-700 mt-0.5">{formatCurrency(payment.totalPayable / payment.interestMonths)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Redemptions */}
+                {pledge.redemptions?.length > 0 && pledge.redemptions.map((r, idx) => (
+                  <div key={r.id || idx} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <DollarSign className="w-5 h-5 text-blue-600" />
                       </div>
                       <div className="w-px h-full bg-zinc-200" />
                     </div>
                     <div className="pb-6">
                       <p className="font-semibold text-zinc-800">
-                        Interest Payment
-                        {payment.paymentNo && (
+                        {r.isPartial ? "Partial Redemption" : "Redemption"}
+                        {r.redemptionNo && (
                           <span className="ml-2 text-xs font-mono text-zinc-400">
-                            ({payment.paymentNo})
+                            ({r.redemptionNo})
                           </span>
                         )}
                       </p>
                       <p className="text-sm text-zinc-500">
-                        {formatDate(payment.paymentDate)}
+                        {formatDate(r.redemptionDate)}
                       </p>
                       <div className="text-sm text-zinc-600 mt-1">
-                        <p>Paid for {payment.interestMonths} month(s) at {payment.interestRate}%</p>
-                        <p className="text-xs text-zinc-500">From {formatDate(payment.periodFrom)} to {formatDate(payment.periodTo)}</p>
+                        <p>Principal: {formatCurrency(r.principalAmount)}</p>
+                        <p>Interest ({r.interestMonths} mo @ {r.interestRate}%): {formatCurrency(r.interestAmount)}</p>
+                        {r.handlingFee > 0 && <p>Handling fee: {formatCurrency(r.handlingFee)}</p>}
                         <p className="mt-1 font-medium">
-                          Amount paid: {formatCurrency(payment.totalPayable)} <span className="text-xs font-normal text-zinc-500">({formatCurrency(payment.totalPayable / payment.interestMonths)} / month)</span>
+                          Total paid: {formatCurrency(r.totalPayable)} ({r.paymentMethod}
+                          {r.bankName && ` - ${r.bankName}`}
+                          {r.referenceNo && ` · ${r.referenceNo}`})
                         </p>
+                        {r.createdBy && (
+                          <p className="text-xs text-zinc-400">By: {r.createdBy}</p>
+                        )}
                       </div>
                     </div>
                   </div>

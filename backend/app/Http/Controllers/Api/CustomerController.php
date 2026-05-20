@@ -37,10 +37,38 @@ class CustomerController extends Controller
             $query->where('is_blacklisted', $request->boolean('blacklisted'));
         }
 
+        // Status filter: active (has active pledges) | with-pledges (has any pledges)
+        $status = $request->get('status');
+        if ($status === 'active') {
+            $query->where('active_pledges', '>', 0);
+        } elseif ($status === 'with-pledges') {
+            $query->where('total_pledges', '>', 0);
+        }
+
+        // Cap per_page to prevent abuse
+        $perPage = min((int) $request->get('per_page', 15), 100);
+
         $customers = $query->orderBy('created_at', 'desc')
-            ->paginate($request->get('per_page', 15));
+            ->paginate($perPage);
 
         return $this->paginated($customers);
+    }
+
+    /**
+     * Aggregate stats for the customers list (branch-scoped).
+     * Reflects full dataset regardless of pagination/filter state.
+     */
+    public function stats(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $base = Customer::where('branch_id', $branchId);
+
+        return $this->success([
+            'total' => (clone $base)->count(),
+            'active' => (clone $base)->where('active_pledges', '>', 0)->count(),
+            'with_pledges' => (clone $base)->where('total_pledges', '>', 0)->count(),
+        ]);
     }
 
     /**

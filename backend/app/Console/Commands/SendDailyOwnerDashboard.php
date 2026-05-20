@@ -12,19 +12,23 @@ use App\Models\InterestPayment;
 use App\Models\PledgeItem;
 use App\Models\GoldPrice;
 use App\Models\Setting;
+use App\Models\WhatsAppConfig;
+use App\Models\WhatsAppLog;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class SendDailyOwnerDashboard extends Command
 {
     protected $signature = 'dashboard:send-owner-daily
         {--date= : The date to generate the report for (Y-m-d)}
         {--branch= : Branch ID to generate for}
-        {--no-save : Do not persist the PDF to storage}';
+        {--no-save : Do not persist the PDF to storage}
+        {--no-send : Generate only — do not send via WhatsApp}';
 
-    protected $description = 'Generate the high-level Daily Owner Dashboard PDF';
+    protected $description = 'Generate the Daily Owner Dashboard PDF and send to configured WhatsApp recipients';
 
     public function handle()
     {
@@ -40,8 +44,12 @@ class SendDailyOwnerDashboard extends Command
             $this->info("Generating Owner Dashboard — {$branch->name} — {$dateStr}");
 
             try {
-                $path = $this->generateForBranch($branch, $date);
-                $this->info("  -> {$path}");
+                $result = $this->generateForBranch($branch, $date);
+                $this->info("  -> {$result['path']}");
+
+                if (!$this->option('no-send') && !$this->option('no-save')) {
+                    $this->sendToWhatsApp($branch, $result['rel_path'], $result['file_name']);
+                }
             } catch (\Throwable $e) {
                 $this->error("  ! Failed: " . $e->getMessage());
                 Log::error('Owner Dashboard generation failed', [
@@ -56,27 +64,209 @@ class SendDailyOwnerDashboard extends Command
         return self::SUCCESS;
     }
 
-    protected function generateForBranch(Branch $branch, Carbon $date): string
+    protected function generateForBranch(Branch $branch, Carbon $date): array
     {
         $data = $this->buildData($branch, $date);
 
         $pdf = Pdf::loadView('pdf.owner-dashboard', $data)
             ->setPaper('a4', 'portrait');
 
+        // Random suffix so the public URL is unguessable (PDF contains financial data)
         $fileName = sprintf(
-            'Owner_Dashboard_%s_%s.pdf',
+            'Owner_Dashboard_%s_%s_%s.pdf',
             preg_replace('/[^A-Za-z0-9_-]/', '_', $branch->code ?: $branch->name),
-            $date->format('Y-m-d')
+            $date->format('Y-m-d'),
+            Str::random(10)
         );
 
         if ($this->option('no-save')) {
-            return '(not saved) ' . $fileName;
+            return [
+                'path'      => '(not saved) ' . $fileName,
+                'rel_path'  => null,
+                'file_name' => $fileName,
+            ];
         }
 
         $relPath = "owner-dashboards/{$fileName}";
         Storage::disk('public')->put($relPath, $pdf->output());
 
-        return storage_path("app/public/{$relPath}");
+        return [
+            'path'      => storage_path("app/public/{$relPath}"),
+            'rel_path'  => $relPath,
+            'file_name' => $fileName,
+        ];
+    }
+
+    /**
+     * Send the generated PDF to every WhatsApp recipient configured in
+     * settings (category=`owner_dashboard`) for this branch, via UltraMsg.
+     */
+    protected function sendToWhatsApp(Branch $branch, string $relPath, string $fileName): void
+    {
+        $branchId = $branch->id;
+
+        // ── 1. Read owner_dashboard settings ──
+        $settings = Setting::where('category', 'owner_dashboard')
+            ->where(function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+            })
+            ->get()
+            ->pluck('value', 'key_name');
+
+        $enabled    = ($settings['enabled'] ?? '0') === '1';
+        $rawNumbers = $settings['whatsapp_number'] ?? '';
+
+        if (!$enabled) {
+            $this->info('  -> WhatsApp delivery disabled for this branch — skipping send');
+            return;
+        }
+
+        $recipients = collect(explode(',', $rawNumbers))
+            ->map(fn ($p) => trim($p))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($recipients->isEmpty()) {
+            $this->warn('  ! No recipients configured — skipping send');
+            return;
+        }
+
+        // ── 2. Read WhatsApp (UltraMsg) config for this branch ──
+        $config = WhatsAppConfig::where('branch_id', $branchId)
+            ->where('is_enabled', true)
+            ->first();
+
+        if (!$config) {
+            $this->error('  ! WhatsApp not configured or disabled for this branch — skipping send');
+            return;
+        }
+
+        if ($config->provider !== 'ultramsg') {
+            $this->error("  ! Only UltraMsg is supported for document send, got '{$config->provider}' — skipping");
+            return;
+        }
+
+        // ── 3. Build the public URL for the PDF ──
+        $publicUrl = Storage::disk('public')->url($relPath);
+        // Storage::url may return a relative path if APP_URL is unset — make it absolute.
+        if (!str_starts_with($publicUrl, 'http')) {
+            $publicUrl = rtrim(config('app.url'), '/') . '/' . ltrim($publicUrl, '/');
+        }
+
+        $caption = $this->buildCaption($branch);
+
+        // ── 4. Send to each recipient ──
+        foreach ($recipients as $phone) {
+            $log = WhatsAppLog::create([
+                'branch_id'       => $branchId,
+                'recipient_phone' => $phone,
+                'message_content' => $caption,
+                'attachment_url'  => $publicUrl,
+                'status'          => 'pending',
+                'related_type'    => 'OwnerDashboard',
+            ]);
+
+            $result = $this->sendUltraMsgDocument(
+                $config,
+                $phone,
+                $publicUrl,
+                $fileName,
+                $caption
+            );
+
+            if ($result['success']) {
+                $log->update([
+                    'status'  => 'sent',
+                    'sent_at' => now(),
+                ]);
+                $this->info("  ✓ Sent to {$phone}");
+            } else {
+                $log->update([
+                    'status'        => 'failed',
+                    'error_message' => substr($result['error'] ?? 'Unknown error', 0, 500),
+                ]);
+                $this->error("  ✗ Failed for {$phone}: " . ($result['error'] ?? 'Unknown error'));
+            }
+        }
+    }
+
+    /**
+     * Build a short WhatsApp caption to accompany the PDF attachment.
+     */
+    protected function buildCaption(Branch $branch): string
+    {
+        $company = $this->companySettings($branch);
+        $today   = Carbon::now('Asia/Kuala_Lumpur');
+
+        return implode("\n", [
+            '*Daily Owner Dashboard*',
+            $company['name'],
+            'Branch: ' . $branch->name,
+            'Date: ' . $today->format('d M Y'),
+            'Generated: ' . $today->format('H:i'),
+        ]);
+    }
+
+    /**
+     * Send a PDF via UltraMsg `/messages/document` endpoint.
+     * UltraMsg fetches the file from the public URL we provide.
+     */
+    protected function sendUltraMsgDocument(
+        WhatsAppConfig $config,
+        string $phone,
+        string $documentUrl,
+        string $fileName,
+        string $caption
+    ): array {
+        try {
+            $url = "https://api.ultramsg.com/{$config->instance_id}/messages/document";
+
+            $params = [
+                'token'    => $config->api_token,
+                'to'       => $phone,
+                'filename' => $fileName,
+                'document' => $documentUrl,
+                'caption'  => $caption,
+            ];
+
+            $ch = curl_init();
+            $curlOptions = [
+                CURLOPT_URL            => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING       => '',
+                CURLOPT_MAXREDIRS      => 10,
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST  => 'POST',
+                CURLOPT_POSTFIELDS     => http_build_query($params),
+                CURLOPT_HTTPHEADER     => ['content-type: application/x-www-form-urlencoded'],
+            ];
+
+            if (app()->environment('local')) {
+                $curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
+                $curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
+            }
+
+            curl_setopt_array($ch, $curlOptions);
+            $response = curl_exec($ch);
+            $err      = curl_error($ch);
+            curl_close($ch);
+
+            if ($err) {
+                return ['success' => false, 'error' => 'cURL: ' . $err];
+            }
+
+            $result = json_decode($response, true);
+
+            if (isset($result['sent']) && $result['sent'] === 'true') {
+                return ['success' => true, 'message_id' => $result['id'] ?? null];
+            }
+
+            return ['success' => false, 'error' => $result['error'] ?? $response];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 
     /**

@@ -31,11 +31,21 @@ const mapFieldNames = (data) => {
 const customerService = {
   /**
    * Get all customers with pagination
-   * @param {Object} params - Query parameters
+   * @param {Object} params - { page, per_page, search, status, blacklisted }
+   * @param {Object} options - { signal } for AbortController
    * @returns {Promise}
    */
-  async getAll(params = {}) {
-    return apiGet('/customers', params)
+  async getAll(params = {}, options = {}) {
+    return apiGet('/customers', params, options)
+  },
+
+  /**
+   * Aggregate customer stats (branch-scoped). Reflects full dataset.
+   * @param {Object} options - { signal }
+   * @returns {Promise}
+   */
+  async getStats(options = {}) {
+    return apiGet('/customers/stats', {}, options)
   },
 
   /**

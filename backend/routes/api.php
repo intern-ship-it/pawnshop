@@ -184,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
             // View permissions
             Route::middleware('check.permission:customers,view')->group(
                 function () {
+                Route::get('/stats', [CustomerController::class , 'stats']);
                 Route::get('/search', [CustomerController::class , 'search']);
                 Route::get('/{customer}/pledges', [CustomerController::class , 'pledges']);
                 Route::get('/{customer}/active-pledges', [CustomerController::class , 'activePledges']);

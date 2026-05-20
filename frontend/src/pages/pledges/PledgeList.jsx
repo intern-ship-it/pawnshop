@@ -40,6 +40,7 @@ import {
   Copy,
   ChevronDown,
   MessageSquare,
+  Banknote,
 } from "lucide-react";
 
 // Status badge config
@@ -146,6 +147,8 @@ export default function PledgeList() {
         latestRenewalId: pledge.renewals?.[0]?.id || null,
         latestRedemptionId: pledge.redemption?.[0]?.id || null,
         latestRedemptionNo: pledge.redemption?.[0]?.redemption_no || null,
+        interestPaidMonths: parseInt(pledge.interest_paid_months_total) || 0,
+        interestPaidThrough: pledge.interest_paid_through || null,
         itemsCount: pledge.items?.length || pledge.items_count || 0,
         items: pledge.items || [],
         createdAt: pledge.created_at,
@@ -1434,6 +1437,9 @@ export default function PledgeList() {
                   DUE DATE
                 </th>
                 <th className="text-left p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
+                  INTEREST PAID
+                </th>
+                <th className="text-left p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
                   STATUS
                 </th>
                 <th className="text-center p-4 text-sm xl:text-base font-semibold text-zinc-600 whitespace-nowrap">
@@ -1444,7 +1450,7 @@ export default function PledgeList() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center">
+                  <td colSpan={8} className="p-8 text-center">
                     <div className="flex items-center justify-center gap-2 text-zinc-500">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span>Loading pledges...</span>
@@ -1453,7 +1459,7 @@ export default function PledgeList() {
                 </tr>
               ) : filteredPledges.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-zinc-500">
+                  <td colSpan={8} className="p-8 text-center text-zinc-500">
                     <Package className="w-12 h-12 mx-auto mb-2 text-zinc-300" />
                     <p>No pledges found</p>
                     <Button
@@ -1569,12 +1575,36 @@ export default function PledgeList() {
                         )}
                       </td>
 
+                      {/* Interest Paid */}
+                      <td className="p-4">
+                        {pledge.interestPaidMonths > 0 ? (
+                          <div>
+                            <p className="text-sm font-semibold text-emerald-700 whitespace-nowrap">
+                              {pledge.interestPaidMonths} mo paid
+                            </p>
+                            {pledge.interestPaidThrough && (
+                              <p className="text-xs text-zinc-500 whitespace-nowrap">
+                                Until {formatDate(pledge.interestPaidThrough)}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-zinc-400">—</span>
+                        )}
+                      </td>
+
                       {/* Status */}
                       <td className="p-4">
                         <Badge variant={statusConf.variant}>
                           <StatusIcon className="w-3 h-3 mr-1" />
                           {statusConf.label}
                         </Badge>
+                        {pledge.interestPaidMonths > 0 && (
+                          <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-semibold uppercase tracking-wide">
+                            <Banknote className="w-3 h-3" />
+                            {pledge.interestPaidMonths} mo
+                          </div>
+                        )}
                       </td>
 
                       {/* Actions */}
