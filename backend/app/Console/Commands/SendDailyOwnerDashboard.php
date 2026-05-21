@@ -388,7 +388,31 @@ class SendDailyOwnerDashboard extends Command
         // Receipts in = today's pledges; Receipts out = today's redemptions
         $receiptsIn  = $pledgeCount;
         $receiptsOut = $redemptionCount;
-        $itemsOut    = $report ? (int) $report->items_out_count : 0;
+
+        // Items released today (full + partial redemptions)
+        $releasedItems = PledgeItem::whereDate('redeemed_at', $date)
+            ->whereHas('pledge', fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['purity', 'category', 'pledge'])
+            ->get();
+
+        $itemsOut          = $releasedItems->count();
+        $totalWeightOut    = (float) $releasedItems->sum('net_weight');
+
+        $releasedByCategory = $releasedItems->groupBy(function ($i) {
+            $receipt = $i->pledge->receipt_no ?? $i->pledge->pledge_no ?? '—';
+            $cat = $i->category->name_en ?? $i->category->code ?? 'Uncategorised';
+            $pur = $i->purity->code ?? 'N/A';
+            return $receipt . '|' . $cat . '|' . $pur;
+        })->map(function ($g) {
+            $first = $g->first();
+            return [
+                'receipt'  => $first->pledge->receipt_no ?? $first->pledge->pledge_no ?? '—',
+                'category' => $first->category->name_en ?? $first->category->code ?? 'Uncategorised',
+                'purity'   => $first->purity->code ?? 'N/A',
+                'count'    => $g->count(),
+                'weight'   => (float) $g->sum('net_weight'),
+            ];
+        })->sortBy(['receipt', 'category', 'purity'])->values()->all();
 
         // ── Gold prices ──
         $goldRow = GoldPrice::where('branch_id', $branchId)
@@ -519,15 +543,17 @@ class SendDailyOwnerDashboard extends Command
             ],
 
             'inventory' => [
-                'items_in'       => $itemsIn,
-                'items_out'      => $itemsOut,
-                'receipts_in'    => $receiptsIn,
-                'receipts_out'   => $receiptsOut,
-                'total_weight'   => $totalWeightIn,
-                'by_purity'      => $byPurity,
-                'by_category'    => $byCategory,
-                'chart'          => $purityChart,
-                'has_data'       => $receiptsIn > 0 || $receiptsOut > 0 || $itemsIn > 0 || $itemsOut > 0,
+                'items_in'             => $itemsIn,
+                'items_out'            => $itemsOut,
+                'receipts_in'          => $receiptsIn,
+                'receipts_out'         => $receiptsOut,
+                'total_weight'         => $totalWeightIn,
+                'total_weight_out'     => $totalWeightOut,
+                'by_purity'            => $byPurity,
+                'by_category'          => $byCategory,
+                'released_by_category' => $releasedByCategory,
+                'chart'                => $purityChart,
+                'has_data'             => $receiptsIn > 0 || $receiptsOut > 0 || $itemsIn > 0 || $itemsOut > 0,
             ],
 
             'gold' => [

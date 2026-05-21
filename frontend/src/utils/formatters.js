@@ -30,6 +30,20 @@ export const formatCurrency = (amount, showSymbol = true) => {
 export const formatDate = (date) => {
   if (!date) return '-'
 
+  // For date-only values (YYYY-MM-DD, or ISO at UTC midnight from a Laravel
+  // 'date' cast), format the calendar date directly to avoid timezone shifts
+  // that can move the displayed day by ±1.
+  if (typeof date === 'string') {
+    const m = date.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z?)?$/)
+    if (m) {
+      // If no time portion, or time is exactly UTC midnight, treat as a plain
+      // calendar date and skip timezone conversion.
+      if (!m[4] || (m[4] === '00' && m[5] === '00' && m[6] === '00')) {
+        return `${m[3]}/${m[2]}/${m[1]}`
+      }
+    }
+  }
+
   const d = new Date(date)
   if (isNaN(d.getTime())) return '-'
 

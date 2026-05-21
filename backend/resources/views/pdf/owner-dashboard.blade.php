@@ -838,6 +838,40 @@
             </div>
         @endif
 
+        @if(count($inventory['released_by_category']) > 0)
+            <div class="chart-box" style="text-align:left; margin-top:8pt;">
+                <div class="chart-caption">Items Released — Category Breakdown</div>
+                <div class="chart-subcaption">Items redeemed today — receipt, type, purity, quantity and total net weight</div>
+                <table class="tbl">
+                    <thead>
+                        <tr>
+                            <th>Receipt No.</th>
+                            <th>Category</th>
+                            <th style="text-align:center;">Purity</th>
+                            <th style="text-align:center;">Quantity</th>
+                            <th class="right">Weight (g)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($inventory['released_by_category'] as $row)
+                            <tr>
+                                <td class="mono"><strong>{{ $row['receipt'] }}</strong></td>
+                                <td>{{ $row['category'] }}</td>
+                                <td style="text-align:center;"><strong>{{ $row['purity'] }}</strong></td>
+                                <td style="text-align:center;">{{ $row['count'] }}</td>
+                                <td class="right mono">{{ number_format($row['weight'], 3) }}</td>
+                            </tr>
+                        @endforeach
+                        <tr class="total">
+                            <td colspan="3">TOTAL</td>
+                            <td style="text-align:center;">{{ $inventory['items_out'] }}</td>
+                            <td class="right mono">{{ number_format($inventory['total_weight_out'], 3) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        @endif
+
         @if($inventory['chart'] && count($inventory['by_purity']) > 0)
             <div class="chart-box" style="margin-top:8pt;">
                 <div class="chart-caption">Weight by Purity (Received)</div>
