@@ -645,7 +645,12 @@ class RenewalController extends Controller
      */
     private function buildRenewalWhatsAppMessage(Renewal $renewal): string
     {
-        $message = "🏦 *RENEWAL RECEIPT*\n";
+        $companyName = \App\Models\Setting::where('category', 'company')
+            ->where('key_name', 'name')
+            ->value('value') ?? $renewal->pledge->branch->name ?? 'PAJAK GADAI SDN BHD';
+
+        $message = "*{$companyName}*\n";
+        $message .= "🏦 *RENEWAL RECEIPT*\n";
         $message .= "━━━━━━━━━━━━━━━━━━\n\n";
         $message .= "📋 *Renewal No:* {$renewal->renewal_no}\n";
         $message .= "🔖 *Pledge No:* {$renewal->pledge->pledge_no}\n";

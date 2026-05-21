@@ -1117,7 +1117,12 @@ class PledgeController extends Controller
             return "• {$item->category->name_en} ({$item->purity->code}) - {$item->net_weight}g";
         })->join("\n");
 
-        $message = "🏦 *PLEDGE RECEIPT*\n";
+        $companyName = \App\Models\Setting::where('category', 'company')
+            ->where('key_name', 'name')
+            ->value('value') ?? $pledge->branch->name ?? 'PAJAK GADAI SDN BHD';
+
+        $message = "*{$companyName}*\n";
+        $message .= "🏦 *PLEDGE RECEIPT*\n";
         $message .= "━━━━━━━━━━━━━━━━━━\n\n";
         $message .= "📋 *Pledge No:* {$pledge->pledge_no}\n";
         $message .= "📅 *Date:* {$pledge->pledge_date->format('d/m/Y')}\n\n";
