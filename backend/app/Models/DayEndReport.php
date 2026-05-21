@@ -15,6 +15,7 @@ class DayEndReport extends Model
         'branch_id',
         'report_date',
         'opening_balance',
+        'closing_balance',
         'new_pledges_count',
         'new_pledges_amount',
         'new_pledges_cash',
@@ -43,6 +44,7 @@ class DayEndReport extends Model
     protected $casts = [
         'report_date' => 'date',
         'opening_balance' => 'decimal:2',
+        'closing_balance' => 'decimal:2',
         'new_pledges_amount' => 'decimal:2',
         'new_pledges_cash' => 'decimal:2',
         'new_pledges_transfer' => 'decimal:2',

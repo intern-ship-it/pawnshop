@@ -70,6 +70,7 @@ class DayEndController extends Controller
             return $this->success([
                 'report' => null,
                 'stats' => $stats,
+                'suggested_opening_balance' => $this->getSuggestedOpeningBalance($branchId, $today),
                 'message' => 'No day-end report started yet for today',
             ]);
         }
@@ -109,6 +110,7 @@ class DayEndController extends Controller
             return $this->success([
                 'report' => null,
                 'stats' => $stats,
+                'suggested_opening_balance' => $this->getSuggestedOpeningBalance($branchId, $date),
                 'report_date' => $date,
                 'message' => 'No day-end report exists for this date',
             ]);
@@ -126,6 +128,27 @@ class DayEndController extends Controller
             'redemptions_detail' => $stats['redemptions_detail'] ?? [],
             'renewals_detail' => $stats['renewals_detail'] ?? [],
         ]);
+    }
+
+    /**
+     * Get the suggested opening balance for a given date:
+     * the closing_balance of the most recent prior day-end report,
+     * or 0 if none exists.
+     */
+    private function getSuggestedOpeningBalance(int $branchId, $date): float
+    {
+        $prior = DayEndReport::where('branch_id', $branchId)
+            ->whereDate('report_date', '<', $date)
+            ->orderBy('report_date', 'desc')
+            ->first();
+
+        if (!$prior) {
+            return 0.0;
+        }
+
+        return $prior->closing_balance !== null
+            ? (float) $prior->closing_balance
+            : (float) $prior->opening_balance;
     }
 
     /**
@@ -152,11 +175,18 @@ class DayEndController extends Controller
             // Calculate today's stats
             $stats = $this->calculateDayStats($branchId, $today);
 
+            // Auto-carry opening balance from prior day's closing balance
+            // unless explicitly overridden in the request.
+            $providedOpening = $request->input('opening_balance');
+            $openingBalance = $providedOpening !== null && $providedOpening !== ''
+                ? (float) $providedOpening
+                : $this->getSuggestedOpeningBalance($branchId, $today);
+
             // Create report
             $report = DayEndReport::create([
                 'branch_id' => $branchId,
                 'report_date' => $today,
-                'opening_balance' => $request->get('opening_balance', 0),
+                'opening_balance' => $openingBalance,
                 'new_pledges_count' => $stats['pledges']['count'],
                 'new_pledges_amount' => $stats['pledges']['total'],
                 'new_pledges_cash' => $stats['pledges']['cash'],
@@ -185,8 +215,8 @@ class DayEndController extends Controller
                     DayEndVerification::create([
                         'day_end_id' => $report->id,
                         'verification_type' => 'item_in',
-                        'related_type' => 'PledgeItem',
-                        'related_id' => $item->id,
+                        'related_type' => 'Pledge',
+                        'related_id' => $pledge->id,
                         'item_description' => sprintf('%s - %s', $pledge->pledge_no, $item->barcode),
                         'expected_amount' => $item->net_value,
                         'is_verified' => false,
@@ -205,8 +235,8 @@ class DayEndController extends Controller
                     DayEndVerification::create([
                         'day_end_id' => $report->id,
                         'verification_type' => 'item_out',
-                        'related_type' => 'PledgeItem',
-                        'related_id' => $item->id,
+                        'related_type' => 'Pledge',
+                        'related_id' => $redemption->pledge->id,
                         'item_description' => sprintf('%s - %s', $redemption->pledge->pledge_no, $item->barcode),
                         'expected_amount' => $item->net_value,
                         'is_verified' => false,
@@ -214,24 +244,30 @@ class DayEndController extends Controller
                 }
             }
 
-            // Create amount verifications
-            DayEndVerification::create([
-                'day_end_id' => $report->id,
-                'verification_type' => 'amount',
-                'related_type' => 'cash_total',
-                'item_description' => 'Total Cash',
-                'expected_amount' => $stats['pledges']['cash'] + $stats['renewals']['cash'] + $stats['redemptions']['cash'],
-                'is_verified' => false,
-            ]);
+            // Create amount verifications (skip rows with zero expected amount)
+            $totalCash = $stats['pledges']['cash'] + $stats['renewals']['cash'] + $stats['redemptions']['cash'];
+            if ($totalCash > 0) {
+                DayEndVerification::create([
+                    'day_end_id' => $report->id,
+                    'verification_type' => 'amount',
+                    'related_type' => 'cash_total',
+                    'item_description' => 'Total Cash',
+                    'expected_amount' => $totalCash,
+                    'is_verified' => false,
+                ]);
+            }
 
-            DayEndVerification::create([
-                'day_end_id' => $report->id,
-                'verification_type' => 'amount',
-                'related_type' => 'transfer_total',
-                'item_description' => 'Total Transfer',
-                'expected_amount' => $stats['pledges']['transfer'] + $stats['renewals']['transfer'] + $stats['redemptions']['transfer'],
-                'is_verified' => false,
-            ]);
+            $totalTransfer = $stats['pledges']['transfer'] + $stats['renewals']['transfer'] + $stats['redemptions']['transfer'];
+            if ($totalTransfer > 0) {
+                DayEndVerification::create([
+                    'day_end_id' => $report->id,
+                    'verification_type' => 'amount',
+                    'related_type' => 'transfer_total',
+                    'item_description' => 'Total Transfer',
+                    'expected_amount' => $totalTransfer,
+                    'is_verified' => false,
+                ]);
+            }
 
             DB::commit();
 
@@ -265,13 +301,20 @@ class DayEndController extends Controller
     /**
      * Verify single item
      */
-    public function verifyItem(Request $request, DayEndReport $dayEndReport, DayEndVerification $verification): JsonResponse
+    public function verifyItem(Request $request, DayEndReport $dayEndReport): JsonResponse
     {
         if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
             return $this->error('Unauthorized', 403);
         }
 
-        if ($verification->day_end_id !== $dayEndReport->id) {
+        if ($dayEndReport->status === 'closed') {
+            return $this->error('Day-end is already closed; verifications are locked', 422);
+        }
+
+        $verificationId = $request->input('verification_id');
+        $verification = DayEndVerification::find($verificationId);
+
+        if (!$verification || (int) $verification->day_end_id !== (int) $dayEndReport->id) {
             return $this->error('Verification does not belong to this report', 422);
         }
 
@@ -336,7 +379,7 @@ class DayEndController extends Controller
      */
     public function close(Request $request, DayEndReport $dayEndReport): JsonResponse
     {
-        if ($dayEndReport->branch_id !== $request->user()->branch_id) {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -353,8 +396,13 @@ class DayEndController extends Controller
             return $this->error("Cannot close: $unverified items not verified. Use force_close=true to override.", 422);
         }
 
+        $closingBalance = $request->input('closing_balance');
+
         $dayEndReport->update([
             'status' => 'closed',
+            'closing_balance' => $closingBalance !== null && $closingBalance !== ''
+                ? (float) $closingBalance
+                : null,
             'closed_by' => $request->user()->id,
             'closed_at' => now(),
             'notes' => $request->get('notes'),
@@ -368,7 +416,7 @@ class DayEndController extends Controller
      */
     public function sendWhatsApp(Request $request, DayEndReport $dayEndReport): JsonResponse
     {
-        if ($dayEndReport->branch_id !== $request->user()->branch_id) {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
             return $this->error('Unauthorized', 403);
         }
 
@@ -386,7 +434,7 @@ class DayEndController extends Controller
      */
     public function print(Request $request, DayEndReport $dayEndReport): JsonResponse
     {
-        if ($dayEndReport->branch_id !== $request->user()->branch_id) {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
             return $this->error('Unauthorized', 403);
         }
 

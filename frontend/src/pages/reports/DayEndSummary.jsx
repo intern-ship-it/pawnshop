@@ -58,6 +58,10 @@ export default function DayEndSummary() {
   );
   const [isClosing, setIsClosing] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [suggestedOpening, setSuggestedOpening] = useState(0);
+  const [startOpeningBalance, setStartOpeningBalance] = useState("0");
   const [dayStatus, setDayStatus] = useState("open");
   const [dayEndData, setDayEndData] = useState(null);
   const [verificationItems, setVerificationItems] = useState([]);
@@ -200,6 +204,9 @@ export default function DayEndSummary() {
         const data = response.data;
         const report = data.report || data;
         const stats = data.stats;
+        const suggested = parseFloat(data.suggested_opening_balance) || 0;
+        setSuggestedOpening(suggested);
+        setStartOpeningBalance(String(suggested));
 
         // Extract purity breakdown from response
         const itemsInByPurity = data.items_in_by_purity || stats?.items_in_by_purity || {};
@@ -323,7 +330,7 @@ export default function DayEndSummary() {
           });
 
           setCashDrawer({
-            openingBalance: 0,
+            openingBalance: suggested,
             closingBalance: "",
             notes: "",
           });
@@ -437,19 +444,22 @@ export default function DayEndSummary() {
 
   // Open/Start day end process
   const handleOpenDayEnd = async () => {
+    setIsStarting(true);
     try {
+      const opening = parseFloat(startOpeningBalance);
       const response = await dayEndService.open({
-        opening_balance: cashDrawer.openingBalance,
+        opening_balance: isNaN(opening) ? 0 : opening,
       });
 
       if (response.success) {
         dispatch(
           addToast({
             type: "success",
-            title: "Day End Started",
-            message: "Day end process has been initiated",
+            title: "Day Started",
+            message: "Day has been started successfully",
           }),
         );
+        setShowStartModal(false);
         await fetchDayEndData();
       } else {
         throw new Error(response.message);
@@ -459,9 +469,11 @@ export default function DayEndSummary() {
         addToast({
           type: "error",
           title: "Error",
-          message: error.message || "Failed to start day end",
+          message: error.message || "Failed to start day",
         }),
       );
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -992,9 +1004,12 @@ export default function DayEndSummary() {
                   <Button
                     variant="outline"
                     leftIcon={FileText}
-                    onClick={handleOpenDayEnd}
+                    onClick={() => {
+                      setStartOpeningBalance(String(suggestedOpening));
+                      setShowStartModal(true);
+                    }}
                   >
-                    Start Day End
+                    Start Day
                   </Button>
                 )}
                 <Button
@@ -1008,14 +1023,6 @@ export default function DayEndSummary() {
               </>
             ) : (
               <>
-                <Button
-                  variant="outline"
-                  leftIcon={MessageCircle}
-                  onClick={handleSendWhatsApp}
-                  loading={isSendingWhatsApp}
-                >
-                  Send WhatsApp
-                </Button>
                 <Button
                   variant="outline"
                   leftIcon={Printer}
@@ -1388,11 +1395,14 @@ export default function DayEndSummary() {
                         onClick={() =>
                           handleVerifyItem(item.id, !item.is_verified)
                         }
+                        disabled={dayStatus === "closed"}
                         className={cn(
                           "w-6 h-6 rounded border-2 flex items-center justify-center transition-all",
                           item.is_verified
                             ? "bg-amber-500 border-amber-500 text-white"
                             : "border-zinc-300 hover:border-amber-500",
+                          dayStatus === "closed" &&
+                            "opacity-60 cursor-not-allowed hover:border-zinc-300",
                         )}
                       >
                         {item.is_verified && <Check className="w-4 h-4" />}
@@ -1609,6 +1619,69 @@ export default function DayEndSummary() {
           </Card>
         </div>
       </div>
+
+      {/* Start Day Modal */}
+      <Modal
+        isOpen={showStartModal}
+        onClose={() => setShowStartModal(false)}
+        title="Start Day"
+        size="md"
+      >
+        <div className="p-5">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-5">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <p className="font-medium mb-1">Opening Balance</p>
+                <p>
+                  {suggestedOpening > 0
+                    ? `Carried over from previous day's closing balance: ${formatCurrency(suggestedOpening)}.`
+                    : "No previous day-end found. Opening balance defaults to 0 — adjust if needed."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              Opening Balance
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={startOpeningBalance}
+              onChange={(e) => setStartOpeningBalance(e.target.value)}
+              leftIcon={Banknote}
+            />
+          </div>
+
+          <p className="text-sm text-zinc-600 mb-6">
+            Confirm to start the day for {selectedDate}. Transactions can be
+            recorded after the day is started.
+          </p>
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setShowStartModal(false)}
+              disabled={isStarting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              fullWidth
+              leftIcon={Unlock}
+              onClick={handleOpenDayEnd}
+              loading={isStarting}
+            >
+              Start Day
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Close Day Modal */}
       <Modal
