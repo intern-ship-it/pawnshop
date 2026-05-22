@@ -751,7 +751,7 @@ class PrintController extends Controller
                 ->setPaper('a4', 'portrait');
 
             $fileName = sprintf(
-                'Owner_Dashboard_%s_%s.pdf',
+                'Management_Report_%s_%s.pdf',
                 preg_replace('/[^A-Za-z0-9_-]/', '_', $branch->code ?: $branch->name),
                 $date->format('Y-m-d')
             );

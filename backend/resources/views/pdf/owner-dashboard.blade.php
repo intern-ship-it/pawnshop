@@ -191,6 +191,8 @@
         border-top: 3pt solid #1e3a5f;
         padding: 8pt 10pt;
         text-align: left;
+        height: 92pt;
+        box-sizing: border-box;
     }
     .card.gold    { border-top-color: #c8973e; }
     .card.green   { border-top-color: #10b981; }
@@ -408,8 +410,16 @@
                         <div class="card-value sm {{ $vcls }}">{{ $rm($row['amount']) }}</div>
                         <div class="card-sub"><strong>{{ $row['count'] }}</strong> transaction{{ $row['count'] === 1 ? '' : 's' }}</div>
                         @if($row['label'] === 'Redemptions' && $row['count'] > 0)
+                            <div class="card-sub">
+                                Principal: <strong>{{ $rm($row['amount'] - $interest['from_redemptions']) }}</strong>
+                            </div>
                             <div class="card-sub" style="color:#3b82f6;">
-                                of which interest: <strong>{{ $rm($interest['from_redemptions']) }}</strong>
+                                Interest from redemption: <strong>{{ $rm($interest['from_redemptions']) }}</strong>
+                            </div>
+                        @endif
+                        @if($row['label'] === 'Renewals' && $row['count'] > 0)
+                            <div class="card-sub" style="color:#3b82f6;">
+                                Interest: <strong>{{ $rm($interest['from_renewals']) }}</strong>
                             </div>
                         @endif
                         @if($subNote)
@@ -463,6 +473,34 @@
             </td>
         </tr>
     </table>
+
+    {{-- Today's highlights strip --}}
+    <div class="chart-box" style="margin-top:6pt; padding:8pt 10pt;">
+        <div class="chart-caption">Today's Highlights</div>
+        <table style="width:100%; border-collapse:collapse;">
+            <tr>
+                <td style="width:33%; padding:4pt 6pt; vertical-align:top;">
+                    <div style="font-size:7pt; color:#64748b; text-transform:uppercase; letter-spacing:0.5pt;">Total Activity</div>
+                    <div style="font-size:10pt; color:#1e3a5f; font-weight:bold; margin-top:2pt;">
+                        {{ $tx['total_count'] }} transaction{{ $tx['total_count'] === 1 ? '' : 's' }}
+                    </div>
+                    <div style="font-size:7.5pt; color:#64748b; margin-top:1pt;">Across all transaction types</div>
+                </td>
+                <td style="width:33%; padding:4pt 6pt; vertical-align:top; border-left:1pt solid #e2e8f0;">
+                    <div style="font-size:7pt; color:#64748b; text-transform:uppercase; letter-spacing:0.5pt;">Total Interest Earned</div>
+                    <div style="font-size:10pt; color:#10b981; font-weight:bold; margin-top:2pt;">
+                        {{ $rm(($interest['from_renewals'] ?? 0) + ($interest['from_redemptions'] ?? 0)) }}
+                    </div>
+                    <div style="font-size:7.5pt; color:#64748b; margin-top:1pt;">Renewals + redemption interest</div>
+                </td>
+                <td style="width:34%; padding:4pt 6pt; vertical-align:top; border-left:1pt solid #e2e8f0;">
+                    <div style="font-size:7pt; color:#64748b; text-transform:uppercase; letter-spacing:0.5pt;">Gross Turnover</div>
+                    <div style="font-size:10pt; color:#1e3a5f; font-weight:bold; margin-top:2pt;">{{ $rm($tx['total_amount']) }}</div>
+                    <div style="font-size:7.5pt; color:#64748b; margin-top:1pt;">Sum of all transaction amounts</div>
+                </td>
+            </tr>
+        </table>
+    </div>
 </div>
 @endif
 
@@ -858,76 +896,16 @@
 
 
 {{-- ═══════════════════════════════════════════════════════
-     6. FINAL DAILY FINANCIAL SUMMARY
+     6. 7-DAY TRENDS
 ═══════════════════════════════════════════════════════ --}}
 @if($final['has_data'])
 <div class="sec">
     <div class="sec-title">
         <table><tr>
             <td style="width:16pt;"><div class="num">6</div></td>
-            <td class="label">Final Daily Financial Summary</td>
+            <td class="label">7-Day Trends</td>
         </tr></table>
     </div>
-
-    {{-- Cash --}}
-    <div class="chart-caption" style="margin-bottom:4pt;">Cash</div>
-    <table class="kpi">
-        <tr>
-            <td style="width:33%;">
-                <div class="card green">
-                    <div class="card-label">Total Income (Cash)</div>
-                    <div class="card-value sm green">{{ $rm($final['cash_in']) }}</div>
-                    <div class="card-sub">Cash received today</div>
-                </div>
-            </td>
-            <td style="width:33%;">
-                <div class="card red">
-                    <div class="card-label">Total Outflow (Cash)</div>
-                    <div class="card-value sm red">{{ $rm($final['cash_out']) }}</div>
-                    <div class="card-sub">Cash paid out today</div>
-                </div>
-            </td>
-            <td style="width:34%;">
-                <div class="card {{ $final['cash_net'] >= 0 ? 'green' : 'red' }}">
-                    <div class="card-label">Net Daily Movement (Cash)</div>
-                    <div class="card-value sm {{ $final['cash_net'] >= 0 ? 'green' : 'red' }}">
-                        {{ $final['cash_net'] >= 0 ? '+' : '' }}{{ $rm($final['cash_net']) }}
-                    </div>
-                    <div class="card-sub">{{ $final['cash_net'] >= 0 ? 'Positive flow' : 'Negative flow' }}</div>
-                </div>
-            </td>
-        </tr>
-    </table>
-
-    {{-- Online --}}
-    <div class="chart-caption" style="margin:8pt 0 4pt 0;">Online Payment</div>
-    <table class="kpi">
-        <tr>
-            <td style="width:33%;">
-                <div class="card green">
-                    <div class="card-label">Total Income (Online)</div>
-                    <div class="card-value sm green">{{ $rm($final['online_in']) }}</div>
-                    <div class="card-sub">Bank transfers received</div>
-                </div>
-            </td>
-            <td style="width:33%;">
-                <div class="card red">
-                    <div class="card-label">Total Outflow (Online)</div>
-                    <div class="card-value sm red">{{ $rm($final['online_out']) }}</div>
-                    <div class="card-sub">Bank transfers paid</div>
-                </div>
-            </td>
-            <td style="width:34%;">
-                <div class="card {{ $final['online_net'] >= 0 ? 'green' : 'red' }}">
-                    <div class="card-label">Net Daily Movement (Online)</div>
-                    <div class="card-value sm {{ $final['online_net'] >= 0 ? 'green' : 'red' }}">
-                        {{ $final['online_net'] >= 0 ? '+' : '' }}{{ $rm($final['online_net']) }}
-                    </div>
-                    <div class="card-sub">{{ $final['online_net'] >= 0 ? 'Positive flow' : 'Negative flow' }}</div>
-                </div>
-            </td>
-        </tr>
-    </table>
 
     @if(!empty($final['cash_trend_chart']) && $final['cash_trend_has_data'])
         <div class="chart-box" style="margin-bottom:8pt;">

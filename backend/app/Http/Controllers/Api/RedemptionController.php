@@ -633,18 +633,18 @@ class RedemptionController extends Controller
                     'sent_by' => $request->user()->id,
                 ]);
 
-                // Send PDF receipt inline (app()->terminating doesn't fire reliably on all servers)
-                try {
-                    Log::info('Starting PDF receipt generation for redemption ' . $redemption->redemption_no);
-                    $pdfResult = $this->sendRedemptionPdfReceipt($config, $phone, $redemption);
-                    Log::info('PDF receipt result: ' . json_encode($pdfResult));
-                    if (!$pdfResult['success']) {
-                        Log::warning('Redemption PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
-                    }
-                }
-                catch (\Exception $pdfError) {
-                    Log::warning('Redemption PDF attachment error: ' . $pdfError->getMessage());
-                }
+                // PDF receipt sending temporarily disabled - text-only WhatsApp for redemptions
+                // try {
+                //     Log::info('Starting PDF receipt generation for redemption ' . $redemption->redemption_no);
+                //     $pdfResult = $this->sendRedemptionPdfReceipt($config, $phone, $redemption);
+                //     Log::info('PDF receipt result: ' . json_encode($pdfResult));
+                //     if (!$pdfResult['success']) {
+                //         Log::warning('Redemption PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
+                //     }
+                // }
+                // catch (\Exception $pdfError) {
+                //     Log::warning('Redemption PDF attachment error: ' . $pdfError->getMessage());
+                // }
 
                 return $this->success([
                     'message' => 'Redemption WhatsApp sent successfully to ' . $phone,

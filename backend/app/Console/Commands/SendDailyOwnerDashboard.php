@@ -73,7 +73,7 @@ class SendDailyOwnerDashboard extends Command
 
         // Random suffix so the public URL is unguessable (PDF contains financial data)
         $fileName = sprintf(
-            'Owner_Dashboard_%s_%s_%s.pdf',
+            'Management_Report_%s_%s_%s.pdf',
             preg_replace('/[^A-Za-z0-9_-]/', '_', $branch->code ?: $branch->name),
             $date->format('Y-m-d'),
             Str::random(10)
