@@ -674,7 +674,12 @@ class RedemptionController extends Controller
 
         $isPartial = $redemption->is_partial;
 
-        $message = "✅ *REDEMPTION RECEIPT*\n";
+        $companyName = \App\Models\Setting::where('category', 'company')
+            ->where('key_name', 'name')
+            ->value('value') ?? $pledge->branch->name ?? 'PAJAK GADAI SDN BHD';
+
+        $message = "*{$companyName}*\n";
+        $message .= "✅ *REDEMPTION RECEIPT*\n";
         $message .= "━━━━━━━━━━━━━━━━━━\n\n";
         $message .= "📋 *Redemption No:* {$redemption->redemption_no}\n";
         $message .= "📋 *Pledge No:* {$pledge->pledge_no}\n";

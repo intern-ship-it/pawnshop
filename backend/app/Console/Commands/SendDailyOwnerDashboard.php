@@ -346,10 +346,15 @@ class SendDailyOwnerDashboard extends Command
         $actualClosing  = $report && $report->closing_balance !== null ? (float) $report->closing_balance : null;
         $variance       = $actualClosing !== null ? ($actualClosing - $expectedClosing) : 0;
 
-        // ── Inventory: pledge items received today by purity ──
+        // ── Online (bank transfer) flow ──
+        $onlineIn       = $renewalTransfer + $redemptionTransfer + $intPayTransfer;
+        $onlineOut      = $pledgeTransfer;
+        $onlineClosing  = $onlineIn - $onlineOut;
+
+        // ── Inventory: pledge items received today by purity / category ──
         $items = PledgeItem::whereHas('pledge', function ($q) use ($branchId, $date) {
             $q->where('branch_id', $branchId)->whereDate('pledge_date', $date);
-        })->with('purity')->get();
+        })->with(['purity', 'category', 'pledge'])->get();
 
         $itemsIn = $items->count();
         $totalWeightIn = (float) $items->sum('net_weight');
@@ -364,7 +369,50 @@ class SendDailyOwnerDashboard extends Command
             ->values()
             ->all();
 
-        $itemsOut = $report ? (int) $report->items_out_count : 0;
+        $byCategory = $items->groupBy(function ($i) {
+            $receipt = $i->pledge->receipt_no ?? $i->pledge->pledge_no ?? '—';
+            $cat = $i->category->name_en ?? $i->category->code ?? 'Uncategorised';
+            $pur = $i->purity->code ?? 'N/A';
+            return $receipt . '|' . $cat . '|' . $pur;
+        })->map(function ($g) {
+            $first = $g->first();
+            return [
+                'receipt'  => $first->pledge->receipt_no ?? $first->pledge->pledge_no ?? '—',
+                'category' => $first->category->name_en ?? $first->category->code ?? 'Uncategorised',
+                'purity'   => $first->purity->code ?? 'N/A',
+                'count'    => $g->count(),
+                'weight'   => (float) $g->sum('net_weight'),
+            ];
+        })->sortBy(['receipt', 'category', 'purity'])->values()->all();
+
+        // Receipts in = today's pledges; Receipts out = today's redemptions
+        $receiptsIn  = $pledgeCount;
+        $receiptsOut = $redemptionCount;
+
+        // Items released today (full + partial redemptions)
+        $releasedItems = PledgeItem::whereDate('redeemed_at', $date)
+            ->whereHas('pledge', fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['purity', 'category', 'pledge'])
+            ->get();
+
+        $itemsOut          = $releasedItems->count();
+        $totalWeightOut    = (float) $releasedItems->sum('net_weight');
+
+        $releasedByCategory = $releasedItems->groupBy(function ($i) {
+            $receipt = $i->pledge->receipt_no ?? $i->pledge->pledge_no ?? '—';
+            $cat = $i->category->name_en ?? $i->category->code ?? 'Uncategorised';
+            $pur = $i->purity->code ?? 'N/A';
+            return $receipt . '|' . $cat . '|' . $pur;
+        })->map(function ($g) {
+            $first = $g->first();
+            return [
+                'receipt'  => $first->pledge->receipt_no ?? $first->pledge->pledge_no ?? '—',
+                'category' => $first->category->name_en ?? $first->category->code ?? 'Uncategorised',
+                'purity'   => $first->purity->code ?? 'N/A',
+                'count'    => $g->count(),
+                'weight'   => (float) $g->sum('net_weight'),
+            ];
+        })->sortBy(['receipt', 'category', 'purity'])->values()->all();
 
         // ── Gold prices ──
         $goldRow = GoldPrice::where('branch_id', $branchId)
@@ -399,7 +447,7 @@ class SendDailyOwnerDashboard extends Command
 
         // ── Charts (QuickChart.io → base64 PNG) ──
         $txChart = $this->chartTransactions(
-            $pledgeCount, $renewalCount, $redemptionCount, $intPayCount
+            $pledgeCount, $intPayCount, $renewalCount, $redemptionCount
         );
         $loanPaymentChart = $this->chartPaymentMethods(
             'Loan Payout Method', $pledgeCash, $pledgeTransfer
@@ -411,8 +459,10 @@ class SendDailyOwnerDashboard extends Command
             $openingBalance, $cashIn, $cashOut, $actualClosing ?? $expectedClosing
         );
         $purityChart   = $this->chartPurity($byPurity);
-        $incomeChart   = $this->chartIncomeVsOutflow($totalIncome, $totalOutflow);
-        $trendChart    = $this->chartWeeklyTrend($trend);
+        $incomeChart     = $this->chartIncomeVsOutflow($totalIncome, $totalOutflow);
+        $trendChart      = $this->chartWeeklyTrend($trend);
+        $cashTrendChart   = $this->chartWeeklyTrendSplit($trend['labels'], $trend['cash_in'], $trend['cash_out'], 'Cash');
+        $onlineTrendChart = $this->chartWeeklyTrendSplit($trend['labels'], $trend['online_in'], $trend['online_out'], 'Online');
 
         $company = $this->companySettings($branch);
 
@@ -438,9 +488,9 @@ class SendDailyOwnerDashboard extends Command
             'tx' => [
                 'rows' => [
                     ['label' => 'Pledges',            'count' => $pledgeCount,     'amount' => $loanAmount,          'color' => '#1e3a5f'],
+                    ['label' => 'Interest Payments',  'count' => $intPayCount,     'amount' => $intPayTotal,         'color' => '#3b82f6'],
                     ['label' => 'Renewals',           'count' => $renewalCount,    'amount' => $renewalTotal,        'color' => '#f59e0b'],
                     ['label' => 'Redemptions',        'count' => $redemptionCount, 'amount' => $redemptionTotal,     'color' => '#10b981'],
-                    ['label' => 'Interest Payments',  'count' => $intPayCount,     'amount' => $intPayTotal,         'color' => '#3b82f6'],
                 ],
                 'total_count'  => $pledgeCount + $renewalCount + $redemptionCount + $intPayCount,
                 'total_amount' => $loanAmount + $renewalTotal + $redemptionTotal + $intPayTotal,
@@ -485,16 +535,25 @@ class SendDailyOwnerDashboard extends Command
                 'has_actual'       => $actualClosing !== null,
                 'variance'         => $variance,
                 'chart'            => $cashFlowChart,
-                'has_data'         => $report !== null || $cashIn > 0 || $cashOut > 0,
+                'online_in'        => $onlineIn,
+                'online_out'       => $onlineOut,
+                'online_closing'   => $onlineClosing,
+                'online_chart'     => $this->chartOnlineFlow($onlineIn, $onlineOut, $onlineClosing),
+                'has_data'         => $report !== null || $cashIn > 0 || $cashOut > 0 || $onlineIn > 0 || $onlineOut > 0,
             ],
 
             'inventory' => [
-                'items_in'      => $itemsIn,
-                'items_out'     => $itemsOut,
-                'total_weight'  => $totalWeightIn,
-                'by_purity'     => $byPurity,
-                'chart'         => $purityChart,
-                'has_data'      => $itemsIn > 0 || $itemsOut > 0,
+                'items_in'             => $itemsIn,
+                'items_out'            => $itemsOut,
+                'receipts_in'          => $receiptsIn,
+                'receipts_out'         => $receiptsOut,
+                'total_weight'         => $totalWeightIn,
+                'total_weight_out'     => $totalWeightOut,
+                'by_purity'            => $byPurity,
+                'by_category'          => $byCategory,
+                'released_by_category' => $releasedByCategory,
+                'chart'                => $purityChart,
+                'has_data'             => $receiptsIn > 0 || $receiptsOut > 0 || $itemsIn > 0 || $itemsOut > 0,
             ],
 
             'gold' => [
@@ -505,13 +564,23 @@ class SendDailyOwnerDashboard extends Command
             ],
 
             'final' => [
-                'income'       => $totalIncome,
-                'outflow'      => $totalOutflow,
-                'net_movement' => $netMovement,
-                'chart'        => $incomeChart,
-                'trend_chart'  => $trendChart,
+                'income'         => $totalIncome,
+                'outflow'        => $totalOutflow,
+                'net_movement'   => $netMovement,
+                'cash_in'        => $cashIn,
+                'cash_out'       => $cashOut,
+                'cash_net'       => $cashIn - $cashOut,
+                'online_in'      => $onlineIn,
+                'online_out'     => $onlineOut,
+                'online_net'     => $onlineIn - $onlineOut,
+                'chart'              => $incomeChart,
+                'trend_chart'        => $trendChart,
+                'cash_trend_chart'   => $cashTrendChart,
+                'online_trend_chart' => $onlineTrendChart,
+                'cash_trend_has_data'   => array_sum($trend['cash_in']) + array_sum($trend['cash_out']) > 0,
+                'online_trend_has_data' => array_sum($trend['online_in']) + array_sum($trend['online_out']) > 0,
                 'trend_has_data' => array_sum($trend['income']) + array_sum($trend['outflow']) > 0,
-                'has_data'     => ($totalIncome + $totalOutflow) > 0,
+                'has_data'       => ($totalIncome + $totalOutflow) > 0,
             ],
         ];
     }
@@ -525,45 +594,74 @@ class SendDailyOwnerDashboard extends Command
         $start = $endDate->copy()->subDays(6)->startOfDay();
         $end   = $endDate->copy()->endOfDay();
 
-        $labels  = [];
-        $income  = [];
-        $outflow = [];
-        $cursor  = $start->copy();
+        $labels       = [];
+        $income       = [];
+        $outflow      = [];
+        $cashIn       = [];
+        $cashOut      = [];
+        $onlineIn     = [];
+        $onlineOut    = [];
+        $cursor       = $start->copy();
 
-        // Pre-fetch each source within the window and bucket by date string
-        $pledgeOut = Pledge::where('branch_id', $branchId)
+        // Pledges (outflow) — cash/transfer come from related PledgePayment rows
+        $pledges = Pledge::where('branch_id', $branchId)
             ->whereBetween('pledge_date', [$start, $end])
-            ->get(['pledge_date', 'payout_amount'])
-            ->groupBy(fn ($p) => Carbon::parse($p->pledge_date)->toDateString())
-            ->map(fn ($g) => (float) $g->sum('payout_amount'));
+            ->with('payments')
+            ->get(['id', 'pledge_date', 'payout_amount']);
 
-        $renIn = Renewal::where('branch_id', $branchId)
-            ->whereBetween('created_at', [$start, $end])
-            ->get(['created_at', 'total_payable'])
-            ->groupBy(fn ($r) => Carbon::parse($r->created_at)->toDateString())
-            ->map(fn ($g) => (float) $g->sum('total_payable'));
+        $pledgeByDay = $pledges->groupBy(fn ($p) => Carbon::parse($p->pledge_date)->toDateString());
+        $pledgeOut       = $pledgeByDay->map(fn ($g) => (float) $g->sum('payout_amount'));
+        $pledgeCashOut   = $pledgeByDay->map(fn ($g) => (float) $g->flatMap->payments->sum('cash_amount'));
+        $pledgeOnlineOut = $pledgeByDay->map(fn ($g) => (float) $g->flatMap->payments->sum('transfer_amount'));
 
-        $redIn = Redemption::where('branch_id', $branchId)
-            ->whereBetween('created_at', [$start, $end])
-            ->get(['created_at', 'total_payable'])
-            ->groupBy(fn ($r) => Carbon::parse($r->created_at)->toDateString())
-            ->map(fn ($g) => (float) $g->sum('total_payable'));
+        // Helper to aggregate per-day sums for renewal/redemption/interest sources
+        $aggIn = function ($collection) {
+            return $collection
+                ->groupBy(fn ($r) => Carbon::parse($r->created_at)->toDateString())
+                ->map(fn ($g) => [
+                    'total'    => (float) $g->sum('total_payable'),
+                    'cash'     => (float) $g->sum('cash_amount'),
+                    'transfer' => (float) $g->sum('transfer_amount'),
+                ]);
+        };
 
-        $ipIn = InterestPayment::where('branch_id', $branchId)
+        $renIn = $aggIn(Renewal::where('branch_id', $branchId)
             ->whereBetween('created_at', [$start, $end])
-            ->get(['created_at', 'total_payable'])
-            ->groupBy(fn ($r) => Carbon::parse($r->created_at)->toDateString())
-            ->map(fn ($g) => (float) $g->sum('total_payable'));
+            ->get(['created_at', 'total_payable', 'cash_amount', 'transfer_amount']));
+
+        $redIn = $aggIn(Redemption::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$start, $end])
+            ->get(['created_at', 'total_payable', 'cash_amount', 'transfer_amount']));
+
+        $ipIn = $aggIn(InterestPayment::where('branch_id', $branchId)
+            ->whereBetween('created_at', [$start, $end])
+            ->get(['created_at', 'total_payable', 'cash_amount', 'transfer_amount']));
+
+        $pick = fn ($map, $key, $field) => $map[$key][$field] ?? 0;
 
         for ($i = 0; $i < 7; $i++) {
-            $key       = $cursor->toDateString();
-            $labels[]  = $cursor->format('d M');
-            $income[]  = ($renIn[$key] ?? 0) + ($redIn[$key] ?? 0) + ($ipIn[$key] ?? 0);
-            $outflow[] = $pledgeOut[$key] ?? 0;
+            $key      = $cursor->toDateString();
+            $labels[] = $cursor->format('d M');
+
+            $income[]     = $pick($renIn, $key, 'total') + $pick($redIn, $key, 'total') + $pick($ipIn, $key, 'total');
+            $outflow[]    = $pledgeOut[$key] ?? 0;
+            $cashIn[]     = $pick($renIn, $key, 'cash') + $pick($redIn, $key, 'cash') + $pick($ipIn, $key, 'cash');
+            $onlineIn[]   = $pick($renIn, $key, 'transfer') + $pick($redIn, $key, 'transfer') + $pick($ipIn, $key, 'transfer');
+            $cashOut[]    = $pledgeCashOut[$key] ?? 0;
+            $onlineOut[]  = $pledgeOnlineOut[$key] ?? 0;
+
             $cursor->addDay();
         }
 
-        return ['labels' => $labels, 'income' => $income, 'outflow' => $outflow];
+        return [
+            'labels'      => $labels,
+            'income'      => $income,
+            'outflow'     => $outflow,
+            'cash_in'     => $cashIn,
+            'cash_out'    => $cashOut,
+            'online_in'   => $onlineIn,
+            'online_out'  => $onlineOut,
+        ];
     }
 
     /**
@@ -644,18 +742,18 @@ class SendDailyOwnerDashboard extends Command
         return null;
     }
 
-    private function chartTransactions(int $p, int $r, int $d, int $i): ?string
+    private function chartTransactions(int $p, int $i, int $r, int $d): ?string
     {
         if (($p + $r + $d + $i) === 0) return null;
 
         return $this->quickChart([
             'type' => 'doughnut',
             'data' => [
-                'labels'   => ['Pledges', 'Renewals', 'Redemptions', 'Interest Pay'],
+                'labels'   => ['Pledges', 'Interest Pay', 'Renewals', 'Redemptions'],
                 'datasets' => [[
                     'label'           => 'Transactions',
-                    'data'            => [$p, $r, $d, $i],
-                    'backgroundColor' => ['#1e3a5f', '#f59e0b', '#10b981', '#3b82f6'],
+                    'data'            => [$p, $i, $r, $d],
+                    'backgroundColor' => ['#1e3a5f', '#3b82f6', '#f59e0b', '#10b981'],
                     'borderColor'     => '#ffffff',
                     'borderWidth'     => 2,
                 ]],
@@ -757,6 +855,39 @@ class SendDailyOwnerDashboard extends Command
                     'label'           => '',
                     'data'            => [$open, $in, $out, $close],
                     'backgroundColor' => ['#1e3a5f', '#10b981', '#ef4444', '#c8973e'],
+                    'borderRadius'    => 6,
+                    'barThickness'    => 42,
+                ]],
+            ],
+            'options' => [
+                'layout'  => ['padding' => ['top' => 26, 'bottom' => 4, 'left' => 8, 'right' => 8]],
+                'plugins' => [
+                    'legend' => false,
+                    'datalabels' => [
+                        'anchor' => 'end', 'align' => 'top', 'offset' => 4,
+                        'color'  => '#1e293b',
+                        'font'   => ['weight' => 'bold', 'size' => 11],
+                        'formatter' => "(v) => 'RM ' + Math.round(v).toLocaleString()",
+                    ],
+                ],
+                'scales' => [
+                    'x' => ['grid' => ['display' => false], 'ticks' => ['font' => ['size' => 12, 'weight' => 'bold']]],
+                    'y' => ['display' => false, 'grid' => ['display' => false], 'beginAtZero' => true],
+                ],
+            ],
+        ], 540, 250);
+    }
+
+    private function chartOnlineFlow(float $in, float $out, float $closing): ?string
+    {
+        return $this->quickChart([
+            'type' => 'bar',
+            'data' => [
+                'labels'   => ['Online In', 'Online Out', 'Closing'],
+                'datasets' => [[
+                    'label'           => '',
+                    'data'            => [$in, $out, $closing],
+                    'backgroundColor' => ['#10b981', '#ef4444', '#c8973e'],
                     'borderRadius'    => 6,
                     'barThickness'    => 42,
                 ]],
@@ -892,6 +1023,78 @@ class SendDailyOwnerDashboard extends Command
                 ],
             ],
         ], 720, 260);
+    }
+
+    private function chartWeeklyTrendSplit(array $labels, array $inSeries, array $outSeries, string $titleHint): ?string
+    {
+        if (array_sum($inSeries) + array_sum($outSeries) <= 0) return null;
+
+        return $this->quickChart([
+            'type' => 'line',
+            'data' => [
+                'labels'   => $labels,
+                'datasets' => [
+                    [
+                        'label'           => $titleHint . ' In',
+                        'data'            => $inSeries,
+                        'borderColor'     => '#10b981',
+                        'backgroundColor' => 'rgba(16,185,129,0.15)',
+                        'borderWidth'     => 2.5,
+                        'tension'         => 0.35,
+                        'fill'            => true,
+                        'pointRadius'     => 4,
+                        'pointBackgroundColor' => '#10b981',
+                        'pointBorderColor'     => '#ffffff',
+                        'pointBorderWidth'     => 2,
+                    ],
+                    [
+                        'label'           => $titleHint . ' Out',
+                        'data'            => $outSeries,
+                        'borderColor'     => '#ef4444',
+                        'backgroundColor' => 'rgba(239,68,68,0.12)',
+                        'borderWidth'     => 2.5,
+                        'tension'         => 0.35,
+                        'fill'            => true,
+                        'pointRadius'     => 4,
+                        'pointBackgroundColor' => '#ef4444',
+                        'pointBorderColor'     => '#ffffff',
+                        'pointBorderWidth'     => 2,
+                    ],
+                ],
+            ],
+            'options' => [
+                'layout'  => ['padding' => ['top' => 24, 'bottom' => 8, 'left' => 12, 'right' => 12]],
+                'plugins' => [
+                    'legend' => [
+                        'position' => 'top',
+                        'align'    => 'end',
+                        'labels'   => [
+                            'usePointStyle' => true,
+                            'pointStyle'    => 'circle',
+                            'font'          => ['size' => 11, 'weight' => 'bold'],
+                            'color'         => '#334155',
+                            'padding'       => 12,
+                        ],
+                    ],
+                    'datalabels' => ['display' => false],
+                ],
+                'scales' => [
+                    'x' => [
+                        'grid'  => ['display' => false],
+                        'ticks' => ['font' => ['size' => 11, 'weight' => 'bold'], 'color' => '#475569'],
+                    ],
+                    'y' => [
+                        'beginAtZero' => true,
+                        'grid'  => ['color' => '#f1f5f9', 'drawBorder' => false],
+                        'ticks' => [
+                            'font'   => ['size' => 10],
+                            'color'  => '#94a3b8',
+                            'callback' => "(v) => 'RM ' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)",
+                        ],
+                    ],
+                ],
+            ],
+        ], 720, 240);
     }
 
     private function chartIncomeVsOutflow(float $income, float $outflow): ?string

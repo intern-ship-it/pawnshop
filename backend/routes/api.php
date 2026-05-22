@@ -249,6 +249,8 @@ Route::middleware('auth:sanctum')->group(function () {
         );
 
         // Pledge CRUD with permissions
+        Route::get('/pledges/stats', [PledgeController::class , 'stats'])
+            ->middleware('check.permission:pledges,view');
         Route::get('/pledges', [PledgeController::class , 'index'])
             ->middleware('check.permission:pledges,view');
         Route::get('/pledges/{pledge}', [PledgeController::class , 'show'])
@@ -462,7 +464,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/current', [DayEndController::class , 'current']);
                 Route::get('/export', [DayEndController::class , 'export']);
                 Route::get('/{date}', [DayEndController::class , 'byDate']);
-                Route::get('/{dayEnd}/verifications', [DayEndController::class , 'verifications']);
+                Route::get('/{dayEndReport}/verifications', [DayEndController::class , 'verifications']);
             }
             );
 
@@ -473,19 +475,19 @@ Route::middleware('auth:sanctum')->group(function () {
             // Verify permission
             Route::middleware('check.permission:dayend,verify')->group(
                 function () {
-                Route::post('/{dayEnd}/verify-item', [DayEndController::class , 'verifyItem']);
-                Route::post('/{dayEnd}/verify-amount', [DayEndController::class , 'verifyAmount']);
+                Route::post('/{dayEndReport}/verify-item', [DayEndController::class , 'verifyItem']);
+                Route::post('/{dayEndReport}/verify-amount', [DayEndController::class , 'verifyAmount']);
             }
             );
 
             // Close permission
-            Route::post('/{dayEnd}/close', [DayEndController::class , 'close'])
+            Route::post('/{dayEndReport}/close', [DayEndController::class , 'close'])
                 ->middleware('check.permission:dayend,close');
 
             // WhatsApp and Print
-            Route::post('/{dayEnd}/send-whatsapp', [DayEndController::class , 'sendWhatsApp'])
+            Route::post('/{dayEndReport}/send-whatsapp', [DayEndController::class , 'sendWhatsApp'])
                 ->middleware('check.permission:whatsapp,send');
-            Route::post('/{dayEnd}/print', [DayEndController::class , 'print'])
+            Route::post('/{dayEndReport}/print', [DayEndController::class , 'print'])
                 ->middleware('check.permission:dayend,view');
         }
         );
@@ -493,7 +495,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Day End list with permissions
         Route::get('/day-end', [DayEndController::class , 'index'])
             ->middleware('check.permission:dayend,view');
-        Route::get('/day-end/{dayEnd}', [DayEndController::class , 'show'])
+        Route::get('/day-end/{dayEndReport}', [DayEndController::class , 'show'])
             ->middleware('check.permission:dayend,view');
 
         // Settings

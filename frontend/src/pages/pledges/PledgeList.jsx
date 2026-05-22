@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setPledges, setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
@@ -39,9 +39,31 @@ import {
   RotateCcw,
   Copy,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   MessageSquare,
   Banknote,
+  X,
 } from "lucide-react";
+
+const PER_PAGE_OPTIONS = [15, 25, 50, 100];
+const SEARCH_DEBOUNCE_MS = 400;
+
+// Build a compact page list with ellipses: 1 … 4 5 [6] 7 8 … 20
+function buildPageList(current, last) {
+  if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1);
+  const pages = new Set([1, last, current, current - 1, current + 1]);
+  if (current <= 4) [2, 3, 4, 5].forEach((p) => pages.add(p));
+  if (current >= last - 3)
+    [last - 4, last - 3, last - 2, last - 1].forEach((p) => pages.add(p));
+  const sorted = [...pages].filter((p) => p >= 1 && p <= last).sort((a, b) => a - b);
+  const result = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push("…");
+    result.push(sorted[i]);
+  }
+  return result;
+}
 
 // Status badge config
 const statusConfig = {
@@ -65,12 +87,36 @@ export default function PledgeList() {
   const canPrint = usePermission("pledges.print");
   const canDelete = usePermission("pledges.delete");
 
-  // State
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [sortBy, setSortBy] = useState("newest");
+  // URL is the source of truth for page/search/status/date/sort/per_page
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const perPage = PER_PAGE_OPTIONS.includes(parseInt(searchParams.get("per_page"), 10))
+    ? parseInt(searchParams.get("per_page"), 10)
+    : 15;
+  const statusFilter = searchParams.get("status") || "all";
+  const urlSearch = searchParams.get("search") || "";
+  const dateFrom = searchParams.get("from_date") || "";
+  const dateTo = searchParams.get("to_date") || "";
+  const sortBy = searchParams.get("sort_by") || "newest";
+
+  // Local input (debounced into URL)
+  const [searchInput, setSearchInput] = useState(urlSearch);
+
+  // Pagination meta from server
+  const [meta, setMeta] = useState({
+    current_page: 1,
+    last_page: 1,
+    per_page: perPage,
+    total: 0,
+  });
+
+  // Stats (full dataset, branch-scoped)
+  const [stats, setStats] = useState({ total: 0, active: 0, overdue: 0, redeemed: 0, total_value: 0 });
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Track in-flight list request so we can abort stale ones
+  const listAbortRef = useRef(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [printingId, setPrintingId] = useState(null);
@@ -107,17 +153,74 @@ export default function PledgeList() {
     "Other",
   ];
 
-  // Fetch pledges from API
-  const fetchPledges = async (showRefresh = false) => {
-    try {
-      if (showRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  // Helper to update URL params (preserves others, resets page when needed)
+  const updateParams = useCallback(
+    (updates, { resetPage = false } = {}) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          Object.entries(updates).forEach(([k, v]) => {
+            if (v === null || v === undefined || v === "" || v === "all") {
+              next.delete(k);
+            } else {
+              next.set(k, String(v));
+            }
+          });
+          if (resetPage) next.delete("page");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
-      const response = await pledgeService.getAll({ per_page: 9999 });
-      const data = response.data?.data || response.data || [];
+  // Debounce search input -> URL
+  useEffect(() => {
+    if (searchInput === urlSearch) return;
+    const t = setTimeout(() => {
+      updateParams({ search: searchInput }, { resetPage: true });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
+
+  // Keep searchInput synced if URL search is changed externally (back button etc.)
+  useEffect(() => {
+    setSearchInput(urlSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSearch]);
+
+  // Fetch pledges from API
+  const fetchPledges = useCallback(
+    async ({ silent = false } = {}) => {
+      if (listAbortRef.current) listAbortRef.current.abort();
+      const controller = new AbortController();
+      listAbortRef.current = controller;
+
+      if (silent) setRefreshing(true);
+      else setLoading(true);
+
+      try {
+        const response = await pledgeService.getAll(
+          {
+            page: currentPage,
+            per_page: perPage,
+            search: urlSearch || undefined,
+            status: statusFilter !== "all" ? statusFilter : undefined,
+            from_date: dateFrom || undefined,
+            to_date: dateTo || undefined,
+            sort_by: sortBy,
+          },
+          { signal: controller.signal },
+        );
+        const data = response.data || [];
+        const m = response.meta || {
+          current_page: currentPage,
+          last_page: 1,
+          per_page: perPage,
+          total: data.length,
+        };
 
       // Transform snake_case to camelCase and add computed fields
       const transformedPledges = data.map((pledge) => ({
@@ -155,26 +258,50 @@ export default function PledgeList() {
         updatedAt: pledge.updated_at,
       }));
 
-      dispatch(setPledges(transformedPledges));
-    } catch (error) {
-      console.error("Error fetching pledges:", error);
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Error",
-          message: "Failed to load pledges",
-        }),
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+        dispatch(setPledges(transformedPledges));
+        setMeta(m);
 
-  // Load pledges on mount
+        if (m.last_page > 0 && currentPage > m.last_page) {
+          updateParams({ page: m.last_page });
+        }
+      } catch (error) {
+        if (error?.message === "canceled" || controller.signal.aborted) return;
+        console.error("Error fetching pledges:", error);
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Failed to load pledges",
+          }),
+        );
+      } finally {
+        if (listAbortRef.current === controller) listAbortRef.current = null;
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [currentPage, perPage, urlSearch, statusFilter, dateFrom, dateTo, sortBy, dispatch, updateParams],
+  );
+
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const response = await pledgeService.getStats();
+      setStats(response.data || { total: 0, active: 0, overdue: 0, redeemed: 0, total_value: 0 });
+    } catch (error) {
+      // non-critical
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPledges();
-  }, []);
+  }, [fetchPledges]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const handleActionWithPasskey = (type, payload, e) => {
     if (e) e.stopPropagation();
@@ -975,7 +1102,7 @@ export default function PledgeList() {
 
   // Handle export to CSV
   const handleExport = () => {
-    if (filteredPledges.length === 0) {
+    if (pledges.length === 0) {
       dispatch(
         addToast({
           type: "warning",
@@ -1008,7 +1135,7 @@ export default function PledgeList() {
     ];
 
     // CSV rows
-    const rows = filteredPledges.map((pledge) => [
+    const rows = pledges.map((pledge) => [
       pledge.receiptNo || pledge.pledgeNo,
       pledge.pledgeNo,
       pledge.customerName,
@@ -1067,7 +1194,7 @@ export default function PledgeList() {
       addToast({
         type: "success",
         title: "Exported",
-        message: `${filteredPledges.length} pledges exported to CSV`,
+        message: `${pledges.length} pledges exported to CSV`,
       }),
     );
   };
@@ -1118,7 +1245,8 @@ export default function PledgeList() {
         );
         setShowCancelModal(false);
         setCancellingPledge(null);
-        fetchPledges(true); // Refresh the list
+        fetchPledges({ silent: true });
+        fetchStats();
       } else {
         throw new Error(response.message || "Failed to cancel");
       }
@@ -1135,89 +1263,21 @@ export default function PledgeList() {
       setCancelling(false);
     }
   };
-  // Calculate stats
-  const stats = {
-    total: pledges.length,
-    active: pledges.filter((p) => p.status === "active").length,
-    overdue: pledges.filter((p) => p.status === "overdue").length,
-    totalValue: pledges
-      .filter((p) => p.status === "active" || p.status === "overdue")
-      .reduce((sum, p) => sum + (p.loanAmount || 0), 0),
-    redeemed: pledges.filter((p) => p.status === "redeemed").length,
+  // Pagination derived values
+  const from = meta.total === 0 ? 0 : (meta.current_page - 1) * meta.per_page + 1;
+  const to = Math.min(meta.current_page * meta.per_page, meta.total);
+  const pageList = useMemo(
+    () => buildPageList(meta.current_page, meta.last_page),
+    [meta.current_page, meta.last_page],
+  );
+
+  const goToPage = (p) => {
+    if (p < 1 || p > meta.last_page || p === meta.current_page) return;
+    updateParams({ page: p === 1 ? null : p });
   };
 
-  // Filter and sort pledges
-  const filteredPledges = pledges
-    .filter((pledge) => {
-      // Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchId =
-          pledge.pledgeNo?.toLowerCase().includes(query) ||
-          pledge.receiptNo?.toLowerCase().includes(query) ||
-          pledge.latestRedemptionNo?.toLowerCase().includes(query);
-        const matchName = pledge.customerName?.toLowerCase().includes(query);
-        const matchIC = pledge.customerIC
-          ?.replace(/[-\s]/g, "")
-          .includes(query.replace(/[-\s]/g, ""));
-        if (!matchId && !matchName && !matchIC) return false;
-      }
-
-      // Status filter
-      if (statusFilter !== "all") {
-        if (statusFilter === "due_soon") {
-          if (pledge.status !== "active") return false;
-          const due = new Date(pledge.dueDate);
-          const now = new Date();
-          const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-          if (diffDays > 7 || diffDays < 0) return false;
-        } else if (statusFilter === "partial" || statusFilter === "overdue_partial") {
-          if (pledge.displayStatus !== statusFilter) return false;
-        } else if (pledge.status !== statusFilter) {
-          return false;
-        }
-      }
-
-      // Date filter (From/To)
-      if (dateFrom || dateTo) {
-        const pledgeDate = new Date(pledge.pledgeDate || pledge.createdAt);
-        pledgeDate.setHours(0, 0, 0, 0);
-
-        if (dateFrom) {
-          const fromDate = new Date(dateFrom);
-          fromDate.setHours(0, 0, 0, 0);
-          if (pledgeDate < fromDate) return false;
-        }
-
-        if (dateTo) {
-          const toDate = new Date(dateTo);
-          toDate.setHours(23, 59, 59, 999);
-          if (pledgeDate > toDate) return false;
-        }
-      }
-
-      return true;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        case "oldest":
-          return new Date(a.createdAt) - new Date(b.createdAt);
-        case "receipt-desc":
-          return (b.receiptNo || "").localeCompare(a.receiptNo || "");
-        case "receipt-asc":
-          return (a.receiptNo || "").localeCompare(b.receiptNo || "");
-        case "amount-high":
-          return (b.loanAmount || 0) - (a.loanAmount || 0);
-        case "amount-low":
-          return (a.loanAmount || 0) - (b.loanAmount || 0);
-        case "due-soon":
-          return new Date(a.dueDate) - new Date(b.dueDate);
-        default:
-          return 0;
-      }
-    });
+  const hasActiveFilters =
+    urlSearch !== "" || statusFilter !== "all" || dateFrom !== "" || dateTo !== "";
 
   // Calculate days until due
   const getDaysUntilDue = (dueDate) => {
@@ -1246,8 +1306,11 @@ export default function PledgeList() {
           <Button
             variant="outline"
             leftIcon={RefreshCw}
-            onClick={() => fetchPledges(true)}
-            disabled={refreshing}
+            onClick={() => {
+              fetchPledges({ silent: true });
+              fetchStats();
+            }}
+            disabled={refreshing || loading}
           >
             {refreshing ? "Refreshing..." : "Refresh"}
           </Button>
@@ -1281,7 +1344,7 @@ export default function PledgeList() {
               </div>
               <div>
                 <p className="text-xs text-zinc-500">Total Pledges</p>
-                <p className="text-xl font-bold text-zinc-800">{stats.total}</p>
+                <p className="text-xl font-bold text-zinc-800">{statsLoading ? "…" : stats.total}</p>
               </div>
             </div>
           </Card>
@@ -1296,7 +1359,7 @@ export default function PledgeList() {
               <div>
                 <p className="text-xs text-zinc-500">Active</p>
                 <p className="text-xl font-bold text-emerald-600">
-                  {stats.active}
+                  {statsLoading ? "…" : stats.active}
                 </p>
               </div>
             </div>
@@ -1312,7 +1375,7 @@ export default function PledgeList() {
               <div>
                 <p className="text-xs text-zinc-500">Overdue</p>
                 <p className="text-xl font-bold text-red-600">
-                  {stats.overdue}
+                  {statsLoading ? "…" : stats.overdue}
                 </p>
               </div>
             </div>
@@ -1328,7 +1391,7 @@ export default function PledgeList() {
               <div>
                 <p className="text-xs text-zinc-500">Total Outstanding</p>
                 <p className="text-xl font-bold text-amber-600">
-                  {formatCurrency(stats.totalValue)}
+                  {statsLoading ? "…" : formatCurrency(stats.total_value)}
                 </p>
               </div>
             </div>
@@ -1340,19 +1403,31 @@ export default function PledgeList() {
       <Card className="p-4 mb-6">
         <div className="flex flex-wrap items-center gap-4">
           {/* Search */}
-          <div className="flex-1 min-w-[250px]">
-            <Input
-              placeholder="Search by ticket , customer name, or IC..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={Search}
+          <div className="relative flex-1 min-w-[250px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Search by ticket, customer name, or IC..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-10 pr-9 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
             />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600"
+                title="Clear"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Status Filter */}
           <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => updateParams({ status: e.target.value }, { resetPage: true })}
             options={[
               { value: "all", label: "All Status" },
               { value: "active", label: "Active" },
@@ -1360,8 +1435,6 @@ export default function PledgeList() {
               { value: "overdue", label: "Overdue" },
               { value: "redeemed", label: "Redeemed" },
               { value: "due_soon", label: "7 Days" },
-              // { value: "forfeited", label: "Forfeited" },
-              // { value: "cancelled", label: "Cancelled" },
             ]}
             className="w-40"
           />
@@ -1373,24 +1446,23 @@ export default function PledgeList() {
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={(e) => updateParams({ from_date: e.target.value }, { resetPage: true })}
               className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
             <span className="text-sm text-zinc-500">To:</span>
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={(e) => updateParams({ to_date: e.target.value }, { resetPage: true })}
               className="px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
             {(dateFrom || dateTo) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setDateFrom("");
-                  setDateTo("");
-                }}
+                onClick={() =>
+                  updateParams({ from_date: null, to_date: null }, { resetPage: true })
+                }
               >
                 <XCircle className="w-4 h-4" />
               </Button>
@@ -1400,7 +1472,7 @@ export default function PledgeList() {
           {/* Sort */}
           <Select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => updateParams({ sort_by: e.target.value === "newest" ? null : e.target.value })}
             options={[
               { value: "newest", label: "Newest First" },
               { value: "oldest", label: "Oldest First" },
@@ -1449,30 +1521,68 @@ export default function PledgeList() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center">
-                    <div className="flex items-center justify-center gap-2 text-zinc-500">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Loading pledges...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredPledges.length === 0 ? (
+                Array.from({ length: Math.min(perPage, 8) }).map((_, i) => (
+                  <tr key={`sk-${i}`} className="border-b border-zinc-100 animate-pulse">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-zinc-200" />
+                        <div className="space-y-2">
+                          <div className="h-3 bg-zinc-200 rounded w-24" />
+                          <div className="h-2 bg-zinc-100 rounded w-16" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-zinc-200" />
+                        <div className="space-y-2">
+                          <div className="h-3 bg-zinc-200 rounded w-28" />
+                          <div className="h-2 bg-zinc-100 rounded w-20" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4"><div className="h-3 bg-zinc-200 rounded w-16" /></td>
+                    <td className="p-4 text-right"><div className="h-3 bg-zinc-200 rounded w-20 ml-auto" /></td>
+                    <td className="p-4"><div className="h-3 bg-zinc-200 rounded w-20" /></td>
+                    <td className="p-4"><div className="h-3 bg-zinc-200 rounded w-16" /></td>
+                    <td className="p-4"><div className="h-5 bg-zinc-200 rounded-full w-20" /></td>
+                    <td className="p-4"><div className="h-6 bg-zinc-200 rounded w-24 mx-auto" /></td>
+                  </tr>
+                ))
+              ) : pledges.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-zinc-500">
                     <Package className="w-12 h-12 mx-auto mb-2 text-zinc-300" />
-                    <p>No pledges found</p>
-                    <Button
-                      variant="link"
-                      className="mt-2"
-                      onClick={() => navigate("/pledges/new")}
-                    >
-                      Create your first pledge
-                    </Button>
+                    {hasActiveFilters ? (
+                      <>
+                        <p>No pledges match your filters</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() => setSearchParams({}, { replace: true })}
+                        >
+                          Clear filters
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <p>No pledges yet</p>
+                        {canCreate && (
+                          <Button
+                            variant="link"
+                            className="mt-2"
+                            onClick={() => navigate("/pledges/new")}
+                          >
+                            Create your first pledge
+                          </Button>
+                        )}
+                      </>
+                    )}
                   </td>
                 </tr>
               ) : (
-                filteredPledges.map((pledge) => {
+                pledges.map((pledge) => {
                   const statusConf =
                     statusConfig[pledge.displayStatus] || statusConfig[pledge.status] || statusConfig.active;
                   const StatusIcon = statusConf.icon;
@@ -1582,11 +1692,6 @@ export default function PledgeList() {
                             <p className="text-sm font-semibold text-emerald-700 whitespace-nowrap">
                               {pledge.interestPaidMonths} mo paid
                             </p>
-                            {pledge.interestPaidThrough && (
-                              <p className="text-xs text-zinc-500 whitespace-nowrap">
-                                Until {formatDate(pledge.interestPaidThrough)}
-                              </p>
-                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-zinc-400">—</span>
@@ -1703,19 +1808,82 @@ export default function PledgeList() {
           </table>
         </div>
 
-        {/* Pagination Info */}
-        {!loading && filteredPledges.length > 0 && (
-          <div className="p-4 border-t border-zinc-200 flex items-center justify-between">
-            <p className="text-sm text-zinc-500">
-              Showing {filteredPledges.length} of {pledges.length} pledges
-            </p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled>
-                Previous
-              </Button>
-              <Button variant="outline" size="sm" disabled>
-                Next
-              </Button>
+        {/* Pagination */}
+        {!loading && meta.total > 0 && (
+          <div className="px-4 py-3 border-t border-zinc-200 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-zinc-600">
+            <div className="flex items-center gap-4">
+              <span>
+                Showing <span className="font-medium">{from}</span>–
+                <span className="font-medium">{to}</span> of{" "}
+                <span className="font-medium">{meta.total}</span> pledges
+              </span>
+              <div className="flex items-center gap-2">
+                <label htmlFor="per-page" className="text-zinc-500">
+                  Rows:
+                </label>
+                <select
+                  id="per-page"
+                  value={perPage}
+                  onChange={(e) =>
+                    updateParams(
+                      { per_page: parseInt(e.target.value, 10) },
+                      { resetPage: true },
+                    )
+                  }
+                  className="bg-zinc-50 border border-zinc-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                >
+                  {PER_PAGE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => goToPage(meta.current_page - 1)}
+                disabled={meta.current_page <= 1 || refreshing}
+                className="p-2 rounded-lg text-zinc-500 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500 transition-colors"
+                title="Previous page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {pageList.map((p, idx) =>
+                p === "…" ? (
+                  <span
+                    key={`e-${idx}`}
+                    className="px-2 text-zinc-400 select-none"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => goToPage(p)}
+                    disabled={refreshing}
+                    className={cn(
+                      "min-w-[2rem] h-8 px-2 rounded-lg text-sm font-medium transition-colors",
+                      p === meta.current_page
+                        ? "bg-amber-500 text-white shadow-sm"
+                        : "text-zinc-600 hover:bg-amber-50 hover:text-amber-600",
+                    )}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+
+              <button
+                onClick={() => goToPage(meta.current_page + 1)}
+                disabled={meta.current_page >= meta.last_page || refreshing}
+                className="p-2 rounded-lg text-zinc-500 hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500 transition-colors"
+                title="Next page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}
