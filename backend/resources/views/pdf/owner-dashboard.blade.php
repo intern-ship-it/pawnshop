@@ -395,7 +395,7 @@
                         default             => '',
                     };
                     $subNote = match($row['label']) {
-                        'Redemptions'       => 'Includes principal + interest',
+                        'Redemptions'       => null,
                         'Renewals'          => 'Interest charged on rollover',
                         'Interest Payments' => 'Pure interest collection',
                         'Pledges'           => 'Loan amount disbursed',
@@ -695,32 +695,25 @@
         </tr>
     </table>
 
-    {{-- ONLINE row — same column widths as cash row above --}}
+    {{-- ONLINE row --}}
     <div class="chart-caption" style="margin:10pt 0 4pt 0;">Online Payment</div>
     <table class="kpi">
         <tr>
-            <td style="width:25%;">
-                <div class="card navy">
-                    <div class="card-label">Opening Balance (Online)</div>
-                    <div class="card-value sm navy" style="white-space:nowrap;">{{ $rm(0) }}</div>
-                    <div class="card-sub">Start of day</div>
-                </div>
-            </td>
-            <td style="width:25%;">
+            <td style="width:33%;">
                 <div class="card green">
                     <div class="card-label">Online Payment In</div>
                     <div class="card-value sm green" style="white-space:nowrap;">+ {{ $rm($cash_flow['online_in']) }}</div>
                     <div class="card-sub">Bank transfers received</div>
                 </div>
             </td>
-            <td style="width:25%;">
+            <td style="width:33%;">
                 <div class="card red">
                     <div class="card-label">Online Payment Out</div>
                     <div class="card-value sm red" style="white-space:nowrap;">- {{ $rm($cash_flow['online_out']) }}</div>
                     <div class="card-sub">Bank transfers paid</div>
                 </div>
             </td>
-            <td style="width:25%;">
+            <td style="width:34%;">
                 <div class="card gold">
                     <div class="card-label">Closing Amount (Online)</div>
                     <div class="card-value sm gold" style="white-space:nowrap;">{{ $rm($cash_flow['online_closing']) }}</div>
@@ -804,14 +797,29 @@
             </tr>
         </table>
 
-        @if(count($inventory['by_category']) > 0)
+        @php
+            $grouped = [];
+            foreach ($inventory['by_category'] as $r) {
+                $key = ($r['category'] ?? '') . '|' . ($r['purity'] ?? '');
+                if (!isset($grouped[$key])) {
+                    $grouped[$key] = [
+                        'category' => $r['category'] ?? '',
+                        'purity'   => $r['purity']   ?? '',
+                        'count'    => 0,
+                        'weight'   => 0.0,
+                    ];
+                }
+                $grouped[$key]['count']  += (int) ($r['count']  ?? 0);
+                $grouped[$key]['weight'] += (float)($r['weight'] ?? 0);
+            }
+        @endphp
+        @if(count($grouped) > 0)
             <div class="chart-box" style="text-align:left; margin-top:6pt;">
                 <div class="chart-caption">Items Received — Category Breakdown</div>
-                <div class="chart-subcaption">Type of item, gold purity, quantity and total net weight</div>
+                <div class="chart-subcaption">Type of item, gold purity, total quantity and net weight</div>
                 <table class="tbl">
                     <thead>
                         <tr>
-                            <th>Receipt No.</th>
                             <th>Category</th>
                             <th style="text-align:center;">Purity</th>
                             <th style="text-align:center;">Quantity</th>
@@ -819,9 +827,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($inventory['by_category'] as $row)
+                        @foreach($grouped as $row)
                             <tr>
-                                <td class="mono"><strong>{{ $row['receipt'] }}</strong></td>
                                 <td>{{ $row['category'] }}</td>
                                 <td style="text-align:center;"><strong>{{ $row['purity'] }}</strong></td>
                                 <td style="text-align:center;">{{ $row['count'] }}</td>
@@ -829,43 +836,9 @@
                             </tr>
                         @endforeach
                         <tr class="total">
-                            <td colspan="3">TOTAL</td>
+                            <td colspan="2">TOTAL</td>
                             <td class="center">{{ $inventory['items_in'] }}</td>
                             <td class="right mono">{{ number_format($inventory['total_weight'], 3) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        @endif
-
-        @if(count($inventory['released_by_category']) > 0)
-            <div class="chart-box" style="text-align:left; margin-top:8pt;">
-                <div class="chart-caption">Items Released — Category Breakdown</div>
-                <div class="chart-subcaption">Items redeemed today — receipt, type, purity, quantity and total net weight</div>
-                <table class="tbl">
-                    <thead>
-                        <tr>
-                            <th>Receipt No.</th>
-                            <th>Category</th>
-                            <th style="text-align:center;">Purity</th>
-                            <th style="text-align:center;">Quantity</th>
-                            <th class="right">Weight (g)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($inventory['released_by_category'] as $row)
-                            <tr>
-                                <td class="mono"><strong>{{ $row['receipt'] }}</strong></td>
-                                <td>{{ $row['category'] }}</td>
-                                <td style="text-align:center;"><strong>{{ $row['purity'] }}</strong></td>
-                                <td style="text-align:center;">{{ $row['count'] }}</td>
-                                <td class="right mono">{{ number_format($row['weight'], 3) }}</td>
-                            </tr>
-                        @endforeach
-                        <tr class="total">
-                            <td colspan="3">TOTAL</td>
-                            <td style="text-align:center;">{{ $inventory['items_out'] }}</td>
-                            <td class="right mono">{{ number_format($inventory['total_weight_out'], 3) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -980,13 +953,6 @@
         </div>
     @endif
 
-    @if($final['chart'])
-        <div class="chart-box">
-            <div class="chart-caption">Today: Income vs Outflow</div>
-            <div class="chart-subcaption">Side-by-side comparison of money received vs money paid out today</div>
-            <img src="{{ $final['chart'] }}" alt="Income vs Outflow">
-        </div>
-    @endif
 </div>
 @endif
 
