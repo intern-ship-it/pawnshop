@@ -3217,13 +3217,17 @@ HTML;
             // Hidden entirely if no bank/account data is available.
             $paymentInfoBlockHtml = '';
             $payment = $pledge->payments->first();
-            if ($payment && \in_array($payment->payment_method, ['transfer', 'partial'], true)) {
-                $bankName = $payment->bank->name ?? '';
-                $accountNo = $payment->account_number ?? '';
-                if ($bankName || $accountNo) {
-                    $lines = [];
+            if ($payment) {
+                $lines = [];
+                if (\in_array($payment->payment_method, ['transfer', 'partial'], true)) {
+                    $bankName = $payment->bank->name ?? '';
+                    $accountNo = $payment->account_number ?? '';
                     if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
                     if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+                } elseif ($payment->payment_method === 'cash') {
+                    $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+                }
+                if (!empty($lines)) {
                     $innerHtml = implode('', $lines);
                     $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
                 }
@@ -3369,13 +3373,17 @@ HTML;
             // Hidden entirely if no bank/account data is available.
             $paymentInfoBlockHtml = '';
             $payment = $pledge->payments->first();
-            if ($payment && \in_array($payment->payment_method, ['transfer', 'partial'], true)) {
-                $bankName = $payment->bank->name ?? '';
-                $accountNo = $payment->account_number ?? '';
-                if ($bankName || $accountNo) {
-                    $lines = [];
+            if ($payment) {
+                $lines = [];
+                if (\in_array($payment->payment_method, ['transfer', 'partial'], true)) {
+                    $bankName = $payment->bank->name ?? '';
+                    $accountNo = $payment->account_number ?? '';
                     if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
                     if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+                } elseif ($payment->payment_method === 'cash') {
+                    $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+                }
+                if (!empty($lines)) {
                     $innerHtml = implode('', $lines);
                     $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
                 }
@@ -4266,16 +4274,18 @@ HTML;
             // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
             // Hidden entirely if no bank/account data is available.
             $paymentInfoBlockHtml = '';
+            $lines = [];
             if (\in_array($renewal->payment_method, ['transfer', 'partial'], true)) {
                 $bankName = $renewal->bank->name ?? '';
                 $accountNo = $renewal->account_number ?? '';
-                if ($bankName || $accountNo) {
-                    $lines = [];
-                    if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
-                    if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
-                    $innerHtml = implode('', $lines);
-                    $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
-                }
+                if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+            } elseif ($renewal->payment_method === 'cash') {
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+            }
+            if (!empty($lines)) {
+                $innerHtml = implode('', $lines);
+                $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
             }
 
             // Combine them - data overlay on top of blank form
@@ -4408,16 +4418,18 @@ HTML;
             // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
             // Hidden entirely if no bank/account data is available.
             $paymentInfoBlockHtml = '';
+            $lines = [];
             if (\in_array($renewal->payment_method, ['transfer', 'partial'], true)) {
                 $bankName = $renewal->bank->name ?? '';
                 $accountNo = $renewal->account_number ?? '';
-                if ($bankName || $accountNo) {
-                    $lines = [];
-                    if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
-                    if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
-                    $innerHtml = implode('', $lines);
-                    $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
-                }
+                if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+            } elseif ($renewal->payment_method === 'cash') {
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+            }
+            if (!empty($lines)) {
+                $innerHtml = implode('', $lines);
+                $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
             }
 
             // Combine them - data overlay on top of blank form
