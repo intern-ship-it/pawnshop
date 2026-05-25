@@ -77,6 +77,11 @@ class DayEndReport extends Model
         return $this->hasMany(DayEndVerification::class, 'day_end_id');
     }
 
+    public function cashAdjustments(): HasMany
+    {
+        return $this->hasMany(CashAdjustment::class);
+    }
+
     public function getTotalCashAttribute(): float
     {
         return $this->new_pledges_cash + $this->renewals_cash + $this->redemptions_cash;

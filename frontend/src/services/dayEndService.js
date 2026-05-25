@@ -2,7 +2,7 @@
  * Day End Service - Day End Reconciliation API calls
  */
 
-import { apiGet, apiPost } from './api'
+import { apiGet, apiPost, apiPatch } from './api'
 
 const dayEndService = {
   /**
@@ -38,6 +38,28 @@ const dayEndService = {
    */
   async open(data = {}) {
     return apiPost('/day-end/open', data)
+  },
+
+  /**
+   * Update opening balance on an open day-end report (admin only)
+   * @param {number} dayEndId
+   * @param {number} openingBalance
+   * @returns {Promise}
+   */
+  async updateOpeningBalance(dayEndId, openingBalance) {
+    return apiPatch(`/day-end/${dayEndId}/opening-balance`, {
+      opening_balance: openingBalance,
+    })
+  },
+
+  /**
+   * Idempotent auto-open. Backend creates today's report only if:
+   *   - caller is Admin / Super Admin, AND
+   *   - prior closing balance exists to carry forward.
+   * Returns { report, created, skipped? }
+   */
+  async ensureOpen() {
+    return apiPost('/day-end/ensure-open')
   },
 
   /**
@@ -99,6 +121,35 @@ const dayEndService = {
    */
   async print(dayEndId) {
     return apiPost(`/day-end/${dayEndId}/print`)
+  },
+
+  /**
+   * List cash adjustments for a day-end report
+   * @param {number} dayEndId
+   * @returns {Promise}
+   */
+  async listCashAdjustments(dayEndId) {
+    return apiGet(`/day-end/${dayEndId}/cash-adjustments`)
+  },
+
+  /**
+   * Create a cash adjustment (injection or withdrawal)
+   * @param {number} dayEndId
+   * @param {Object} data - type (injection|withdrawal), amount, reason
+   * @returns {Promise}
+   */
+  async createCashAdjustment(dayEndId, data) {
+    return apiPost(`/day-end/${dayEndId}/cash-adjustments`, data)
+  },
+
+  /**
+   * Void a cash adjustment
+   * @param {number} dayEndId
+   * @param {number} adjustmentId
+   * @returns {Promise}
+   */
+  async voidCashAdjustment(dayEndId, adjustmentId) {
+    return apiPost(`/day-end/${dayEndId}/cash-adjustments/${adjustmentId}/void`)
   },
 
   /**

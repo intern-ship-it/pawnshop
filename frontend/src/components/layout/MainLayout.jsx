@@ -15,8 +15,9 @@ import { GlobalCameraModal, Breadcrumb } from "@/components/common";
 import UpdateBanner from "@/components/common/UpdateBanner";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { Loader2 } from "lucide-react";
-import { setSettings } from "@/features/ui/uiSlice";
+import { addToast, setSettings } from "@/features/ui/uiSlice";
 import settingsService from "@/services/settingsService";
+import dayEndService from "@/services/dayEndService";
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -112,6 +113,44 @@ export default function MainLayout() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, dispatch]); // Only depend on user and dispatch, not isAuthenticated
+
+  // Auto-open today's day-end report (admin only; backend gates).
+  // Backend is idempotent. On every fresh browser session, show a notification
+  // so the user knows the day is active and can adjust opening balance if needed.
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    dayEndService
+      .ensureOpen()
+      .then((res) => {
+        if (!res?.success || !res?.data?.report) return;
+
+        // Notify once per browser session that the day is active for today.
+        const today = new Date().toISOString().split("T")[0];
+        const notifyKey = `dayend_notified_${today}`;
+        if (sessionStorage.getItem(notifyKey)) return;
+        sessionStorage.setItem(notifyKey, "1");
+
+        const report = res.data.report;
+        const opening = parseFloat(report.opening_balance) || 0;
+        const wasJustCreated = res.data.created === true;
+
+        dispatch(
+          addToast({
+            type: "info",
+            title: wasJustCreated ? "Day auto-opened" : "Day is open",
+            message: `Today's opening balance: RM ${opening.toFixed(2)}${
+              wasJustCreated ? " (carried from yesterday's closing)" : ""
+            }. You can adjust it from the Day End page.`,
+            duration: 8000,
+          }),
+        );
+      })
+      .catch((err) => {
+        console.warn("[Auto-open] failed:", err?.message || err);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user]);
 
   if (isVerifying || authLoading) {
     return (

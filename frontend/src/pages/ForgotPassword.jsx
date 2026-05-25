@@ -57,11 +57,7 @@ export default function ForgotPassword() {
 
         const loadLogo = async () => {
             try {
-                const apiBaseUrl =
-                    window.location.hostname === "localhost" ||
-                        window.location.hostname === "127.0.0.1"
-                        ? "http://localhost:8000"
-                        : window.location.origin;
+                const apiBaseUrl = (import.meta.env.VITE_API_URL || `${window.location.origin}/api`).replace('/api', '');
                 const logoUrl = `${apiBaseUrl}/api/settings/logo-image`;
 
                 const imgResponse = await fetch(logoUrl);

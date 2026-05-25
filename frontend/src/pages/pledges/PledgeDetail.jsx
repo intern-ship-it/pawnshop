@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
@@ -68,6 +68,7 @@ const statusConfig = {
 const tabs = [
   { id: "overview", label: "Overview", icon: FileText },
   { id: "items", label: "Items", icon: Package },
+  { id: "payment", label: "Payment", icon: CreditCard },
   { id: "redemption", label: "Redemption", icon: DollarSign, redeemedOnly: true },
   { id: "history", label: "History", icon: History },
 ];
@@ -189,6 +190,7 @@ export default function PledgeDetail() {
             cashAmount: parseFloat(payment.cash_amount) || 0,
             transferAmount: parseFloat(payment.transfer_amount) || 0,
             bankName: payment.bank?.name || "",
+            accountNumber: payment.account_number || "",
             referenceNo: payment.reference_no,
             paymentMethod: payment.payment_method,
             paymentDate: payment.payment_date,
@@ -342,7 +344,7 @@ export default function PledgeDetail() {
       }
 
       const apiUrl =
-        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+        import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
       const response = await fetch(
         `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledge.id}`,
@@ -466,13 +468,13 @@ export default function PledgeDetail() {
         <body>
           <div class="print-actions">
             <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 HP Print - A5 - ${pledgeNo}
+              HP Print - A5 - ${pledgeNo}
             </p>
             <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
               A5 Pre-Printed Form Template + Data Overlay (Landscape)
             </p>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+            <button class="print-btn" onclick="window.print()">¸ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">Close</button>
           </div>
           
           <div class="print-container">
@@ -555,7 +557,7 @@ export default function PledgeDetail() {
           addToast({
             type: "warning",
             title: "WhatsApp Not Configured",
-            message: "Set up WhatsApp in Settings → WhatsApp",
+            message: "Set up WhatsApp in Settings -> WhatsApp",
           }),
         );
       } else {
@@ -1344,6 +1346,87 @@ export default function PledgeDetail() {
           </motion.div>
         )}
 
+        {activeTab === "payment" && (
+          <motion.div
+            key="payment"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-6 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-zinc-400" />
+                Payment Details
+              </h3>
+
+              {pledge.payments?.length > 0 ? (
+                <div className="space-y-4">
+                  {pledge.payments.map((payment, idx) => (
+                    <div key={idx} className="border border-zinc-200 rounded-lg p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-zinc-500">Payment Mode</span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-amber-100 text-amber-700 capitalize">
+                          {payment.paymentMethod === "transfer" ? "Full Transfer" :
+                           payment.paymentMethod === "cash" ? "Full Cash" :
+                           payment.paymentMethod === "partial" ? "Partial" :
+                           payment.paymentMethod}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {payment.cashAmount > 0 && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Cash Amount</p>
+                            <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.cashAmount)}</p>
+                          </div>
+                        )}
+                        {payment.transferAmount > 0 && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Transfer Amount</p>
+                            <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.transferAmount)}</p>
+                          </div>
+                        )}
+                        {payment.bankName && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Bank Name</p>
+                            <p className="text-sm font-semibold text-zinc-800 flex items-center gap-1.5">
+                              <Building2 className="w-4 h-4 text-zinc-400" />
+                              {payment.bankName}
+                            </p>
+                          </div>
+                        )}
+                        {payment.accountNumber && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Account Number</p>
+                            <p className="text-sm font-semibold text-zinc-800 font-mono">{payment.accountNumber}</p>
+                          </div>
+                        )}
+                        {payment.referenceNo && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Reference Number</p>
+                            <p className="text-sm font-semibold text-zinc-800 font-mono">{payment.referenceNo}</p>
+                          </div>
+                        )}
+                        {payment.paymentDate && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Payment Date</p>
+                            <p className="text-sm font-semibold text-zinc-800">{formatDate(payment.paymentDate)}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-zinc-400">
+                  <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No payment records found</p>
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        )}
+
         {activeTab === "history" && (
           <motion.div
             key="history"
@@ -1636,3 +1719,4 @@ export default function PledgeDetail() {
     </PageWrapper>
   );
 }
+

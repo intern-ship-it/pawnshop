@@ -6,20 +6,7 @@
 
 import axios from 'axios'
 
-// Auto-detect API URL based on environment
-const getApiUrl = () => {
-  const hostname = window.location.hostname
-  
-  // Local development
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://127.0.0.1:8000/api'
-  }
-  
-  // Production - same domain, just add /api
-  return `${window.location.origin}/api`
-}
-
-const API_BASE_URL = getApiUrl()
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
 
 // Create Axios instance - DON'T set Content-Type here
 const api = axios.create({

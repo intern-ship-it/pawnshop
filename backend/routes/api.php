@@ -472,6 +472,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/open', [DayEndController::class , 'open'])
                 ->middleware('check.permission:dayend,open');
 
+            // Idempotent auto-open (called on app boot for admin users)
+            Route::post('/ensure-open', [DayEndController::class, 'ensureOpen']);
+
+            // Edit opening balance on an open day-end report (admin-only; controller gates)
+            Route::patch('/{dayEndReport}/opening-balance', [DayEndController::class, 'updateOpeningBalance']);
+
             // Verify permission
             Route::middleware('check.permission:dayend,verify')->group(
                 function () {
@@ -479,6 +485,15 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/{dayEndReport}/verify-amount', [DayEndController::class , 'verifyAmount']);
             }
             );
+
+            // Cash adjustments (mid-day cash injections / withdrawals)
+            Route::middleware('check.permission:dayend,view')->group(function () {
+                Route::get('/{dayEndReport}/cash-adjustments', [DayEndController::class, 'listCashAdjustments']);
+            });
+            Route::middleware('check.permission:dayend,open')->group(function () {
+                Route::post('/{dayEndReport}/cash-adjustments', [DayEndController::class, 'createCashAdjustment']);
+                Route::post('/{dayEndReport}/cash-adjustments/{cashAdjustment}/void', [DayEndController::class, 'voidCashAdjustment']);
+            });
 
             // Close permission
             Route::post('/{dayEndReport}/close', [DayEndController::class , 'close'])

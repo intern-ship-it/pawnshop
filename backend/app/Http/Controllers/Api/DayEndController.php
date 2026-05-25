@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CashAdjustment;
 use App\Models\DayEndReport;
 use App\Models\DayEndVerification;
 use App\Models\Pledge;
@@ -75,11 +76,17 @@ class DayEndController extends Controller
             ]);
         }
 
-        $report->load(['verifications', 'closedBy:id,name']);
+        $report->load(['verifications', 'closedBy:id,name', 'cashAdjustments.createdBy:id,name', 'cashAdjustments.voidedBy:id,name']);
 
         // Also include purity breakdown and transaction details (calculated on the fly)
         $purityBreakdown = $this->calculatePurityBreakdown($branchId, $today);
         $stats = $this->calculateDayStats($branchId, $today);
+
+        // While the day is still open, overlay live counts/amounts onto the report
+        // so transactions created AFTER the report was opened are reflected.
+        if ($report->status !== 'closed') {
+            $this->overlayLiveStats($report, $stats);
+        }
 
         return $this->success([
             'report' => $report,
@@ -88,6 +95,8 @@ class DayEndController extends Controller
             'pledges_detail' => $stats['pledges_detail'] ?? [],
             'redemptions_detail' => $stats['redemptions_detail'] ?? [],
             'renewals_detail' => $stats['renewals_detail'] ?? [],
+            'cash_adjustments' => $report->cashAdjustments->sortBy('created_at')->values(),
+            'cash_adjustments_totals' => $this->sumCashAdjustments($report),
         ]);
     }
 
@@ -120,6 +129,13 @@ class DayEndController extends Controller
         $purityBreakdown = $this->calculatePurityBreakdown($branchId, $date);
         $stats = $this->calculateDayStats($branchId, $date);
 
+        // While the day is still open, overlay live counts/amounts onto the report.
+        if ($report->status !== 'closed') {
+            $this->overlayLiveStats($report, $stats);
+        }
+
+        $report->load(['cashAdjustments.createdBy:id,name', 'cashAdjustments.voidedBy:id,name']);
+
         return $this->success([
             'report' => $report,
             'items_in_by_purity' => $purityBreakdown['items_in_by_purity'],
@@ -127,7 +143,116 @@ class DayEndController extends Controller
             'pledges_detail' => $stats['pledges_detail'] ?? [],
             'redemptions_detail' => $stats['redemptions_detail'] ?? [],
             'renewals_detail' => $stats['renewals_detail'] ?? [],
+            'cash_adjustments' => $report->cashAdjustments->sortBy('created_at')->values(),
+            'cash_adjustments_totals' => $this->sumCashAdjustments($report),
         ]);
+    }
+
+    /**
+     * Create item_in / item_out / amount verification rows for a newly-opened report.
+     * Extracted so both manual open() and auto ensureOpen() share the same logic.
+     */
+    private function createVerificationsForReport(DayEndReport $report, int $branchId, $date, array $stats): void
+    {
+        // Items in (from pledges)
+        $pledges = Pledge::where('branch_id', $branchId)
+            ->whereDate('pledge_date', $date)
+            ->with('items')
+            ->get();
+
+        foreach ($pledges as $pledge) {
+            foreach ($pledge->items as $item) {
+                DayEndVerification::create([
+                    'day_end_id'        => $report->id,
+                    'verification_type' => 'item_in',
+                    'related_type'      => 'Pledge',
+                    'related_id'        => $pledge->id,
+                    'item_description'  => sprintf('%s - %s', $pledge->pledge_no, $item->barcode),
+                    'expected_amount'   => $item->net_value,
+                    'is_verified'       => false,
+                ]);
+            }
+        }
+
+        // Items out (from redemptions)
+        $redemptions = Redemption::where('branch_id', $branchId)
+            ->whereDate('created_at', $date)
+            ->with('pledge.items')
+            ->get();
+
+        foreach ($redemptions as $redemption) {
+            foreach ($redemption->pledge->items as $item) {
+                DayEndVerification::create([
+                    'day_end_id'        => $report->id,
+                    'verification_type' => 'item_out',
+                    'related_type'      => 'Pledge',
+                    'related_id'        => $redemption->pledge->id,
+                    'item_description'  => sprintf('%s - %s', $redemption->pledge->pledge_no, $item->barcode),
+                    'expected_amount'   => $item->net_value,
+                    'is_verified'       => false,
+                ]);
+            }
+        }
+
+        // Amount verifications (skip zero-amount rows)
+        $totalCash = $stats['pledges']['cash'] + $stats['renewals']['cash'] + $stats['redemptions']['cash'];
+        if ($totalCash > 0) {
+            DayEndVerification::create([
+                'day_end_id'        => $report->id,
+                'verification_type' => 'amount',
+                'related_type'      => 'cash_total',
+                'item_description'  => 'Total Cash',
+                'expected_amount'   => $totalCash,
+                'is_verified'       => false,
+            ]);
+        }
+
+        $totalTransfer = $stats['pledges']['transfer'] + $stats['renewals']['transfer'] + $stats['redemptions']['transfer'];
+        if ($totalTransfer > 0) {
+            DayEndVerification::create([
+                'day_end_id'        => $report->id,
+                'verification_type' => 'amount',
+                'related_type'      => 'transfer_total',
+                'item_description'  => 'Total Transfer',
+                'expected_amount'   => $totalTransfer,
+                'is_verified'       => false,
+            ]);
+        }
+    }
+
+    /**
+     * Sum active (non-voided) cash adjustments grouped by type.
+     */
+    private function sumCashAdjustments(DayEndReport $report): array
+    {
+        $active = $report->cashAdjustments->where('voided', false);
+
+        return [
+            'injections'  => (float) $active->where('type', CashAdjustment::TYPE_INJECTION)->sum('amount'),
+            'withdrawals' => (float) $active->where('type', CashAdjustment::TYPE_WITHDRAWAL)->sum('amount'),
+        ];
+    }
+
+    /**
+     * Overlay live calculated stats onto an open day-end report so newly-created
+     * transactions (after the report was opened) are reflected. Does not persist.
+     */
+    private function overlayLiveStats(DayEndReport $report, array $stats): void
+    {
+        $report->new_pledges_count    = $stats['pledges']['count'];
+        $report->new_pledges_amount   = $stats['pledges']['total'];
+        $report->new_pledges_cash     = $stats['pledges']['cash'];
+        $report->new_pledges_transfer = $stats['pledges']['transfer'];
+        $report->renewals_count       = $stats['renewals']['count'];
+        $report->renewals_amount      = $stats['renewals']['total'];
+        $report->renewals_cash        = $stats['renewals']['cash'];
+        $report->renewals_transfer    = $stats['renewals']['transfer'];
+        $report->redemptions_count    = $stats['redemptions']['count'];
+        $report->redemptions_amount   = $stats['redemptions']['total'];
+        $report->redemptions_cash     = $stats['redemptions']['cash'];
+        $report->redemptions_transfer = $stats['redemptions']['transfer'];
+        $report->items_in_count       = $stats['items_in'];
+        $report->items_out_count      = $stats['items_out'];
     }
 
     /**
@@ -204,70 +329,7 @@ class DayEndController extends Controller
                 'status' => 'open',
             ]);
 
-            // Create verification items for pledges (items in)
-            $pledges = Pledge::where('branch_id', $branchId)
-                ->whereDate('pledge_date', $today)
-                ->with('items')
-                ->get();
-
-            foreach ($pledges as $pledge) {
-                foreach ($pledge->items as $item) {
-                    DayEndVerification::create([
-                        'day_end_id' => $report->id,
-                        'verification_type' => 'item_in',
-                        'related_type' => 'Pledge',
-                        'related_id' => $pledge->id,
-                        'item_description' => sprintf('%s - %s', $pledge->pledge_no, $item->barcode),
-                        'expected_amount' => $item->net_value,
-                        'is_verified' => false,
-                    ]);
-                }
-            }
-
-            // Create verification items for redemptions (items out)
-            $redemptions = Redemption::where('branch_id', $branchId)
-                ->whereDate('created_at', $today)
-                ->with('pledge.items')
-                ->get();
-
-            foreach ($redemptions as $redemption) {
-                foreach ($redemption->pledge->items as $item) {
-                    DayEndVerification::create([
-                        'day_end_id' => $report->id,
-                        'verification_type' => 'item_out',
-                        'related_type' => 'Pledge',
-                        'related_id' => $redemption->pledge->id,
-                        'item_description' => sprintf('%s - %s', $redemption->pledge->pledge_no, $item->barcode),
-                        'expected_amount' => $item->net_value,
-                        'is_verified' => false,
-                    ]);
-                }
-            }
-
-            // Create amount verifications (skip rows with zero expected amount)
-            $totalCash = $stats['pledges']['cash'] + $stats['renewals']['cash'] + $stats['redemptions']['cash'];
-            if ($totalCash > 0) {
-                DayEndVerification::create([
-                    'day_end_id' => $report->id,
-                    'verification_type' => 'amount',
-                    'related_type' => 'cash_total',
-                    'item_description' => 'Total Cash',
-                    'expected_amount' => $totalCash,
-                    'is_verified' => false,
-                ]);
-            }
-
-            $totalTransfer = $stats['pledges']['transfer'] + $stats['renewals']['transfer'] + $stats['redemptions']['transfer'];
-            if ($totalTransfer > 0) {
-                DayEndVerification::create([
-                    'day_end_id' => $report->id,
-                    'verification_type' => 'amount',
-                    'related_type' => 'transfer_total',
-                    'item_description' => 'Total Transfer',
-                    'expected_amount' => $totalTransfer,
-                    'is_verified' => false,
-                ]);
-            }
+            $this->createVerificationsForReport($report, $branchId, $today, $stats);
 
             DB::commit();
 
@@ -540,6 +602,220 @@ class DayEndController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    /**
+     * Ensure today's day-end report exists for the current user's branch.
+     * Idempotent: returns the existing report if any. Only Admin / Super Admin
+     * may auto-open. Skips creation when no prior closing balance is available.
+     */
+    public function ensureOpen(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        if (!$user->isAdmin()) {
+            return $this->success([
+                'report'   => null,
+                'created'  => false,
+                'skipped'  => 'not_admin',
+            ]);
+        }
+
+        $branchId = $user->branch_id;
+        if (!$branchId) {
+            return $this->success([
+                'report'   => null,
+                'created'  => false,
+                'skipped'  => 'no_branch',
+            ]);
+        }
+
+        $today = Carbon::today();
+
+        $existing = DayEndReport::where('branch_id', $branchId)
+            ->whereDate('report_date', $today)
+            ->first();
+
+        if ($existing) {
+            return $this->success([
+                'report'  => $existing,
+                'created' => false,
+            ]);
+        }
+
+        // Skip auto-open if there's no prior closing balance to carry forward.
+        $prior = DayEndReport::where('branch_id', $branchId)
+            ->whereDate('report_date', '<', $today)
+            ->orderBy('report_date', 'desc')
+            ->first();
+
+        if (!$prior || $prior->closing_balance === null) {
+            return $this->success([
+                'report'   => null,
+                'created'  => false,
+                'skipped'  => 'no_prior_closing_balance',
+            ]);
+        }
+
+        $stats = $this->calculateDayStats($branchId, $today);
+
+        DB::beginTransaction();
+        try {
+            $report = DayEndReport::create([
+                'branch_id'             => $branchId,
+                'report_date'           => $today,
+                'opening_balance'       => (float) $prior->closing_balance,
+                'new_pledges_count'     => $stats['pledges']['count'],
+                'new_pledges_amount'    => $stats['pledges']['total'],
+                'new_pledges_cash'      => $stats['pledges']['cash'],
+                'new_pledges_transfer'  => $stats['pledges']['transfer'],
+                'renewals_count'        => $stats['renewals']['count'],
+                'renewals_amount'       => $stats['renewals']['total'],
+                'renewals_cash'         => $stats['renewals']['cash'],
+                'renewals_transfer'     => $stats['renewals']['transfer'],
+                'redemptions_count'     => $stats['redemptions']['count'],
+                'redemptions_amount'    => $stats['redemptions']['total'],
+                'redemptions_cash'      => $stats['redemptions']['cash'],
+                'redemptions_transfer'  => $stats['redemptions']['transfer'],
+                'items_in_count'        => $stats['items_in'],
+                'items_out_count'       => $stats['items_out'],
+                'status'                => 'open',
+            ]);
+
+            $this->createVerificationsForReport($report, $branchId, $today, $stats);
+
+            DB::commit();
+
+            return $this->success([
+                'report'  => $report,
+                'created' => true,
+            ], 'Day auto-opened');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return $this->error('Failed to auto-open day: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Update opening balance on an open day-end report.
+     * Admin / Super Admin only. Disallowed once the day is closed.
+     */
+    public function updateOpeningBalance(Request $request, DayEndReport $dayEndReport): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+        if (!$user->isAdmin()) {
+            return $this->error('Only Admin / Super Admin can edit opening balance', 403);
+        }
+
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
+            return $this->error('Forbidden', 403);
+        }
+
+        if ($dayEndReport->status === 'closed') {
+            return $this->error('Cannot edit opening balance on a closed day-end report', 422);
+        }
+
+        $validated = $request->validate([
+            'opening_balance' => 'required|numeric|min:0',
+        ]);
+
+        $dayEndReport->update([
+            'opening_balance' => (float) $validated['opening_balance'],
+        ]);
+
+        return $this->success(['report' => $dayEndReport->fresh()], 'Opening balance updated');
+    }
+
+    /**
+     * List cash adjustments for a day-end report.
+     */
+    public function listCashAdjustments(Request $request, DayEndReport $dayEndReport): JsonResponse
+    {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
+            return $this->error('Forbidden', 403);
+        }
+
+        $adjustments = $dayEndReport->cashAdjustments()
+            ->with(['createdBy:id,name', 'voidedBy:id,name'])
+            ->orderBy('created_at')
+            ->get();
+
+        return $this->success([
+            'adjustments' => $adjustments,
+            'totals' => [
+                'injections'  => (float) $adjustments->where('voided', false)->where('type', CashAdjustment::TYPE_INJECTION)->sum('amount'),
+                'withdrawals' => (float) $adjustments->where('voided', false)->where('type', CashAdjustment::TYPE_WITHDRAWAL)->sum('amount'),
+            ],
+        ]);
+    }
+
+    /**
+     * Create a cash adjustment (injection or withdrawal) on an open day-end report.
+     */
+    public function createCashAdjustment(Request $request, DayEndReport $dayEndReport): JsonResponse
+    {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
+            return $this->error('Forbidden', 403);
+        }
+
+        if ($dayEndReport->status === 'closed') {
+            return $this->error('Cannot adjust cash on a closed day-end report', 422);
+        }
+
+        $validated = $request->validate([
+            'type'   => 'required|in:injection,withdrawal',
+            'amount' => 'required|numeric|min:0.01',
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        $adjustment = CashAdjustment::create([
+            'day_end_report_id' => $dayEndReport->id,
+            'branch_id'         => $dayEndReport->branch_id,
+            'type'              => $validated['type'],
+            'amount'            => $validated['amount'],
+            'reason'            => $validated['reason'] ?? null,
+            'created_by'        => $request->user()->id,
+        ]);
+
+        $adjustment->load('createdBy:id,name');
+
+        return $this->success(['adjustment' => $adjustment], 'Cash adjustment recorded', 201);
+    }
+
+    /**
+     * Void a cash adjustment (soft-cancel; preserves audit trail).
+     */
+    public function voidCashAdjustment(Request $request, DayEndReport $dayEndReport, CashAdjustment $cashAdjustment): JsonResponse
+    {
+        if (!$this->canAccessBranch($request, $dayEndReport->branch_id)) {
+            return $this->error('Forbidden', 403);
+        }
+
+        if ($cashAdjustment->day_end_report_id !== $dayEndReport->id) {
+            return $this->error('Adjustment does not belong to this report', 404);
+        }
+
+        if ($dayEndReport->status === 'closed') {
+            return $this->error('Cannot void adjustments on a closed day-end report', 422);
+        }
+
+        if ($cashAdjustment->voided) {
+            return $this->error('Adjustment is already voided', 422);
+        }
+
+        $cashAdjustment->update([
+            'voided'    => true,
+            'voided_by' => $request->user()->id,
+            'voided_at' => now(),
+        ]);
+
+        return $this->success(['adjustment' => $cashAdjustment->fresh()], 'Adjustment voided');
     }
 
     /**

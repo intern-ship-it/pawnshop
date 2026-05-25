@@ -73,7 +73,7 @@ class SendDailyOwnerDashboard extends Command
 
         // Random suffix so the public URL is unguessable (PDF contains financial data)
         $fileName = sprintf(
-            'Owner_Dashboard_%s_%s_%s.pdf',
+            'Management_Report_%s_%s_%s.pdf',
             preg_replace('/[^A-Za-z0-9_-]/', '_', $branch->code ?: $branch->name),
             $date->format('Y-m-d'),
             Str::random(10)
@@ -488,7 +488,7 @@ class SendDailyOwnerDashboard extends Command
             'tx' => [
                 'rows' => [
                     ['label' => 'Pledges',            'count' => $pledgeCount,     'amount' => $loanAmount,          'color' => '#1e3a5f'],
-                    ['label' => 'Interest Payments',  'count' => $intPayCount,     'amount' => $intPayTotal,         'color' => '#3b82f6'],
+                    ['label' => 'Advance Interest Payment',  'count' => $intPayCount,     'amount' => $intPayTotal,         'color' => '#3b82f6'],
                     ['label' => 'Renewals',           'count' => $renewalCount,    'amount' => $renewalTotal,        'color' => '#f59e0b'],
                     ['label' => 'Redemptions',        'count' => $redemptionCount, 'amount' => $redemptionTotal,     'color' => '#10b981'],
                 ],
@@ -817,7 +817,7 @@ class SendDailyOwnerDashboard extends Command
         return $this->quickChart([
             'type' => 'bar',
             'data' => [
-                'labels'   => ['From Renewals', 'From Redemptions', 'Interest Payments'],
+                'labels'   => ['From Renewals', 'From Redemptions', 'From Advance Interest Payment'],
                 'datasets' => [[
                     'label'           => '',
                     'data'            => [$r, $d, $i],
