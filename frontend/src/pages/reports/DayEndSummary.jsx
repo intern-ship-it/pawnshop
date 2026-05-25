@@ -115,6 +115,20 @@ export default function DayEndSummary() {
     notes: "",
   });
 
+  // Opening balance inline edit
+  const [isEditingOpening, setIsEditingOpening] = useState(false);
+  const [openingEditValue, setOpeningEditValue] = useState("");
+  const [isSavingOpening, setIsSavingOpening] = useState(false);
+
+  // Mid-day cash adjustments (injections / withdrawals)
+  const [cashAdjustments, setCashAdjustments] = useState([]);
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    type: "injection",
+    amount: "",
+    reason: "",
+  });
+  const [isSavingAdjustment, setIsSavingAdjustment] = useState(false);
+
   // Payment breakdown (cash vs transfer)
   const [paymentBreakdown, setPaymentBreakdown] = useState({
     pledges: { cash: 0, transfer: 0 },
@@ -219,6 +233,9 @@ export default function DayEndSummary() {
           redemptions: data.redemptions_detail || stats?.redemptions_detail || [],
           renewals: data.renewals_detail || stats?.renewals_detail || [],
         });
+
+        // Extract mid-day cash adjustments
+        setCashAdjustments(Array.isArray(data.cash_adjustments) ? data.cash_adjustments : []);
 
         // If we have a report (day-end was started)
         if (report && report.id) {
@@ -393,10 +410,94 @@ export default function DayEndSummary() {
     }
   };
 
-  // Expected closing balance
+  // Net mid-day cash adjustments (injections − withdrawals, voided ignored)
+  const adjustmentTotals = useMemo(() => {
+    const active = cashAdjustments.filter((a) => !a.voided);
+    const injections = active
+      .filter((a) => a.type === "injection")
+      .reduce((sum, a) => sum + parseFloat(a.amount || 0), 0);
+    const withdrawals = active
+      .filter((a) => a.type === "withdrawal")
+      .reduce((sum, a) => sum + parseFloat(a.amount || 0), 0);
+    return { injections, withdrawals, net: injections - withdrawals };
+  }, [cashAdjustments]);
+
+  // Expected closing balance = opening + adjustments + cash in − cash out
   const expectedClosing = useMemo(() => {
-    return cashDrawer.openingBalance + dailyStats.cashIn - dailyStats.cashOut;
-  }, [cashDrawer.openingBalance, dailyStats.cashIn, dailyStats.cashOut]);
+    return (
+      cashDrawer.openingBalance +
+      adjustmentTotals.net +
+      dailyStats.cashIn -
+      dailyStats.cashOut
+    );
+  }, [cashDrawer.openingBalance, adjustmentTotals.net, dailyStats.cashIn, dailyStats.cashOut]);
+
+  // Save edited opening balance
+  const handleSaveOpening = async () => {
+    if (!dayEndData?.id) return;
+    const value = parseFloat(openingEditValue);
+    if (Number.isNaN(value) || value < 0) {
+      dispatch(addToast({ type: "error", title: "Invalid amount", message: "Opening balance must be 0 or greater" }));
+      return;
+    }
+    setIsSavingOpening(true);
+    try {
+      const res = await dayEndService.updateOpeningBalance(dayEndData.id, value);
+      if (res.success) {
+        setCashDrawer((prev) => ({ ...prev, openingBalance: value }));
+        setDayEndData((prev) => (prev ? { ...prev, opening_balance: value } : prev));
+        setIsEditingOpening(false);
+        dispatch(addToast({ type: "success", title: "Updated", message: "Opening balance saved" }));
+      }
+    } catch (e) {
+      dispatch(addToast({ type: "error", title: "Failed", message: e.message || "Could not save opening balance" }));
+    } finally {
+      setIsSavingOpening(false);
+    }
+  };
+
+  // Create a mid-day cash adjustment
+  const handleCreateAdjustment = async () => {
+    if (!dayEndData?.id) return;
+    const amount = parseFloat(adjustmentForm.amount);
+    if (!amount || amount <= 0) {
+      dispatch(addToast({ type: "error", title: "Invalid amount", message: "Enter an amount greater than 0" }));
+      return;
+    }
+    setIsSavingAdjustment(true);
+    try {
+      const res = await dayEndService.createCashAdjustment(dayEndData.id, {
+        type: adjustmentForm.type,
+        amount,
+        reason: adjustmentForm.reason || null,
+      });
+      if (res.success) {
+        setCashAdjustments((prev) => [...prev, res.data.adjustment]);
+        setAdjustmentForm({ type: "injection", amount: "", reason: "" });
+        dispatch(addToast({ type: "success", title: "Recorded", message: "Cash adjustment saved" }));
+      }
+    } catch (e) {
+      dispatch(addToast({ type: "error", title: "Failed", message: e.message || "Could not save adjustment" }));
+    } finally {
+      setIsSavingAdjustment(false);
+    }
+  };
+
+  // Void a mid-day cash adjustment
+  const handleVoidAdjustment = async (adjustmentId) => {
+    if (!dayEndData?.id) return;
+    try {
+      const res = await dayEndService.voidCashAdjustment(dayEndData.id, adjustmentId);
+      if (res.success) {
+        setCashAdjustments((prev) =>
+          prev.map((a) => (a.id === adjustmentId ? res.data.adjustment : a)),
+        );
+        dispatch(addToast({ type: "success", title: "Voided", message: "Adjustment voided" }));
+      }
+    } catch (e) {
+      dispatch(addToast({ type: "error", title: "Failed", message: e.message || "Could not void adjustment" }));
+    }
+  };
 
   // Variance
   const variance = useMemo(() => {
@@ -1489,6 +1590,66 @@ export default function DayEndSummary() {
             </h3>
 
             <div className="space-y-4">
+              {/* Opening Balance (editable while day is open) */}
+              {dayEndData?.id && (
+                <div className="p-4 bg-emerald-50/40 border border-emerald-200 rounded-xl">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-emerald-700">
+                      Opening Balance
+                    </span>
+                    {!isEditingOpening ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-emerald-700">
+                          {formatCurrency(cashDrawer.openingBalance)}
+                        </span>
+                        {dayStatus === "open" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpeningEditValue(String(cashDrawer.openingBalance ?? 0));
+                              setIsEditingOpening(true);
+                            }}
+                            className="text-xs text-emerald-700 hover:underline"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-28 text-sm px-2 py-1 border border-emerald-300 rounded text-right"
+                          value={openingEditValue}
+                          onChange={(e) => setOpeningEditValue(e.target.value)}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveOpening}
+                          disabled={isSavingOpening}
+                          className="text-xs font-medium px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {isSavingOpening ? "..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingOpening(false)}
+                          className="text-xs px-2 py-1 rounded text-zinc-600 hover:bg-zinc-100"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-emerald-700/70 mt-1">
+                    Carried from yesterday's closing balance
+                  </div>
+                </div>
+              )}
+
               {/* Transactions */}
               <div className="p-4 bg-zinc-50 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-sm">
@@ -1505,6 +1666,115 @@ export default function DayEndSummary() {
                 </div>
               </div>
 
+              {/* Mid-day cash adjustments */}
+              {dayEndData?.id && (
+                <div className="p-4 bg-blue-50/40 border border-blue-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-blue-700 flex items-center gap-2">
+                      <Banknote className="w-4 h-4" />
+                      Mid-day Cash Adjustments
+                    </span>
+                    <span className="text-xs text-blue-700/70">
+                      Net: {adjustmentTotals.net >= 0 ? "+" : ""}
+                      {formatCurrency(adjustmentTotals.net)}
+                    </span>
+                  </div>
+
+                  {/* Existing list (voided entries hidden from view; audit trail kept in DB) */}
+                  {cashAdjustments.filter((a) => !a.voided).length > 0 && (
+                    <ul className="space-y-1 text-xs max-h-40 overflow-y-auto">
+                      {cashAdjustments.filter((a) => !a.voided).map((a) => (
+                        <li
+                          key={a.id}
+                          className={cn(
+                            "flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-white border",
+                            a.voided && "opacity-50 line-through",
+                          )}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "font-semibold",
+                                  a.type === "injection" ? "text-emerald-600" : "text-red-600",
+                                )}
+                              >
+                                {a.type === "injection" ? "+" : "−"}
+                                {formatCurrency(parseFloat(a.amount))}
+                              </span>
+                              {a.reason && (
+                                <span className="text-zinc-600 truncate">— {a.reason}</span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-zinc-500">
+                              {a.created_by?.name || "—"} ·{" "}
+                              {new Date(a.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                              {a.voided && " · voided"}
+                            </div>
+                          </div>
+                          {!a.voided && dayStatus === "open" && (
+                            <button
+                              onClick={() => handleVoidAdjustment(a.id)}
+                              className="text-zinc-400 hover:text-red-600 transition-colors"
+                              title="Void this adjustment"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Form (only while day is open) */}
+                  {dayStatus === "open" && (
+                    <div className="grid grid-cols-12 gap-2">
+                      <select
+                        className="col-span-3 text-xs px-2 py-1.5 border border-zinc-300 rounded"
+                        value={adjustmentForm.type}
+                        onChange={(e) =>
+                          setAdjustmentForm({ ...adjustmentForm, type: e.target.value })
+                        }
+                      >
+                        <option value="injection">+ Add</option>
+                        <option value="withdrawal">− Remove</option>
+                      </select>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Amount"
+                        className="col-span-3 text-xs px-2 py-1.5 border border-zinc-300 rounded"
+                        value={adjustmentForm.amount}
+                        onChange={(e) =>
+                          setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })
+                        }
+                      />
+                      <input
+                        type="text"
+                        placeholder="Reason (optional)"
+                        className="col-span-4 text-xs px-2 py-1.5 border border-zinc-300 rounded"
+                        value={adjustmentForm.reason}
+                        onChange={(e) =>
+                          setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })
+                        }
+                      />
+                      <button
+                        type="button"
+                        disabled={isSavingAdjustment || !adjustmentForm.amount}
+                        onClick={handleCreateAdjustment}
+                        className="col-span-2 text-xs font-medium px-2 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSavingAdjustment ? "..." : "Save"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Expected Closing */}
               <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
                 <div className="flex items-center justify-between">
@@ -1515,6 +1785,12 @@ export default function DayEndSummary() {
                     {formatCurrency(expectedClosing)}
                   </span>
                 </div>
+                {adjustmentTotals.net !== 0 && (
+                  <div className="text-[10px] text-amber-700/70 mt-1 text-right">
+                    Includes {adjustmentTotals.net >= 0 ? "+" : ""}
+                    {formatCurrency(adjustmentTotals.net)} mid-day adjustment
+                  </div>
+                )}
               </div>
 
               {/* Actual Closing Input */}
