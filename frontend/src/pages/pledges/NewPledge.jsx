@@ -2048,6 +2048,7 @@ export default function NewPledge() {
 
       if ((payoutMethod === "transfer" || payoutMethod === "partial") && bankId) {
         payment.bank_id = parseInt(bankId);
+        payment.account_number = accountNumber || null;
       }
 
       const pledgeData = {

@@ -68,6 +68,7 @@ const statusConfig = {
 const tabs = [
   { id: "overview", label: "Overview", icon: FileText },
   { id: "items", label: "Items", icon: Package },
+  { id: "payment", label: "Payment", icon: CreditCard },
   { id: "redemption", label: "Redemption", icon: DollarSign, redeemedOnly: true },
   { id: "history", label: "History", icon: History },
 ];
@@ -189,6 +190,7 @@ export default function PledgeDetail() {
             cashAmount: parseFloat(payment.cash_amount) || 0,
             transferAmount: parseFloat(payment.transfer_amount) || 0,
             bankName: payment.bank?.name || "",
+            accountNumber: payment.account_number || "",
             referenceNo: payment.reference_no,
             paymentMethod: payment.payment_method,
             paymentDate: payment.payment_date,
@@ -1260,7 +1262,7 @@ export default function PledgeDetail() {
                       <p className="text-[11px] font-medium uppercase tracking-wide text-blue-700">Payment</p>
                       <p className="text-lg font-semibold text-blue-700 capitalize mt-1">{r.paymentMethod}</p>
                       {r.bankName && (
-                        <p className="text-[11px] text-blue-600 mt-0.5">{r.bankName} {r.referenceNo && `Â· ${r.referenceNo}`}</p>
+                        <p className="text-[11px] text-blue-600 mt-0.5">{r.bankName} {r.referenceNo && `· ${r.referenceNo}`}</p>
                       )}
                     </div>
                   </div>
@@ -1268,7 +1270,7 @@ export default function PledgeDetail() {
                   <div>
                     <h4 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
                       <MapPin className="w-4 h-4" />
-                      Items Redeemed â€” Original Storage Location
+                      Items Redeemed — Original Storage Location
                     </h4>
                     {redeemedItems.length === 0 ? (
                       <p className="text-sm text-zinc-500">No item details available.</p>
@@ -1341,6 +1343,91 @@ export default function PledgeDetail() {
                 </Card>
               );
             })}
+          </motion.div>
+        )}
+
+        {activeTab === "payment" && (
+          <motion.div
+            key="payment"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-800 mb-6 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-zinc-400" />
+                Payment Details
+              </h3>
+
+              {pledge.payments?.length > 0 ? (
+                <div className="space-y-4">
+                  {pledge.payments.map((payment, idx) => (
+                    <div key={idx} className="border border-zinc-200 rounded-lg p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-zinc-500">Payment Mode</span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-amber-100 text-amber-700 capitalize">
+                          {payment.paymentMethod === "transfer" ? "Full Transfer" :
+                           payment.paymentMethod === "cash" ? "Full Cash" :
+                           payment.paymentMethod === "partial" ? "Partial" :
+                           payment.paymentMethod}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-zinc-400 mb-1">Total Amount</p>
+                          <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.totalAmount)}</p>
+                        </div>
+                        {payment.cashAmount > 0 && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Cash Amount</p>
+                            <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.cashAmount)}</p>
+                          </div>
+                        )}
+                        {payment.transferAmount > 0 && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Transfer Amount</p>
+                            <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.transferAmount)}</p>
+                          </div>
+                        )}
+                        {payment.bankName && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Bank Name</p>
+                            <p className="text-sm font-semibold text-zinc-800 flex items-center gap-1.5">
+                              <Building2 className="w-4 h-4 text-zinc-400" />
+                              {payment.bankName}
+                            </p>
+                          </div>
+                        )}
+                        {payment.accountNumber && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Account Number</p>
+                            <p className="text-sm font-semibold text-zinc-800 font-mono">{payment.accountNumber}</p>
+                          </div>
+                        )}
+                        {payment.referenceNo && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Reference Number</p>
+                            <p className="text-sm font-semibold text-zinc-800 font-mono">{payment.referenceNo}</p>
+                          </div>
+                        )}
+                        {payment.paymentDate && (
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Payment Date</p>
+                            <p className="text-sm font-semibold text-zinc-800">{formatDate(payment.paymentDate)}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-zinc-400">
+                  <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No payment records found</p>
+                </div>
+              )}
+            </Card>
           </motion.div>
         )}
 
@@ -1547,7 +1634,7 @@ export default function PledgeDetail() {
                         <p className="mt-1 font-medium">
                           Total paid: {formatCurrency(r.totalPayable)} ({r.paymentMethod}
                           {r.bankName && ` - ${r.bankName}`}
-                          {r.referenceNo && ` Â· ${r.referenceNo}`})
+                          {r.referenceNo && ` · ${r.referenceNo}`})
                         </p>
                         {r.createdBy && (
                           <p className="text-xs text-zinc-400">By: {r.createdBy}</p>

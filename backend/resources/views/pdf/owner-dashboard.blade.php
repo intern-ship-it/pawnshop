@@ -631,7 +631,7 @@
             </td>
             <td style="width:25%;">
                 <div class="card blue">
-                    <div class="card-label">Advance Interest Payment</div>
+                    <div class="card-label">From Advance Interest Payment</div>
                     <div class="card-value sm" style="white-space:nowrap;">{{ $rm($interest['from_interest_pay']) }}</div>
                     <div class="card-sub">Standalone interest</div>
                 </div>
@@ -663,7 +663,7 @@
                             <td class="right mono">{{ $rm($interest['from_redemptions']) }}</td>
                         </tr>
                         <tr>
-                            <td>Advance Interest Payment</td>
+                            <td>From Advance Interest Payment</td>
                             <td class="right mono">{{ $rm($interest['from_interest_pay']) }}</td>
                         </tr>
                         <tr class="total">

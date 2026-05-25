@@ -652,6 +652,7 @@ class PledgeController extends Controller
                 'cash_amount' => $payment['cash_amount'],
                 'transfer_amount' => $payment['transfer_amount'],
                 'bank_id' => $payment['bank_id'] ?? null,
+                'account_number' => $payment['account_number'] ?? null,
                 'reference_no' => $payment['reference_no'] ?? null,
                 'payment_method' => $paymentMethod,
                 'payment_date' => Carbon::today(),

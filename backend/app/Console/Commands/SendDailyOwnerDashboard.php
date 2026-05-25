@@ -817,7 +817,7 @@ class SendDailyOwnerDashboard extends Command
         return $this->quickChart([
             'type' => 'bar',
             'data' => [
-                'labels'   => ['From Renewals', 'From Redemptions', 'Advance Interest Payment'],
+                'labels'   => ['From Renewals', 'From Redemptions', 'From Advance Interest Payment'],
                 'datasets' => [[
                     'label'           => '',
                     'data'            => [$r, $d, $i],

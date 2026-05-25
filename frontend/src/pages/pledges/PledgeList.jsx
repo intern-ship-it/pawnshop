@@ -1694,7 +1694,7 @@ export default function PledgeList() {
                             </p>
                           </div>
                         ) : (
-                          <span className="text-xs text-zinc-400">â€”</span>
+                          <span className="text-xs text-zinc-400">-</span>
                         )}
                       </td>
 
