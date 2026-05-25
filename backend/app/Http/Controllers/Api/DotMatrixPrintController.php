@@ -3203,6 +3203,7 @@ HTML;
                 'items.category',
                 'items.purity',
                 'branch',
+                'payments.bank',
             ]);
 
             $settings = $this->getCompanySettings($pledge->branch);
@@ -3211,6 +3212,22 @@ HTML;
             // Generate BOTH blank form template AND data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
+
+            // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
+            // Hidden entirely if no bank/account data is available.
+            $paymentInfoBlockHtml = '';
+            $payment = $pledge->payments->first();
+            if ($payment && \in_array($payment->payment_method, ['transfer', 'partial'], true)) {
+                $bankName = $payment->bank->name ?? '';
+                $accountNo = $payment->account_number ?? '';
+                if ($bankName || $accountNo) {
+                    $lines = [];
+                    if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                    if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+                    $innerHtml = implode('', $lines);
+                    $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+                }
+            }
 
             // Combine them - data overlay on top of blank form
             // Generate TWO copies: Original Copy (page 1) + Customer Copy (page 2)
@@ -3287,6 +3304,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
     <div class="pp-copy-label">ORIGINAL</div>
 </div>
 HTML;
@@ -3337,6 +3355,7 @@ HTML;
                 'items.category',
                 'items.purity',
                 'branch',
+                'payments.bank',
             ]);
 
             $settings = $this->getCompanySettings($pledge->branch);
@@ -3345,6 +3364,22 @@ HTML;
             // Generate BOTH blank form template AND data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, true, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedDataOverlayNew($pledge, $settings);
+
+            // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
+            // Hidden entirely if no bank/account data is available.
+            $paymentInfoBlockHtml = '';
+            $payment = $pledge->payments->first();
+            if ($payment && \in_array($payment->payment_method, ['transfer', 'partial'], true)) {
+                $bankName = $payment->bank->name ?? '';
+                $accountNo = $payment->account_number ?? '';
+                if ($bankName || $accountNo) {
+                    $lines = [];
+                    if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                    if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+                    $innerHtml = implode('', $lines);
+                    $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+                }
+            }
 
             // Combine them - data overlay on top of blank form
             // Generate TWO copies: Original Copy (page 1) + Customer Copy (page 2)
@@ -3421,6 +3456,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
     <div class="pp-copy-label">ORIGINAL (REPRINT)</div>
 </div>
 HTML;
@@ -4207,6 +4243,7 @@ HTML;
                 'pledge.items.category',
                 'pledge.items.purity',
                 'pledge.branch',
+                'bank',
             ]);
 
             $pledge = $renewal->pledge;
@@ -4225,6 +4262,21 @@ HTML;
             // Generate BOTH blank form template AND renewal data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
+
+            // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
+            // Hidden entirely if no bank/account data is available.
+            $paymentInfoBlockHtml = '';
+            if (\in_array($renewal->payment_method, ['transfer', 'partial'], true)) {
+                $bankName = $renewal->bank->name ?? '';
+                $accountNo = $renewal->account_number ?? '';
+                if ($bankName || $accountNo) {
+                    $lines = [];
+                    if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                    if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+                    $innerHtml = implode('', $lines);
+                    $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+                }
+            }
 
             // Combine them - data overlay on top of blank form
             $combinedHtml = <<<HTML
@@ -4297,6 +4349,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
     <div class="pp-copy-label">ORIGINAL</div>
 </div>
 HTML;
@@ -4332,6 +4385,7 @@ HTML;
                 'pledge.items.category',
                 'pledge.items.purity',
                 'pledge.branch',
+                'bank',
             ]);
 
             $pledge = $renewal->pledge;
@@ -4350,6 +4404,21 @@ HTML;
             // Generate BOTH blank form template AND renewal data overlay
             $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
+
+            // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
+            // Hidden entirely if no bank/account data is available.
+            $paymentInfoBlockHtml = '';
+            if (\in_array($renewal->payment_method, ['transfer', 'partial'], true)) {
+                $bankName = $renewal->bank->name ?? '';
+                $accountNo = $renewal->account_number ?? '';
+                if ($bankName || $accountNo) {
+                    $lines = [];
+                    if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                    if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+                    $innerHtml = implode('', $lines);
+                    $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+                }
+            }
 
             // Combine them - data overlay on top of blank form
             $combinedHtml = <<<HTML
@@ -4425,6 +4494,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
     <div class="pp-copy-label">ORIGINAL (REPRINT)</div>
 </div>
 HTML;

@@ -468,13 +468,13 @@ export default function PledgeDetail() {
         <body>
           <div class="print-actions">
             <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              ðŸ“„ HP Print - A5 - ${pledgeNo}
+              HP Print - A5 - ${pledgeNo}
             </p>
             <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
               A5 Pre-Printed Form Template + Data Overlay (Landscape)
             </p>
-            <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">âœ– Close</button>
+            <button class="print-btn" onclick="window.print()">¸ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">Close</button>
           </div>
           
           <div class="print-container">
@@ -557,7 +557,7 @@ export default function PledgeDetail() {
           addToast({
             type: "warning",
             title: "WhatsApp Not Configured",
-            message: "Set up WhatsApp in Settings â†’ WhatsApp",
+            message: "Set up WhatsApp in Settings -> WhatsApp",
           }),
         );
       } else {
@@ -1374,10 +1374,6 @@ export default function PledgeDetail() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-zinc-400 mb-1">Total Amount</p>
-                          <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.totalAmount)}</p>
-                        </div>
                         {payment.cashAmount > 0 && (
                           <div>
                             <p className="text-xs text-zinc-400 mb-1">Cash Amount</p>

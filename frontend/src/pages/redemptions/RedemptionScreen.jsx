@@ -711,7 +711,7 @@ export default function RedemptionScreen() {
             data.items_remaining || allItems.length - selectedItemIds.length,
         });
 
-        // âœ… FIX: Update allItems to remove redeemed items so the count
+        // FIX: Update allItems to remove redeemed items so the count
         // and item list immediately reflect the remaining unredeemed items.
         const redeemedIds = new Set(selectedItemIds);
         const remainingItems = allItems.filter((i) => !redeemedIds.has(i.id));
@@ -855,22 +855,22 @@ export default function RedemptionScreen() {
     <body>
       <div class="print-controls">
         <div class="step-indicator">
-          <div class="step active" id="step1-indicator">â‘  DEPAN / FRONT</div>
-          <div class="step pending" id="step2-indicator">â‘¡ BELAKANG / BACK</div>
+          <div class="step active" id="step1-indicator">1DEPAN / FRONT</div>
+          <div class="step pending" id="step2-indicator">2 BELAKANG / BACK</div>
         </div>
         
         <div class="btn-row">
           <button class="print-btn" id="printFrontBtn" onclick="printFront()">
-            ðŸ–¨ï¸ Cetak DEPAN / Print FRONT
+             Cetak DEPAN / Print FRONT
           </button>
           <button class="print-btn secondary" id="printBackBtn" onclick="printBack()" disabled>
-            ðŸ”„ Cetak BELAKANG / Print BACK
+            Cetak BELAKANG / Print BACK
           </button>
-          <button class="close-btn" onclick="window.close()">âœ• Tutup</button>
+          <button class="close-btn" onclick="window.close()">Tutup</button>
         </div>
         
         <div class="flip-instructions" id="flipInstructions" style="display: none;">
-          <div class="icon">ðŸ”„ðŸ“„</div>
+          <div class="icon"></div>
           <h3>PUSING KERTAS / FLIP PAPER</h3>
           <p>1. Keluarkan kertas dari printer / Remove paper from printer</p>
           <p>2. <strong>Pusing kertas</strong> dan masukkan semula / <strong>Flip paper</strong> and reinsert</p>
@@ -884,7 +884,7 @@ export default function RedemptionScreen() {
       
       <div class="page" id="frontPage">
         <div class="page-label">
-          <span>ðŸ“„ HALAMAN DEPAN / FRONT - RESIT TEBUSAN</span>
+          <span>HALAMAN DEPAN / FRONT - RESIT TEBUSAN</span>
           <span class="badge">${copyLabel}</span>
         </div>
         ${receiptHtml}
@@ -892,7 +892,7 @@ export default function RedemptionScreen() {
       
       <div class="page hidden-for-print" id="backPage">
         <div class="page-label terms">
-          <span>ðŸ“‹ HALAMAN BELAKANG / BACK - TERMA & SYARAT</span>
+          <span>HALAMAN BELAKANG / BACK - TERMA & SYARAT</span>
           <span class="badge">${copyLabel}</span>
         </div>
         ${termsHtml}
@@ -909,7 +909,7 @@ export default function RedemptionScreen() {
             currentStep = 2;
             document.getElementById('step1-indicator').classList.remove('active');
             document.getElementById('step1-indicator').classList.add('completed');
-            document.getElementById('step1-indicator').textContent = 'âœ“ DEPAN / FRONT';
+            document.getElementById('step1-indicator').textContent = 'DEPAN / FRONT';
             document.getElementById('step2-indicator').classList.remove('pending');
             document.getElementById('step2-indicator').classList.add('active');
             document.getElementById('printFrontBtn').disabled = true;
@@ -927,9 +927,9 @@ export default function RedemptionScreen() {
           setTimeout(function() {
             document.getElementById('step2-indicator').classList.remove('active');
             document.getElementById('step2-indicator').classList.add('completed');
-            document.getElementById('step2-indicator').textContent = 'âœ“ BELAKANG / BACK';
+            document.getElementById('step2-indicator').textContent = 'BELAKANG / BACK';
             document.getElementById('printBackBtn').disabled = true;
-            document.getElementById('flipInstructions').innerHTML = '<div class="icon">âœ…</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
+            document.getElementById('flipInstructions').innerHTML = '<div class="icon"></div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
           }, 1000);
         }
         
@@ -1192,7 +1192,7 @@ export default function RedemptionScreen() {
           addToast({
             type: "warning",
             title: "WhatsApp Not Configured",
-            message: "Set up WhatsApp in Settings â†’ WhatsApp",
+            message: "Set up WhatsApp in Settings -> WhatsApp",
           }),
         );
       } else {
@@ -1442,11 +1442,11 @@ export default function RedemptionScreen() {
                           <span className="font-mono bg-zinc-100 px-1.5 py-0.5 rounded text-xs text-zinc-600">
                             {p.pledgeNo}
                           </span>
-                          <span>â€¢</span>
+                          <span>*</span>
                           <span>{p.itemsCount} item(s)</span>
                         </div>
                         <p className="text-xs text-zinc-400 mt-1">
-                          {p.customerIC} â€¢ {p.customerPhone}
+                          {p.customerIC} * {p.customerPhone}
                         </p>
                       </div>
                     </div>
@@ -1527,7 +1527,7 @@ export default function RedemptionScreen() {
                         </Badge>
                       </div>
                       <p className="text-sm text-zinc-500">
-                        {formatIC(pledge.customerIC)} â€¢{" "}
+                        {formatIC(pledge.customerIC)} *{" "}
                         {formatPhone(pledge.customerPhone)}
                       </p>
                     </div>
@@ -1680,7 +1680,7 @@ export default function RedemptionScreen() {
                             item.slot?.slot_number ||
                             (item.slot_id ? `S${item.slot_id}` : "");
                           let location = vaultCode;
-                          if (boxNum) location += ` â†’ ${boxNum}`;
+                          if (boxNum) location += ` -> ${boxNum}`;
                           if (slotNum) location += `${slotNum}`;
                           return location;
                         }
@@ -1749,7 +1749,7 @@ export default function RedemptionScreen() {
                                   item.purity?.name ||
                                   item.purity_name ||
                                   item.purity}{" "}
-                                â€¢{" "}
+                                *{" "}
                                 {parseFloat(
                                   item.net_weight || item.netWeight || 0,
                                 ).toFixed(2)}
@@ -1876,9 +1876,9 @@ export default function RedemptionScreen() {
                           variant={rateSource === 'customer' ? 'warning' : rateSource === 'manual' ? 'info' : 'success'}
                           size="sm"
                         >
-                          {rateSource === 'customer' && 'ðŸ‘¤ Customer Rate'}
-                          {rateSource === 'global' && 'ðŸŒ Global Rate'}
-                          {rateSource === 'manual' && 'âœï¸ Manual Override'}
+                          {rateSource === 'customer' && 'Customer Rate'}
+                          {rateSource === 'global' && 'Global Rate'}
+                          {rateSource === 'manual' && 'Manual Override'}
                         </Badge>
                       )}
                     </div>
@@ -1924,7 +1924,7 @@ export default function RedemptionScreen() {
                           <>
                             <div className="flex justify-between text-sm">
                               <span className="text-zinc-500">
-                                Monthly Interest ({calculation.interest_breakdown.rate_applied}% Ã— {calculation.interest_breakdown.months_elapsed} months)
+                                Monthly Interest ({calculation.interest_breakdown.rate_applied}% x {calculation.interest_breakdown.months_elapsed} months)
                               </span>
                               <span className="font-medium text-zinc-700">
                                 {formatCurrency(calculation.interest_breakdown.total_monthly_interest)}
@@ -2101,7 +2101,7 @@ export default function RedemptionScreen() {
                           <span className="font-bold">
                             {formatCurrency(totalEntered)}
                             {isComplete
-                              ? " âœ“"
+                              ? " OK"
                               : ` (need ${formatCurrency(remaining)} more)`}
                           </span>
                         </div>
@@ -2252,7 +2252,7 @@ export default function RedemptionScreen() {
           // the user can immediately redeem the remaining items.
           // allItems / selectedItemIds / items were already updated on success.
           if (allItems.length === 0) {
-            // Full redemption â€” reset everything back to blank search
+            // Full redemption - reset everything back to blank search
             setSearchQuery("");
             setPledge(null);
             setPledgeList([]);
@@ -2262,7 +2262,7 @@ export default function RedemptionScreen() {
             setIsPartialRedemption(false);
             setSearchResult(null);
           } else {
-            // Partial â€” pledge stays loaded with remaining items.
+            // Partial - pledge stays loaded with remaining items.
             // Re-fetch calculation so the totals reflect only the remaining items.
             const remainingIds = allItems.map((i) => i.id);
             fetchCalculation(pledge.id, remainingIds);
@@ -2343,7 +2343,7 @@ export default function RedemptionScreen() {
           {/* Auto-trigger status */}
           {whatsAppSent && (
             <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-              <p>âœ“ WhatsApp notification sent</p>
+              <p>WhatsApp notification sent</p>
             </div>
           )}
 
@@ -2374,7 +2374,7 @@ export default function RedemptionScreen() {
             {redemptionResult?.isPartial &&
               redemptionResult?.itemsRemaining > 0 && (
                 <p className="text-sm text-amber-600 mt-2">
-                  âš ï¸ Pledge remains active with{" "}
+                  Pledge remains active with{" "}
                   {redemptionResult?.itemsRemaining} item(s)
                 </p>
               )}
@@ -2382,8 +2382,8 @@ export default function RedemptionScreen() {
 
           {/* Issue 5: Auto-trigger status placeholder */}
           <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-            <p>âœ“ Receipt sent to printer automatically</p>
-            {pledge?.customerPhone && <p>âœ“ WhatsApp notification sent</p>}
+            <p>Receipt sent to printer automatically</p>
+            {pledge?.customerPhone && <p>WhatsApp notification sent</p>}
           </div>
 
           <div className="flex gap-3">

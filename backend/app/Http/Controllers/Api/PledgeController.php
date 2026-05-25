@@ -361,6 +361,7 @@ class PledgeController extends Controller
             'payment.cash_amount' => 'required_if:payment.method,cash,partial|numeric|min:0',
             'payment.transfer_amount' => 'required_if:payment.method,transfer,partial|numeric|min:0',
             'payment.bank_id' => 'required_if:payment.method,transfer,partial|exists:banks,id',
+            'payment.account_number' => 'nullable|string|max:30',
             'payment.reference_no' => 'nullable|string|max:50',
             'customer_signature' => 'nullable|string',
             'terms_accepted' => 'required|boolean|accepted',

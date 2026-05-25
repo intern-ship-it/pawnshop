@@ -49,7 +49,7 @@ import {
 const PER_PAGE_OPTIONS = [15, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 400;
 
-// Build a compact page list with ellipses: 1 â€¦ 4 5 [6] 7 8 â€¦ 20
+// Build a compact page list with ellipses: 1 ... 4 5 [6] 7 8 ... 20
 function buildPageList(current, last) {
   if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1);
   const pages = new Set([1, last, current, current - 1, current + 1]);
@@ -59,7 +59,7 @@ function buildPageList(current, last) {
   const sorted = [...pages].filter((p) => p >= 1 && p <= last).sort((a, b) => a - b);
   const result = [];
   for (let i = 0; i < sorted.length; i++) {
-    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push("â€¦");
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push("...");
     result.push(sorted[i]);
   }
   return result;
@@ -478,13 +478,13 @@ export default function PledgeList() {
         <body>
           <div class="print-actions">
            <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-  ðŸ“„ HP Print - A5 - ${pledgeNo}
+  HP Print - A5 - ${pledgeNo}
 </p>
 <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
   A5 Pre-Printed Form Template + Data Overlay (Landscape)
 </p>
-            <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">âœ– Close</button>
+            <button class="print-btn" onclick="window.print()"> Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">Close</button>
           </div>
           
           <div class="print-container">
@@ -675,13 +675,13 @@ export default function PledgeList() {
         <body>
           <div class="print-actions">
            <p style="margin-bottom: 10px; font-weight: bold; color: #721c24;">
-  ðŸ“„ HP Print - A5 - ${pledgeNo} (REPRINT)
+  HP Print - A5 - ${pledgeNo} (REPRINT)
 </p>
 <p style="margin-bottom: 15px; font-size: 14px; color: #721c24;">
   A5 Pre-Printed Form Template + Data Overlay (REPRINT)
 </p>
-            <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">âœ– Close</button>
+            <button class="print-btn" onclick="window.print()"> Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">Close</button>
           </div>
           
           <div class="print-container">
@@ -851,13 +851,13 @@ export default function PledgeList() {
         <body>
           <div class="print-actions">
           <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-  ðŸ“„ EPSON - A4 â€” ${docType} Data Overlay (Portrait) - ${pledgeNo}
+  EPSON - A4 - ${docType} Data Overlay (Portrait) - ${pledgeNo}
 </p>
 <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
-  A4 Data Overlay (Portrait) â€” prints 2 copies on pre-printed paper
+  A4 Data Overlay (Portrait) - prints 2 copies on pre-printed paper
 </p>
-            <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">âœ– Close</button>
+            <button class="print-btn" onclick="window.print()"> Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">Close</button>
           </div>
           
           <div class="print-container">
@@ -1344,7 +1344,7 @@ export default function PledgeList() {
               </div>
               <div>
                 <p className="text-xs text-zinc-500">Total Pledges</p>
-                <p className="text-xl font-bold text-zinc-800">{statsLoading ? "â€¦" : stats.total}</p>
+                <p className="text-xl font-bold text-zinc-800">{statsLoading ? "..." : stats.total}</p>
               </div>
             </div>
           </Card>
@@ -1359,7 +1359,7 @@ export default function PledgeList() {
               <div>
                 <p className="text-xs text-zinc-500">Active</p>
                 <p className="text-xl font-bold text-emerald-600">
-                  {statsLoading ? "â€¦" : stats.active}
+                  {statsLoading ? "..." : stats.active}
                 </p>
               </div>
             </div>
@@ -1375,7 +1375,7 @@ export default function PledgeList() {
               <div>
                 <p className="text-xs text-zinc-500">Overdue</p>
                 <p className="text-xl font-bold text-red-600">
-                  {statsLoading ? "â€¦" : stats.overdue}
+                  {statsLoading ? "..." : stats.overdue}
                 </p>
               </div>
             </div>
@@ -1391,7 +1391,7 @@ export default function PledgeList() {
               <div>
                 <p className="text-xs text-zinc-500">Total Outstanding</p>
                 <p className="text-xl font-bold text-amber-600">
-                  {statsLoading ? "â€¦" : formatCurrency(stats.total_value)}
+                  {statsLoading ? "..." : formatCurrency(stats.total_value)}
                 </p>
               </div>
             </div>
@@ -1735,7 +1735,7 @@ export default function PledgeList() {
                               size="icon-sm"
                               disabled={printingId === pledge.id}
                               onClick={(e) => handleActionWithPasskey('print', { id: pledge.id }, e)}
-                              title="A5 Landscape â€” Pre-Printed Form with Data"
+                              title="A5 Landscape - Pre-Printed Form with Data"
                             >
                               {printingId === pledge.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1752,7 +1752,7 @@ export default function PledgeList() {
                               size="icon-sm"
                               disabled={reprintingId === pledge.id}
                               onClick={(e) => handleActionWithPasskey('reprint', { id: pledge.id }, e)}
-                              title="A5 Landscape â€” Pre-Printed Form Reprint"
+                              title="A5 Landscape - Pre-Printed Form Reprint"
                               className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                             >
                               {reprintingId === pledge.id ? (
@@ -1813,7 +1813,7 @@ export default function PledgeList() {
           <div className="px-4 py-3 border-t border-zinc-200 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-zinc-600">
             <div className="flex items-center gap-4">
               <span>
-                Showing <span className="font-medium">{from}</span>â€“
+                Showing <span className="font-medium">{from}</span>-
                 <span className="font-medium">{to}</span> of{" "}
                 <span className="font-medium">{meta.total}</span> pledges
               </span>
@@ -1852,12 +1852,12 @@ export default function PledgeList() {
               </button>
 
               {pageList.map((p, idx) =>
-                p === "â€¦" ? (
+                p === "..." ? (
                   <span
                     key={`e-${idx}`}
                     className="px-2 text-zinc-400 select-none"
                   >
-                    â€¦
+                    ...
                   </span>
                 ) : (
                   <button
@@ -1991,7 +1991,7 @@ export default function PledgeList() {
       <Modal
         isOpen={showReprintReasonModal}
         onClose={() => setShowReprintReasonModal(false)}
-        title="Reprint Barcode â€“ Select Reason"
+        title="Reprint Barcode - Select Reason"
         size="md"
       >
         <div className="space-y-5">
@@ -2020,11 +2020,11 @@ export default function PledgeList() {
                 }}
                 className="w-full px-3 py-2.5 border border-zinc-300 rounded-lg bg-white text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none cursor-pointer"
               >
-                <option value="">â€” Choose a reason â€”</option>
+                <option value="">- Choose a reason -</option>
                 {reprintReasons.map((r) => (
                   <option key={r.id} value={r.reason}>{r.reason}</option>
                 ))}
-                <option value="__custom__">âœï¸ Enter Custom Reason...</option>
+                <option value="__custom__">Enter Custom Reason...</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
             </div>

@@ -96,7 +96,7 @@ export default function PrintTestPage() {
 
 
 
-  // â”€â”€ FUNCTION 1: Print A4 Portrait Data Overlay â”€â”€
+  // "€"€ FUNCTION 1: Print A4 Portrait Data Overlay "€"€
   const printPrePrintedOverlayA4 = async () => {
     if (!selectedPledge) {
       dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
@@ -145,7 +145,7 @@ export default function PrintTestPage() {
   };
 
 
-  // â”€â”€ FUNCTION 2: Open A4 overlay print window â”€â”€
+  // "€"€ FUNCTION 2: Open A4 overlay print window "€"€
   const openA4OverlayPrintWindow = (dataHtml, pledgeNo) => {
     const printWindow = window.open("", "_blank", "width=900,height=1000");
     if (!printWindow) {
@@ -185,16 +185,16 @@ export default function PrintTestPage() {
     </head>
     <body>
       <div class="ctrl">
-        <h2>ðŸ–¨ï¸ A4 Portrait Data Overlay - ${pledgeNo}</h2>
-        <p>Prints <span class="hl">DATA ONLY</span> â€” 2 copies per page</p>
+        <h2> A4 Portrait Data Overlay - ${pledgeNo}</h2>
+        <p>Prints <span class="hl">DATA ONLY</span> - 2 copies per page</p>
         <p>Load pre-printed A4 forms into dot matrix printer first</p>
         <div class="btn-row">
-          <button class="btn-pr" onclick="window.print()">ðŸ–¨ï¸ Print Data</button>
-          <button class="btn-cl" onclick="window.close()">âœ• Close</button>
+          <button class="btn-pr" onclick="window.print()"> Print Data</button>
+          <button class="btn-cl" onclick="window.close()">Close</button>
         </div>
       </div>
       <div class="pw">
-        <div class="pw-label">ðŸ“Š DATA OVERLAY - ${pledgeNo} (A4 Portrait, 2 copies)</div>
+        <div class="pw-label">DATA OVERLAY - ${pledgeNo} (A4 Portrait, 2 copies)</div>
         ${dataHtml}
       </div>
       <script>window.onload = function() { document.querySelector('.btn-pr').focus(); };</script>
@@ -206,7 +206,7 @@ export default function PrintTestPage() {
   };
 
 
-  // â”€â”€ FUNCTION 3: Test alignment with A4 form background â”€â”€
+  // "€"€ FUNCTION 3: Test alignment with A4 form background "€"€
   const testDataOverlayA4 = async () => {
     if (!selectedPledge) {
       dispatch(addToast({ type: "error", title: "Error", message: "Please select a pledge first" }));
@@ -280,7 +280,7 @@ export default function PrintTestPage() {
         </style>
       </head>
       <body>
-        <h1>ðŸ“Š A4 Portrait <span>Data Overlay</span> Alignment</h1>
+        <h1>A4 Portrait <span>Data Overlay</span> Alignment</h1>
         <div class="ctrls">
           <button class="bf" onclick="toggleForm()">Toggle Form</button>
           <button class="bd" onclick="toggleData()">Toggle Data</button>
@@ -474,7 +474,7 @@ export default function PrintTestPage() {
       </head>
       <body>
         <div class="no-print">
-          <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print All Pages</button>
+          <button class="print-btn" onclick="window.print()"> Print All Pages</button>
         </div>
         <div class="page-break">${receiptHtml}</div>
         <div>${termsHtml}</div>
@@ -577,27 +577,27 @@ export default function PrintTestPage() {
       </head>
       <body>
         <div class="print-controls">
-          <h2>ðŸ“„ Cetak Resit DEPAN Sahaja / Print FRONT Only</h2>
+          <h2>Cetak Resit DEPAN Sahaja / Print FRONT Only</h2>
           <p>Kertas dengan Terma & Syarat sudah dicetak sebelum ini</p>
           <p>Paper with Terms & Conditions already pre-printed</p>
           
           <div class="btn-row">
             <button class="print-btn" onclick="printFront()">
-              ðŸ–¨ï¸ Cetak DEPAN / Print FRONT
+               Cetak DEPAN / Print FRONT
             </button>
             ${termsHtml
         ? `
             <button class="print-btn secondary" onclick="toggleTerms()">
-              ðŸ“‹ Tunjuk Terma / Show Terms
+              Tunjuk Terma / Show Terms
             </button>
             `
         : ""
       }
-            <button class="close-btn" onclick="window.close()">âœ• Tutup / Close</button>
+            <button class="close-btn" onclick="window.close()">Tutup / Close</button>
           </div>
           
           <div class="info-note">
-            ðŸ’¡ <strong>Tip:</strong> Gunakan kertas yang sudah dicetak Terma & Syarat di belakang.
+            <strong>Tip:</strong> Gunakan kertas yang sudah dicetak Terma & Syarat di belakang.
             <br>Use paper already printed with Terms & Conditions on the back.
           </div>
           
@@ -608,7 +608,7 @@ export default function PrintTestPage() {
         
         <div class="preview-container" id="frontPage">
           <div class="page-label">
-            <span>ðŸ“„ HALAMAN DEPAN / FRONT - RESIT PAJAK GADAI</span>
+            <span>HALAMAN DEPAN / FRONT - RESIT PAJAK GADAI</span>
             <span class="badge">${copyLabel}</span>
           </div>
           ${receiptHtml}
@@ -618,7 +618,7 @@ export default function PrintTestPage() {
         ? `
         <div class="preview-container hidden-for-print" id="backPage">
           <div class="page-label terms">
-            <span>ðŸ“‹ HALAMAN BELAKANG / BACK - TERMA & SYARAT (Tersembunyi / Hidden)</span>
+            <span>HALAMAN BELAKANG / BACK - TERMA & SYARAT (Tersembunyi / Hidden)</span>
             <span class="badge">${copyLabel}</span>
           </div>
           ${termsHtml}
@@ -642,9 +642,9 @@ export default function PrintTestPage() {
               backPage.classList.toggle('hidden-for-print');
               const btn = event.target;
               if (backPage.classList.contains('hidden-for-print')) {
-                btn.textContent = 'ðŸ“‹ Tunjuk Terma / Show Terms';
+                btn.textContent = 'Tunjuk Terma / Show Terms';
               } else {
-                btn.textContent = 'ðŸ“‹ Sembunyi Terma / Hide Terms';
+                btn.textContent = 'Sembunyi Terma / Hide Terms';
               }
             }
           }
@@ -693,8 +693,8 @@ export default function PrintTestPage() {
       </head>
       <body>
         <div class="print-controls">
-          <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Cetak / Print</button>
-          <button class="close-btn" onclick="window.close()">âœ• Tutup / Close</button>
+          <button class="print-btn" onclick="window.print()"> Cetak / Print</button>
+          <button class="close-btn" onclick="window.close()">Tutup / Close</button>
           <p class="printer-note">Pilih printer: <strong>Epson LQ-310</strong> | Saiz kertas: <strong>A5 Landscape</strong></p>
         </div>
         <div class="receipt-container">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
@@ -839,7 +839,7 @@ export default function PrintTestPage() {
     }
   };
 
-  // Download Renewal PDF â€” expects a renewal ID
+  // Download Renewal PDF - expects a renewal ID
   const [renewalIdInput, setRenewalIdInput] = useState("16");
   const testDownloadRenewalPdf = async () => {
     if (!renewalIdInput) {
@@ -896,7 +896,7 @@ export default function PrintTestPage() {
     }
   };
 
-  // Owner Dashboard test â€” date picker, defaults to today
+  // Owner Dashboard test - date picker, defaults to today
   const [ownerDashboardDate, setOwnerDashboardDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -957,7 +957,7 @@ export default function PrintTestPage() {
 
   const [redemptionIdInput, setRedemptionIdInput] = useState("16");
   
-  // Download Redemption PDF â€” downloads redemption by ID
+  // Download Redemption PDF - downloads redemption by ID
   const testDownloadRedemptionPdf = async () => {
     if (!redemptionIdInput) {
       dispatch(addToast({ type: "error", title: "Error", message: "Please enter a redemption ID first" }));
@@ -1602,10 +1602,10 @@ export default function PrintTestPage() {
       <div class="labels-wrapper">${barcodeLabels}</div>
       <script>
         window.onload = function() { 
-      //    window.print(); 
+      // window.print(); 
         };
         window.onafterprint = function() {
-       //    window.close();
+       // window.close();
        };
       </script>
     </body>
@@ -1748,19 +1748,19 @@ export default function PrintTestPage() {
       </head>
       <body>
         <div class="print-controls">
-          <h2>ðŸ“‹ Bulk Terms & Conditions</h2>
+          <h2>Bulk Terms & Conditions</h2>
           <p>${count} pages ready to print</p>
           <p>Pre-print these pages, then use them as receipt paper (front side only)</p>
           
           <div class="btn-row">
             <button class="print-btn" onclick="window.print()">
-              ðŸ–¨ï¸ Print All ${count} Pages
+               Print All ${count} Pages
             </button>
-            <button class="close-btn" onclick="window.close()">âœ• Close</button>
+            <button class="close-btn" onclick="window.close()">Close</button>
           </div>
           
           <div class="info-box">
-            <p>ðŸ“Œ <strong>Workflow:</strong></p>
+            <p><strong>Workflow:</strong></p>
             <p>1. Print these ${count} Terms & Conditions pages</p>
             <p>2. Use as pre-printed paper stock</p>
             <p>3. When creating pledges, print only the FRONT (receipt) page</p>
@@ -1769,7 +1769,7 @@ export default function PrintTestPage() {
         </div>
         
         <div class="preview-container">
-          <div class="preview-label">ðŸ“‹ PREVIEW - ${count} TERMA & SYARAT PAGES</div>
+          <div class="preview-label">PREVIEW - ${count} TERMA & SYARAT PAGES</div>
           ${termsHtml}
         </div>
       </body>
@@ -1924,21 +1924,21 @@ export default function PrintTestPage() {
       </head>
       <body>
         <div class="ctrl">
-          <h2>ðŸ“ Pre-Printed Blank Form / Borang Kosong Pra-Cetak</h2>
-          <p><span class="highlight">${count} set(s)</span> â€” ${pageLabel}</p>
+          <h2>Pre-Printed Blank Form / Borang Kosong Pra-Cetak</h2>
+          <p><span class="highlight">${count} set(s)</span> - ${pageLabel}</p>
           <p>Print these blank forms on white A5 paper for future use</p>
           
           <div class="btn-row">
-            ${hasFront && hasBack ? `<button class="pr" onclick="printAll()">ðŸ–¨ï¸ Print All (${frontPages + backPages} pages)</button>` : ""}
-            ${hasFront ? `<button class="front-btn" onclick="printFront()">ðŸ“„ Print FRONT (${frontPages} pages)</button>` : ""}
-            ${hasBack ? `<button class="back-btn" onclick="printBack()">ðŸ“‹ Print BACK (${backPages} pages)</button>` : ""}
-            <button class="cl" onclick="window.close()">âœ• Close</button>
+            ${hasFront && hasBack ? `<button class="pr" onclick="printAll()"> Print All (${frontPages + backPages} pages)</button>` : ""}
+            ${hasFront ? `<button class="front-btn" onclick="printFront()">Print FRONT (${frontPages} pages)</button>` : ""}
+            ${hasBack ? `<button class="back-btn" onclick="printBack()">Print BACK (${backPages} pages)</button>` : ""}
+            <button class="cl" onclick="window.close()">Close</button>
           </div>
         </div>
 
         ${hasFront
         ? `
-        <div class="plabel">ðŸ“„ PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
+        <div class="plabel">PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
         <div class="pw" id="frontSection">${frontHtml}</div>
         `
         : ""
@@ -1946,7 +1946,7 @@ export default function PrintTestPage() {
         
         ${hasBack
         ? `
-        <div class="plabel" id="backLabel">ðŸ“‹ PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
+        <div class="plabel" id="backLabel">PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
         <div class="pw" id="backSection">${backHtml}</div>
         `
         : ""
@@ -1991,70 +1991,70 @@ export default function PrintTestPage() {
 
   // Print Pre-Printed Form A4 (Blank Template)
   // const printPrePrintedFormA4 = async () => {
-  //   setPrinting(true);
-  //   setPreviewType("Pre-Printed Form A4");
-  //   const startTime = Date.now();
+  // setPrinting(true);
+  // setPreviewType("Pre-Printed Form A4");
+  // const startTime = Date.now();
 
-  //   try {
-  //     const token = getToken();
-  //     const response = await fetch(
-  //       `${apiUrl}/print/dot-matrix/pre-printed-form-a4`,
-  //       {
-  //         method: "POST",
-  //         headers: {
-  //           Authorization: `Bearer ${token}`,
-  //           "Content-Type": "application/json",
-  //           Accept: "application/json",
-  //         },
-  //         body: JSON.stringify({
-  //           count: prePrintedA4Count,
-  //           page: prePrintedA4Page,
-  //         }),
-  //       },
-  //     );
+  // try {
+  // const token = getToken();
+  // const response = await fetch(
+  // `${apiUrl}/print/dot-matrix/pre-printed-form-a4`,
+  // {
+  // method: "POST",
+  // headers: {
+  // Authorization: `Bearer ${token}`,
+  // "Content-Type": "application/json",
+  // Accept: "application/json",
+  // },
+  // body: JSON.stringify({
+  // count: prePrintedA4Count,
+  // page: prePrintedA4Page,
+  // }),
+  // },
+  // );
 
-  //     const data = await response.json();
-  //     const duration = Date.now() - startTime;
+  // const data = await response.json();
+  // const duration = Date.now() - startTime;
 
-  //     if (!response.ok || !data.success) {
-  //       throw new Error(data.message || "Failed to generate A4 pre-printed form");
-  //     }
+  // if (!response.ok || !data.success) {
+  // throw new Error(data.message || "Failed to generate A4 pre-printed form");
+  // }
 
-  //     const frontHtml = data.data?.front_html || "";
-  //     const backHtml = data.data?.back_html || "";
-  //     const count = data.data?.count || prePrintedA4Count;
-  //     const page = data.data?.page || prePrintedA4Page;
+  // const frontHtml = data.data?.front_html || "";
+  // const backHtml = data.data?.back_html || "";
+  // const count = data.data?.count || prePrintedA4Count;
+  // const page = data.data?.page || prePrintedA4Page;
 
-  //     logResult(
-  //       "Pre-Printed Form A4",
-  //       true,
-  //       `${count} page(s) - ${page}`,
-  //       duration,
-  //     );
+  // logResult(
+  // "Pre-Printed Form A4",
+  // true,
+  // `${count} page(s) - ${page}`,
+  // duration,
+  // );
 
-  //     // Open print window with A4 pre-printed form
-  //     openPrePrintedFormWindowA4(frontHtml, backHtml, count, page);
+  // // Open print window with A4 pre-printed form
+  // openPrePrintedFormWindowA4(frontHtml, backHtml, count, page);
 
-  //     dispatch(
-  //       addToast({
-  //         type: "success",
-  //         title: "Success",
-  //         message: `${count} A4 pre-printed form(s) ready (${duration}ms)`,
-  //       }),
-  //     );
-  //   } catch (error) {
-  //     const duration = Date.now() - startTime;
-  //     logResult("Pre-Printed Form A4", false, error.message, duration);
-  //     dispatch(
-  //       addToast({
-  //         type: "error",
-  //         title: "Print Error",
-  //         message: error.message,
-  //       }),
-  //     );
-  //   } finally {
-  //     setPrinting(false);
-  //   }
+  // dispatch(
+  // addToast({
+  // type: "success",
+  // title: "Success",
+  // message: `${count} A4 pre-printed form(s) ready (${duration}ms)`,
+  // }),
+  // );
+  // } catch (error) {
+  // const duration = Date.now() - startTime;
+  // logResult("Pre-Printed Form A4", false, error.message, duration);
+  // dispatch(
+  // addToast({
+  // type: "error",
+  // title: "Print Error",
+  // message: error.message,
+  // }),
+  // );
+  // } finally {
+  // setPrinting(false);
+  // }
   // };
 
 
@@ -2128,147 +2128,147 @@ export default function PrintTestPage() {
   };
 
   // Open A4 pre-printed form print window
-  //   const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page) => {
-  //     const printWindow = window.open("", "_blank", "width=1100,height=900");
-  //     if (!printWindow) {
-  //       dispatch(
-  //         addToast({
-  //           type: "error",
-  //           title: "Popup Blocked",
-  //           message: "Please allow popups",
-  //         }),
-  //       );
-  //       return;
-  //     }
+  // const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page) => {
+  // const printWindow = window.open("", "_blank", "width=1100,height=900");
+  // if (!printWindow) {
+  // dispatch(
+  // addToast({
+  // type: "error",
+  // title: "Popup Blocked",
+  // message: "Please allow popups",
+  // }),
+  // );
+  // return;
+  // }
 
-  //     const hasFront = frontHtml && frontHtml.length > 0;
-  //     const hasBack = backHtml && backHtml.length > 0;
-  //     const pageLabel =
-  //       page === "front"
-  //         ? "FRONT Only"
-  //         : page === "back"
-  //           ? "BACK Only"
-  //           : "FRONT + BACK";
+  // const hasFront = frontHtml && frontHtml.length > 0;
+  // const hasBack = backHtml && backHtml.length > 0;
+  // const pageLabel =
+  // page === "front"
+  // ? "FRONT Only"
+  // : page === "back"
+  // ? "BACK Only"
+  // : "FRONT + BACK";
 
-  //     const frontPages = hasFront ? count : 0;
-  //     const backPages = hasBack ? count : 0;
+  // const frontPages = hasFront ? count : 0;
+  // const backPages = hasBack ? count : 0;
 
-  //     printWindow.document.write(`
-  //     <!DOCTYPE html>
-  //     <html lang="ms">
-  //     <head>
-  //       <meta charset="UTF-8">
-  //       <title>Pre-Printed Form A4 LANDSCAPE - ${count} sets (${pageLabel})</title>
-  //   <style>
-  //   /* Print Bar Styles */
-  //   body { background: #1f2937; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-  //   .print-bar {
-  //     text-align: center; padding: 14px 20px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); 
-  //     margin-bottom: 20px; border-radius: 10px; position: sticky; top: 0; z-index: 100;
-  //     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-  //   }
-  //   .print-bar button {
-  //     padding: 14px 32px; font-size: 15px; cursor: pointer; border: none;
-  //     border-radius: 8px; font-weight: bold; transition: all 0.2s;
-  //     background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff;
-  //   }
-  //   .print-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
-  //   .print-bar .info { color: #fbbf24; font-size: 12px; margin-top: 10px; }
+  // printWindow.document.write(`
+  // <!DOCTYPE html>
+  // <html lang="ms">
+  // <head>
+  // <meta charset="UTF-8">
+  // <title>Pre-Printed Form A4 LANDSCAPE - ${count} sets (${pageLabel})</title>
+  // <style>
+  // /* Print Bar Styles */
+  // body { background: #1f2937; margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+  // .print-bar {
+  // text-align: center; padding: 14px 20px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); 
+  // margin-bottom: 20px; border-radius: 10px; position: sticky; top: 0; z-index: 100;
+  // box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  // }
+  // .print-bar button {
+  // padding: 14px 32px; font-size: 15px; cursor: pointer; border: none;
+  // border-radius: 8px; font-weight: bold; transition: all 0.2s;
+  // background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff;
+  // }
+  // .print-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+  // .print-bar .info { color: #fbbf24; font-size: 12px; margin-top: 10px; }
 
-  //   .plabel {
-  //     text-align: center; font-size: 12px; color: #9ca3af;
-  //     margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
-  //   }
-  //   .pw {
-  //     width: 100%; max-width: 297mm; margin: 0 auto 25px;
-  //     box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-  //     border-radius: 4px; overflow: hidden; background: #fff;
-  //   }
+  // .plabel {
+  // text-align: center; font-size: 12px; color: #9ca3af;
+  // margin: 20px 0 8px; font-weight: bold; letter-spacing: 1px;
+  // }
+  // .pw {
+  // width: 100%; max-width: 297mm; margin: 0 auto 25px;
+  // box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  // border-radius: 4px; overflow: hidden; background: #fff;
+  // }
 
-  //   /* Print Styles */
-  //   @page { 
-  //     size: auto;
-  //     margin: 0; 
-  //   }
+  // /* Print Styles */
+  // @page { 
+  // size: auto;
+  // margin: 0; 
+  // }
 
-  //   @media print {
-  //     html, body { 
-  //       margin: 0 !important; 
-  //       padding: 0 !important;
-  //       background: #fff !important;
-  //       -webkit-print-color-adjust: exact !important;
-  //       print-color-adjust: exact !important;
-  //     }
-  //     .print-bar, .plabel { display: none !important; }
-  //     .pw { 
-  //       box-shadow: none !important; 
-  //       border-radius: 0 !important;
-  //       background: #fff !important;
-  //       page-break-inside: avoid !important;
-  //     }
-  //   }
+  // @media print {
+  // html, body { 
+  // margin: 0 !important; 
+  // padding: 0 !important;
+  // background: #fff !important;
+  // -webkit-print-color-adjust: exact !important;
+  // print-color-adjust: exact !important;
+  // }
+  // .print-bar, .plabel { display: none !important; }
+  // .pw { 
+  // box-shadow: none !important; 
+  // border-radius: 0 !important;
+  // background: #fff !important;
+  // page-break-inside: avoid !important;
+  // }
+  // }
 
-  //   /* Portrait - scale the wrapper, not the content */
-  //   @media print and (orientation: portrait) {
-  //     .pw {
-  //       width: 297mm !important;
-  //       max-width: none !important;
-  //       margin: 0 !important;
-  //       padding: 0 !important;
-  //       transform: scale(0.707);
-  //       transform-origin: top left;
-  //     }
-  //     .print-content {
-  //       width: 100% !important;
-  //     }
-  //   }
+  // /* Portrait - scale the wrapper, not the content */
+  // @media print and (orientation: portrait) {
+  // .pw {
+  // width: 297mm !important;
+  // max-width: none !important;
+  // margin: 0 !important;
+  // padding: 0 !important;
+  // transform: scale(0.707);
+  // transform-origin: top left;
+  // }
+  // .print-content {
+  // width: 100% !important;
+  // }
+  // }
 
-  //   /* Landscape - full size */
-  //   @media print and (orientation: landscape) {
-  //     .pw {
-  //       width: 297mm !important;
-  //       max-width: none !important;
-  //       margin: 0 !important;
-  //       padding: 0 !important;
-  //       transform: none;
-  //     }
-  //     .print-content {
-  //       width: 100% !important;
-  //     }
-  //   }
+  // /* Landscape - full size */
+  // @media print and (orientation: landscape) {
+  // .pw {
+  // width: 297mm !important;
+  // max-width: none !important;
+  // margin: 0 !important;
+  // padding: 0 !important;
+  // transform: none;
+  // }
+  // .print-content {
+  // width: 100% !important;
+  // }
+  // }
   // </style>
-  //     </head>
-  //     <body>
-  //       <div class="print-bar">
-  //         <button onclick="window.print()">ðŸ–¨ï¸ Print</button>
-  //       </div>
+  // </head>
+  // <body>
+  // <div class="print-bar">
+  // <button onclick="window.print()"> Print</button>
+  // </div>
 
-  //       ${hasFront ? `
-  // <div class="plabel">ðŸ“„ PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
+  // ${hasFront ? `
+  // <div class="plabel">PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
   // <div class="pw" id="frontSection">
-  //   <div class="print-content">${frontHtml}</div>
+  // <div class="print-content">${frontHtml}</div>
   // </div>
   // ` : ""}
 
   // ${hasBack ? `
-  // <div class="plabel" id="backLabel">ðŸ“‹ PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
+  // <div class="plabel" id="backLabel">PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
   // <div class="pw" id="backSection">
-  //   <div class="print-content">${backHtml}</div>
+  // <div class="print-content">${backHtml}</div>
   // </div>
   // ` : ""}
 
-  //       <script>
-  //         window.onload = function() {
-  //           const btn = document.querySelector('.print-bar button');
-  //           if(btn) btn.focus();
-  //         };
-  //       </script>
-  //     </body>
-  //     </html>
-  //   `);
-  //     printWindow.document.close();
-  //     printWindow.focus();
-  //   };
+  // <script>
+  // window.onload = function() {
+  // const btn = document.querySelector('.print-bar button');
+  // if(btn) btn.focus();
+  // };
+  // </script>
+  // </body>
+  // </html>
+  // `);
+  // printWindow.document.close();
+  // printWindow.focus();
+  // };
 
   // Open A4 pre-printed form print window
   const openPrePrintedFormWindowA4 = (frontHtml, backHtml, count, page, orientation = "landscape") => {
@@ -2383,24 +2383,24 @@ export default function PrintTestPage() {
   </head>
   <body>
     <div class="print-bar">
-      <button onclick="window.print()">ðŸ–¨ï¸ Print ${count} Form(s)</button>
-      <span class="orientation-badge">${isPortrait ? "ðŸ“„ Portrait - Paper Saver" : "ðŸ“ Landscape - Full A4"}</span>
+      <button onclick="window.print()"> Print ${count} Form(s)</button>
+      <span class="orientation-badge">${isPortrait ? "Portrait - Paper Saver" : "Landscape - Full A4"}</span>
       <div class="info">
         ${isPortrait
-        ? "âœ‚ï¸ Custom size: 210mm Ã— 155mm (saves ~45% paper)"
-        : "ðŸ“„ Full A4: 297mm Ã— 210mm"}
+        ? " Custom size: 210mm x 155mm (saves ~45% paper)"
+        : "Full A4: 297mm x 210mm"}
       </div>
     </div>
 
     ${hasFront ? `
-    <div class="plabel">ðŸ“„ PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
+    <div class="plabel">PREVIEW - FRONT / DEPAN (${frontPages} pages)</div>
     <div class="pw" id="frontSection">
       <div class="print-content">${frontHtml}</div>
     </div>
     ` : ""}
 
     ${hasBack ? `
-    <div class="plabel" id="backLabel">ðŸ“‹ PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
+    <div class="plabel" id="backLabel">PREVIEW - BACK / BELAKANG (${backPages} pages)</div>
     <div class="pw" id="backSection">
       <div class="print-content">${backHtml}</div>
     </div>
@@ -2524,7 +2524,7 @@ export default function PrintTestPage() {
           </style>
         </head>
         <body>
-          <h1>ðŸ“Š <span>Data Overlay</span> Alignment Test</h1>
+          <h1><span>Data Overlay</span> Alignment Test</h1>
           <div class="controls">
             <button class="btn-form" onclick="toggleForm()">Toggle Form Background</button>
             <button class="btn-data" onclick="toggleData()">Toggle Data Layer</button>
@@ -2790,15 +2790,15 @@ export default function PrintTestPage() {
       </head>
       <body>
         <div class="ctrl">
-          <h2>ðŸ”€ Pre-Printed Overlay Test - ${pledgeNo}</h2>
+          <h2>Pre-Printed Overlay Test - ${pledgeNo}</h2>
           <p>Check if data aligns with pre-printed form fields</p>
-          <p class="highlight">âš ï¸ Adjust CSS positions in controller if misaligned</p>
+          <p class="highlight">Adjust CSS positions in controller if misaligned</p>
           <div class="btn-row">
-            <button class="btn-form" onclick="showForm()">ðŸ“„ Form Only</button>
-            <button class="btn-data" onclick="showData()">ðŸ“ Data Only</button>
-            <button class="btn-both" onclick="showBoth()">ðŸ”€ Both Layers</button>
-            <button class="btn-print" onclick="window.print()">ðŸ–¨ï¸ Print Data Only</button>
-            <button class="btn-close" onclick="window.close()">âœ• Close</button>
+            <button class="btn-form" onclick="showForm()">Form Only</button>
+            <button class="btn-data" onclick="showData()">Data Only</button>
+            <button class="btn-both" onclick="showBoth()">Both Layers</button>
+            <button class="btn-print" onclick="window.print()"> Print Data Only</button>
+            <button class="btn-close" onclick="window.close()">Close</button>
           </div>
         </div>
         <div class="preview-container">
@@ -2808,13 +2808,13 @@ export default function PrintTestPage() {
                 <div class="pp-hdr-left">
                   <div class="pp-co-info">
                     <div class="pp-co-name">PAJAK GADAI SDN BHD</div>
-                    <div class="pp-co-multi">æ–°æ³°ç•¶ à®…à®Ÿà®•à¯ à®•à®Ÿà¯ˆ</div>
+                    <div class="pp-co-multi">–• …• •</div>
                     <div class="pp-co-addr">123 Jalan Utama, 55100 Kuala Lumpur.</div>
                   </div>
                 </div>
                 <div class="pp-hdr-right">
                   <div class="pp-top-row">
-                    <div class="pp-phone-box"><span class="pp-phone-icon">â˜Ž</span><div class="pp-phone-nums">03-12345678</div></div>
+                    <div class="pp-phone-box"><span class="pp-phone-icon"></span><div class="pp-phone-nums">03-12345678</div></div>
                     <div class="pp-sejak"><span class="pp-sejak-lbl">SEJAK</span><span class="pp-sejak-yr">1966</span></div>
                   </div>
                   <div class="pp-hrs-box"><div class="pp-hrs-title">BUKA 7 HARI</div><div class="pp-hrs-line">ISNIN - AHAD : 9.00AM - 6.00PM</div></div>
@@ -3758,7 +3758,7 @@ export default function PrintTestPage() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <p className="font-medium text-zinc-800">Barcode Labels</p>
-                        <p className="text-xs text-zinc-500">50mm Ã— 50mm</p>
+                        <p className="text-xs text-zinc-500">50mm x 50mm</p>
                       </div>
                       <Badge variant="warning">Labels</Badge>
                     </div>
@@ -3785,7 +3785,7 @@ export default function PrintTestPage() {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <p className="font-medium text-zinc-800">Barcode Labels</p>
-                  <p className="text-xs text-zinc-500">50mm Ã— 50mm</p>
+                  <p className="text-xs text-zinc-500">50mm x 50mm</p>
                 </div>
                 <Badge variant="warning">Labels</Badge>
               </div>
@@ -3808,7 +3808,7 @@ export default function PrintTestPage() {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <p className="font-medium text-red-800">Reprint Barcode</p>
-                  <p className="text-xs text-red-500">50mm Ã— 50mm with REPRINT mark</p>
+                  <p className="text-xs text-red-500">50mm x 50mm with REPRINT mark</p>
                 </div>
                 <Badge variant="danger">Reprint</Badge>
               </div>
@@ -3900,7 +3900,7 @@ export default function PrintTestPage() {
                   Print {bulkTermsCount} Terms Pages
                 </Button>
                 <p className="text-xs text-violet-500 mt-2">
-                  ðŸ’¡ Pre-print terms, then print only front page when creating
+                  Pre-print terms, then print only front page when creating
                   pledges
                 </p>
               </div> */}
@@ -3957,7 +3957,7 @@ export default function PrintTestPage() {
                   Print {prePrintedCount} Blank Form(s)
                 </Button>
                 <p className="text-xs text-emerald-500 mt-2">
-                  ðŸ“ Blank forms with all labels, borders & styling - no
+                  Blank forms with all labels, borders & styling - no
                   customer data
                 </p>
               </div>
@@ -4011,7 +4011,7 @@ export default function PrintTestPage() {
                     disabled={printing}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    ðŸ“ Landscape
+                    Landscape
                   </Button>
                   <Button
                     variant="primary"
@@ -4022,12 +4022,12 @@ export default function PrintTestPage() {
                     disabled={printing}
                     className="bg-emerald-600 hover:bg-emerald-700"
                   >
-                    ðŸ“„ Portrait
+                    Portrait
                   </Button>
                 </div>
 
                 <p className="text-xs text-amber-500 mt-2">
-                  ðŸ“ Landscape = Full A4 | ðŸ“„ Portrait = Saves ~45% paper
+                  Landscape = Full A4 | Portrait = Saves ~45% paper
                 </p>
               </div>
 
@@ -4057,7 +4057,7 @@ export default function PrintTestPage() {
                   Preview Data Overlay
                 </Button>
                 <p className="text-xs text-cyan-500 mt-2">
-                  ðŸ” Toggle layers to check data positioning accuracy
+                  Toggle layers to check data positioning accuracy
                 </p>
               </div>
 
@@ -4098,7 +4098,7 @@ export default function PrintTestPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-sky-500 mt-2">
-                  ðŸ–¨ï¸ Load pre-printed A4 forms, then print data only via dot matrix
+                   Load pre-printed A4 forms, then print data only via dot matrix
                 </p>
               </div>
 
@@ -4129,7 +4129,7 @@ export default function PrintTestPage() {
                   View Renewal on Form
                 </Button>
                 <p className="text-xs text-orange-500 mt-2">
-                  ï¿½ Shows data on form template â€” check alignment
+                   Shows data on form template - check alignment
                 </p>
               </div>
 
@@ -4159,14 +4159,14 @@ export default function PrintTestPage() {
                   View Redemption on Form
                 </Button>
                 <p className="text-xs text-rose-500 mt-2">
-                  ðŸ“„ Shows data on form template â€” check alignment
+                  Shows data on form template - check alignment
                 </p>
               </div>
 
-              {/* â”€â”€ PDF Download Tests â”€â”€ */}
+              {/* "€"€ PDF Download Tests "€"€ */}
               <div className="pt-3 border-t border-zinc-200">
                 <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                  ðŸ“¥ PDF Downloads (A5 Landscape)
+                  PDF Downloads (A5 Landscape)
                 </p>
 
                 {/* Pledge PDF */}
@@ -4191,7 +4191,7 @@ export default function PrintTestPage() {
                     Download Pledge PDF
                   </Button>
                   <p className="text-xs text-indigo-400 mt-2">
-                    ðŸ”— GET /print/pdf/pledge/{selectedPledge?.id ?? "..."}
+                    GET /print/pdf/pledge/{selectedPledge?.id ?? "..."}
                   </p>
                 </div>
 
@@ -4228,7 +4228,7 @@ export default function PrintTestPage() {
                     Download Renewal PDF
                   </Button>
                   <p className="text-xs text-orange-400 mt-2">
-                    ðŸ”— GET /print/pdf/renewal/{renewalIdInput || "..."}
+                    GET /print/pdf/renewal/{renewalIdInput || "..."}
                   </p>
                 </div>
 
@@ -4265,7 +4265,7 @@ export default function PrintTestPage() {
                     Download Redemption PDF
                   </Button>
                   <p className="text-xs text-rose-400 mt-2">
-                    ðŸ”— GET /print/pdf/redemption/{redemptionIdInput || "..."}
+                    GET /print/pdf/redemption/{redemptionIdInput || "..."}
                   </p>
                 </div>
 
@@ -4279,7 +4279,7 @@ export default function PrintTestPage() {
                     <Badge className="bg-emerald-500 text-white">Dashboard</Badge>
                   </div>
 
-                  {/* Date picker â€” choose any date with data to verify the populated layout */}
+                  {/* Date picker - choose any date with data to verify the populated layout */}
                   <div className="mb-2">
                     <label className="block text-xs font-medium text-emerald-700 mb-1">
                       Report Date
@@ -4319,7 +4319,7 @@ export default function PrintTestPage() {
                     Download Dashboard for {ownerDashboardDate}
                   </Button>
                   <p className="text-xs text-emerald-400 mt-2">
-                    ðŸ”— GET /print/owner-dashboard-test?date={ownerDashboardDate}
+                    GET /print/owner-dashboard-test?date={ownerDashboardDate}
                   </p>
                 </div>
               </div>
@@ -4396,7 +4396,7 @@ export default function PrintTestPage() {
                         : "bg-zinc-100 text-zinc-600",
                     )}
                   >
-                    {showTerms ? "ðŸ“„ Receipt" : "ðŸ“‹ Terms"}
+                    {showTerms ? "Receipt" : "Terms"}
                   </button>
                 )}
                 {previewType && (
@@ -4472,7 +4472,7 @@ export default function PrintTestPage() {
       <Modal
         isOpen={showReprintModal}
         onClose={() => setShowReprintModal(false)}
-        title="Reprint Barcode â€“ Select Reason"
+        title="Reprint Barcode - Select Reason"
         size="md"
       >
         <div className="space-y-5">
@@ -4506,13 +4506,13 @@ export default function PrintTestPage() {
                 }}
                 className="w-full px-3 py-2.5 border border-zinc-300 rounded-lg bg-white text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none cursor-pointer"
               >
-                <option value="">â€” Choose a reason â€”</option>
+                <option value="">- Choose a reason -</option>
                 {reprintReasons.map((r) => (
                   <option key={r.id} value={r.reason}>
                     {r.reason}
                   </option>
                 ))}
-                <option value="__custom__">âœï¸ Enter Custom Reason...</option>
+                <option value="__custom__"> Enter Custom Reason...</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
             </div>
