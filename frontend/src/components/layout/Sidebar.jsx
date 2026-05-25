@@ -216,11 +216,7 @@ export default function Sidebar() {
           // Construct full URL if needed
           let fullUrl = logoUrl;
           if (!logoUrl.startsWith("http")) {
-            const baseUrl =
-              window.location.hostname === "localhost" ||
-                window.location.hostname === "127.0.0.1"
-                ? "http://localhost:8000"
-                : window.location.origin;
+            const baseUrl = (import.meta.env.VITE_API_URL || `${window.location.origin}/api`).replace('/api', '');
             fullUrl = baseUrl + (logoUrl.startsWith("/") ? "" : "/") + logoUrl;
           }
 

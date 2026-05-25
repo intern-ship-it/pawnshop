@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Renewal Screen - Process interest payment and extend pledge period
  * API Integrated Version
  *
@@ -687,7 +687,7 @@ export default function RenewalScreen() {
   // Issue 5 FIX: Auto-trigger receipt print, barcode, and WhatsApp after successful renewal
   const autoTriggerPostRenewal = async (result) => {
     const token = getToken();
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
     // Auto-print receipt
     try {
@@ -906,22 +906,22 @@ export default function RenewalScreen() {
     <body>
       <div class="print-controls">
         <div class="step-indicator">
-          <div class="step active" id="step1-indicator">① DEPAN / FRONT</div>
-          <div class="step pending" id="step2-indicator">② BELAKANG / BACK</div>
+          <div class="step active" id="step1-indicator">â‘  DEPAN / FRONT</div>
+          <div class="step pending" id="step2-indicator">â‘¡ BELAKANG / BACK</div>
         </div>
         
         <div class="btn-row">
           <button class="print-btn" id="printFrontBtn" onclick="printFront()">
-            🖨️ Cetak DEPAN / Print FRONT
+            ðŸ–¨ï¸ Cetak DEPAN / Print FRONT
           </button>
           <button class="print-btn green" id="printBackBtn" onclick="printBack()" disabled>
-            🔄 Cetak BELAKANG / Print BACK
+            ðŸ”„ Cetak BELAKANG / Print BACK
           </button>
-          <button class="close-btn" onclick="window.close()">✕ Tutup</button>
+          <button class="close-btn" onclick="window.close()">âœ• Tutup</button>
         </div>
         
         <div class="flip-instructions" id="flipInstructions" style="display: none;">
-          <div class="icon">🔄📄</div>
+          <div class="icon">ðŸ”„ðŸ“„</div>
           <h3>PUSING KERTAS / FLIP PAPER</h3>
           <p>1. Keluarkan kertas dari printer / Remove paper from printer</p>
           <p>2. <strong>Pusing kertas</strong> dan masukkan semula / <strong>Flip paper</strong> and reinsert</p>
@@ -935,7 +935,7 @@ export default function RenewalScreen() {
       
       <div class="page" id="frontPage">
         <div class="page-label">
-          <span>📄 HALAMAN DEPAN / FRONT - RESIT PEMBAHARUAN</span>
+          <span>ðŸ“„ HALAMAN DEPAN / FRONT - RESIT PEMBAHARUAN</span>
           <span class="badge">${copyLabel}</span>
         </div>
         ${receiptHtml}
@@ -943,7 +943,7 @@ export default function RenewalScreen() {
       
       <div class="page hidden-for-print" id="backPage">
         <div class="page-label terms">
-          <span>📋 HALAMAN BELAKANG / BACK - TERMA & SYARAT</span>
+          <span>ðŸ“‹ HALAMAN BELAKANG / BACK - TERMA & SYARAT</span>
           <span class="badge">${copyLabel}</span>
         </div>
         ${termsHtml}
@@ -960,7 +960,7 @@ export default function RenewalScreen() {
             currentStep = 2;
             document.getElementById('step1-indicator').classList.remove('active');
             document.getElementById('step1-indicator').classList.add('completed');
-            document.getElementById('step1-indicator').textContent = '✓ DEPAN / FRONT';
+            document.getElementById('step1-indicator').textContent = 'âœ“ DEPAN / FRONT';
             document.getElementById('step2-indicator').classList.remove('pending');
             document.getElementById('step2-indicator').classList.add('active');
             document.getElementById('printFrontBtn').disabled = true;
@@ -978,9 +978,9 @@ export default function RenewalScreen() {
           setTimeout(function() {
             document.getElementById('step2-indicator').classList.remove('active');
             document.getElementById('step2-indicator').classList.add('completed');
-            document.getElementById('step2-indicator').textContent = '✓ BELAKANG / BACK';
+            document.getElementById('step2-indicator').textContent = 'âœ“ BELAKANG / BACK';
             document.getElementById('printBackBtn').disabled = true;
-            document.getElementById('flipInstructions').innerHTML = '<div class="icon">✅</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
+            document.getElementById('flipInstructions').innerHTML = '<div class="icon">âœ…</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
           }, 1000);
         }
         
@@ -1001,7 +1001,7 @@ export default function RenewalScreen() {
       if (!token) return;
 
       const apiUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+        import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
       const response = await fetch(
         `${apiUrl}/print/dot-matrix/pre-printed-with-form/renewal/${renewalId}`,
@@ -1090,7 +1090,7 @@ export default function RenewalScreen() {
       }
 
       const apiUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+        import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
       // Use reprint endpoint - adds "(REPRINT)" labels to copies
       const response = await fetch(
@@ -1243,7 +1243,7 @@ export default function RenewalScreen() {
           addToast({
             type: "warning",
             title: "WhatsApp Not Configured",
-            message: "Set up WhatsApp in Settings → WhatsApp",
+            message: "Set up WhatsApp in Settings â†’ WhatsApp",
           }),
         );
       } else {
@@ -1274,7 +1274,7 @@ export default function RenewalScreen() {
     }
 
     const token = getToken();
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
     if (!token) {
       dispatch(addToast({ type: "error", title: "Error", message: "Please login again" }));
@@ -1409,7 +1409,7 @@ export default function RenewalScreen() {
     }
     setIsPrintingReceipt(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
       const response = await fetch(`${apiUrl}/print/pdf/renewal/${renewalId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1785,7 +1785,7 @@ export default function RenewalScreen() {
                         </Badge>
                       </div>
                       <p className="text-sm text-zinc-500">
-                        {formatIC(pledge.customerIC)} •{" "}
+                        {formatIC(pledge.customerIC)} â€¢{" "}
                         {formatPhone(pledge.customerPhone)}
                       </p>
                     </div>
@@ -1904,7 +1904,7 @@ export default function RenewalScreen() {
                           (item.slot_id ? `S${item.slot_id}` : "");
 
                         let location = vaultCode;
-                        if (boxNum) location += ` → ${boxNum}`;
+                        if (boxNum) location += ` â†’ ${boxNum}`;
                         if (slotNum) location += `${slotNum}`;
                         return location;
                       }
@@ -1953,7 +1953,7 @@ export default function RenewalScreen() {
                                 item.purity?.name ||
                                 item.purity_name ||
                                 item.purity}{" "}
-                              •{" "}
+                              â€¢{" "}
                               {parseFloat(
                                 item.net_weight || item.netWeight || 0,
                               ).toFixed(2)}
@@ -2053,9 +2053,9 @@ export default function RenewalScreen() {
                         variant={rateSource === 'customer' ? 'warning' : rateSource === 'manual' ? 'info' : 'success'}
                         size="sm"
                       >
-                        {rateSource === 'customer' && '👤 Customer Rate'}
-                        {rateSource === 'global' && '🌐 Global Rate'}
-                        {rateSource === 'manual' && '✏️ Manual Override'}
+                        {rateSource === 'customer' && 'ðŸ‘¤ Customer Rate'}
+                        {rateSource === 'global' && 'ðŸŒ Global Rate'}
+                        {rateSource === 'manual' && 'âœï¸ Manual Override'}
                       </Badge>
                     )}
                   </div>
@@ -2203,7 +2203,7 @@ export default function RenewalScreen() {
                         {(parseFloat(cashAmount) || 0) +
                           (parseFloat(transferAmount) || 0) >=
                           totalPayable
-                          ? " ✓"
+                          ? " âœ“"
                           : ` (need ${formatCurrency(totalPayable)})`}
                       </span>
                     </div>
@@ -2418,8 +2418,8 @@ export default function RenewalScreen() {
 
           {/* Issue 5: Show auto-trigger status */}
           <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-            <p>✓ Receipt sent to printer automatically</p>
-            {pledge?.customerPhone && <p>✓ WhatsApp notification sent</p>}
+            <p>âœ“ Receipt sent to printer automatically</p>
+            {pledge?.customerPhone && <p>âœ“ WhatsApp notification sent</p>}
           </div>
 
           <div className="flex gap-3">
@@ -2516,7 +2516,7 @@ export default function RenewalScreen() {
       <Modal
         isOpen={showReprintReasonModal}
         onClose={() => setShowReprintReasonModal(false)}
-        title="Reprint Barcode – Select Reason"
+        title="Reprint Barcode â€“ Select Reason"
         size="md"
       >
         <div className="space-y-5">
@@ -2543,11 +2543,11 @@ export default function RenewalScreen() {
                 }}
                 className="w-full px-3 py-2.5 border border-zinc-300 rounded-lg bg-white text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none cursor-pointer"
               >
-                <option value="">— Choose a reason —</option>
+                <option value="">â€” Choose a reason â€”</option>
                 {rnReprintReasons.map((r) => (
                   <option key={r.id} value={r.reason}>{r.reason}</option>
                 ))}
-                <option value="__custom__">✏️ Enter Custom Reason...</option>
+                <option value="__custom__">âœï¸ Enter Custom Reason...</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
             </div>
@@ -2606,3 +2606,4 @@ export default function RenewalScreen() {
     </PageWrapper>
   );
 }
+

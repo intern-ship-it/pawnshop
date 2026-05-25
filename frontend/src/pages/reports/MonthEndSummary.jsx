@@ -227,8 +227,7 @@ export default function MonthEndSummary() {
     const companyEmail = company.email || "";
 
     // Fetch logo as base64 so it works in the unauthenticated print window
-    const baseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-      ? "http://localhost:8000" : window.location.origin;
+    const baseUrl = (import.meta.env.VITE_API_URL || `${window.location.origin}/api`).replace('/api', '');
     let logoDataUrl = "";
     try {
       const logoRes = await settingsService.getLogo();

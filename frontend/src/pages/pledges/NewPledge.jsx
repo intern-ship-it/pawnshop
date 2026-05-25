@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
@@ -1100,7 +1100,7 @@ export default function NewPledge() {
     setIsPrinting(true);
     try {
       const apiUrl =
-        import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+        import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
       const response = await fetch(
         `${apiUrl}/print/dot-matrix/pledge-receipt/${createdPledgeId}`,
@@ -1180,7 +1180,7 @@ export default function NewPledge() {
   // Auto-print sequence
   const triggerAutoPrint = async (pledgeId) => {
     const token = getToken();
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
     if (!token || !pledgeId) return;
 
@@ -1287,13 +1287,13 @@ export default function NewPledge() {
               <body>
                 <div class="print-actions">
                   <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-                    📄 A5 Pre-Printed Form - ${pledgeNo}
+                    ðŸ“„ A5 Pre-Printed Form - ${pledgeNo}
                   </p>
                   <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
                     A5 Pre-Printed Form Template + Data Overlay (Landscape)
                   </p>
-                  <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-                  <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+                  <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print</button>
+                  <button class="print-btn close-btn" onclick="window.close()">âœ– Close</button>
                 </div>
 
                 <div class="print-container">
@@ -1442,13 +1442,13 @@ export default function NewPledge() {
           updateJobStatus(
             "whatsapp",
             "skipped",
-            "Not configured - Set up in Settings → WhatsApp",
+            "Not configured - Set up in Settings â†’ WhatsApp",
           );
         } else if (!whatsappConfig?.api_token || !whatsappConfig?.instance_id) {
           updateJobStatus(
             "whatsapp",
             "skipped",
-            "API credentials missing - Check Settings → WhatsApp",
+            "API credentials missing - Check Settings â†’ WhatsApp",
           );
         } else {
           updateJobStatus("whatsapp", "running", "Sending WhatsApp...");
@@ -1472,7 +1472,7 @@ export default function NewPledge() {
           updateJobStatus(
             "whatsapp",
             "skipped",
-            "Not configured - Set up in Settings → WhatsApp",
+            "Not configured - Set up in Settings â†’ WhatsApp",
           );
         } else {
           updateJobStatus("whatsapp", "failed", errorMsg);
@@ -1533,16 +1533,16 @@ export default function NewPledge() {
       <body>
         <div class="print-controls">
           <div class="step-indicator">
-            <div class="step active" id="step1-indicator">① DEPAN / FRONT</div>
-            <div class="step pending" id="step2-indicator">② BELAKANG / BACK</div>
+            <div class="step active" id="step1-indicator">â‘  DEPAN / FRONT</div>
+            <div class="step pending" id="step2-indicator">â‘¡ BELAKANG / BACK</div>
           </div>
           <div class="btn-row">
-            <button class="print-btn" id="printFrontBtn" onclick="printFront()">🖨️ Cetak DEPAN / Print FRONT</button>
-            <button class="print-btn green" id="printBackBtn" onclick="printBack()" disabled>🔄 Cetak BELAKANG / Print BACK</button>
-            <button class="close-btn" onclick="window.close()">✕ Tutup</button>
+            <button class="print-btn" id="printFrontBtn" onclick="printFront()">ðŸ–¨ï¸ Cetak DEPAN / Print FRONT</button>
+            <button class="print-btn green" id="printBackBtn" onclick="printBack()" disabled>ðŸ”„ Cetak BELAKANG / Print BACK</button>
+            <button class="close-btn" onclick="window.close()">âœ• Tutup</button>
           </div>
           <div class="flip-instructions" id="flipInstructions" style="display: none;">
-            <div class="icon">🔄📄</div>
+            <div class="icon">ðŸ”„ðŸ“„</div>
             <h3>PUSING KERTAS / FLIP PAPER</h3>
             <p>1. Keluarkan kertas dari printer / Remove paper from printer</p>
             <p>2. <strong>Pusing kertas</strong> dan masukkan semula / <strong>Flip paper</strong> and reinsert</p>
@@ -1551,11 +1551,11 @@ export default function NewPledge() {
           <p class="printer-note">Printer: <strong>Epson LQ-310</strong> | Kertas: <strong>A5 Landscape</strong> | Salinan: <strong>${copyLabel}</strong></p>
         </div>
         <div class="page" id="frontPage">
-          <div class="page-label"><span>📄 HALAMAN DEPAN / FRONT PAGE - RESIT PAJAK GADAI</span><span class="badge">${copyLabel}</span></div>
+          <div class="page-label"><span>ðŸ“„ HALAMAN DEPAN / FRONT PAGE - RESIT PAJAK GADAI</span><span class="badge">${copyLabel}</span></div>
           ${receiptHtml}
         </div>
         <div class="page hidden-for-print" id="backPage">
-          <div class="page-label terms"><span>📋 HALAMAN BELAKANG / BACK PAGE - TERMA & SYARAT</span><span class="badge">${copyLabel}</span></div>
+          <div class="page-label terms"><span>ðŸ“‹ HALAMAN BELAKANG / BACK PAGE - TERMA & SYARAT</span><span class="badge">${copyLabel}</span></div>
           ${termsHtml}
         </div>
         <script>
@@ -1568,7 +1568,7 @@ export default function NewPledge() {
               currentStep = 2;
               document.getElementById('step1-indicator').classList.remove('active');
               document.getElementById('step1-indicator').classList.add('completed');
-              document.getElementById('step1-indicator').textContent = '✓ DEPAN / FRONT';
+              document.getElementById('step1-indicator').textContent = 'âœ“ DEPAN / FRONT';
               document.getElementById('step2-indicator').classList.remove('pending');
               document.getElementById('step2-indicator').classList.add('active');
               document.getElementById('printFrontBtn').disabled = true;
@@ -1585,9 +1585,9 @@ export default function NewPledge() {
             setTimeout(function() {
               document.getElementById('step2-indicator').classList.remove('active');
               document.getElementById('step2-indicator').classList.add('completed');
-              document.getElementById('step2-indicator').textContent = '✓ BELAKANG / BACK';
+              document.getElementById('step2-indicator').textContent = 'âœ“ BELAKANG / BACK';
               document.getElementById('printBackBtn').disabled = true;
-              document.getElementById('flipInstructions').innerHTML = '<div class="icon">✅</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
+              document.getElementById('flipInstructions').innerHTML = '<div class="icon">âœ…</div><h3>SELESAI / COMPLETE</h3><p>Kedua-dua halaman telah dicetak / Both pages have been printed</p>';
             }, 1000);
           }
           window.onload = function() { document.getElementById('printFrontBtn').focus(); };
@@ -1673,7 +1673,7 @@ export default function NewPledge() {
     if (!createdPledgeId) return;
 
     const token = getToken();
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
     updateJobStatus(jobKey, "running", "Retrying...");
 
@@ -1754,11 +1754,11 @@ export default function NewPledge() {
           const whatsappConfig = configData.data?.config;
 
           if (!configData.success || !whatsappConfig?.is_enabled) {
-            updateJobStatus("whatsapp", "skipped", "Not configured - Set up in Settings → WhatsApp");
+            updateJobStatus("whatsapp", "skipped", "Not configured - Set up in Settings â†’ WhatsApp");
             return;
           }
           if (!whatsappConfig?.api_token || !whatsappConfig?.instance_id) {
-            updateJobStatus("whatsapp", "skipped", "API credentials missing - Check Settings → WhatsApp");
+            updateJobStatus("whatsapp", "skipped", "API credentials missing - Check Settings â†’ WhatsApp");
             return;
           }
 
@@ -1891,7 +1891,7 @@ export default function NewPledge() {
           dispatch(addToast({ type: "error", title: "Required", message: "Please add at least one item with category and weight" }));
           return false;
         }
-        // Check for INCOMPLETE items — has category but no weight, or vice versa
+        // Check for INCOMPLETE items â€” has category but no weight, or vice versa
         const incompleteItems = items.filter((item) => {
           const hasCategory = !!item.category;
           const hasWeight = !!item.weight && parseFloat(item.weight) > 0;
@@ -1974,7 +1974,7 @@ export default function NewPledge() {
       return;
     }
 
-    // ── SAFETY CHECK: Block submission if any items would be silently dropped ──
+    // â”€â”€ SAFETY CHECK: Block submission if any items would be silently dropped â”€â”€
     const validForSubmit = items.filter((item) => item.category && item.weight);
     const droppedCount = items.length - validForSubmit.length;
     if (droppedCount > 0) {
@@ -2091,7 +2091,7 @@ export default function NewPledge() {
         pledgeData.override_interest_rate_overdue = rateOverrides.overdue;
       }
 
-      // ── FRONTEND DEBUG: Track items before & after filtering ──
+      // â”€â”€ FRONTEND DEBUG: Track items before & after filtering â”€â”€
       // This helps trace if items were dropped by the .filter() on line 1960
       pledgeData._debug_frontend = {
         ui_total_items: items.length,                    // Total item rows in UI (before filter)
@@ -2159,7 +2159,7 @@ export default function NewPledge() {
 
     setIsPrinting(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
       const response = await fetch(`${apiUrl}/print/pledge-receipt/${createdPledgeId}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/pdf" },
@@ -2217,7 +2217,7 @@ export default function NewPledge() {
 
     setIsPrinting(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
       const response = await fetch(`${apiUrl}/print/barcodes/${createdPledgeId}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -2253,7 +2253,7 @@ export default function NewPledge() {
     if (!token) { dispatch(addToast({ type: "error", title: "Error", message: "Please login again" })); return; }
     setIsPrinting(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
       const filename = `Pledge-Receipt-${createdPledgeId}.pdf`;
       const pdfUrl = `${apiUrl}/print/pdf/pledge/${createdPledgeId}/${filename}?token=${encodeURIComponent(token)}`;
       const iframe = document.createElement("iframe");
@@ -2275,7 +2275,7 @@ export default function NewPledge() {
 
     setIsPrinting(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
       const response = await fetch(`${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${createdPledgeId}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
@@ -2307,10 +2307,10 @@ export default function NewPledge() {
         </style>
       </head><body>
         <div class="print-actions">
-          <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">📄 HP Print - A5 - ${pledgeNo}</p>
+          <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">ðŸ“„ HP Print - A5 - ${pledgeNo}</p>
           <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">A5 Pre-Printed Form Template + Data Overlay (Landscape)</p>
-          <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-          <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+          <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print</button>
+          <button class="print-btn close-btn" onclick="window.close()">âœ– Close</button>
         </div>
         <div class="print-container">${frontHtml}</div>
         ${backHtml ? `<div class="print-container" style="margin-top: 20px;">${backHtml}</div>` : ""}
@@ -2740,7 +2740,7 @@ export default function NewPledge() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-amber-200"><span className="text-zinc-600">Total Net Value (A)</span><span className="font-semibold text-lg text-zinc-800">{formatCurrency(totals.netValue)}</span></div>
                   <div className="flex justify-between items-center py-2 border-b border-amber-200"><span className="text-zinc-600">Loan Percentage (B)</span><span className="font-semibold text-lg text-zinc-800">{effectivePercentage}%</span></div>
-                  <div className="flex justify-between items-center py-2 border-b border-amber-200"><span className="text-zinc-600">Calculation (A × B)</span><span className="text-zinc-600">{formatCurrency(totals.netValue)} × {effectivePercentage}%</span></div>
+                  <div className="flex justify-between items-center py-2 border-b border-amber-200"><span className="text-zinc-600">Calculation (A Ã— B)</span><span className="text-zinc-600">{formatCurrency(totals.netValue)} Ã— {effectivePercentage}%</span></div>
                   <div className="flex justify-between items-center py-4 bg-amber-500 -mx-6 px-6 rounded-lg mt-2">
                     <span className="text-white font-semibold text-lg">LOAN AMOUNT</span>
                     <div className="flex items-center gap-2">
@@ -2774,7 +2774,7 @@ export default function NewPledge() {
                   {finalLoanAmountOverride !== "" && parseFloat(finalLoanAmountOverride) !== roundedLoanAmount && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-amber-700 bg-amber-100 rounded-lg px-3 py-1.5">
                       <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>Auto-calculated: {formatCurrency(roundedLoanAmount)} — You have manually set: {formatCurrency(parseFloat(finalLoanAmountOverride) || 0)}</span>
+                      <span>Auto-calculated: {formatCurrency(roundedLoanAmount)} â€” You have manually set: {formatCurrency(parseFloat(finalLoanAmountOverride) || 0)}</span>
                     </div>
                   )}
                 </div>
@@ -2837,7 +2837,7 @@ export default function NewPledge() {
                           <div key={rate.id} className="flex items-center gap-1 flex-1 min-w-max">
                             <button type="button" onClick={() => { setInterestScenario(rate.id); setEditingRateId(null); }} className={cn("px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1 whitespace-nowrap", bgClass)}>
                               {rate.name || rate.rate_type} ({displayRate.toFixed(2)}%)
-                              {hasOverride && <span className="ml-1 text-xs opacity-75">✎</span>}
+                              {hasOverride && <span className="ml-1 text-xs opacity-75">âœŽ</span>}
                             </button>
                             <button
                               type="button"
@@ -3200,9 +3200,9 @@ export default function NewPledge() {
                                               <p className="text-[10px] text-zinc-600 font-semibold mb-0.5">{occupiedItems.length} Item{occupiedItems.length > 1 ? 's' : ''} in this slot:</p>
                                               {occupiedItems.map((occItem, occIdx) => (
                                                 <div key={occItem.id || occIdx} className={cn("text-[10px]", occIdx > 0 && "mt-1 pt-1 border-t border-zinc-100")}>
-                                                  <p className="text-zinc-600"><span className="font-medium">#{occIdx + 1} Category:</span> {occItem.category?.name_en || occItem.category?.name || '—'}</p>
-                                                  <p className="text-zinc-600"><span className="font-medium">Purity:</span> {occItem.purity?.code || occItem.purity?.name || '—'}</p>
-                                                  <p className="text-zinc-600"><span className="font-medium">Weight:</span> {occItem.net_weight || occItem.gross_weight || '—'}g</p>
+                                                  <p className="text-zinc-600"><span className="font-medium">#{occIdx + 1} Category:</span> {occItem.category?.name_en || occItem.category?.name || 'â€”'}</p>
+                                                  <p className="text-zinc-600"><span className="font-medium">Purity:</span> {occItem.purity?.code || occItem.purity?.name || 'â€”'}</p>
+                                                  <p className="text-zinc-600"><span className="font-medium">Weight:</span> {occItem.net_weight || occItem.gross_weight || 'â€”'}g</p>
                                                   {occItem.description && <p className="text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occItem.description}</p>}
                                                 </div>
                                               ))}
@@ -3278,9 +3278,9 @@ export default function NewPledge() {
                                       <p className="text-[10px] text-zinc-600 font-semibold mb-0.5">{occupiedItems.length} Item{occupiedItems.length > 1 ? 's' : ''} in this slot:</p>
                                       {occupiedItems.map((occItem, occIdx) => (
                                         <div key={occItem.id || occIdx} className={cn("text-[10px]", occIdx > 0 && "mt-1 pt-1 border-t border-zinc-100")}>
-                                          <p className="text-zinc-600"><span className="font-medium">#{occIdx + 1} Category:</span> {occItem.category?.name_en || occItem.category?.name || '—'}</p>
-                                          <p className="text-zinc-600"><span className="font-medium">Purity:</span> {occItem.purity?.code || occItem.purity?.name || '—'}</p>
-                                          <p className="text-zinc-600"><span className="font-medium">Weight:</span> {occItem.net_weight || occItem.gross_weight || '—'}g</p>
+                                          <p className="text-zinc-600"><span className="font-medium">#{occIdx + 1} Category:</span> {occItem.category?.name_en || occItem.category?.name || 'â€”'}</p>
+                                          <p className="text-zinc-600"><span className="font-medium">Purity:</span> {occItem.purity?.code || occItem.purity?.name || 'â€”'}</p>
+                                          <p className="text-zinc-600"><span className="font-medium">Weight:</span> {occItem.net_weight || occItem.gross_weight || 'â€”'}g</p>
                                           {occItem.description && <p className="text-zinc-400 truncate"><span className="font-medium text-zinc-600">Desc:</span> {occItem.description}</p>}
                                         </div>
                                       ))}
@@ -3337,10 +3337,10 @@ export default function NewPledge() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Info className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm text-amber-800">Select one slot — all items in this pledge go into the same slot.</span>
+                    <span className="text-sm text-amber-800">Select one slot â€” all items in this pledge go into the same slot.</span>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-amber-700">{selectedSlot ? "✓" : "—"}</p>
+                    <p className="font-bold text-amber-700">{selectedSlot ? "âœ“" : "â€”"}</p>
                     <p className="text-xs text-amber-600">{selectedSlot ? `Slot ${selectedSlot.slotNumber}` : "No Slot"}</p>
                   </div>
                 </div>
@@ -3455,7 +3455,7 @@ export default function NewPledge() {
                   </div>
                   {rateSource !== 'global' && (
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${rateSource === 'customer' ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {rateSource === 'customer' ? '👤 Customer Rate' : '✏️ Manual'}
+                      {rateSource === 'customer' ? 'ðŸ‘¤ Customer Rate' : 'âœï¸ Manual'}
                     </span>
                   )}
                 </div>
@@ -3508,7 +3508,7 @@ export default function NewPledge() {
                     {printJobStatus.dotMatrixOffice.status === "running" && <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />}
                     {printJobStatus.dotMatrixOffice.status === "pending" && <Clock className="w-4 h-4 text-zinc-400" />}
                   </div>
-                  <div><p className="font-medium text-sm text-zinc-800">🖨️ HP Printer</p><p className="text-xs text-zinc-500">{printJobStatus.dotMatrixOffice.message || "Waiting..."}</p></div>
+                  <div><p className="font-medium text-sm text-zinc-800">ðŸ–¨ï¸ HP Printer</p><p className="text-xs text-zinc-500">{printJobStatus.dotMatrixOffice.message || "Waiting..."}</p></div>
                 </div>
                 {printJobStatus.dotMatrixOffice.status === "failed" && <Button size="sm" variant="outline" leftIcon={RefreshCw} onClick={() => retryPrintJob("dotMatrixOffice")}>Retry</Button>}
               </div>
@@ -3522,7 +3522,7 @@ export default function NewPledge() {
                     {printJobStatus.barcode.status === "running" && <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />}
                     {printJobStatus.barcode.status === "pending" && <Clock className="w-4 h-4 text-zinc-400" />}
                   </div>
-                  <div><p className="font-medium text-sm text-zinc-800">🏷️ Barcode Labels (Thermal)</p><p className="text-xs text-zinc-500">{printJobStatus.barcode.message || "Waiting..."}</p></div>
+                  <div><p className="font-medium text-sm text-zinc-800">ðŸ·ï¸ Barcode Labels (Thermal)</p><p className="text-xs text-zinc-500">{printJobStatus.barcode.message || "Waiting..."}</p></div>
                 </div>
                 {printJobStatus.barcode.status === "failed" && <Button size="sm" variant="outline" leftIcon={RefreshCw} onClick={() => retryPrintJob("barcode")}>Retry</Button>}
               </div>
@@ -3537,7 +3537,7 @@ export default function NewPledge() {
                     {printJobStatus.whatsapp.status === "skipped" && <AlertCircle className="w-4 h-4 text-gray-400" />}
                     {printJobStatus.whatsapp.status === "pending" && <Clock className="w-4 h-4 text-zinc-400" />}
                   </div>
-                  <div><p className="font-medium text-sm text-zinc-800">📱 WhatsApp Message</p><p className="text-xs text-zinc-500">{printJobStatus.whatsapp.message || "Waiting..."}</p></div>
+                  <div><p className="font-medium text-sm text-zinc-800">ðŸ“± WhatsApp Message</p><p className="text-xs text-zinc-500">{printJobStatus.whatsapp.message || "Waiting..."}</p></div>
                 </div>
                 {printJobStatus.whatsapp.status === "failed" && <Button size="sm" variant="outline" leftIcon={RefreshCw} onClick={() => retryPrintJob("whatsapp")}>Retry</Button>}
               </div>
@@ -3594,7 +3594,7 @@ export default function NewPledge() {
       <Modal
         isOpen={showReprintReasonModal}
         onClose={() => setShowReprintReasonModal(false)}
-        title="Reprint Barcode – Select Reason"
+        title="Reprint Barcode â€“ Select Reason"
         size="md"
       >
         <div className="space-y-5">
@@ -3621,11 +3621,11 @@ export default function NewPledge() {
                 }}
                 className="w-full px-3 py-2.5 border border-zinc-300 rounded-lg bg-white text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 appearance-none cursor-pointer"
               >
-                <option value="">— Choose a reason —</option>
+                <option value="">â€” Choose a reason â€”</option>
                 {npReprintReasons.map((r) => (
                   <option key={r.id} value={r.reason}>{r.reason}</option>
                 ))}
-                <option value="__custom__">✏️ Enter Custom Reason...</option>
+                <option value="__custom__">âœï¸ Enter Custom Reason...</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
             </div>
@@ -3686,3 +3686,4 @@ export default function NewPledge() {
     </PageWrapper>
   );
 }
+

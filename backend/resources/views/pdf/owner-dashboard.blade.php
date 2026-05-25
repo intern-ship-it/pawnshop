@@ -386,20 +386,20 @@
                         'Pledges'           => 'navy',
                         'Renewals'          => 'warn',
                         'Redemptions'       => 'green',
-                        'Interest Payments' => 'blue',
+                        'Advance Interest Payment' => 'blue',
                         default             => '',
                     };
                     $vcls = match($row['label']) {
                         'Pledges'           => 'navy',
                         'Renewals'          => '',
                         'Redemptions'       => 'green',
-                        'Interest Payments' => '',
+                        'Advance Interest Payment' => '',
                         default             => '',
                     };
                     $subNote = match($row['label']) {
                         'Redemptions'       => null,
                         'Renewals'          => 'Interest charged on rollover',
-                        'Interest Payments' => 'Pure interest collection',
+                        'Advance Interest Payment' => 'Pure interest collection',
                         'Pledges'           => 'Loan amount disbursed',
                         default             => null,
                     };
@@ -631,7 +631,7 @@
             </td>
             <td style="width:25%;">
                 <div class="card blue">
-                    <div class="card-label">Interest Payments</div>
+                    <div class="card-label">Advance Interest Payment</div>
                     <div class="card-value sm" style="white-space:nowrap;">{{ $rm($interest['from_interest_pay']) }}</div>
                     <div class="card-sub">Standalone interest</div>
                 </div>
@@ -663,7 +663,7 @@
                             <td class="right mono">{{ $rm($interest['from_redemptions']) }}</td>
                         </tr>
                         <tr>
-                            <td>Interest Payments</td>
+                            <td>Advance Interest Payment</td>
                             <td class="right mono">{{ $rm($interest['from_interest_pay']) }}</td>
                         </tr>
                         <tr class="total">
@@ -891,46 +891,6 @@
             </div>
         @endif
     @endif
-</div>
-@endif
-
-
-{{-- ═══════════════════════════════════════════════════════
-     6. 7-DAY TRENDS
-═══════════════════════════════════════════════════════ --}}
-@if($final['has_data'])
-<div class="sec">
-    <div class="sec-title">
-        <table><tr>
-            <td style="width:16pt;"><div class="num">6</div></td>
-            <td class="label">7-Day Trends</td>
-        </tr></table>
-    </div>
-
-    @if(!empty($final['cash_trend_chart']) && $final['cash_trend_has_data'])
-        <div class="chart-box" style="margin-bottom:8pt;">
-            <div class="chart-caption">7-Day Cash Trend</div>
-            <div class="chart-subcaption">Daily cash in / out over the last week — physical cash only (excludes bank transfers)</div>
-            <img src="{{ $final['cash_trend_chart'] }}" alt="7-Day Cash Trend">
-        </div>
-    @endif
-
-    @if(!empty($final['online_trend_chart']) && $final['online_trend_has_data'])
-        <div class="chart-box" style="margin-bottom:8pt;">
-            <div class="chart-caption">7-Day Online Payment Trend</div>
-            <div class="chart-subcaption">Daily bank transfers in / out over the last week — online payments only</div>
-            <img src="{{ $final['online_trend_chart'] }}" alt="7-Day Online Trend">
-        </div>
-    @endif
-
-    @if(!$final['cash_trend_has_data'] && !$final['online_trend_has_data'] && !empty($final['trend_chart']) && $final['trend_has_data'])
-        <div class="chart-box" style="margin-bottom:8pt;">
-            <div class="chart-caption">7-Day Income &amp; Outflow Trend</div>
-            <div class="chart-subcaption">Daily totals over the last week — green is money received, red is money paid out</div>
-            <img src="{{ $final['trend_chart'] }}" alt="7-Day Trend">
-        </div>
-    @endif
-
 </div>
 @endif
 

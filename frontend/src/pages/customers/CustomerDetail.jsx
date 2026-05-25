@@ -162,8 +162,7 @@ export default function CustomerDetail() {
     const companyEmail = company.email || "";
 
     // Fetch logo as base64
-    const baseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-      ? "http://localhost:8000" : window.location.origin;
+    const baseUrl = (import.meta.env.VITE_API_URL || `${window.location.origin}/api`).replace('/api', '');
     let logoDataUrl = "";
     try {
       const logoRes = await settingsService.getLogo();

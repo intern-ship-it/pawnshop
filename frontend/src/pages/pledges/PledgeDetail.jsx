@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
@@ -342,7 +342,7 @@ export default function PledgeDetail() {
       }
 
       const apiUrl =
-        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+        import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
       const response = await fetch(
         `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledge.id}`,
@@ -466,13 +466,13 @@ export default function PledgeDetail() {
         <body>
           <div class="print-actions">
             <p style="margin-bottom: 10px; font-weight: bold; color: #856404;">
-              📄 HP Print - A5 - ${pledgeNo}
+              ðŸ“„ HP Print - A5 - ${pledgeNo}
             </p>
             <p style="margin-bottom: 15px; font-size: 14px; color: #856404;">
               A5 Pre-Printed Form Template + Data Overlay (Landscape)
             </p>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-            <button class="print-btn close-btn" onclick="window.close()">✖ Close</button>
+            <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print</button>
+            <button class="print-btn close-btn" onclick="window.close()">âœ– Close</button>
           </div>
           
           <div class="print-container">
@@ -555,7 +555,7 @@ export default function PledgeDetail() {
           addToast({
             type: "warning",
             title: "WhatsApp Not Configured",
-            message: "Set up WhatsApp in Settings → WhatsApp",
+            message: "Set up WhatsApp in Settings â†’ WhatsApp",
           }),
         );
       } else {
@@ -1260,7 +1260,7 @@ export default function PledgeDetail() {
                       <p className="text-[11px] font-medium uppercase tracking-wide text-blue-700">Payment</p>
                       <p className="text-lg font-semibold text-blue-700 capitalize mt-1">{r.paymentMethod}</p>
                       {r.bankName && (
-                        <p className="text-[11px] text-blue-600 mt-0.5">{r.bankName} {r.referenceNo && `· ${r.referenceNo}`}</p>
+                        <p className="text-[11px] text-blue-600 mt-0.5">{r.bankName} {r.referenceNo && `Â· ${r.referenceNo}`}</p>
                       )}
                     </div>
                   </div>
@@ -1268,7 +1268,7 @@ export default function PledgeDetail() {
                   <div>
                     <h4 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
                       <MapPin className="w-4 h-4" />
-                      Items Redeemed — Original Storage Location
+                      Items Redeemed â€” Original Storage Location
                     </h4>
                     {redeemedItems.length === 0 ? (
                       <p className="text-sm text-zinc-500">No item details available.</p>
@@ -1547,7 +1547,7 @@ export default function PledgeDetail() {
                         <p className="mt-1 font-medium">
                           Total paid: {formatCurrency(r.totalPayable)} ({r.paymentMethod}
                           {r.bankName && ` - ${r.bankName}`}
-                          {r.referenceNo && ` · ${r.referenceNo}`})
+                          {r.referenceNo && ` Â· ${r.referenceNo}`})
                         </p>
                         {r.createdBy && (
                           <p className="text-xs text-zinc-400">By: {r.createdBy}</p>
@@ -1636,3 +1636,4 @@ export default function PledgeDetail() {
     </PageWrapper>
   );
 }
+

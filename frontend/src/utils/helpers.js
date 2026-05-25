@@ -11,12 +11,9 @@ export const getStorageUrl = (path) => {
     return path
   }
   
-  // Build storage URL
-  const hostname = window.location.hostname
-  const baseUrl = hostname === 'localhost' || hostname === '127.0.0.1'
-    ? 'http://127.0.0.1:8000'
-    : window.location.origin
-  
+  const apiBase = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+  const baseUrl = apiBase.replace('/api', '')
+
   return `${baseUrl}/storage/${path}`
 }
 

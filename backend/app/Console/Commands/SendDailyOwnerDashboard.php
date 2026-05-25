@@ -488,7 +488,7 @@ class SendDailyOwnerDashboard extends Command
             'tx' => [
                 'rows' => [
                     ['label' => 'Pledges',            'count' => $pledgeCount,     'amount' => $loanAmount,          'color' => '#1e3a5f'],
-                    ['label' => 'Interest Payments',  'count' => $intPayCount,     'amount' => $intPayTotal,         'color' => '#3b82f6'],
+                    ['label' => 'Advance Interest Payment',  'count' => $intPayCount,     'amount' => $intPayTotal,         'color' => '#3b82f6'],
                     ['label' => 'Renewals',           'count' => $renewalCount,    'amount' => $renewalTotal,        'color' => '#f59e0b'],
                     ['label' => 'Redemptions',        'count' => $redemptionCount, 'amount' => $redemptionTotal,     'color' => '#10b981'],
                 ],
@@ -817,7 +817,7 @@ class SendDailyOwnerDashboard extends Command
         return $this->quickChart([
             'type' => 'bar',
             'data' => [
-                'labels'   => ['From Renewals', 'From Redemptions', 'Interest Payments'],
+                'labels'   => ['From Renewals', 'From Redemptions', 'Advance Interest Payment'],
                 'datasets' => [[
                     'label'           => '',
                     'data'            => [$r, $d, $i],
