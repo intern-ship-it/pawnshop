@@ -159,10 +159,7 @@ const dayEndService = {
    */
   async export(date) {
     try {
-      const response = await import('./api').then(m => m.default.get('/day-end/export', {
-        params: { date },
-        responseType: 'blob'
-      }))
+      const response = await apiGet('/day-end/export', { date }, { responseType: 'blob' })
 
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response]))
