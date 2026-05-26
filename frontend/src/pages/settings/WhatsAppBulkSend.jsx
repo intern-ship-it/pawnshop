@@ -339,7 +339,6 @@ export default function WhatsAppBulkSend() {
               <Search className="absolute left-3 top-3 w-4 h-4 text-zinc-400" />
               <textarea
                 rows={searchQuery.includes(',') || searchQuery.includes('\n') ? 3 : 1}
-                placeholder="Search by pledge no, customer, phone — paste multiple pledge nos separated by comma&#10;e.g. PLG-HQ-2026-0001, PLG-HQ-2026-0010, PLG-HQ-2026-0060"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 text-sm border border-zinc-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white resize-none"
