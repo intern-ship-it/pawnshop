@@ -16,6 +16,12 @@ use Illuminate\Support\Facades\DB;
 
 class ReportController extends Controller
 {
+    public function __construct()
+    {
+        // Reports often process thousands of records at once, which easily exceeds the default 128MB limit
+        ini_set('memory_limit', '512M');
+    }
+
     /**
      * Pledges Report
      */

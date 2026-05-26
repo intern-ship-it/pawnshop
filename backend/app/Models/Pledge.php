@@ -176,10 +176,7 @@ class Pledge extends Model
     public function getCurrentInterestAmountAttribute(): float
     {
         $months = max(1, $this->months_elapsed);
-        $loanAmount = (float) ($this->loan_amount ?? 0);
-        $interestRate = (float) ($this->current_interest_rate ?? 0);
-        
-        return $loanAmount * ($interestRate / 100) * $months;
+        return $this->loan_amount * ($this->current_interest_rate / 100) * $months;
     }
 
     public function getTotalInterestPaidAttribute(): float
