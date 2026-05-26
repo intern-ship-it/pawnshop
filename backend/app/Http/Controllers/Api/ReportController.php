@@ -158,7 +158,8 @@ class ReportController extends Controller
 
         $pledges = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
-            ->with(['customer:id,name,ic_number,phone', 'items.category'])
+            ->with(['customer:id,name,ic_number,phone'])
+            ->withCount('items')
             ->orderBy('due_date')
             ->get();
 
@@ -208,7 +209,8 @@ class ReportController extends Controller
         $pledges = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
             ->where('due_date', '<', $today)
-            ->with(['customer:id,name,ic_number,phone', 'items.category'])
+            ->with(['customer:id,name,ic_number,phone'])
+            ->withCount('items')
             ->orderBy('due_date')
             ->get();
 
@@ -399,8 +401,11 @@ class ReportController extends Controller
             'by_vault' => $byVault,
         ];
 
+        // To massively speed up dashboard loading, do not send thousands of items unless exporting to CSV
+        $isExport = $request->is('api/reports/export') || $request->route()->getName() === 'reports.export';
+
         return $this->success([
-            'items' => $items,
+            'items' => $isExport ? $items : [],
             'summary' => $summary,
         ]);
     }
