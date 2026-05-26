@@ -242,7 +242,12 @@ export default function CustomerEdit() {
     const finalValue = noUppercaseFields.includes(name) ? value : value.toUpperCase();
     setFormData((prev) => ({ ...prev, [name]: finalValue }));
 
-    if (errors[name]) {
+    // Validate IC/Passport immediately on change (not just on blur)
+    if (name === "passportNumber" || name === "icNumber") {
+      setTouched((prev) => ({ ...prev, [name]: true }));
+      // Use setTimeout to validate after state update
+      setTimeout(() => validateField(name, finalValue), 0);
+    } else if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
   };

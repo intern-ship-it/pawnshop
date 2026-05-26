@@ -242,6 +242,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{pledge}/send-whatsapp', [PledgeController::class , 'sendWhatsApp'])
                 ->middleware('check.permission:whatsapp,send');
 
+            // WhatsApp - Pending & Bulk Send (for retroactive sending)
+            Route::get('/pending-whatsapp', [PledgeController::class , 'getPendingWhatsApp'])
+                ->middleware('check.permission:whatsapp,send');
+            Route::post('/bulk-send-whatsapp', [PledgeController::class , 'bulkSendWhatsApp'])
+                ->middleware('check.permission:whatsapp,send');
+
             // Cancel (delete permission)
             Route::post('/{pledge}/cancel', [PledgeController::class , 'cancel'])
                 ->middleware('check.permission:pledges,delete');

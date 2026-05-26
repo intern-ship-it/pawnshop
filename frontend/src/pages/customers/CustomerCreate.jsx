@@ -215,15 +215,24 @@ export default function CustomerCreate() {
       }
 
       setFormData((prev) => ({ ...prev, [name]: formatted }));
+      // Validate immediately on change
+      setTouched((prev) => ({ ...prev, [name]: true }));
+      setTimeout(() => validateField(name, formatted), 0);
+    } else if (name === "passportNumber") {
+      // Auto-uppercase passport and validate immediately
+      const finalValue = value.toUpperCase();
+      setFormData((prev) => ({ ...prev, [name]: finalValue }));
+      setTouched((prev) => ({ ...prev, [name]: true }));
+      setTimeout(() => validateField(name, finalValue), 0);
     } else {
       // Auto-uppercase all fields except email
       const finalValue = noUppercaseFields.includes(name) ? value : value.toUpperCase();
       setFormData((prev) => ({ ...prev, [name]: finalValue }));
-    }
 
-    // Clear error on change
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: null }));
+      // Clear error on change
+      if (errors[name]) {
+        setErrors((prev) => ({ ...prev, [name]: null }));
+      }
     }
   };
 

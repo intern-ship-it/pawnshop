@@ -632,6 +632,13 @@ export default function WhatsAppSettings() {
             <Bell className="w-4 h-4" />
             Due Date Reminders
           </RouterLink>
+          <RouterLink
+            to="/settings/whatsapp/bulk-send"
+            className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 text-sm font-semibold border border-green-200 transition-colors"
+          >
+            <Send className="w-4 h-4" />
+            Bulk Send
+          </RouterLink>
           <Badge variant={config.enabled ? "success" : "secondary"}>
             {config.enabled ? "Enabled" : "Disabled"}
           </Badge>

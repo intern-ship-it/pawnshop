@@ -108,9 +108,17 @@ class CustomerController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $branchId = $request->user()->branch_id;
+
         $validated = $request->validate([
             'name' => 'required|string|max:100',
-            'ic_number' => 'required|string|max:20|unique:customers,ic_number',
+            'ic_number' => [
+                'required',
+                'string',
+                'max:20',
+                \Illuminate\Validation\Rule::unique('customers', 'ic_number')
+                    ->where('branch_id', $branchId),
+            ],
             'ic_type' => 'required|in:mykad,passport,other',
             'gender' => 'nullable|in:male,female',
             'date_of_birth' => 'nullable|date',
@@ -135,9 +143,45 @@ class CustomerController extends Controller
             'ic_front_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
             'ic_back_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
             'selfie_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
+        ], [
+            'ic_number.unique' => 'This IC/Passport number is already registered in this branch.',
         ]);
 
-        $branchId = $request->user()->branch_id;
+        // ── Phone validation per country code ──
+        $phone = preg_replace('/[^0-9]/', '', $validated['phone']);
+        $rawCountryCode = preg_replace('/[^0-9]/', '', $validated['country_code'] ?? '60');
+        $phoneMinLengths = [
+            '60' => 9, '91' => 10, '65' => 8, '62' => 9, '66' => 9,
+            '63' => 10, '880' => 10, '95' => 7, '44' => 10, '1' => 10,
+        ];
+        // Remove leading 0
+        if (substr($phone, 0, 1) === '0') {
+            $phone = substr($phone, 1);
+        }
+        $minLen = $phoneMinLengths[$rawCountryCode] ?? 7;
+        if (strlen($phone) < $minLen) {
+            return $this->error(
+                'Invalid phone number: need at least ' . $minLen . ' digits for country code +' . $rawCountryCode . ', got ' . strlen($phone),
+                422
+            );
+        }
+
+        // ── IC/Passport format validation ──
+        $icType = $validated['ic_type'] ?? 'mykad';
+        $icNumber = $validated['ic_number'] ?? '';
+
+        if ($icType === 'passport') {
+            if (!preg_match('/^[A-Z0-9]{5,15}$/i', $icNumber)) {
+                return $this->error('Passport must be 5-15 alphanumeric characters', 422);
+            }
+        } elseif ($icType === 'mykad') {
+            $cleanIC = preg_replace('/[-\s]/', '', $icNumber);
+            if (!preg_match('/^\d{12}$/', $cleanIC)) {
+                return $this->error('Malaysian IC number must be exactly 12 digits', 422);
+            }
+        }
+
+
         $userId = $request->user()->id;
 
         // Generate customer number
@@ -252,7 +296,14 @@ class CustomerController extends Controller
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:100',
-            'ic_number' => 'sometimes|string|max:20|unique:customers,ic_number,' . $customer->id,
+            'ic_number' => [
+                'sometimes',
+                'string',
+                'max:20',
+                \Illuminate\Validation\Rule::unique('customers', 'ic_number')
+                    ->where('branch_id', $request->user()->branch_id)
+                    ->ignore($customer->id),
+            ],
             'ic_type' => 'sometimes|in:mykad,passport,other',
             'gender' => 'nullable|in:male,female',
             'date_of_birth' => 'nullable|date',
@@ -279,6 +330,8 @@ class CustomerController extends Controller
             'remove_ic_front_photo' => 'nullable|boolean',
             'remove_ic_back_photo' => 'nullable|boolean',
             'remove_selfie_photo' => 'nullable|boolean',
+        ], [
+            'ic_number.unique' => 'This IC/Passport number is already registered in this branch.',
         ]);
 
         // Calculate age if DOB changed

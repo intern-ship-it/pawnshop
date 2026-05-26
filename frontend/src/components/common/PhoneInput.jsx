@@ -54,7 +54,7 @@ export default function PhoneInputField({
         <p className="text-xs text-zinc-500 mt-1">{helperText}</p>
       )}
 
-      <style jsx global>{`
+      <style>{`
         .phone-input-custom {
           width: 100%;
         }

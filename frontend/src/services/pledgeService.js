@@ -139,10 +139,29 @@ const pledgeService = {
   /**
    * Send pledge details via WhatsApp
    * @param {number} pledgeId 
+   * @param {boolean} force - Force resend even if already sent
    * @returns {Promise}
    */
-  async sendWhatsApp(pledgeId) {
-    return apiPost(`/pledges/${pledgeId}/send-whatsapp`)
+  async sendWhatsApp(pledgeId, force = false) {
+    return apiPost(`/pledges/${pledgeId}/send-whatsapp`, { force })
+  },
+
+  /**
+   * Get pledges that never had WhatsApp sent (pending retroactive send)
+   * @param {Object} params - { status, from_date, to_date }
+   * @returns {Promise}
+   */
+  async getPendingWhatsApp(params = {}) {
+    return apiGet('/pledges/pending-whatsapp', params)
+  },
+
+  /**
+   * Bulk send WhatsApp for multiple pledges
+   * @param {Object} data - { pledge_ids: [], pledge_nos: [], force: false }
+   * @returns {Promise}
+   */
+  async bulkSendWhatsApp(data) {
+    return apiPost('/pledges/bulk-send-whatsapp', data)
   },
 
   /**
