@@ -161,8 +161,8 @@ class ReportController extends Controller
         $overduePledges = [];
 
         $pledges->each(function ($pledge) use ($today, &$activePledges, &$overduePledges) {
-            $pledge->current_interest = $pledge->current_interest_amount;
-            $pledge->total_outstanding = $pledge->loan_amount + $pledge->current_interest;
+            $pledge->current_interest = (float) $pledge->current_interest_amount;
+            $pledge->total_outstanding = (float) ($pledge->loan_amount ?? 0) + $pledge->current_interest;
 
             // Categorize as active or overdue
             if ($pledge->due_date->lt($today)) {
@@ -209,7 +209,7 @@ class ReportController extends Controller
         // Add days overdue
         $pledges->each(function ($pledge) use ($today) {
             $pledge->days_overdue_calc = $today->diffInDays($pledge->due_date);
-            $pledge->current_interest = $pledge->current_interest_amount;
+            $pledge->current_interest = (float) $pledge->current_interest_amount;
         });
 
         // Group by overdue period
