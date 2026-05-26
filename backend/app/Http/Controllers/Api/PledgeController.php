@@ -1038,6 +1038,21 @@ class PledgeController extends Controller
                 return $this->error('Unauthorized', 403);
             }
 
+            // ── Duplicate check: prevent accidental double-send ──
+            $forceResend = $request->boolean('force', false);
+            $existingLog = \App\Models\WhatsAppLog::where('related_type', 'pledge')
+                ->where('related_id', $pledge->id)
+                ->where('status', 'sent')
+                ->first();
+
+            if ($existingLog && !$forceResend) {
+                return $this->error(
+                    'WhatsApp already sent for this pledge on ' . $existingLog->sent_at->format('d/m/Y h:i A') .
+                    '. Use force=true to resend.',
+                    409 // HTTP 409 Conflict
+                );
+            }
+
             // Load relationships
             $pledge->load(['customer', 'items.category', 'items.purity', 'branch']);
 
@@ -1065,6 +1080,36 @@ class PledgeController extends Controller
             // Add country code (use stored country_code, default to 60 for Malaysia)
             $phone = $countryCode . $phone;
 
+            // ── Phone validation per country code ──
+            $phoneMinLengths = [
+                '60' => 9,   // Malaysia: 9-10 digits (e.g. 123456789)
+                '91' => 10,  // India: 10 digits
+                '65' => 8,   // Singapore: 8 digits
+                '62' => 9,   // Indonesia: 9-12 digits
+                '66' => 9,   // Thailand: 9 digits
+                '63' => 10,  // Philippines: 10 digits
+                '880' => 10, // Bangladesh: 10 digits
+                '95' => 7,   // Myanmar: 7-9 digits
+                '44' => 10,  // UK: 10 digits
+                '1' => 10,   // US/Canada: 10 digits
+            ];
+            // Strip country code to get local number length
+            $localPhone = $phone;
+            $matchedMin = 7; // default minimum
+            foreach ($phoneMinLengths as $code => $minLen) {
+                if (strpos($phone, $code) === 0) {
+                    $localPhone = substr($phone, strlen($code));
+                    $matchedMin = $minLen;
+                    break;
+                }
+            }
+            if (strlen($localPhone) < $matchedMin) {
+                return $this->error(
+                    'Invalid phone number: ' . $phone . ' (need at least ' . $matchedMin . ' digits after country code, got ' . strlen($localPhone) . '). Customer phone: ' . $pledge->customer->phone,
+                    422
+                );
+            }
+
             // Send text message via configured provider
             $result = $this->sendViaProvider($config, $phone, $message);
 
@@ -1082,21 +1127,9 @@ class PledgeController extends Controller
                     'sent_by' => $request->user()->id,
                 ]);
 
-                // PDF receipt sending temporarily disabled - text-only WhatsApp for new pledges
-                // try {
-                //     Log::info('Starting PDF receipt generation for pledge ' . $pledge->pledge_no);
-                //     $pdfResult = $this->sendPdfReceipt($config, $phone, $pledge);
-                //     Log::info('PDF receipt result: ' . json_encode($pdfResult));
-                //     if (!$pdfResult['success']) {
-                //         Log::warning('PDF attachment failed: ' . ($pdfResult['message'] ?? 'Unknown error'));
-                //     }
-                // }
-                // catch (\Exception $pdfError) {
-                //     Log::warning('PDF attachment error: ' . $pdfError->getMessage());
-                // }
-
                 return $this->success([
                     'message' => 'WhatsApp sent successfully to ' . $phone,
+                    'was_resend' => $existingLog ? true : false,
                 ]);
             }
             else {
@@ -1355,5 +1388,238 @@ class PledgeController extends Controller
             Log::error('PDF receipt generation failed: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Get pledges that never had WhatsApp sent (for retroactive sending)
+     * These are pledges created before WhatsApp was configured.
+     */
+    public function getPendingWhatsApp(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $query = Pledge::where('pledges.branch_id', $branchId)
+            ->leftJoin('whatsapp_logs', function ($join) {
+                $join->on('pledges.id', '=', 'whatsapp_logs.related_id')
+                    ->where('whatsapp_logs.related_type', '=', 'pledge')
+                    ->where('whatsapp_logs.status', '=', 'sent');
+            })
+            ->whereNull('whatsapp_logs.id')
+            ->join('customers', 'customers.id', '=', 'pledges.customer_id')
+            ->select([
+                'pledges.id',
+                'pledges.pledge_no',
+                'pledges.loan_amount',
+                'pledges.status',
+                'pledges.pledge_date',
+                'pledges.due_date',
+                'pledges.created_at',
+                'customers.name as customer_name',
+                'customers.phone as customer_phone',
+                'customers.country_code as customer_country_code',
+            ]);
+
+        // Optional: filter by status
+        if ($status = $request->get('status')) {
+            $query->where('pledges.status', $status);
+        }
+
+        // Optional: filter by date range
+        if ($from = $request->get('from_date')) {
+            $query->whereDate('pledges.created_at', '>=', $from);
+        }
+        if ($to = $request->get('to_date')) {
+            $query->whereDate('pledges.created_at', '<=', $to);
+        }
+
+        $pendingPledges = $query->orderBy('pledges.created_at', 'asc')->get();
+
+        return $this->success([
+            'total_count' => $pendingPledges->count(),
+            'pledges' => $pendingPledges,
+        ], $pendingPledges->count() . ' pledge(s) found without WhatsApp sent');
+    }
+
+    /**
+     * Bulk send WhatsApp for multiple pledges (retroactive sending)
+     * Accepts pledge IDs or pledge numbers, sends WhatsApp for each.
+     * Includes duplicate protection per pledge.
+     */
+    public function bulkSendWhatsApp(Request $request): JsonResponse
+    {
+        set_time_limit(300); // 5 minutes for bulk
+
+        $validated = $request->validate([
+            'pledge_ids' => 'nullable|array',
+            'pledge_ids.*' => 'integer|exists:pledges,id',
+            'pledge_nos' => 'nullable|array',
+            'pledge_nos.*' => 'string',
+            'force' => 'nullable|boolean',
+        ]);
+
+        if (empty($validated['pledge_ids'] ?? []) && empty($validated['pledge_nos'] ?? [])) {
+            return $this->error('Provide pledge_ids or pledge_nos', 422);
+        }
+
+        $branchId = $request->user()->branch_id;
+        $forceResend = $request->boolean('force', false);
+
+        // Collect pledges by ID or pledge_no
+        $pledges = collect();
+
+        if (!empty($validated['pledge_ids'])) {
+            $pledges = $pledges->merge(
+                Pledge::where('branch_id', $branchId)
+                    ->whereIn('id', $validated['pledge_ids'])
+                    ->get()
+            );
+        }
+
+        if (!empty($validated['pledge_nos'])) {
+            $pledges = $pledges->merge(
+                Pledge::where('branch_id', $branchId)
+                    ->whereIn('pledge_no', $validated['pledge_nos'])
+                    ->get()
+            );
+        }
+
+        // Deduplicate by ID
+        $pledges = $pledges->unique('id');
+
+        if ($pledges->isEmpty()) {
+            return $this->error('No matching pledges found for this branch', 404);
+        }
+
+        // Get WhatsApp config
+        $config = \App\Models\WhatsAppConfig::where('branch_id', $branchId)
+            ->where('is_enabled', true)
+            ->first();
+
+        if (!$config) {
+            return $this->error('WhatsApp not configured for this branch', 400);
+        }
+
+        $results = [
+            'sent' => [],
+            'skipped_duplicate' => [],
+            'failed' => [],
+        ];
+
+        foreach ($pledges as $pledge) {
+            try {
+                // Load relationships
+                $pledge->load(['customer', 'items.category', 'items.purity', 'branch']);
+
+                // ── Duplicate check ──
+                $existingLog = \App\Models\WhatsAppLog::where('related_type', 'pledge')
+                    ->where('related_id', $pledge->id)
+                    ->where('status', 'sent')
+                    ->first();
+
+                if ($existingLog && !$forceResend) {
+                    $results['skipped_duplicate'][] = [
+                        'pledge_id' => $pledge->id,
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer' => $pledge->customer->name,
+                        'already_sent_at' => $existingLog->sent_at->format('d/m/Y h:i A'),
+                    ];
+                    continue;
+                }
+
+                // Build message
+                $message = $this->buildPledgeWhatsAppMessage($pledge);
+
+                // Get phone
+                $phone = preg_replace('/[^0-9]/', '', $pledge->customer->phone);
+                $countryCode = preg_replace('/[^0-9]/', '', $pledge->customer->country_code ?? '60');
+                if (substr($phone, 0, 1) === '0') {
+                    $phone = substr($phone, 1);
+                }
+                $phone = $countryCode . $phone;
+
+                // ── Phone validation per country code ──
+                $phoneMinLengths = [
+                    '60' => 9,   // Malaysia: 9-10 digits
+                    '91' => 10,  // India: 10 digits
+                    '65' => 8,   // Singapore: 8 digits
+                    '62' => 9,   // Indonesia: 9-12 digits
+                    '66' => 9,   // Thailand: 9 digits
+                    '63' => 10,  // Philippines: 10 digits
+                    '880' => 10, // Bangladesh: 10 digits
+                    '95' => 7,   // Myanmar: 7-9 digits
+                    '44' => 10,  // UK: 10 digits
+                    '1' => 10,   // US/Canada: 10 digits
+                ];
+                $localPhone = $phone;
+                $matchedMin = 7;
+                foreach ($phoneMinLengths as $code => $minLen) {
+                    if (strpos($phone, $code) === 0) {
+                        $localPhone = substr($phone, strlen($code));
+                        $matchedMin = $minLen;
+                        break;
+                    }
+                }
+                if (strlen($localPhone) < $matchedMin) {
+                    $results['failed'][] = [
+                        'pledge_id' => $pledge->id,
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer' => $pledge->customer->name,
+                        'phone' => $phone,
+                        'error' => 'Invalid phone: ' . $phone . ' (need ' . $matchedMin . ' digits after country code, got ' . strlen($localPhone) . ', original: ' . $pledge->customer->phone . ')',
+                    ];
+                    continue;
+                }
+
+                // Send
+                $result = $this->sendViaProvider($config, $phone, $message);
+
+                if ($result['success']) {
+                    \App\Models\WhatsAppLog::create([
+                        'branch_id' => $pledge->branch_id,
+                        'recipient_phone' => $phone,
+                        'recipient_name' => $pledge->customer->name,
+                        'message_content' => $message,
+                        'status' => 'sent',
+                        'related_type' => 'pledge',
+                        'related_id' => $pledge->id,
+                        'sent_at' => now(),
+                        'sent_by' => $request->user()->id,
+                    ]);
+
+                    $results['sent'][] = [
+                        'pledge_id' => $pledge->id,
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer' => $pledge->customer->name,
+                        'phone' => $phone,
+                    ];
+                } else {
+                    $results['failed'][] = [
+                        'pledge_id' => $pledge->id,
+                        'pledge_no' => $pledge->pledge_no,
+                        'customer' => $pledge->customer->name,
+                        'error' => $result['message'] ?? 'Unknown error',
+                    ];
+                }
+
+                // Small delay between sends to avoid API rate limiting
+                usleep(500000); // 0.5 seconds
+
+            } catch (\Exception $e) {
+                $results['failed'][] = [
+                    'pledge_id' => $pledge->id,
+                    'pledge_no' => $pledge->pledge_no,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        $summary = sprintf(
+            'Bulk WhatsApp: %d sent, %d skipped (duplicate), %d failed',
+            count($results['sent']),
+            count($results['skipped_duplicate']),
+            count($results['failed'])
+        );
+
+        return $this->success($results, $summary);
     }
 }
