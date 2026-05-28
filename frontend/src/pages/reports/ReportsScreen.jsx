@@ -243,7 +243,7 @@ export default function ReportsScreen() {
                 .getOverdueReport()
                 .catch(() => ({ success: false, data: null })),
               reportService
-                .getInventoryReport()
+                .getInventoryReport(params)
                 .catch(() => ({ success: false, data: null })),
             ]);
 
@@ -279,7 +279,7 @@ export default function ReportsScreen() {
           response = await reportService.getPaymentSplitReport(params);
           break;
         case "inventory":
-          response = await reportService.getInventoryReport();
+          response = await reportService.getInventoryReport(params);
           break;
         case "customers":
           response = await reportService.getCustomersReport(params);
@@ -385,10 +385,10 @@ export default function ReportsScreen() {
           <Button
             variant="outline"
             leftIcon={Download}
-            onClick={() => handleExport("csv")}
+            onClick={() => handleExport("xlsx")}
             loading={isExporting}
           >
-            Export CSV
+            Export Excel
           </Button>
         </div>
       }

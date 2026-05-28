@@ -60,10 +60,11 @@ const reportService = {
 
   /**
    * Get inventory report
+   * @param {Object} params - from_date, to_date
    * @returns {Promise}
    */
-  async getInventoryReport() {
-    return apiGet('/reports/inventory')
+  async getInventoryReport(params = {}) {
+    return apiGet('/reports/inventory', params)
   },
 
   /**
@@ -110,7 +111,7 @@ const reportService = {
    * @param {Object} params - Report filters
    * @returns {Promise}
    */
-  async exportReport(reportType, format = 'csv', params = {}) {
+  async exportReport(reportType, format = 'xlsx', params = {}) {
     try {
       const token = getToken()
       const baseURL = api.defaults.baseURL
@@ -140,7 +141,10 @@ const reportService = {
       }
 
       // Create download link from blob
-      const blob = new Blob([response.data], { type: 'text/csv' })
+      const mimeType = format === 'xlsx' 
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+        : 'text/csv'
+      const blob = new Blob([response.data], { type: mimeType })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url

@@ -319,12 +319,32 @@ class ReportController extends Controller
      */
     public function inventory(Request $request): JsonResponse
     {
-        // Get all stored items from active pledges (no branch filter for now)
-        $items = PledgeItem::whereHas('pledge', function ($q) {
+        $fromDate = $request->get('from_date');
+        $toDate = $request->get('to_date');
+
+        $query = PledgeItem::whereHas('pledge', function ($q) use ($fromDate, $toDate) {
             $q->where('status', 'active');
-        })
-            ->where('status', 'stored')
-            ->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
+            if ($fromDate) {
+                $q->whereDate('pledge_date', '>=', $fromDate);
+            }
+            if ($toDate) {
+                $q->whereDate('pledge_date', '<=', $toDate);
+            }
+        });
+
+        if ($request->has('item_ids')) {
+            $itemIds = $request->get('item_ids');
+            if (is_string($itemIds)) {
+                $itemIds = explode(',', $itemIds);
+            }
+            if (is_array($itemIds) && count($itemIds) > 0) {
+                $query->whereIn('id', $itemIds);
+            }
+        } else {
+            $query->where('status', 'stored');
+        }
+
+        $items = $query->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
             ->get()
             ->map(function ($item) {
                 // Ensure properties are treated as numeric to avoid TypeError on empty strings or nulls
@@ -573,16 +593,28 @@ class ReportController extends Controller
                 return $this->error('Failed to fetch report data', 500);
             }
 
-            // Generate CSV
-            $csv = $this->generateCSV($reportType, $data);
+            // Generate rows
+            $rows = $this->generateReportArray($reportType, $data, $request);
 
-            // Return as downloadable file
-            $filename = $reportType . '_report_' . date('Y-m-d_His') . '.csv';
-
-            return response($csv, 200, [
-                'Content-Type' => 'text/csv',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            ]);
+            if ($format === 'xlsx') {
+                $filename = $reportType . '_report_' . date('Y-m-d_His') . '.xlsx';
+                $headerRowCount = ($request->get('from_date') && $request->get('to_date')) ? 4 : 1;
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\GenericReportExport($rows, $headerRowCount), $filename);
+            } else {
+                $output = fopen('php://temp', 'r+');
+                foreach ($rows as $row) {
+                    fputcsv($output, $row);
+                }
+                rewind($output);
+                $csv = stream_get_contents($output);
+                fclose($output);
+                
+                $filename = $reportType . '_report_' . date('Y-m-d_His') . '.csv';
+                return response($csv, 200, [
+                    'Content-Type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]);
+            }
         } catch (\Exception $e) {
             \Log::error('Report export error: ' . $e->getMessage(), [
                 'report_type' => $reportType,
@@ -596,18 +628,27 @@ class ReportController extends Controller
      * Generate CSV content from report data
      * Note: $data comes from getData() so all collections are arrays/objects, not Laravel Collections
      */
-    private function generateCSV(string $reportType, $data): string
+    private function generateReportArray(string $reportType, $data, Request $request): array
     {
-        $output = fopen('php://temp', 'r+');
+        $rows = [];
+
+        $fromDate = $request->get('from_date');
+        $toDate = $request->get('to_date');
+
+        if ($fromDate && $toDate) {
+            $rows[] = ['', '', '', 'Report Type', ucfirst($reportType) . ' Report'];
+            $rows[] = ['', '', '', 'Date Range', date('d/m/Y', strtotime($fromDate)) . ' to ' . date('d/m/Y', strtotime($toDate))];
+            $rows[] = ['']; // Use [''] instead of [] so Laravel Excel doesn't skip the row
+        }
 
         switch ($reportType) {
             case 'overview':
             case 'pledges':
-                fputcsv($output, ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status']);
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
                         $items = $pledge->items ?? [];
-                        fputcsv($output, [
+                        $rows[] = [
                             date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
                             $pledge->receipt_no ?? '',
                             $pledge->pledge_no ?? '',
@@ -619,16 +660,16 @@ class ReportController extends Controller
                             ($pledge->interest_rate ?? 0) . '%',
                             date('d/m/Y', strtotime($pledge->due_date ?? '')),
                             ucfirst($pledge->status ?? ''),
-                        ]);
+                        ];
                     }
                 }
                 break;
 
             case 'renewals':
-                fputcsv($output, ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Interest Amount', 'New Due Date', 'Payment Method', 'Status']);
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Interest Amount', 'New Due Date', 'Payment Method', 'Status'];
                 if (isset($data->renewals) && is_countable($data->renewals)) {
                     foreach ($data->renewals as $renewal) {
-                        fputcsv($output, [
+                        $rows[] = [
                             date('d/m/Y H:i', strtotime($renewal->created_at ?? '')),
                             $renewal->receipt_no ?? ($renewal->payment_no ?? ''),
                             $renewal->pledge->pledge_no ?? '',
@@ -637,16 +678,16 @@ class ReportController extends Controller
                             !empty($renewal->new_due_date) ? date('d/m/Y', strtotime($renewal->new_due_date)) : 'N/A (Interest Only)',
                             $renewal->payment_method ?? '',
                             'Completed',
-                        ]);
+                        ];
                     }
                 }
                 break;
 
             case 'redemptions':
-                fputcsv($output, ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method']);
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method'];
                 if (isset($data->redemptions) && is_countable($data->redemptions)) {
                     foreach ($data->redemptions as $redemption) {
-                        fputcsv($output, [
+                        $rows[] = [
                             date('d/m/Y H:i', strtotime($redemption->created_at ?? '')),
                             $redemption->receipt_no ?? '',
                             $redemption->pledge->pledge_no ?? '',
@@ -655,16 +696,16 @@ class ReportController extends Controller
                             number_format($redemption->interest_amount ?? 0, 2),
                             number_format($redemption->total_payable ?? 0, 2),
                             $redemption->payment_method ?? '',
-                        ]);
+                        ];
                     }
                 }
                 break;
 
             case 'outstanding':
-                fputcsv($output, ['Pledge No', 'Customer', 'IC Number', 'Loan Date', 'Due Date', 'Principal', 'Current Interest', 'Total Outstanding', 'Status']);
+                $rows[] = ['Pledge No', 'Customer', 'IC Number', 'Loan Date', 'Due Date', 'Principal', 'Current Interest', 'Total Outstanding', 'Status'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
-                        fputcsv($output, [
+                        $rows[] = [
                             $pledge->pledge_no ?? '',
                             $pledge->customer->name ?? '',
                             "\t" . ($pledge->customer->ic_number ?? ''),
@@ -674,21 +715,21 @@ class ReportController extends Controller
                             number_format($pledge->current_interest ?? 0, 2),
                             number_format($pledge->total_outstanding ?? 0, 2),
                             ucfirst($pledge->status ?? ''),
-                        ]);
+                        ];
                     }
                 }
                 break;
 
             case 'payments':
-                fputcsv($output, ['Transaction Type', 'Count', 'Total Amount', 'Cash', 'Transfer']);
-                fputcsv($output, ['Pledges', $data->pledges->count ?? 0, number_format($data->pledges->total ?? 0, 2), number_format($data->pledges->cash ?? 0, 2), number_format($data->pledges->transfer ?? 0, 2)]);
-                fputcsv($output, ['Renewals', $data->renewals->count ?? 0, number_format($data->renewals->total ?? 0, 2), number_format($data->renewals->cash ?? 0, 2), number_format($data->renewals->transfer ?? 0, 2)]);
-                fputcsv($output, ['Redemptions', $data->redemptions->count ?? 0, number_format($data->redemptions->total ?? 0, 2), number_format($data->redemptions->cash ?? 0, 2), number_format($data->redemptions->transfer ?? 0, 2)]);
-                fputcsv($output, ['TOTAL', '', number_format($data->summary->total ?? 0, 2), number_format($data->summary->cash_total ?? 0, 2), number_format($data->summary->transfer_total ?? 0, 2)]);
+                $rows[] = ['Transaction Type', 'Count', 'Total Amount', 'Cash', 'Transfer'];
+                $rows[] = ['Pledges', $data->pledges->count ?? 0, number_format($data->pledges->total ?? 0, 2), number_format($data->pledges->cash ?? 0, 2), number_format($data->pledges->transfer ?? 0, 2)];
+                $rows[] = ['Renewals', $data->renewals->count ?? 0, number_format($data->renewals->total ?? 0, 2), number_format($data->renewals->cash ?? 0, 2), number_format($data->renewals->transfer ?? 0, 2)];
+                $rows[] = ['Redemptions', $data->redemptions->count ?? 0, number_format($data->redemptions->total ?? 0, 2), number_format($data->redemptions->cash ?? 0, 2), number_format($data->redemptions->transfer ?? 0, 2)];
+                $rows[] = ['TOTAL', '', number_format($data->summary->total ?? 0, 2), number_format($data->summary->cash_total ?? 0, 2), number_format($data->summary->transfer_total ?? 0, 2)];
                 break;
 
             case 'inventory':
-                fputcsv($output, ['Pledge No', 'Customer', 'Category', 'Purity', 'Weight (g)', 'Value', 'Location', 'Status']);
+                $rows[] = ['Pledge Date', 'Pledge No', 'Customer', 'Category', 'Purity', 'Weight (g)', 'Value', 'Location', 'Status'];
                 if (isset($data->items) && is_countable($data->items)) {
                     foreach ($data->items as $item) {
                         $locationStr = 'Not Assigned';
@@ -706,7 +747,8 @@ class ReportController extends Controller
                             }
                         }
 
-                        fputcsv($output, [
+                        $rows[] = [
+                            $item->pledge->pledge_date ? date('d/m/Y', strtotime($item->pledge->pledge_date)) : '',
                             $item->pledge->pledge_no ?? '',
                             $item->pledge->customer->name ?? '',
                             $item->category->name_en ?? '',
@@ -715,16 +757,16 @@ class ReportController extends Controller
                             number_format($item->net_value ?? 0, 2),
                             $locationStr,
                             ucfirst($item->status ?? ''),
-                        ]);
+                        ];
                     }
                 }
                 break;
 
             case 'customers':
-                fputcsv($output, ['Name', 'IC Number', 'Phone', 'Total Pledges', 'Active Pledges', 'Total Loan Amount', 'Blacklisted', 'Joined Date']);
+                $rows[] = ['Name', 'IC Number', 'Phone', 'Total Pledges', 'Active Pledges', 'Total Loan Amount', 'Blacklisted', 'Joined Date'];
                 if (isset($data->customers) && is_countable($data->customers)) {
                     foreach ($data->customers as $customer) {
-                        fputcsv($output, [
+                        $rows[] = [
                             $customer->name ?? '',
                             "\t" . ($customer->ic_number ?? ''),
                             "\t" . ($customer->phone ?? ''),
@@ -733,18 +775,18 @@ class ReportController extends Controller
                             number_format($customer->total_loan_amount ?? 0, 2),
                             ($customer->is_blacklisted ?? false) ? 'Yes' : 'No',
                             date('d/m/Y', strtotime($customer->created_at ?? '')),
-                        ]);
+                        ];
                     }
                 }
                 break;
 
             case 'transactions':
-                fputcsv($output, ['Time', 'Type', 'Receipt No', 'Pledge No', 'Customer', 'Amount', 'Created By']);
+                $rows[] = ['Time', 'Type', 'Receipt No', 'Pledge No', 'Customer', 'Amount', 'Created By'];
 
                 // Pledges
                 $pledgeItems = $data->pledges->items ?? [];
                 foreach ($pledgeItems as $pledge) {
-                    fputcsv($output, [
+                    $rows[] = [
                         date('H:i', strtotime($pledge->created_at ?? '')),
                         'New Pledge',
                         $pledge->receipt_no ?? '',
@@ -752,13 +794,13 @@ class ReportController extends Controller
                         $pledge->customer->name ?? '',
                         number_format($pledge->loan_amount ?? 0, 2),
                         $pledge->createdBy->name ?? ($pledge->created_by_name ?? ''),
-                    ]);
+                    ];
                 }
 
                 // Renewals
                 $renewalItems = $data->renewals->items ?? [];
                 foreach ($renewalItems as $renewal) {
-                    fputcsv($output, [
+                    $rows[] = [
                         date('H:i', strtotime($renewal->created_at ?? '')),
                         'Renewal',
                         $renewal->receipt_no ?? '',
@@ -766,13 +808,13 @@ class ReportController extends Controller
                         $renewal->pledge->customer->name ?? '',
                         number_format($renewal->total_payable ?? 0, 2),
                         $renewal->createdBy->name ?? ($renewal->created_by_name ?? ''),
-                    ]);
+                    ];
                 }
 
                 // Redemptions
                 $redemptionItems = $data->redemptions->items ?? [];
                 foreach ($redemptionItems as $redemption) {
-                    fputcsv($output, [
+                    $rows[] = [
                         date('H:i', strtotime($redemption->created_at ?? '')),
                         'Redemption',
                         $redemption->receipt_no ?? '',
@@ -780,32 +822,28 @@ class ReportController extends Controller
                         $redemption->pledge->customer->name ?? '',
                         number_format($redemption->total_payable ?? 0, 2),
                         $redemption->createdBy->name ?? ($redemption->created_by_name ?? ''),
-                    ]);
+                    ];
                 }
                 break;
 
             case 'reprints':
-                fputcsv($output, ['Date/Time', 'Receipt No', 'Pledge No', 'Charge Amount', 'Paid', 'Printed By']);
+                $rows[] = ['Date/Time', 'Receipt No', 'Pledge No', 'Charge Amount', 'Paid', 'Printed By'];
                 if (isset($data->reprints) && is_countable($data->reprints)) {
                     foreach ($data->reprints as $reprint) {
-                        fputcsv($output, [
+                        $rows[] = [
                             date('d/m/Y H:i', strtotime($reprint->printed_at ?? '')),
                             $reprint->pledge->receipt_no ?? '',
                             $reprint->pledge->pledge_no ?? '',
                             number_format($reprint->charge_amount ?? 0, 2),
                             ($reprint->charge_paid ?? false) ? 'Yes' : 'No',
                             $reprint->printedBy->name ?? ($reprint->printed_by_name ?? ''),
-                        ]);
+                        ];
                     }
                 }
                 break;
         }
 
-        rewind($output);
-        $csv = stream_get_contents($output);
-        fclose($output);
-
-        return $csv;
+        return $rows;
     }
 
     /**
