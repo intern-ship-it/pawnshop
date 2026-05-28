@@ -10,6 +10,7 @@ import { useNavigate } from "react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import inventoryService from "@/services/inventoryService";
+import reportService from "@/services/reportService";
 import { formatCurrency } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -104,6 +105,7 @@ export default function InventoryList() {
   // View State
   const [viewMode, setViewMode] = useState("table");
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Data State
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -1111,46 +1113,39 @@ export default function InventoryList() {
     setShowLocationModal(true);
   };
 
-  // Export to CSV
-  const handleExport = () => {
-    const csvData = filteredItems.map((item) => {
-      const loc = formatLocation(item);
-      const locationStr = loc ? loc.replace(/ > /g, ' > ').replace(/ → /g, ' > ').replace(/→/g, '>') : "Unassigned";
-      return {
-        "Pledge No": item.pledge?.pledge_no || "",
-        Customer: item.pledge?.customer?.name || "",
-        Category: getCategoryName(item.category),
-        Purity: purityLabels[getPurityName(item.purity)] || getPurityName(item.purity),
-        "Weight (g)": item.net_weight || item.weight || 0,
-        "Value (RM)": item.net_value || item.estimated_value || 0,
-        Location: locationStr,
-        "Item Status": item.status || "stored",
-        "Pledge Status": item.pledge?.status || "",
-        "Due Date": item.pledge?.due_date ? String(item.pledge.due_date).split('T')[0].split(' ')[0] : "",
-      };
-    });
-
-    const headers = Object.keys(csvData[0] || {});
-    const csv = [
-      headers.join(","),
-      ...csvData.map((row) => headers.map((h) => `"${row[h]}"`).join(",")),
-    ].join("\n");
-
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `inventory_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-
+  // Export to Excel using Backend
+  const handleExport = async () => {
+    setIsExporting(true);
     dispatch(
       addToast({
-        type: "success",
-        title: "Export",
-        message: `Exported ${csvData.length} items to CSV`,
-      }),
+        title: "Exporting",
+        message: "Generating Excel report...",
+      })
     );
+
+    try {
+      const itemIds = filteredItems.map(item => item.id).join(',');
+      await reportService.exportReport("inventory", "xlsx", { item_ids: itemIds });
+      
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Export Complete",
+          message: `Exported ${filteredItems.length} items to Excel`,
+        })
+      );
+    } catch (error) {
+      console.error("Export error:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Export Failed",
+          message: error.message || "Failed to generate Excel report",
+        })
+      );
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Loading state
@@ -1192,8 +1187,13 @@ export default function InventoryList() {
           <Button variant="outline" leftIcon={Printer} onClick={openPrintModal}>
             Print Labels
           </Button>
-          <Button variant="outline" leftIcon={Download} onClick={handleExport}>
-            Export
+          <Button 
+            variant="outline" 
+            leftIcon={Download} 
+            onClick={handleExport}
+            loading={isExporting}
+          >
+            Export Excel
           </Button>
         </div>
       }
