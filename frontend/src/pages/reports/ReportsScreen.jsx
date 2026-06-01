@@ -647,6 +647,13 @@ export default function ReportsScreen() {
 
 // Overview Report
 function OverviewReport({ data }) {
+  const [animateBars, setAnimateBars] = useState(false);
+  useEffect(() => {
+    setAnimateBars(false); // Reset animation if data changes
+    const timer = setTimeout(() => setAnimateBars(true), 300);
+    return () => clearTimeout(timer);
+  }, [data]);
+
   if (!data) return <EmptyState message="No data available" />;
 
   const pledgesSummary = data.pledges?.summary || {};
@@ -681,13 +688,13 @@ function OverviewReport({ data }) {
           </p>
         </Card>
 
-        <Card className="p-5 bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+        <Card className="p-5 bg-gradient-to-br from-violet-500 to-violet-600 text-white">
           <CheckCircle className="w-8 h-8 mb-3 opacity-80" />
-          <p className="text-purple-100 text-sm">Redemptions</p>
+          <p className="text-violet-100 text-sm">Redemptions</p>
           <p className="text-2xl font-bold">
             {redemptionsSummary.total_redemptions || 0}
           </p>
-          <p className="text-purple-200 text-sm mt-1">
+          <p className="text-violet-200 text-sm mt-1">
             {formatCurrency(redemptionsSummary.total_collected || 0)} collected
           </p>
         </Card>
@@ -724,7 +731,7 @@ function OverviewReport({ data }) {
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Outstanding Portfolio */}
+        {/* Outstanding Portfolio - Enhanced Breakdown */}
         <Card className="p-5">
           <h3 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
             <PieChart className="w-5 h-5 text-amber-500" />
@@ -752,6 +759,79 @@ function OverviewReport({ data }) {
               </span>
             </div>
           </div>
+
+          {/* Principal vs Interest Split */}
+          {(outstandingSummary.total_principal > 0 || outstandingSummary.total_interest > 0) && (
+            <div className="mt-5 pt-4 border-t border-zinc-200">
+              <p className="text-sm font-medium text-zinc-600 mb-3">Principal vs Interest Breakdown</p>
+              {/* Visual Bar */}
+              <div className="w-full h-8 rounded-full overflow-hidden flex bg-zinc-100 mb-3">
+                <div
+                  className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-full flex items-center justify-center text-[10px] font-bold text-white transition-all duration-1000 ease-out"
+                  style={{ width: animateBars ? `${outstandingSummary.principal_percentage || 0}%` : '0%' }}
+                >
+                  {animateBars && (outstandingSummary.principal_percentage || 0) > 5 ? `${outstandingSummary.principal_percentage || 0}%` : ''}
+                </div>
+                <div
+                  className="bg-gradient-to-r from-rose-400 to-rose-500 h-full flex items-center justify-center text-[10px] font-bold text-white transition-all duration-1000 ease-out"
+                  style={{ width: animateBars ? `${outstandingSummary.interest_percentage || 0}%` : '0%' }}
+                >
+                  {animateBars && (outstandingSummary.interest_percentage || 0) > 5 ? `${outstandingSummary.interest_percentage || 0}%` : ''}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2 p-2.5 bg-indigo-50 rounded-lg">
+                  <div className="w-3 h-3 rounded-full bg-indigo-500 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-zinc-500">Principal (Loan)</p>
+                    <p className="text-sm font-bold text-indigo-700 truncate">
+                      {formatCurrency(outstandingSummary.total_principal || 0)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-2.5 bg-rose-50 rounded-lg">
+                  <div className="w-3 h-3 rounded-full bg-rose-500 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-zinc-500">Accrued Interest</p>
+                    <p className="text-sm font-bold text-rose-700 truncate">
+                      {formatCurrency(outstandingSummary.total_interest || 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+
+          {/* By Loan Amount Range */}
+          {outstandingSummary.by_loan_range && outstandingSummary.by_loan_range.length > 0 && (
+            <div className="mt-5 pt-4 border-t border-zinc-200">
+              <p className="text-sm font-medium text-zinc-600 mb-3">By Loan Amount Range</p>
+              <div className="space-y-1.5">
+                {outstandingSummary.by_loan_range.filter(r => r.count > 0).map((range, idx) => {
+                  const totalPledges = outstandingSummary.total_pledges || 1;
+                  const pct = Math.round((range.count / totalPledges) * 100);
+                  return (
+                    <div key={range.label} className="flex items-center gap-3 p-2 hover:bg-zinc-50 rounded-lg transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs text-zinc-600 truncate">{range.label}</span>
+                          <span className="text-xs font-semibold text-zinc-800 ml-2 flex-shrink-0">{range.count}</span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-zinc-100">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-600 transition-all duration-700"
+                            style={{ width: `${Math.max(pct, 3)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-zinc-400 w-8 text-right flex-shrink-0">{pct}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Inventory Summary */}
@@ -760,7 +840,7 @@ function OverviewReport({ data }) {
             <Warehouse className="w-5 h-5 text-amber-500" />
             Inventory Summary
           </h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="text-center p-3 bg-zinc-50 rounded-lg">
               <Package className="w-6 h-6 text-zinc-400 mx-auto mb-2" />
               <p className="text-xl font-bold text-zinc-800">
@@ -780,30 +860,66 @@ function OverviewReport({ data }) {
               </p>
               <p className="text-xs text-zinc-500">Weight</p>
             </div>
-            <div className="text-center p-3 bg-zinc-50 rounded-lg">
-              <DollarSign className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-bold text-emerald-600 break-words">
-                {formatCurrency(inventorySummary.total_gross_value || 0)}
-              </p>
-              <p className="text-[10px] text-zinc-400">100% Value</p>
-              <p className="text-xs font-semibold text-zinc-500 mt-1">
-                {formatCurrency(
-                  typeof inventorySummary.total_value === "object"
-                    ? inventorySummary.total_value?.total_value || 0
-                    : inventorySummary.total_value || 0,
-                )}
-              </p>
-              <p className="text-[9px] text-zinc-400">Loan Value</p>
-            </div>
           </div>
 
-          {/* By Purity */}
+          <div className="mt-5">
+            <p className="text-xs font-semibold text-zinc-600 mb-2">Cash Loaned vs Gold Value in Vault</p>
+            {(() => {
+              const grossVal = inventorySummary.total_gross_value || 0;
+              const loanVal = typeof inventorySummary.total_value === "object"
+                  ? inventorySummary.total_value?.total_value || 0
+                  : inventorySummary.total_value || 0;
+              
+              const loanPct = grossVal > 0 ? (loanVal / grossVal) * 100 : 0;
+              const marginPct = 100 - loanPct;
+
+              return (
+                <div>
+                  <div className="flex h-5 w-full rounded-full overflow-hidden mb-3 bg-zinc-100">
+                    <div 
+                      className="bg-sky-500 flex items-center justify-center text-[10px] font-bold text-white px-2 transition-all duration-1000 ease-out whitespace-nowrap" 
+                      style={{ width: animateBars ? `${loanPct}%` : '0%' }}
+                      title={`Cash Given to Customers: ${loanPct.toFixed(1)}%`}
+                    >
+                      {animateBars && loanPct > 10 ? `${loanPct.toFixed(1)}%` : ''}
+                    </div>
+                    <div 
+                      className="bg-violet-500 flex items-center justify-center text-[10px] font-bold text-white px-2 transition-all duration-1000 ease-out whitespace-nowrap" 
+                      style={{ width: animateBars ? `${marginPct}%` : '0%' }}
+                      title={`Shop Equity/Buffer: ${marginPct.toFixed(1)}%`}
+                    >
+                      {animateBars && marginPct > 10 ? `${marginPct.toFixed(1)}%` : ''}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div className="bg-sky-50 p-2.5 rounded-lg border border-sky-100 flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-sky-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Cash Given Out</p>
+                        <p className="font-bold text-sky-700 text-[13px]">{formatCurrency(loanVal)}</p>
+                      </div>
+                    </div>
+                    <div className="bg-violet-50 p-2.5 rounded-lg border border-violet-100 flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Gold Market Value</p>
+                        <p className="font-bold text-violet-700 text-[13px]">{formatCurrency(grossVal)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* By Purity Detailed Breakdown */}
           {inventorySummary.by_purity && (
-            <div className="mt-4 pt-4 border-t border-zinc-200">
-              <p className="text-sm font-medium text-zinc-600 mb-2">
-                By Purity
+            <div className="mt-5 pt-4 border-t border-zinc-200">
+              <p className="text-sm font-semibold text-zinc-700 mb-3 flex items-center justify-between">
+                <span>Value Breakdown by Purity</span>
               </p>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {(Array.isArray(inventorySummary.by_purity)
                   ? inventorySummary.by_purity
                   : Object.entries(inventorySummary.by_purity).map(
@@ -812,17 +928,30 @@ function OverviewReport({ data }) {
                 ).map((item, idx) => {
                   const label = item.purity || item.name || "Unknown";
                   const weight = item.weight || item.total_weight || 0;
+                  const grossVal = item.gross_value || 0;
+                  const loanVal = item.total_value || 0;
+                  
                   return (
-                    <div
-                      key={label || idx}
-                      className="flex justify-between items-center text-sm p-1 hover:bg-zinc-50 rounded"
-                    >
-                      <span className="text-zinc-600 font-medium">{label}</span>
-                      <div className="text-right">
-                        <p className="font-semibold text-zinc-800">{weight}g</p>
-                        <p className="text-[10px] text-emerald-600 font-bold">
-                          {formatCurrency(item.gross_value || 0)}
-                        </p>
+                    <div key={label || idx} className="bg-white border border-zinc-100 p-2.5 rounded-lg shadow-sm hover:border-amber-200 transition-colors">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded">
+                            {label}
+                          </span>
+                          <span className="text-xs text-zinc-500 font-medium">({item.count || 0} items)</span>
+                        </div>
+                        <span className="text-sm font-bold text-zinc-800">{weight}g</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-end mb-1">
+                        <div>
+                          <p className="text-[10px] text-zinc-400 uppercase font-semibold">Gold Market Value</p>
+                          <p className="text-xs font-bold text-emerald-600">{formatCurrency(grossVal)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-zinc-400 uppercase font-semibold">Cash Given Out</p>
+                          <p className="text-xs font-bold text-indigo-600">{formatCurrency(loanVal)}</p>
+                        </div>
                       </div>
                     </div>
                   );
@@ -832,6 +961,86 @@ function OverviewReport({ data }) {
           )}
         </Card>
       </div>
+
+      {/* Top Customers by Outstanding */}
+      {outstandingSummary.top_customers && outstandingSummary.top_customers.length > 0 && (
+        <Card className="p-5">
+          <h3 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-indigo-500" />
+            Top 10 Customers by Outstanding
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200">
+                  <th className="text-left py-2.5 px-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">#</th>
+                  <th className="text-left py-2.5 px-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Customer</th>
+                  <th className="text-center py-2.5 px-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Pledges</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Principal</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Outstanding</th>
+                  <th className="text-right py-2.5 px-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {outstandingSummary.top_customers.map((cust, idx) => {
+                  const share = outstandingSummary.total_outstanding > 0
+                    ? ((cust.total_outstanding / outstandingSummary.total_outstanding) * 100).toFixed(1)
+                    : 0;
+                  return (
+                    <tr key={idx} className="border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
+                      <td className="py-2.5 px-3">
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                          idx === 0 ? 'bg-amber-100 text-amber-700' :
+                          idx === 1 ? 'bg-zinc-200 text-zinc-600' :
+                          idx === 2 ? 'bg-orange-100 text-orange-600' :
+                          'bg-zinc-100 text-zinc-500'
+                        }`}>{idx + 1}</span>
+                      </td>
+                      <td className="py-2.5 px-3 font-medium text-zinc-800">{cust.name}</td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="inline-flex items-center justify-center bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                          {cust.pledge_count}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-zinc-600">{formatCurrency(cust.total_principal)}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-zinc-800">{formatCurrency(cust.total_outstanding)}</td>
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 h-1.5 rounded-full bg-zinc-100">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-600"
+                              style={{ width: `${Math.min(share, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-zinc-500 w-10 text-right">{share}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Grand Total Row */}
+                <tr className="bg-zinc-100 border-t-2 border-zinc-300 font-semibold">
+                  <td colSpan="2" className="py-3 px-3 text-right text-zinc-800">Grand Total (All Active)</td>
+                  <td className="py-3 px-3 text-center">
+                    <span className="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                      {outstandingSummary.active_count || 0}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 text-right text-zinc-800">
+                    {formatCurrency(outstandingSummary.total_principal || 0)}
+                  </td>
+                  <td className="py-3 px-3 text-right text-zinc-900 font-bold">
+                    {formatCurrency(outstandingSummary.total_outstanding || 0)}
+                  </td>
+                  <td className="py-3 px-3 text-right text-zinc-800">
+                    100.0%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Transaction Breakdown */}
       <Card className="p-5">

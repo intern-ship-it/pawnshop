@@ -124,3 +124,9 @@ backend/public/index.html
 backend/public/version.json
 backend/public/vite.svg
 !backend/public/.htaccess
+
+# ===========================
+# DATABASE DUMPS
+# ===========================
+*.sql
+dsaraassetventur_dsara_pajak_kedai.sql

@@ -183,13 +183,121 @@ class ReportController extends Controller
             }
         });
 
+        // --- Breakdown by Pledge Age ---
+        $byAge = [
+            ['label' => '0-1 Month', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '1-3 Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '3-6 Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '6-12 Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '12+ Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+        ];
+
+        // --- Breakdown by Loan Amount Range ---
+        $byLoanRange = [
+            ['label' => 'Below RM 5,000', 'count' => 0, 'total' => 0],
+            ['label' => 'RM 5,000 - 20,000', 'count' => 0, 'total' => 0],
+            ['label' => 'RM 20,000 - 50,000', 'count' => 0, 'total' => 0],
+            ['label' => 'RM 50,000 - 100,000', 'count' => 0, 'total' => 0],
+            ['label' => 'Above RM 100,000', 'count' => 0, 'total' => 0],
+        ];
+
+        // --- Top 10 Customers by Outstanding ---
+        $customerTotals = [];
+
+        $pledges->each(function ($pledge) use ($today, &$byAge, &$byLoanRange, &$customerTotals) {
+            $monthsElapsed = Carbon::parse($pledge->pledge_date)->diffInMonths($today);
+            $loanAmount = (float) ($pledge->loan_amount ?? 0);
+            $outstanding = (float) ($pledge->total_outstanding ?? 0);
+
+            // Age breakdown
+            if ($monthsElapsed <= 1) {
+                $byAge[0]['count']++;
+                $byAge[0]['principal'] += $loanAmount;
+                $byAge[0]['outstanding'] += $outstanding;
+            } elseif ($monthsElapsed <= 3) {
+                $byAge[1]['count']++;
+                $byAge[1]['principal'] += $loanAmount;
+                $byAge[1]['outstanding'] += $outstanding;
+            } elseif ($monthsElapsed <= 6) {
+                $byAge[2]['count']++;
+                $byAge[2]['principal'] += $loanAmount;
+                $byAge[2]['outstanding'] += $outstanding;
+            } elseif ($monthsElapsed <= 12) {
+                $byAge[3]['count']++;
+                $byAge[3]['principal'] += $loanAmount;
+                $byAge[3]['outstanding'] += $outstanding;
+            } else {
+                $byAge[4]['count']++;
+                $byAge[4]['principal'] += $loanAmount;
+                $byAge[4]['outstanding'] += $outstanding;
+            }
+
+            // Loan range breakdown
+            if ($loanAmount < 5000) {
+                $byLoanRange[0]['count']++;
+                $byLoanRange[0]['total'] += $loanAmount;
+            } elseif ($loanAmount < 20000) {
+                $byLoanRange[1]['count']++;
+                $byLoanRange[1]['total'] += $loanAmount;
+            } elseif ($loanAmount < 50000) {
+                $byLoanRange[2]['count']++;
+                $byLoanRange[2]['total'] += $loanAmount;
+            } elseif ($loanAmount < 100000) {
+                $byLoanRange[3]['count']++;
+                $byLoanRange[3]['total'] += $loanAmount;
+            } else {
+                $byLoanRange[4]['count']++;
+                $byLoanRange[4]['total'] += $loanAmount;
+            }
+
+            // Customer aggregation
+            $customerId = $pledge->customer_id;
+            $customerName = $pledge->customer->name ?? 'Unknown';
+            if (!isset($customerTotals[$customerId])) {
+                $customerTotals[$customerId] = [
+                    'name' => $customerName,
+                    'pledge_count' => 0,
+                    'total_principal' => 0,
+                    'total_outstanding' => 0,
+                ];
+            }
+            $customerTotals[$customerId]['pledge_count']++;
+            $customerTotals[$customerId]['total_principal'] += $loanAmount;
+            $customerTotals[$customerId]['total_outstanding'] += $outstanding;
+        });
+
+        // Sort customers by outstanding desc and take top 10
+        $topCustomers = collect($customerTotals)
+            ->sortByDesc('total_outstanding')
+            ->take(10)
+            ->values()
+            ->toArray();
+
+        // Round breakdown values
+        foreach ($byAge as &$age) {
+            $age['principal'] = round($age['principal'], 2);
+            $age['outstanding'] = round($age['outstanding'], 2);
+        }
+        foreach ($byLoanRange as &$range) {
+            $range['total'] = round($range['total'], 2);
+        }
+
+        $totalPrincipal = $pledges->sum('loan_amount');
+        $totalInterest = $pledges->sum('current_interest');
+        $totalOutstanding = $pledges->sum('total_outstanding');
+
         $summary = [
             'total_pledges' => $pledges->count(),
             'active_count' => count($activePledges),
             'overdue_count' => count($overduePledges),
-            'total_principal' => $pledges->sum('loan_amount'),
-            'total_interest' => $pledges->sum('current_interest'),
-            'total_outstanding' => $pledges->sum('total_outstanding'),
+            'total_principal' => round($totalPrincipal, 2),
+            'total_interest' => round($totalInterest, 2),
+            'total_outstanding' => round($totalOutstanding, 2),
+            'principal_percentage' => $totalOutstanding > 0 ? round(($totalPrincipal / $totalOutstanding) * 100, 1) : 0,
+            'interest_percentage' => $totalOutstanding > 0 ? round(($totalInterest / $totalOutstanding) * 100, 1) : 0,
+            'by_age' => $byAge,
+            'by_loan_range' => $byLoanRange,
+            'top_customers' => $topCustomers,
         ];
 
         return $this->success([
@@ -322,14 +430,8 @@ class ReportController extends Controller
         $fromDate = $request->get('from_date');
         $toDate = $request->get('to_date');
 
-        $query = PledgeItem::whereHas('pledge', function ($q) use ($fromDate, $toDate) {
+        $query = PledgeItem::whereHas('pledge', function ($q) {
             $q->where('status', 'active');
-            if ($fromDate) {
-                $q->whereDate('pledge_date', '>=', $fromDate);
-            }
-            if ($toDate) {
-                $q->whereDate('pledge_date', '<=', $toDate);
-            }
         });
 
         if ($request->has('item_ids')) {
