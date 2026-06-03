@@ -44,6 +44,19 @@ import {
   Eye,
 } from "lucide-react";
 
+/**
+ * Always return an array for list rendering.
+ * The reports API can return a list either as a bare array or wrapped
+ * (e.g. { data: [...] }), and on some environments a field may come back
+ * as an object instead of an array. This guards every `.filter`/`.map`
+ * against "x.filter is not a function" crashes.
+ */
+const asArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value && Array.isArray(value.data)) return value.data;
+  return [];
+};
+
 // Report Categories with sub-reports
 const reportCategories = [
   {
@@ -1050,7 +1063,7 @@ function PledgesReport({ data }) {
   if (!data) return <EmptyState message="No pledge data available" />;
 
   const summary = data.summary || {};
-  const pledges = data.pledges || [];
+  const pledges = asArray(data.pledges);
 
   return (
     <div className="space-y-6">
@@ -1167,7 +1180,7 @@ function RenewalsReport({ data }) {
   if (!data) return <EmptyState message="No renewal data available" />;
 
   const summary = data.summary || {};
-  const renewals = data.renewals || [];
+  const renewals = asArray(data.renewals);
 
   return (
     <div className="space-y-6">
@@ -1266,7 +1279,7 @@ function RedemptionsReport({ data }) {
   if (!data) return <EmptyState message="No redemption data available" />;
 
   const summary = data.summary || {};
-  const redemptions = data.redemptions || [];
+  const redemptions = asArray(data.redemptions);
 
   return (
     <div className="space-y-6">
@@ -1371,7 +1384,7 @@ function OutstandingReport({ data }) {
   if (!data) return <EmptyState message="No outstanding data available" />;
 
   const summary = data.summary || {};
-  const pledges = data.pledges || [];
+  const pledges = asArray(data.pledges);
 
   return (
     <div className="space-y-6">
@@ -1720,7 +1733,7 @@ function CustomersReport({ data }) {
   if (!data) return <EmptyState message="No customer data available" />;
 
   const summary = data.summary || {};
-  const customers = data.customers || [];
+  const customers = asArray(data.customers);
 
   return (
     <div className="space-y-6">
@@ -2001,7 +2014,7 @@ function ReprintsReport({ data }) {
   if (!data) return <EmptyState message="No reprint data available" />;
 
   const summary = data.summary || {};
-  const reprints = data.reprints || [];
+  const reprints = asArray(data.reprints);
 
   return (
     <div className="space-y-6">
