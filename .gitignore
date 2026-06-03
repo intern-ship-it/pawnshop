@@ -126,6 +126,17 @@ backend/public/vite.svg
 !backend/public/.htaccess
 
 # ===========================
+# GENERATED REPORTS / EXPORTS
+# ===========================
+*.pdf
+*.csv
+*.png
+commissions_*.csv
+daily-closing-*.pdf
+sales-report-*.pdf
+batu-caves-merchant-qr.png
+
+# ===========================
 # DATABASE DUMPS
 # ===========================
 *.sql
