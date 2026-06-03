@@ -14,6 +14,8 @@ class Slot extends Model
     protected $fillable = [
         'box_id',
         'slot_number',
+        'slot_group',
+        'subslot_number',
         'is_occupied',
         'current_item_id',
         'occupied_at',
@@ -66,10 +68,15 @@ class Slot extends Model
     {
         $slotStr = $this->slot_number;
         if ($this->box->has_subslots) {
-            $subslotsPerSlot = $this->box->subslots_per_slot ?: 1;
-            $slotNum = ceil($this->slot_number / $subslotsPerSlot);
-            $subslotNum = (($this->slot_number - 1) % $subslotsPerSlot) + 1;
-            $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            // Prefer stored position; fall back to the legacy formula if not backfilled.
+            if ($this->slot_group !== null && $this->subslot_number !== null) {
+                $slotStr = sprintf('%d-%d', $this->slot_group, $this->subslot_number);
+            } else {
+                $subslotsPerSlot = $this->box->subslots_per_slot ?: 1;
+                $slotNum = ceil($this->slot_number / $subslotsPerSlot);
+                $subslotNum = (($this->slot_number - 1) % $subslotsPerSlot) + 1;
+                $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            }
         }
 
         return sprintf('%s-B%s-S%s',
