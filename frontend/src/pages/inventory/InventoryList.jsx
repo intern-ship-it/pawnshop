@@ -942,7 +942,6 @@ export default function InventoryList() {
           <button onclick="window.print()">Print Label</button>
           <button onclick="window.close()">Close</button>
         </div>
-<<<<<<< Updated upstream
         <div class="labels-wrapper">
           <div class="label">
             <div class="header-row">
@@ -958,17 +957,6 @@ export default function InventoryList() {
             </div>
             <div class="reprint-badge">REPRINT</div>
             ${isRelocated ? `<div style="text-align: center; font-size: 9pt; font-weight: 900; color: #000; margin-top: 1mm;">RELOCATED</div>` : ``}
-=======
-        <div class="label">
-          <div class="header-row">
-            <span class="pledge-no">${item.pledge?.pledge_no || "N/A"}</span>
-            <span class="category">${catName}</span>
-          </div>
-          <div class="barcode-section"><svg id="single-barcode"></svg></div>
-          <div class="footer-row">
-            <div class="storage-loc">${storageLocation}</div>
-            <div>${purName || "916"} | ${parseFloat(item.net_weight || item.weight || 0).toFixed(2)}g</div>
->>>>>>> Stashed changes
           </div>
         </div>
         <script>
