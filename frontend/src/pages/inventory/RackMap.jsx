@@ -223,7 +223,8 @@ export default function RackMap({ embedded = false }) {
       const item = items[0] || slot.current_item || slot.pledge_item;
       let formattedSlotObj = String(slot.slot_number);
       if (currentBox?.has_subslots) {
-         formattedSlotObj = `${Math.ceil(slot.slot_number / (currentBox.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1}`;
+         const [g, s] = slotPos(slot, currentBox);
+         formattedSlotObj = `${g}-${s}`;
       }
       return (
         formattedSlotObj.includes(query) ||
@@ -639,7 +640,7 @@ export default function RackMap({ embedded = false }) {
                       }">
                         <span class="slot-number">${
                           box.has_subslots
-                            ? `${Math.ceil(slot.slot_number / (box.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (box.subslots_per_slot || 1)) + 1}`
+                            ? `${slotPos(slot, box)[0]}-${slotPos(slot, box)[1]}`
                             : String(slot.slot_number).padStart(2, "0")
                         }</span>
                         ${
@@ -1097,7 +1098,7 @@ export default function RackMap({ embedded = false }) {
                     >
                       <span className="text-xs font-mono font-medium">
                         {currentBox?.has_subslots
-                          ? `${Math.ceil(slot.slot_number / (currentBox.subslots_per_slot || 1))}-${((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1}`
+                          ? `${slotPos(slot, currentBox)[0]}-${slotPos(slot, currentBox)[1]}`
                           : String(slot.slot_number).padStart(2, "0")}
                       </span>
                       {isOccupied &&
@@ -1167,7 +1168,7 @@ export default function RackMap({ embedded = false }) {
         title={`Slot ${
           selectedSlot?.slot_number
             ? currentBox?.has_subslots
-              ? `${Math.ceil(selectedSlot.slot_number / (currentBox.subslots_per_slot || 1))}-${((selectedSlot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1}`
+              ? `${slotPos(selectedSlot, currentBox)[0]}-${slotPos(selectedSlot, currentBox)[1]}`
               : String(selectedSlot.slot_number).padStart(2, "0")
             : ""
         }`}
