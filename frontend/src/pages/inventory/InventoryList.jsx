@@ -267,8 +267,12 @@ export default function InventoryList() {
       
       if (item.box.has_subslots) {
         const subPerSlot = item.box.subslots_per_slot || 5;
-        const sNum = Math.ceil(item.slot.slot_number / subPerSlot);
-        const subNum = ((item.slot.slot_number - 1) % subPerSlot) + 1;
+        const sNum = item.slot.slot_group != null
+          ? item.slot.slot_group
+          : Math.ceil(item.slot.slot_number / subPerSlot);
+        const subNum = item.slot.subslot_number != null
+          ? item.slot.subslot_number
+          : ((item.slot.slot_number - 1) % subPerSlot) + 1;
         return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
       }
       
@@ -282,8 +286,12 @@ export default function InventoryList() {
       
       if (item.slot.box.has_subslots) {
         const subPerSlot = item.slot.box.subslots_per_slot || 5;
-        const sNum = Math.ceil(item.slot.slot_number / subPerSlot);
-        const subNum = ((item.slot.slot_number - 1) % subPerSlot) + 1;
+        const sNum = item.slot.slot_group != null
+          ? item.slot.slot_group
+          : Math.ceil(item.slot.slot_number / subPerSlot);
+        const subNum = item.slot.subslot_number != null
+          ? item.slot.subslot_number
+          : ((item.slot.slot_number - 1) % subPerSlot) + 1;
         return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
       }
       
@@ -761,8 +769,12 @@ export default function InventoryList() {
                 
                 if (boxObj?.has_subslots && absSlotNum) {
                   const subPerSlot = boxObj.subslots_per_slot || 5;
-                  const sNum = Math.ceil(absSlotNum / subPerSlot);
-                  const subNum = ((absSlotNum - 1) % subPerSlot) + 1;
+                  const sNum = slotObj?.slot_group != null
+                    ? slotObj.slot_group
+                    : Math.ceil(absSlotNum / subPerSlot);
+                  const subNum = slotObj?.subslot_number != null
+                    ? slotObj.subslot_number
+                    : ((absSlotNum - 1) % subPerSlot) + 1;
                   storageLocation = `${lockerDigit}-${drawerName}${sNum}-${subNum}`;
                 } else if (absSlotNum) {
                   storageLocation = `${lockerDigit}-${drawerName}${absSlotNum}`;
@@ -863,8 +875,12 @@ export default function InventoryList() {
       
       if (bObj?.has_subslots && slotNumRaw) {
         const sPerS = bObj.subslots_per_slot || 5;
-        const sN = Math.ceil(slotNumRaw / sPerS);
-        const subN = ((slotNumRaw - 1) % sPerS) + 1;
+        const sN = sObj?.slot_group != null
+          ? sObj.slot_group
+          : Math.ceil(slotNumRaw / sPerS);
+        const subN = sObj?.subslot_number != null
+          ? sObj.subslot_number
+          : ((slotNumRaw - 1) % sPerS) + 1;
         storageLocation = `${lockerDigit}-${dName}${sN}-${subN}`;
       } else if (slotNumRaw) {
         storageLocation = `${lockerDigit}-${dName}${slotNumRaw}`;
