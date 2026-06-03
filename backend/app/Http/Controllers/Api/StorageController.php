@@ -89,11 +89,13 @@ class StorageController extends Controller
                     'total_slots' => $slotsPerBox,
                 ]);
 
-                // Create 20 slots per box
+                // Create slots per box (plain drawers: group = slot number, subslot = 1)
                 for ($slotNum = 1; $slotNum <= $slotsPerBox; $slotNum++) {
                     Slot::create([
                         'box_id' => $box->id,
                         'slot_number' => $slotNum,
+                        'slot_group' => $slotNum,
+                        'subslot_number' => 1,
                     ]);
                 }
             }
@@ -230,11 +232,14 @@ class StorageController extends Controller
                 'description' => $validated['description'] ?? null,
             ]);
 
-            // Create slots
+            // Create slots with explicit stored position so new drawers are
+            // consistent with backfilled ones (and the add-slot/subslot endpoints work).
             for ($i = 1; $i <= $actualTotalSlots; $i++) {
                 Slot::create([
                     'box_id' => $box->id,
                     'slot_number' => $i,
+                    'slot_group' => $hasSubslots ? (int) ceil($i / $subslotsPerSlot) : $i,
+                    'subslot_number' => $hasSubslots ? (($i - 1) % $subslotsPerSlot) + 1 : 1,
                 ]);
             }
 
