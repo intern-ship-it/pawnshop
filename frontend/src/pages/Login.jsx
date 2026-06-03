@@ -43,8 +43,26 @@ export default function Login() {
   const [formData, setFormData] = useState({ username: "", password: "" });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Typewriter animation for the "Welcome Back" heading
+  const welcomeText = "Welcome Back";
+  const [typedWelcome, setTypedWelcome] = useState("");
+  const [typingDone, setTypingDone] = useState(false);
+  useEffect(() => {
+    let i = 0;
+    const timer = setInterval(() => {
+      i += 1;
+      setTypedWelcome(welcomeText.slice(0, i));
+      if (i >= welcomeText.length) {
+        clearInterval(timer);
+        // Let the cursor blink briefly, then hide it
+        setTimeout(() => setTypingDone(true), 600);
+      }
+    }, 160);
+    return () => clearInterval(timer);
+  }, []);
 
   // Auto-login check state
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -430,7 +448,15 @@ export default function Login() {
             className="bg-white rounded-2xl shadow-xl p-8"
           >
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-zinc-800">Welcome Back</h2>
+              <h2 className="text-3xl font-bold text-zinc-800 min-h-[2.5rem]" aria-label={welcomeText}>
+                {typedWelcome}
+                {!typingDone && (
+                  <span
+                    className="inline-block w-0.5 h-7 align-middle ml-0.5 bg-amber-500"
+                    style={{ animation: "blinkCursor 1s ease-in-out infinite" }}
+                  />
+                )}
+              </h2>
               <p className="text-lg text-zinc-500 mt-2">Sign in to your account</p>
             </div>
 
