@@ -193,6 +193,18 @@ export default function RackMap({ embedded = false }) {
   const currentBox = boxes.find((b) => b.id === selectedBox);
   const currentBoxSummary = boxSummaries[selectedBox] || {};
 
+  // Resolve a slot's [group, subslot] — prefer stored columns, fall back to formula
+  const slotPos = (slot, box) => {
+    const per = box?.subslots_per_slot || 1;
+    const group =
+      slot.slot_group != null ? slot.slot_group : Math.ceil(slot.slot_number / per);
+    const sub =
+      slot.subslot_number != null
+        ? slot.subslot_number
+        : ((slot.slot_number - 1) % per) + 1;
+    return [group, sub];
+  };
+
   // Filter slots by search
   const filteredSlots = useMemo(() => {
     if (!searchQuery) return slots;
@@ -403,6 +415,44 @@ export default function RackMap({ embedded = false }) {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Add a new slot (group) to the selected drawer
+  const handleAddSlot = async () => {
+    if (!selectedBox) return;
+    setIsSaving(true);
+    try {
+      const response = await storageService.addSlot(selectedBox);
+      if (response.success) {
+        dispatch(addToast({ type: "success", title: "Slot Added", message: "A new slot was added to this drawer" }));
+        fetchSlots(selectedBox);
+        fetchBoxSummary(selectedBox);
+        fetchBoxes(selectedVault);
+      } else {
+        dispatch(addToast({ type: "error", title: "Error", message: response.message || "Failed to add slot" }));
+      }
+    } catch (error) {
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to add slot" }));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Add one subslot to a specific slot group
+  const handleAddSubslot = async (slotGroup) => {
+    if (!selectedBox) return;
+    try {
+      const response = await storageService.addSubslot(selectedBox, slotGroup);
+      if (response.success) {
+        dispatch(addToast({ type: "success", title: "Subslot Added", message: `Added a subslot to Slot ${String(slotGroup).padStart(2, "0")}` }));
+        fetchSlots(selectedBox);
+        fetchBoxSummary(selectedBox);
+      } else {
+        dispatch(addToast({ type: "error", title: "Error", message: response.message || "Failed to add subslot" }));
+      }
+    } catch (error) {
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to add subslot" }));
     }
   };
 
@@ -940,6 +990,15 @@ export default function RackMap({ embedded = false }) {
                 >
                   Refresh
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={Plus}
+                  onClick={handleAddSlot}
+                  disabled={!currentBox || isSaving}
+                >
+                  Add Slot
+                </Button>
               </div>
             </div>
 
@@ -953,7 +1012,7 @@ export default function RackMap({ embedded = false }) {
                 <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
                   {Object.entries(
                     filteredSlots.reduce((acc, slot) => {
-                      const slotNum = Math.ceil(slot.slot_number / (currentBox.subslots_per_slot || 1));
+                      const [slotNum] = slotPos(slot, currentBox);
                       if (!acc[slotNum]) acc[slotNum] = [];
                       acc[slotNum].push(slot);
                       return acc;
@@ -965,9 +1024,19 @@ export default function RackMap({ embedded = false }) {
                           <Grid3X3 className="w-4 h-4 text-zinc-400" />
                           <h4 className="text-sm font-bold text-zinc-700">Slot {String(mainSlotNum).padStart(2, "0")}</h4>
                         </div>
-                        <span className="text-[10px] font-medium text-zinc-500 px-2 py-0.5 bg-zinc-100 rounded-full">
-                          {subslots.filter(s => s.is_occupied).length}/{subslots.length} used
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-medium text-zinc-500 px-2 py-0.5 bg-zinc-100 rounded-full">
+                            {subslots.filter(s => s.is_occupied).length}/{subslots.length} used
+                          </span>
+                          <button
+                            type="button"
+                            title="Add subslot"
+                            onClick={() => handleAddSubslot(Number(mainSlotNum))}
+                            className="w-5 h-5 flex items-center justify-center rounded-full text-zinc-500 hover:bg-amber-100 hover:text-amber-600 transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-5 gap-1.5">
@@ -975,7 +1044,7 @@ export default function RackMap({ embedded = false }) {
                           const isOccupied = slot.is_occupied;
                           const item = (slot.current_items && slot.current_items[0]) || slot.current_item || slot.pledge_item;
                           const hasOverdue = item?.pledge?.status === "overdue" || (slot.current_items || []).some(i => i.pledge?.status === "overdue");
-                          const subslotNum = ((slot.slot_number - 1) % (currentBox.subslots_per_slot || 1)) + 1;
+                          const subslotNum = slotPos(slot, currentBox)[1];
 
                           return (
                             <motion.button
