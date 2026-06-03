@@ -138,6 +138,7 @@ export default function ReportsScreen() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showDateModal, setShowDateModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Data State
   const [reportData, setReportData] = useState(null);
@@ -209,17 +210,21 @@ export default function ReportsScreen() {
     }
   }, [datePreset]);
 
-  // Fetch report data when report type or dates change
+  // Fetch report data when report type, dates, or search change
   useEffect(() => {
-    if (fromDate && toDate) {
+    if (!fromDate || !toDate) return;
+
+    const timeoutId = setTimeout(() => {
       fetchReportData();
-    }
-  }, [activeReport, fromDate, toDate]);
+    }, 500); // 500ms debounce for auto-search
+
+    return () => clearTimeout(timeoutId);
+  }, [activeReport, fromDate, toDate, searchQuery]);
 
   const fetchReportData = async () => {
     setIsLoading(true);
     try {
-      const params = { from_date: fromDate, to_date: toDate };
+      const params = { from_date: fromDate, to_date: toDate, search: searchQuery };
       let response;
 
       switch (activeReport) {
@@ -237,10 +242,10 @@ export default function ReportsScreen() {
                 .getRedemptionsReport(params)
                 .catch(() => ({ success: false, data: null })),
               reportService
-                .getOutstandingReport()
+                .getOutstandingReport(params)
                 .catch(() => ({ success: false, data: null })),
               reportService
-                .getOverdueReport()
+                .getOverdueReport(params)
                 .catch(() => ({ success: false, data: null })),
               reportService
                 .getInventoryReport(params)
@@ -273,7 +278,7 @@ export default function ReportsScreen() {
           response = await reportService.getRedemptionsReport(params);
           break;
         case "outstanding":
-          response = await reportService.getOutstandingReport();
+          response = await reportService.getOutstandingReport(params);
           break;
         case "payments":
           response = await reportService.getPaymentSplitReport(params);
@@ -318,6 +323,7 @@ export default function ReportsScreen() {
       const response = await reportService.exportReport(activeReport, format, {
         from_date: fromDate,
         to_date: toDate,
+        search: searchQuery,
       });
 
       if (response.success) {
@@ -367,6 +373,18 @@ export default function ReportsScreen() {
       fullWidth={true}
       actions={
         <div className="flex items-center gap-3">
+          {/* Global Search Input */}
+          <div className="relative w-64 md:w-80 border-amber-500/20 focus-within:border-amber-500 rounded-lg shadow-sm transition-colors overflow-hidden border bg-white">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Search ticket, customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-3 h-10 w-full text-sm outline-none bg-transparent"
+            />
+          </div>
+
           {/* Date Range Display */}
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg">
             <Calendar className="w-4 h-4 text-amber-600" />

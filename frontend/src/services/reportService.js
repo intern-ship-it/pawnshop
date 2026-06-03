@@ -35,18 +35,20 @@ const reportService = {
 
   /**
    * Get outstanding pledges report
+   * @param {Object} params - search
    * @returns {Promise}
    */
-  async getOutstandingReport() {
-    return apiGet('/reports/outstanding')
+  async getOutstandingReport(params = {}) {
+    return apiGet('/reports/outstanding', params)
   },
 
   /**
    * Get overdue pledges report
+   * @param {Object} params - search
    * @returns {Promise}
    */
-  async getOverdueReport() {
-    return apiGet('/reports/overdue')
+  async getOverdueReport(params = {}) {
+    return apiGet('/reports/overdue', params)
   },
 
   /**

@@ -23,6 +23,56 @@ class ReportController extends Controller
     }
 
     /**
+     * Helper to apply global search across Pledge or Pledge-related models
+     */
+    private function applyGlobalSearch($query, $search, $isPledgeTable = true)
+    {
+        if (!$search) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($search, $isPledgeTable) {
+            if ($isPledgeTable) {
+                // Main table is Pledge
+                $q->where('pledge_no', 'like', "%{$search}%")
+                  ->orWhere('receipt_no', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($q2) use ($search) {
+                      $q2->where('name', 'like', "%{$search}%")
+                         ->orWhere('ic_number', 'like', "%{$search}%")
+                         ->orWhere('phone', 'like', "%{$search}%");
+                  });
+            } else {
+                // Main table has a pledge relationship
+                $q->whereHas('pledge', function ($q2) use ($search) {
+                    $q2->where('pledge_no', 'like', "%{$search}%")
+                       ->orWhere('receipt_no', 'like', "%{$search}%")
+                       ->orWhereHas('customer', function ($q3) use ($search) {
+                           $q3->where('name', 'like', "%{$search}%")
+                              ->orWhere('ic_number', 'like', "%{$search}%")
+                              ->orWhere('phone', 'like', "%{$search}%");
+                       });
+                });
+            }
+        });
+    }
+
+    /**
+     * Helper to apply search directly on Customer model
+     */
+    private function applyCustomerSearch($query, $search)
+    {
+        if (!$search) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('ic_number', 'like', "%{$search}%")
+              ->orWhere('phone', 'like', "%{$search}%");
+        });
+    }
+
+    /**
      * Pledges Report
      */
     public function pledges(Request $request): JsonResponse
@@ -43,6 +93,11 @@ class ReportController extends Controller
         // Status filter
         if ($status = $request->get('status')) {
             $query->where('status', $status);
+        }
+
+        // Global search
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, true);
         }
 
         $pledges = $query->orderBy('pledge_date', 'desc')->get();
@@ -82,6 +137,10 @@ class ReportController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, false);
+        }
+
         $renewals = $query->orderBy('created_at', 'desc')->get();
 
         $interestQuery = \App\Models\InterestPayment::where('branch_id', $branchId)
@@ -92,6 +151,10 @@ class ReportController extends Controller
         }
         if ($to) {
             $interestQuery->whereDate('created_at', '<=', $to);
+        }
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($interestQuery, $search, false);
         }
 
         $interestPayments = $interestQuery->orderBy('created_at', 'desc')->get();
@@ -131,6 +194,10 @@ class ReportController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, false);
+        }
+
         $redemptions = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
@@ -156,12 +223,16 @@ class ReportController extends Controller
         $branchId = $request->user()->branch_id;
         $today = Carbon::today();
 
-        $pledges = Pledge::where('branch_id', $branchId)
+        $query = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
             ->with(['customer:id,name,ic_number,phone'])
-            ->withCount('items')
-            ->orderBy('due_date')
-            ->get();
+            ->withCount('items');
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, true);
+        }
+
+        $pledges = $query->orderBy('due_date')->get();
 
         // Calculate current interest for each and categorize by due status
         $activePledges = [];
@@ -314,13 +385,17 @@ class ReportController extends Controller
         $branchId = $request->user()->branch_id;
         $today = Carbon::today();
 
-        $pledges = Pledge::where('branch_id', $branchId)
+        $query = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
             ->where('due_date', '<', $today)
             ->with(['customer:id,name,ic_number,phone'])
-            ->withCount('items')
-            ->orderBy('due_date')
-            ->get();
+            ->withCount('items');
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, true);
+        }
+
+        $pledges = $query->orderBy('due_date')->get();
 
         // Add days overdue
         $pledges->each(function ($pledge) use ($today) {
@@ -551,6 +626,10 @@ class ReportController extends Controller
             $query->has('activePledges');
         }
 
+        if ($search = $request->get('search')) {
+            $this->applyCustomerSearch($query, $search);
+        }
+
         $customers = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
@@ -578,31 +657,49 @@ class ReportController extends Controller
         $toDate = $request->get('to_date', $fromDate);
 
         // Pledges
-        $pledges = Pledge::where('branch_id', $branchId)
+        $pledgeQuery = Pledge::where('branch_id', $branchId)
             ->whereBetween('pledge_date', [$fromDate, $toDate])
-            ->with(['customer:id,name', 'payments', 'createdBy:id,name'])
-            ->orderBy('created_at')
-            ->get();
+            ->with(['customer:id,name', 'payments', 'createdBy:id,name']);
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($pledgeQuery, $search, true);
+        }
+
+        $pledges = $pledgeQuery->orderBy('created_at')->get();
 
         // Renewals & Interest Payments
-        $renewals = Renewal::where('branch_id', $branchId)
+        $renewalQuery = Renewal::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
-            ->with(['pledge.customer:id,name', 'createdBy:id,name'])
-            ->get();
+            ->with(['pledge.customer:id,name', 'createdBy:id,name']);
 
-        $interestPayments = \App\Models\InterestPayment::where('branch_id', $branchId)
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($renewalQuery, $search, false);
+        }
+
+        $renewals = $renewalQuery->get();
+
+        $interestQuery = \App\Models\InterestPayment::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
-            ->with(['pledge.customer:id,name', 'createdBy:id,name'])
-            ->get();
+            ->with(['pledge.customer:id,name', 'createdBy:id,name']);
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($interestQuery, $search, false);
+        }
+
+        $interestPayments = $interestQuery->get();
 
         $combinedRenewals = $renewals->concat($interestPayments)->sortByDesc('created_at')->values();
 
         // Redemptions
-        $redemptions = Redemption::where('branch_id', $branchId)
+        $redemptionQuery = Redemption::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
-            ->with(['pledge.customer:id,name', 'createdBy:id,name'])
-            ->orderBy('created_at')
-            ->get();
+            ->with(['pledge.customer:id,name', 'createdBy:id,name']);
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($redemptionQuery, $search, false);
+        }
+
+        $redemptions = $redemptionQuery->orderBy('created_at')->get();
 
         return $this->success([
             'from_date' => $fromDate,
