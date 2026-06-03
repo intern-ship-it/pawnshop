@@ -652,8 +652,8 @@ export default function NewPledge() {
     
     if (activeBox?.has_subslots) {
       const subPerSlot = activeBox.subslots_per_slot || 1;
-      const sNum = Math.ceil(slot.slot_number / subPerSlot);
-      const subNum = ((slot.slot_number - 1) % subPerSlot) + 1;
+      const sNum = slot.slot_group != null ? slot.slot_group : Math.ceil(slot.slot_number / subPerSlot);
+      const subNum = slot.subslot_number != null ? slot.subslot_number : ((slot.slot_number - 1) % subPerSlot) + 1;
       displayNum = `${sNum}-${subNum}`;
     }
 
@@ -3130,8 +3130,9 @@ export default function NewPledge() {
                         const subPerSlot = activeBox.subslots_per_slot || 1;
                         const groupedSlots = {};
                         slots.forEach((slot) => {
-                          const sNum = Math.ceil(slot.slot_number / subPerSlot);
-                          const subNum = ((slot.slot_number - 1) % subPerSlot) + 1;
+                          // Prefer stored position so uneven slots (e.g. an added 5th subslot) render correctly
+                          const sNum = slot.slot_group != null ? slot.slot_group : Math.ceil(slot.slot_number / subPerSlot);
+                          const subNum = slot.subslot_number != null ? slot.subslot_number : ((slot.slot_number - 1) % subPerSlot) + 1;
                           if (!groupedSlots[sNum]) groupedSlots[sNum] = [];
                           groupedSlots[sNum].push({ ...slot, subNum });
                         });
