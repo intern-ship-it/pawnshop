@@ -745,10 +745,35 @@ class ReportController extends Controller
 
         switch ($reportType) {
             case 'overview':
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
+                if (isset($data->pledges) && is_countable($data->pledges)) {
+                    foreach ($data->pledges as $pledge) {
+                        $items = $pledge->items ?? [];
+                        $rows[] = [
+                            date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
+                            $pledge->receipt_no ?? '',
+                            $pledge->pledge_no ?? '',
+                            $pledge->customer->name ?? '',
+                            "\t" . ($pledge->customer->ic_number ?? ''),
+                            is_countable($items) ? count($items) : 0,
+                            number_format($pledge->total_weight ?? 0, 3),
+                            number_format($pledge->loan_amount ?? 0, 2),
+                            ($pledge->interest_rate ?? 0) . '%',
+                            date('d/m/Y', strtotime($pledge->due_date ?? '')),
+                            ucfirst($pledge->status ?? ''),
+                        ];
+                    }
+                }
+                break;
+
             case 'pledges':
                 $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
+                        // Only export active pledges for Pledge Reports
+                        if (($pledge->status ?? '') !== 'active') {
+                            continue;
+                        }
                         $items = $pledge->items ?? [];
                         $rows[] = [
                             date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
@@ -786,12 +811,11 @@ class ReportController extends Controller
                 break;
 
             case 'redemptions':
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method'];
+                $rows[] = ['Date', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method'];
                 if (isset($data->redemptions) && is_countable($data->redemptions)) {
                     foreach ($data->redemptions as $redemption) {
                         $rows[] = [
                             date('d/m/Y H:i', strtotime($redemption->created_at ?? '')),
-                            $redemption->receipt_no ?? '',
                             $redemption->pledge->pledge_no ?? '',
                             $redemption->pledge->customer->name ?? '',
                             number_format($redemption->principal_amount ?? 0, 2),

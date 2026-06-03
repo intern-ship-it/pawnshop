@@ -840,7 +840,7 @@ function OverviewReport({ data }) {
             <Warehouse className="w-5 h-5 text-amber-500" />
             Inventory Summary
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-3 bg-zinc-50 rounded-lg">
               <Package className="w-6 h-6 text-zinc-400 mx-auto mb-2" />
               <p className="text-xl font-bold text-zinc-800">
@@ -860,66 +860,28 @@ function OverviewReport({ data }) {
               </p>
               <p className="text-xs text-zinc-500">Weight</p>
             </div>
+            <div className="text-center p-3 bg-zinc-50 rounded-lg">
+              <DollarSign className="w-6 h-6 text-green-500 mx-auto mb-2" />
+              <p className="text-lg font-bold text-green-600">
+                {formatCurrency(inventorySummary.total_gross_value || 0)}
+              </p>
+              <p className="text-[10px] text-zinc-400">100% Value</p>
+              <p className="text-sm font-semibold text-zinc-700 mt-1">
+                {formatCurrency(
+                  typeof inventorySummary.total_value === "object"
+                    ? inventorySummary.total_value?.total_value || 0
+                    : inventorySummary.total_value || 0
+                )}
+              </p>
+              <p className="text-[10px] text-zinc-400">Loan Value</p>
+            </div>
           </div>
 
-          <div className="mt-5">
-            <p className="text-xs font-semibold text-zinc-600 mb-2">Cash Loaned vs Gold Value in Vault</p>
-            {(() => {
-              const grossVal = inventorySummary.total_gross_value || 0;
-              const loanVal = typeof inventorySummary.total_value === "object"
-                  ? inventorySummary.total_value?.total_value || 0
-                  : inventorySummary.total_value || 0;
-              
-              const loanPct = grossVal > 0 ? (loanVal / grossVal) * 100 : 0;
-              const marginPct = 100 - loanPct;
-
-              return (
-                <div>
-                  <div className="flex h-5 w-full rounded-full overflow-hidden mb-3 bg-zinc-100">
-                    <div 
-                      className="bg-sky-500 flex items-center justify-center text-[10px] font-bold text-white px-2 transition-all duration-1000 ease-out whitespace-nowrap" 
-                      style={{ width: animateBars ? `${loanPct}%` : '0%' }}
-                      title={`Cash Given to Customers: ${loanPct.toFixed(1)}%`}
-                    >
-                      {animateBars && loanPct > 10 ? `${loanPct.toFixed(1)}%` : ''}
-                    </div>
-                    <div 
-                      className="bg-violet-500 flex items-center justify-center text-[10px] font-bold text-white px-2 transition-all duration-1000 ease-out whitespace-nowrap" 
-                      style={{ width: animateBars ? `${marginPct}%` : '0%' }}
-                      title={`Shop Equity/Buffer: ${marginPct.toFixed(1)}%`}
-                    >
-                      {animateBars && marginPct > 10 ? `${marginPct.toFixed(1)}%` : ''}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3 mt-2">
-                    <div className="bg-sky-50 p-2.5 rounded-lg border border-sky-100 flex items-center gap-3">
-                      <div className="w-2.5 h-2.5 rounded-full bg-sky-500 flex-shrink-0" />
-                      <div>
-                        <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Cash Given Out</p>
-                        <p className="font-bold text-sky-700 text-[13px]">{formatCurrency(loanVal)}</p>
-                      </div>
-                    </div>
-                    <div className="bg-violet-50 p-2.5 rounded-lg border border-violet-100 flex items-center gap-3">
-                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500 flex-shrink-0" />
-                      <div>
-                        <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Gold Market Value</p>
-                        <p className="font-bold text-violet-700 text-[13px]">{formatCurrency(grossVal)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* By Purity Detailed Breakdown */}
+          {/* By Purity */}
           {inventorySummary.by_purity && (
             <div className="mt-5 pt-4 border-t border-zinc-200">
-              <p className="text-sm font-semibold text-zinc-700 mb-3 flex items-center justify-between">
-                <span>Value Breakdown by Purity</span>
-              </p>
-              <div className="space-y-3">
+              <p className="text-sm font-semibold text-zinc-700 mb-3">By Purity</p>
+              <div className="space-y-2">
                 {(Array.isArray(inventorySummary.by_purity)
                   ? inventorySummary.by_purity
                   : Object.entries(inventorySummary.by_purity).map(
@@ -928,30 +890,14 @@ function OverviewReport({ data }) {
                 ).map((item, idx) => {
                   const label = item.purity || item.name || "Unknown";
                   const weight = item.weight || item.total_weight || 0;
-                  const grossVal = item.gross_value || 0;
                   const loanVal = item.total_value || 0;
                   
                   return (
-                    <div key={label || idx} className="bg-white border border-zinc-100 p-2.5 rounded-lg shadow-sm hover:border-amber-200 transition-colors">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center justify-center bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded">
-                            {label}
-                          </span>
-                          <span className="text-xs text-zinc-500 font-medium">({item.count || 0} items)</span>
-                        </div>
+                    <div key={label || idx} className="flex justify-between items-center py-1.5">
+                      <span className="text-sm text-zinc-700 font-medium">{label}</span>
+                      <div className="text-right">
                         <span className="text-sm font-bold text-zinc-800">{weight}g</span>
-                      </div>
-                      
-                      <div className="flex justify-between items-end mb-1">
-                        <div>
-                          <p className="text-[10px] text-zinc-400 uppercase font-semibold">Gold Market Value</p>
-                          <p className="text-xs font-bold text-emerald-600">{formatCurrency(grossVal)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] text-zinc-400 uppercase font-semibold">Cash Given Out</p>
-                          <p className="text-xs font-bold text-indigo-600">{formatCurrency(loanVal)}</p>
-                        </div>
+                        <p className="text-xs text-green-600 font-medium">{formatCurrency(loanVal)}</p>
                       </div>
                     </div>
                   );
@@ -1148,14 +1094,16 @@ function PledgesReport({ data }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {pledges.length === 0 ? (
+              {pledges.filter(p => p.status === 'active').length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-zinc-500">
-                    No pledges found for selected date range
+                    No active pledges found for selected date range
                   </td>
                 </tr>
               ) : (
-                pledges.map((pledge) => (
+                pledges
+                  .filter(pledge => pledge.status === 'active')
+                  .map((pledge) => (
                   <tr key={pledge.id} className="hover:bg-zinc-50">
                     <td className="p-3 font-medium">{pledge.pledge_no}</td>
                     <td className="p-3">
