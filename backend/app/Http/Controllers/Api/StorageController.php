@@ -494,10 +494,14 @@ class StorageController extends Controller
 
         $slotStr = $slot->slot_number;
         if ($slot->box->has_subslots) {
-            $subslotsPerSlot = $slot->box->subslots_per_slot ?: 1;
-            $slotNum = ceil($slot->slot_number / $subslotsPerSlot);
-            $subslotNum = (($slot->slot_number - 1) % $subslotsPerSlot) + 1;
-            $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            if ($slot->slot_group !== null && $slot->subslot_number !== null) {
+                $slotStr = sprintf('%d-%d', $slot->slot_group, $slot->subslot_number);
+            } else {
+                $subslotsPerSlot = $slot->box->subslots_per_slot ?: 1;
+                $slotNum = ceil($slot->slot_number / $subslotsPerSlot);
+                $subslotNum = (($slot->slot_number - 1) % $subslotsPerSlot) + 1;
+                $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            }
         }
 
         return $this->success([
