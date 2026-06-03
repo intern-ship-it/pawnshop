@@ -122,6 +122,25 @@ const storageService = {
   },
 
   /**
+   * Remove one empty subslot by its slot id
+   * @param {number} slotId
+   * @returns {Promise}
+   */
+  async removeSubslot(slotId) {
+    return apiDelete(`/storage/slots/${slotId}`)
+  },
+
+  /**
+   * Remove an entire slot (group) and its subslots from a box
+   * @param {number} boxId
+   * @param {number} slotGroup
+   * @returns {Promise}
+   */
+  async removeSlot(boxId, slotGroup) {
+    return apiDelete(`/storage/boxes/${boxId}/slot-group/${slotGroup}`)
+  },
+
+  /**
    * Get available slots
    * @param {Object} params - vault_id, box_id
    * @returns {Promise}

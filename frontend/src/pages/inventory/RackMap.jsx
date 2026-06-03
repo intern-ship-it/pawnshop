@@ -32,6 +32,8 @@ import {
   Printer,
   Image as ImageIcon, // ISSUE 3 FIX: For image placeholder
   ZoomIn, // ISSUE 3 FIX: For view image button
+  Trash2,
+  Minus,
 } from "lucide-react";
 
 export default function RackMap({ embedded = false }) {
@@ -454,6 +456,43 @@ export default function RackMap({ embedded = false }) {
       }
     } catch (error) {
       dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to add subslot" }));
+    }
+  };
+
+  // Remove one empty subslot (server refuses if it holds an item)
+  const handleRemoveSubslot = async (slot) => {
+    if (!selectedBox || slot.is_occupied) return;
+    if (!window.confirm("Remove this empty subslot? This cannot be undone.")) return;
+    try {
+      const response = await storageService.removeSubslot(slot.id);
+      if (response.success) {
+        dispatch(addToast({ type: "success", title: "Subslot Removed", message: "The empty subslot was removed" }));
+        fetchSlots(selectedBox);
+        fetchBoxSummary(selectedBox);
+      } else {
+        dispatch(addToast({ type: "error", title: "Error", message: response.message || "Failed to remove subslot" }));
+      }
+    } catch (error) {
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to remove subslot" }));
+    }
+  };
+
+  // Remove a whole slot/group (server refuses if any subslot holds an item)
+  const handleRemoveSlot = async (slotGroup) => {
+    if (!selectedBox) return;
+    if (!window.confirm(`Remove Slot ${String(slotGroup).padStart(2, "0")} and all its empty subslots? This cannot be undone.`)) return;
+    try {
+      const response = await storageService.removeSlot(selectedBox, slotGroup);
+      if (response.success) {
+        dispatch(addToast({ type: "success", title: "Slot Removed", message: `Slot ${String(slotGroup).padStart(2, "0")} was removed` }));
+        fetchSlots(selectedBox);
+        fetchBoxSummary(selectedBox);
+        fetchBoxes(selectedVault);
+      } else {
+        dispatch(addToast({ type: "error", title: "Error", message: response.message || "Failed to remove slot" }));
+      }
+    } catch (error) {
+      dispatch(addToast({ type: "error", title: "Error", message: error.message || "Failed to remove slot" }));
     }
   };
 
@@ -1037,6 +1076,16 @@ export default function RackMap({ embedded = false }) {
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
+                          {subslots.every((s) => !s.is_occupied) && (
+                            <button
+                              type="button"
+                              title="Remove this slot (empty only)"
+                              onClick={() => handleRemoveSlot(Number(mainSlotNum))}
+                              className="w-5 h-5 flex items-center justify-center rounded-full text-zinc-500 hover:bg-red-100 hover:text-red-600 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       
@@ -1048,26 +1097,40 @@ export default function RackMap({ embedded = false }) {
                           const subslotNum = slotPos(slot, currentBox)[1];
 
                           return (
-                            <motion.button
-                              key={slot.id}
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => handleSlotClick(slot)}
-                              title={item ? `${item.pledge?.pledge_no || ''} (${(slot.current_items || []).length} items)` : `Subslot ${subslotNum} (Empty)`}
-                              className={cn(
-                                "aspect-square rounded flex items-center justify-center text-[11px] font-bold transition-all relative",
-                                isOccupied
-                                  ? hasOverdue
-                                    ? "bg-red-100 text-red-600 hover:bg-red-200"
-                                    : "bg-amber-100 text-amber-600 hover:bg-amber-200"
-                                  : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                            <div key={slot.id} className="relative group">
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => handleSlotClick(slot)}
+                                title={item ? `${item.pledge?.pledge_no || ''} (${(slot.current_items || []).length} items)` : `Subslot ${subslotNum} (Empty)`}
+                                className={cn(
+                                  "w-full aspect-square rounded flex items-center justify-center text-[11px] font-bold transition-all relative",
+                                  isOccupied
+                                    ? hasOverdue
+                                      ? "bg-red-100 text-red-600 hover:bg-red-200"
+                                      : "bg-amber-100 text-amber-600 hover:bg-amber-200"
+                                    : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                )}
+                              >
+                                {subslotNum}
+                                {hasOverdue && (
+                                  <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white shadow-sm" />
+                                )}
+                              </motion.button>
+                              {!isOccupied && (
+                                <button
+                                  type="button"
+                                  title="Remove this empty subslot"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveSubslot(slot);
+                                  }}
+                                  className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-white border border-zinc-300 text-zinc-400 opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shadow-sm"
+                                >
+                                  <Minus className="w-2.5 h-2.5" />
+                                </button>
                               )}
-                            >
-                              {subslotNum}
-                              {hasOverdue && (
-                                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white shadow-sm" />
-                              )}
-                            </motion.button>
+                            </div>
                           );
                         })}
                       </div>
@@ -1082,37 +1145,51 @@ export default function RackMap({ embedded = false }) {
                   const hasOverdue = item?.pledge?.status === "overdue" || (slot.current_items || []).some(i => i.pledge?.status === "overdue");
 
                   return (
-                    <motion.button
-                      key={slot.id}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleSlotClick(slot)}
-                      className={cn(
-                        "aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-1 transition-all relative",
-                        isOccupied
-                          ? hasOverdue
-                            ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300"
-                            : "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 hover:border-amber-300"
-                          : "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300",
-                      )}
-                    >
-                      <span className="text-xs font-mono font-medium">
-                        {currentBox?.has_subslots
-                          ? `${slotPos(slot, currentBox)[0]}-${slotPos(slot, currentBox)[1]}`
-                          : String(slot.slot_number).padStart(2, "0")}
-                      </span>
-                      {isOccupied &&
-                        (slot.current_items?.length > 0 || slot.current_item || slot.pledge_item) && (
-                          <span className="text-[10px] mt-0.5 truncate max-w-full px-1">
-                            {((slot.current_items && slot.current_items[0]) || slot.current_item || slot.pledge_item)?.pledge
-                              ?.pledge_no || "Item"}
-                          </span>
+                    <div key={slot.id} className="relative group">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleSlotClick(slot)}
+                        className={cn(
+                          "w-full aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-1 transition-all relative",
+                          isOccupied
+                            ? hasOverdue
+                              ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300"
+                              : "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 hover:border-amber-300"
+                            : "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300",
                         )}
+                      >
+                        <span className="text-xs font-mono font-medium">
+                          {currentBox?.has_subslots
+                            ? `${slotPos(slot, currentBox)[0]}-${slotPos(slot, currentBox)[1]}`
+                            : String(slot.slot_number).padStart(2, "0")}
+                        </span>
+                        {isOccupied &&
+                          (slot.current_items?.length > 0 || slot.current_item || slot.pledge_item) && (
+                            <span className="text-[10px] mt-0.5 truncate max-w-full px-1">
+                              {((slot.current_items && slot.current_items[0]) || slot.current_item || slot.pledge_item)?.pledge
+                                ?.pledge_no || "Item"}
+                            </span>
+                          )}
 
-                      {hasOverdue && (
-                        <AlertTriangle className="w-3 h-3 absolute top-1 right-1 text-red-500" />
+                        {hasOverdue && (
+                          <AlertTriangle className="w-3 h-3 absolute top-1 right-1 text-red-500" />
+                        )}
+                      </motion.button>
+                      {!isOccupied && (
+                        <button
+                          type="button"
+                          title="Remove this empty slot"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveSlot(slotPos(slot, currentBox)[0]);
+                          }}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-white border border-zinc-300 text-zinc-400 opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shadow-sm"
+                        >
+                          <Minus className="w-2.5 h-2.5" />
+                        </button>
                       )}
-                    </motion.button>
+                    </div>
                   );
                 })}
               </div>

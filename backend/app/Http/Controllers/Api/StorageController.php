@@ -379,6 +379,94 @@ class StorageController extends Controller
     }
 
     /**
+     * Remove a single empty subslot. Refuses if the subslot holds an item.
+     * Never renumbers remaining subslots, so no stored item's label changes.
+     */
+    public function removeSubslot(Request $request, Slot $slot): JsonResponse
+    {
+        $box = $slot->box;
+
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        if ($this->slotHasItem($slot)) {
+            return $this->error('Cannot remove a subslot that holds an item', 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $slot->delete();
+            $box->decrement('total_slots');
+
+            DB::commit();
+
+            return $this->success(null, 'Subslot removed successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to remove subslot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove an entire slot (group) and all its subslots. Refuses if ANY
+     * subslot in the group holds an item. Never renumbers other groups.
+     */
+    public function removeSlotGroup(Request $request, Box $box, int $group): JsonResponse
+    {
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $slots = Slot::where('box_id', $box->id)
+            ->where('slot_group', $group)
+            ->get();
+
+        if ($slots->isEmpty()) {
+            return $this->error('Slot not found in this drawer', 422);
+        }
+
+        foreach ($slots as $slot) {
+            if ($this->slotHasItem($slot)) {
+                return $this->error('Cannot remove a slot that holds items', 422);
+            }
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $count = $slots->count();
+            Slot::where('box_id', $box->id)
+                ->where('slot_group', $group)
+                ->delete();
+            $box->decrement('total_slots', $count);
+
+            DB::commit();
+
+            return $this->success(['removed' => $count], 'Slot removed successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to remove slot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * A subslot is considered occupied if its flag is set or any stored
+     * pledge item still references it.
+     */
+    private function slotHasItem(Slot $slot): bool
+    {
+        if ($slot->is_occupied) {
+            return true;
+        }
+
+        return PledgeItem::where('slot_id', $slot->id)
+            ->where('status', 'stored')
+            ->exists();
+    }
+
+    /**
      * Delete box
      */
     public function deleteBox(Request $request, Box $box): JsonResponse
