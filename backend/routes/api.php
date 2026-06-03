@@ -388,6 +388,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/boxes', [StorageController::class , 'createBox']);
                 Route::put('/boxes/{box}', [StorageController::class , 'updateBox']);
                 Route::delete('/boxes/{box}', [StorageController::class , 'deleteBox']);
+                Route::post('/slots/add-subslot', [StorageController::class , 'addSubslot']);
+                Route::post('/boxes/add-slot', [StorageController::class , 'addSlot']);
             }
             );
         }

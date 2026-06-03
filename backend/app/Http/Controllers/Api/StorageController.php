@@ -271,6 +271,109 @@ class StorageController extends Controller
     }
 
     /**
+     * Add one empty subslot to a specific slot group within a box.
+     * Pure insert — never touches existing/occupied rows.
+     */
+    public function addSubslot(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'box_id' => 'required|exists:boxes,id',
+            'slot_group' => 'required|integer|min:1',
+        ]);
+
+        $box = Box::find($validated['box_id']);
+
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $groupExists = Slot::where('box_id', $box->id)
+            ->where('slot_group', $validated['slot_group'])
+            ->exists();
+
+        if (!$groupExists) {
+            return $this->error('Slot not found in this drawer', 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $nextSubslot = (int) Slot::where('box_id', $box->id)
+                ->where('slot_group', $validated['slot_group'])
+                ->max('subslot_number') + 1;
+
+            $nextSlotNumber = (int) Slot::where('box_id', $box->id)
+                ->max('slot_number') + 1;
+
+            $slot = Slot::create([
+                'box_id' => $box->id,
+                'slot_number' => $nextSlotNumber,
+                'slot_group' => $validated['slot_group'],
+                'subslot_number' => $nextSubslot,
+                'is_occupied' => false,
+            ]);
+
+            $box->increment('total_slots');
+
+            DB::commit();
+
+            return $this->success($slot, 'Subslot added successfully', 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to add subslot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Add one new slot (a new slot_group) to a box, with the box's default
+     * number of subslots (1 for plain drawers). Pure insert.
+     */
+    public function addSlot(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'box_id' => 'required|exists:boxes,id',
+        ]);
+
+        $box = Box::find($validated['box_id']);
+
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $newGroup = (int) Slot::where('box_id', $box->id)->max('slot_group') + 1;
+            $count = $box->has_subslots ? max(1, (int) $box->subslots_per_slot) : 1;
+            $nextSlotNumber = (int) Slot::where('box_id', $box->id)->max('slot_number');
+
+            for ($i = 1; $i <= $count; $i++) {
+                $nextSlotNumber++;
+                Slot::create([
+                    'box_id' => $box->id,
+                    'slot_number' => $nextSlotNumber,
+                    'slot_group' => $newGroup,
+                    'subslot_number' => $i,
+                    'is_occupied' => false,
+                ]);
+            }
+
+            $box->increment('total_slots', $count);
+
+            DB::commit();
+
+            return $this->success(
+                ['slot_group' => $newGroup, 'subslots_created' => $count],
+                'Slot added successfully',
+                201
+            );
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to add slot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Delete box
      */
     public function deleteBox(Request $request, Box $box): JsonResponse
