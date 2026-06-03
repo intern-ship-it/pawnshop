@@ -224,6 +224,14 @@ export default function ReportsScreen() {
   }, [datePreset]);
 
   // Fetch report data when report type, dates, or search change
+  // Show the loader immediately on report switch so the empty state never
+  // flashes during the debounce + fetch window.
+  useEffect(() => {
+    if (!fromDate || !toDate) return;
+    setReportData(null);
+    setIsLoading(true);
+  }, [activeReport]);
+
   useEffect(() => {
     if (!fromDate || !toDate) return;
 
