@@ -616,8 +616,9 @@ class RedemptionController extends Controller
             // Add country code (use stored country_code, default to 60 for Malaysia)
             $phone = $countryCode . $phone;
 
-            // Send text message via configured provider
-            $result = $this->sendViaProvider($config, $phone, $message);
+            // Send text message via the shared WhatsApp service
+            $result = app(\App\Services\WhatsApp\WhatsAppService::class)
+                ->sendText($config, $phone, $message, null, [], $pledge->customer->name ?? null);
 
             if ($result['success']) {
                 // Log the message immediately
@@ -651,7 +652,7 @@ class RedemptionController extends Controller
                 ]);
             }
             else {
-                return $this->error($result['message'] ?? 'Failed to send WhatsApp', 500);
+                return $this->error($result['error'] ?? 'Failed to send WhatsApp', 500);
             }
 
         }
@@ -731,181 +732,26 @@ class RedemptionController extends Controller
         set_time_limit(90);
 
         try {
-            $redemption->load([
-                'pledge.customer',
-                'pledge.items.category',
-                'pledge.items.purity',
-                'pledge.branch',
-            ]);
+            $pdfBase64 = app(\App\Services\WhatsApp\ReceiptPdfBuilder::class)->redemption($redemption);
 
-            // Build company settings
-            $settingsMap = [];
-            try {
-                $companySettings = \App\Models\Setting::where('category', 'company')->get();
-                $receiptSettings = \App\Models\Setting::where('category', 'receipt')->get();
-                foreach ($companySettings as $setting) {
-                    $settingsMap[$setting->key_name] = $setting->value;
-                }
-                foreach ($receiptSettings as $setting) {
-                    $settingsMap['receipt_' . $setting->key_name] = $setting->value;
-                }
-            }
-            catch (\Exception $e) {
-            // Settings table may not exist
-            }
+            $publicUrl = $config->provider === 'aisensy'
+                ? \Illuminate\Support\Facades\URL::temporarySignedRoute('whatsapp.receipt', now()->addMinutes(15), ['type' => 'redemption', 'id' => $redemption->id])
+                : null;
 
-            // Resolve logo as base64 data URI (avoid HTTP roundtrip which causes DomPDF timeout)
-            $logoUrl = $settingsMap['logo'] ?? $settingsMap['logo_url'] ?? $settingsMap['company_logo'] ?? null;
-            if ($logoUrl && !str_starts_with($logoUrl, 'data:')) {
-                // Convert to local file path and read as base64
-                $logoPath = $logoUrl;
-                if (str_starts_with($logoPath, 'http')) {
-                    // Extract path from URL
-                    $parsed = parse_url($logoPath);
-                    $logoPath = ltrim($parsed['path'] ?? '', '/');
-                }
-                $logoPath = ltrim($logoPath, '/');
-                // Try to resolve local file path
-                $localPath = str_starts_with($logoPath, 'storage/')
-                    ? storage_path('app/public/' . substr($logoPath, 8))
-                    : public_path($logoPath);
-                if (file_exists($localPath)) {
-                    $mime = mime_content_type($localPath);
-                    $logoUrl = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($localPath));
-                } else {
-                    $logoUrl = null; // Skip logo if file not found
-                }
-            }
-
-            $branch = $redemption->pledge->branch;
-            $settings = [
-                'company_name' => $settingsMap['name'] ?? $branch->name ?? 'PAJAK GADAI SDN BHD',
-                'company_name_chinese' => $settingsMap['name_chinese'] ?? '新泰當',
-                'company_name_tamil' => $settingsMap['name_tamil'] ?? 'அடகு கடை',
-                'registration_no' => $settingsMap['registration_no'] ?? '',
-                'license_no' => $settingsMap['license_no'] ?? $branch->license_no ?? '',
-                'established_year' => $settingsMap['established_year'] ?? '1966',
-                'address' => $settingsMap['address'] ?? $branch->address ?? '',
-                'phone' => $settingsMap['phone'] ?? $branch->phone ?? '',
-                'phone2' => $settingsMap['phone2'] ?? '',
-                'fax' => $settingsMap['fax'] ?? '',
-                'business_hours' => $settingsMap['business_hours'] ?? '8.30AM - 6.00PM',
-                'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
-                'closed_days' => $settingsMap['closed_days'] ?? '',
-                'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
-                'interest_rate_normal' => $settingsMap['receipt_interest_rate_normal'] ?? $settingsMap['interest_rate_normal'] ?? '1.5',
-                'interest_rate_overdue' => $settingsMap['receipt_interest_rate_overdue'] ?? $settingsMap['interest_rate_overdue'] ?? '2.0',
-                'insurance_policy_no' => $settingsMap['insurance_policy_no'] ?? '',
-                'logo_url' => $logoUrl,
-            ];
-
-            $printController = app(\App\Http\Controllers\Api\PrintController::class);
-            $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
-            $barcodeDataUri = 'data:image/png;base64,' . base64_encode($generator->getBarcode($redemption->pledge->pledge_no, $generator::TYPE_CODE_128, 4, 100));
-
-            $multilangUri = (new \ReflectionMethod($printController, 'generateMultilangImageUri'))->invoke(
-                $printController,
-                $settings['company_name_chinese'] ?? '',
-                $settings['company_name_tamil'] ?? ''
+            return app(\App\Services\WhatsApp\WhatsAppService::class)->sendDocument(
+                $config,
+                $phone,
+                $pdfBase64,
+                "Redemption-Receipt-{$redemption->redemption_no}.pdf",
+                "📄 Redemption Receipt {$redemption->redemption_no}",
+                $publicUrl,
+                null,
+                [],
+                $redemption->pledge->customer->name ?? null
             );
-
-            $data = [
-                'redemption' => $redemption,
-                'settings' => $settings,
-                'printed_at' => now(),
-                'printed_by' => 'WhatsApp',
-                'barcode_data_uri' => $barcodeDataUri,
-                'multilang_image_uri' => $multilangUri,
-            ];
-
-            // Generate PDF using pre-printed redemption template
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.redemption-receipt-preprinted', $data);
-            $pdf->setPaper([0, 0, 710, 550]); // Match blade layout
-            $pdfContent = $pdf->output();
-            $pdfBase64 = base64_encode($pdfContent);
-
-            // Send via Ultramsg document API
-            if ($config->provider === 'ultramsg') {
-                $response = \Illuminate\Support\Facades\Http::withoutVerifying()
-                    ->timeout(60)
-                    ->post(
-                    "https://api.ultramsg.com/{$config->instance_id}/messages/document",
-                [
-                    'token' => $config->api_token,
-                    'to' => $phone,
-                    'document' => 'data:application/pdf;base64,' . $pdfBase64,
-                    'filename' => "Redemption-Receipt-{$redemption->redemption_no}.pdf",
-                    'caption' => "📄 Redemption Receipt {$redemption->redemption_no}",
-                ]
-                );
-
-                Log::info('Ultramsg document API response: status=' . $response->status() . ' body=' . substr($response->body(), 0, 500));
-
-                $responseData = $response->json();
-
-                if ($response->successful()) {
-                    // Ultramsg may return sent as string "true" or boolean true
-                    $sent = $responseData['sent'] ?? null;
-                    if ($sent === 'true' || $sent === true || isset($responseData['id'])) {
-                        return ['success' => true];
-                    }
-                    return ['success' => false, 'message' => $responseData['message'] ?? $responseData['error'] ?? 'Document send failed: ' . json_encode($responseData)];
-                }
-
-                // Extract descriptive error from response body
-                $errorMessage = $responseData['error'] ?? $responseData['message'] ?? ('Document API request failed: ' . $response->status());
-                return ['success' => false, 'message' => $errorMessage];
-            }
-
-            return ['success' => false, 'message' => 'PDF sending not supported for this provider'];
-
         }
         catch (\Exception $e) {
             Log::error('Redemption PDF receipt generation failed: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Send message via configured provider
-     */
-    private function sendViaProvider($config, string $phone, string $message): array
-    {
-        switch ($config->provider) {
-            case 'ultramsg':
-                return $this->sendViaUltramsg($config, $phone, $message);
-            default:
-                return ['success' => false, 'message' => 'Provider not supported'];
-        }
-    }
-
-    private function sendViaUltramsg($config, string $phone, string $message): array
-    {
-        try {
-            $response = \Illuminate\Support\Facades\Http::withoutVerifying()
-                ->post(
-                "https://api.ultramsg.com/{$config->instance_id}/messages/chat",
-            [
-                'token' => $config->api_token,
-                'to' => $phone,
-                'body' => $message,
-            ]
-            );
-
-            $data = $response->json();
-
-            if ($response->successful()) {
-                if (isset($data['sent']) && $data['sent'] === 'true') {
-                    return ['success' => true];
-                }
-                return ['success' => false, 'message' => $data['message'] ?? 'Failed to send'];
-            }
-
-            // Extract descriptive error from response body (e.g. instance stopped, non-payment)
-            $errorMessage = $data['error'] ?? $data['message'] ?? ('API request failed: ' . $response->status());
-            return ['success' => false, 'message' => $errorMessage];
-        }
-        catch (\Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }

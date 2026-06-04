@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Pledge;
 use App\Models\Renewal;
 use App\Models\Redemption;
+use App\Services\WhatsApp\ReceiptPdfBuilder;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -36,16 +37,19 @@ class WhatsAppReceiptController extends Controller
 
     private function pledgePdf(int $id): ?string
     {
-        return Pledge::find($id) ? base64_encode("%PDF-1.4 stub") : null;
+        $pledge = Pledge::with(['customer', 'items.category', 'items.purity', 'branch'])->find($id);
+        return $pledge ? app(ReceiptPdfBuilder::class)->pledge($pledge) : null;
     }
 
     private function renewalPdf(int $id): ?string
     {
-        return Renewal::find($id) ? base64_encode("%PDF-1.4 stub") : null;
+        $renewal = Renewal::with(['pledge.customer', 'pledge.items.category', 'pledge.branch'])->find($id);
+        return $renewal ? app(ReceiptPdfBuilder::class)->renewal($renewal) : null;
     }
 
     private function redemptionPdf(int $id): ?string
     {
-        return Redemption::find($id) ? base64_encode("%PDF-1.4 stub") : null;
+        $redemption = Redemption::with(['pledge.customer', 'pledge.items.category', 'pledge.items.purity', 'pledge.branch'])->find($id);
+        return $redemption ? app(ReceiptPdfBuilder::class)->redemption($redemption) : null;
     }
 }
