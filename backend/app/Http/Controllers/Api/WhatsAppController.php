@@ -47,7 +47,7 @@ class WhatsAppController extends Controller
         $validated = $request->validate([
             'provider' => 'required|in:ultramsg,twilio,wati,aisensy',
             'instance_id' => 'nullable|string|max:100',
-            'api_token' => 'nullable|string|max:255',
+            'api_token' => 'nullable|string|max:2000',
             'phone_number' => 'required|string|max:20',
             'is_enabled' => 'nullable|boolean',
         ]);
