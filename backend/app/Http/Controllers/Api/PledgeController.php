@@ -1143,9 +1143,17 @@ class PledgeController extends Controller
                     'sent_by' => $request->user()->id,
                 ]);
 
+                // Optionally attach the full PDF receipt as a second message.
+                // Per-branch toggle (default off); works for UltraMsg + AiSensy.
+                $pdfAttached = false;
+                if ($config->attach_pdf_receipt) {
+                    $pdfAttached = $this->sendPledgePdfReceipt($config, $phone, $pledge, $template, $templateData, $request->user()->id);
+                }
+
                 return $this->success([
                     'message' => 'WhatsApp sent successfully to ' . $phone,
                     'was_resend' => $existingLog ? true : false,
+                    'pdf_attached' => $pdfAttached,
                 ]);
             }
             else {
@@ -1156,6 +1164,64 @@ class PledgeController extends Controller
         catch (\Exception $e) {
             Log::error('WhatsApp sending failed: ' . $e->getMessage());
             return $this->error('Failed to send WhatsApp: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Send the pledge PDF receipt as a follow-up WhatsApp document.
+     * Returns true on success. Never throws — a PDF failure must not undo the
+     * text message that was already sent. The document is logged separately.
+     */
+    private function sendPledgePdfReceipt(
+        $config,
+        string $phone,
+        Pledge $pledge,
+        $template,
+        array $templateData,
+        ?int $userId
+    ): bool {
+        try {
+            $pdfBase64 = app(\App\Services\WhatsApp\ReceiptPdfBuilder::class)->pledge($pledge);
+
+            // AiSensy needs a public URL; UltraMsg uses the base64 directly.
+            $publicUrl = $config->provider === 'aisensy'
+                ? \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                    'whatsapp.receipt',
+                    now()->addMinutes(15),
+                    ['type' => 'pledge', 'id' => $pledge->id]
+                )
+                : null;
+
+            $result = app(\App\Services\WhatsApp\WhatsAppService::class)->sendDocument(
+                $config,
+                $phone,
+                $pdfBase64,
+                "Receipt-{$pledge->pledge_no}.pdf",
+                "📄 Receipt for Pledge {$pledge->pledge_no}",
+                $publicUrl,
+                $template,
+                $templateData,
+                $pledge->customer->name ?? null
+            );
+
+            \App\Models\WhatsAppLog::create([
+                'branch_id' => $pledge->branch_id,
+                'recipient_phone' => $phone,
+                'recipient_name' => $pledge->customer->name,
+                'message_content' => "[PDF] Receipt-{$pledge->pledge_no}.pdf",
+                'status' => $result['success'] ? 'sent' : 'failed',
+                'error_message' => $result['error'] ?? null,
+                'related_type' => 'pledge_pdf',
+                'related_id' => $pledge->id,
+                'sent_at' => $result['success'] ? now() : null,
+                'sent_by' => $userId,
+            ]);
+
+            return (bool) $result['success'];
+        }
+        catch (\Throwable $e) {
+            Log::error('Pledge PDF receipt send failed: ' . $e->getMessage());
+            return false;
         }
     }
 

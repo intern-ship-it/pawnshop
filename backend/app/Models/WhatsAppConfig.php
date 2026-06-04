@@ -19,11 +19,13 @@ class WhatsAppConfig extends Model
         'api_token',
         'phone_number',
         'is_enabled',
+        'attach_pdf_receipt',
         'last_connected_at',
     ];
 
     protected $casts = [
         'is_enabled' => 'boolean',
+        'attach_pdf_receipt' => 'boolean',
         'last_connected_at' => 'datetime',
     ];
 

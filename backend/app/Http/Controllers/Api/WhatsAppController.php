@@ -50,6 +50,7 @@ class WhatsAppController extends Controller
             'api_token' => 'nullable|string|max:2000',
             'phone_number' => 'required|string|max:20',
             'is_enabled' => 'nullable|boolean',
+            'attach_pdf_receipt' => 'nullable|boolean',
         ]);
 
         // Normalize country code - ensure it starts with +
