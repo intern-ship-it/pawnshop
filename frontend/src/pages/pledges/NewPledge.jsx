@@ -1444,7 +1444,11 @@ export default function NewPledge() {
             "skipped",
             "Not configured - Set up in Settings -> WhatsApp",
           );
-        } else if (!whatsappConfig?.api_token || !whatsappConfig?.instance_id) {
+        } else if (
+          !whatsappConfig?.api_token ||
+          (whatsappConfig?.provider === "ultramsg" &&
+            !whatsappConfig?.instance_id)
+        ) {
           updateJobStatus(
             "whatsapp",
             "skipped",
@@ -1757,7 +1761,11 @@ export default function NewPledge() {
             updateJobStatus("whatsapp", "skipped", "Not configured - Set up in Settings -> WhatsApp");
             return;
           }
-          if (!whatsappConfig?.api_token || !whatsappConfig?.instance_id) {
+          if (
+            !whatsappConfig?.api_token ||
+            (whatsappConfig?.provider === "ultramsg" &&
+              !whatsappConfig?.instance_id)
+          ) {
             updateJobStatus("whatsapp", "skipped", "API credentials missing - Check Settings -> WhatsApp");
             return;
           }
