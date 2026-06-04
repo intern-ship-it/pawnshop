@@ -18,7 +18,8 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
-        <env name="DB_CONNECTION" value="mysql_testing"/>
+        <!-- Tests run against the app's default DB connection (pawnsys). The suite
+             contains NO RefreshDatabase tests, so it never drops or mutates tables. -->
         <env name="CACHE_STORE" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
