@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\HardwareController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\MykadProxyController;
 use App\Http\Controllers\Api\InterestPaymentController;
+use App\Http\Controllers\Api\WhatsAppReceiptController;
 
 /* |-------------------------------------------------------------------------- | API Routes |-------------------------------------------------------------------------- */
 
@@ -99,6 +100,12 @@ Route::get('/preview/renewal-receipt/{renewal}', function (\App\Models\Renewal $
         'multilang_image_uri' => $multilangUri,
     ]);
 });
+
+// Signed, time-limited public receipt PDF for AiSensy media fetch (PDF generation stubbed for now)
+Route::get('/whatsapp/receipt/{type}/{id}', [WhatsAppReceiptController::class, 'show'])
+    ->middleware('signed')
+    ->where('type', 'pledge|renewal|redemption')
+    ->name('whatsapp.receipt');
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
