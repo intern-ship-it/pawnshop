@@ -65,4 +65,21 @@ class AiSensyDriverTest extends TestCase
         $result = (new AiSensyDriver())->testConnection($config);
         $this->assertFalse($result['success']);
     }
+
+    public function test_send_text_defaults_username_to_customer_when_null(): void
+    {
+        Http::fake(['backend.aisensy.com/*' => Http::response(['success' => true], 200)]);
+
+        (new AiSensyDriver())->sendText(
+            $this->config(), '60123456789', 'x', 'camp_v1', ['p1'], null
+        );
+
+        Http::assertSent(fn ($request) => $request->data()['userName'] === 'Customer');
+    }
+
+    public function test_test_connection_succeeds_when_key_present(): void
+    {
+        $result = (new AiSensyDriver())->testConnection($this->config());
+        $this->assertTrue($result['success']);
+    }
 }
