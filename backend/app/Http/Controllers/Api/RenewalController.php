@@ -608,6 +608,9 @@ class RenewalController extends Controller
             $templateData = [
                 'customer_name' => $renewal->pledge->customer->name ?? '',
                 'pledge_no'     => $renewal->pledge->pledge_no,
+                // total_paid matches the "Total Paid" figure on the existing receipt.
+                // interest_paid is also provided in case a template wants the interest line.
+                'total_paid'    => number_format($renewal->total_payable, 2),
                 'interest_paid' => number_format($renewal->interest_amount, 2),
                 'new_due_date'  => \Carbon\Carbon::parse($renewal->new_due_date)->format('d/m/Y'),
             ];
