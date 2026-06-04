@@ -794,40 +794,43 @@ export default function WhatsAppSettings() {
                   leftIcon={Phone}
                 />
 
-                {/* Attach PDF receipt toggle */}
-                <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
-                  <div className="pr-3">
-                    <span className="text-sm font-medium">
-                      Attach PDF receipt
-                    </span>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      Also send the full PDF receipt with confirmation messages
-                      (UltraMsg & AiSensy).
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConfig({
-                        ...config,
-                        attachPdfReceipt: !config.attachPdfReceipt,
-                      })
-                    }
-                    className={cn(
-                      "w-12 h-6 rounded-full transition-colors relative flex-shrink-0",
-                      config.attachPdfReceipt ? "bg-green-500" : "bg-zinc-300",
-                    )}
-                  >
-                    <div
+                {/* Attach PDF receipt toggle — hidden for now (backend stays OFF by default).
+                    To re-enable, change `false &&` below to `true &&`. */}
+                {false && (
+                  <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
+                    <div className="pr-3">
+                      <span className="text-sm font-medium">
+                        Attach PDF receipt
+                      </span>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Also send the full PDF receipt with confirmation messages
+                        (UltraMsg & AiSensy).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          attachPdfReceipt: !config.attachPdfReceipt,
+                        })
+                      }
                       className={cn(
-                        "w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform",
-                        config.attachPdfReceipt
-                          ? "translate-x-6"
-                          : "translate-x-0.5",
+                        "w-12 h-6 rounded-full transition-colors relative flex-shrink-0",
+                        config.attachPdfReceipt ? "bg-green-500" : "bg-zinc-300",
                       )}
-                    />
-                  </button>
-                </div>
+                    >
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform",
+                          config.attachPdfReceipt
+                            ? "translate-x-6"
+                            : "translate-x-0.5",
+                        )}
+                      />
+                    </button>
+                  </div>
+                )}
 
                 {/* Connection Status */}
                 <div className="flex items-center justify-between pt-4 border-t border-zinc-200">
