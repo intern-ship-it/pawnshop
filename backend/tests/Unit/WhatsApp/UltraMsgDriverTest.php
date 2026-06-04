@@ -50,4 +50,17 @@ class UltraMsgDriverTest extends TestCase
         $this->assertFalse($result['success']);
         $this->assertSame('instance stopped', $result['error']);
     }
+
+    public function test_send_text_returns_error_on_server_error_without_json(): void
+    {
+        Http::fake([
+            'api.ultramsg.com/*' => Http::response('', 500),
+        ]);
+
+        $result = (new UltraMsgDriver())->sendText($this->config(), '60123456789', 'Hi');
+
+        $this->assertFalse($result['success']);
+        $this->assertNotEmpty($result['error']);
+        $this->assertStringContainsString('500', $result['error']);
+    }
 }

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Http;
 
 class UltraMsgDriver implements WhatsAppDriver
 {
-    private function http()
+    private function http(): \Illuminate\Http\Client\PendingRequest
     {
         $client = Http::timeout(30);
         // Match existing behaviour: skip SSL verify only in local dev.
@@ -30,6 +30,8 @@ class UltraMsgDriver implements WhatsAppDriver
 
             $data = $response->json() ?? [];
 
+            // UltraMsg signals success with sent==='true'; some responses omit it but
+            // include a message id. Error payloads carry neither, so this is a safe signal.
             if ($response->successful() && (($data['sent'] ?? null) === 'true' || isset($data['id']))) {
                 return ['success' => true, 'message_id' => $data['id'] ?? null, 'error' => null];
             }
