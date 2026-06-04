@@ -101,7 +101,7 @@ Route::get('/preview/renewal-receipt/{renewal}', function (\App\Models\Renewal $
     ]);
 });
 
-// Signed, time-limited public receipt PDF for AiSensy media fetch (PDF generation stubbed for now)
+// Signed, time-limited public receipt PDF for AiSensy media fetch
 Route::get('/whatsapp/receipt/{type}/{id}', [WhatsAppReceiptController::class, 'show'])
     ->middleware('signed')
     ->where('type', 'pledge|renewal|redemption')

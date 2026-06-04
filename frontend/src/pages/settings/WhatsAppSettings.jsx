@@ -1186,9 +1186,8 @@ export default function WhatsAppSettings() {
               {/* Note */}
               <div className="mt-4 p-3 bg-amber-50 rounded-lg">
                 <p className="text-xs text-amber-700">
-                  <strong>Note:</strong> In this prototype, messages are
-                  simulated. In production, messages will be sent via the
-                  configured WhatsApp API provider.
+                  <strong>Note:</strong> Test messages are sent for real via the
+                  configured WhatsApp API provider (UltraMsg or AiSensy).
                 </p>
               </div>
             </Card>
