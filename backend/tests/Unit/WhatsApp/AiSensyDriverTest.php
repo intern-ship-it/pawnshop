@@ -82,4 +82,33 @@ class AiSensyDriverTest extends TestCase
         $result = (new AiSensyDriver())->testConnection($this->config());
         $this->assertTrue($result['success']);
     }
+
+    public function test_send_document_includes_media_object(): void
+    {
+        Http::fake(['backend.aisensy.com/*' => Http::response(['success' => true], 200)]);
+
+        $result = (new AiSensyDriver())->sendDocument(
+            $this->config(), '60123456789', base64_encode('PDF'),
+            'Receipt-PLG-001.pdf', 'cap', 'https://example.com/r.pdf',
+            'pledge_doc_v1', ['Ali'], 'Ali'
+        );
+
+        $this->assertTrue($result['success']);
+        Http::assertSent(function ($r) {
+            $b = $r->data();
+            return $b['campaignName'] === 'pledge_doc_v1'
+                && $b['media']['url'] === 'https://example.com/r.pdf'
+                && $b['media']['filename'] === 'Receipt-PLG-001.pdf';
+        });
+    }
+
+    public function test_send_document_fails_without_public_url(): void
+    {
+        Http::fake();
+        $result = (new AiSensyDriver())->sendDocument(
+            $this->config(), '60123456789', 'x', 'f.pdf', 'cap', null, 'camp', [], 'Ali'
+        );
+        $this->assertFalse($result['success']);
+        Http::assertNothingSent();
+    }
 }

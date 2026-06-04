@@ -54,8 +54,28 @@ class UltraMsgDriver implements WhatsAppDriver
         array $templateParams = [],
         ?string $recipientName = null
     ): array {
-        // Implemented in a later task.
-        return ['success' => false, 'message_id' => null, 'error' => 'not implemented'];
+        try {
+            $response = $this->http()->timeout(60)->asForm()->post(
+                "https://api.ultramsg.com/{$config->instance_id}/messages/document",
+                [
+                    'token' => $config->api_token,
+                    'to' => $phone,
+                    'document' => 'data:application/pdf;base64,' . $pdfBase64,
+                    'filename' => $filename,
+                    'caption' => $caption,
+                ]
+            );
+
+            $data = $response->json() ?? [];
+            if ($response->successful() && (($data['sent'] ?? null) === 'true' || ($data['sent'] ?? null) === true || isset($data['id']))) {
+                return ['success' => true, 'message_id' => $data['id'] ?? null, 'error' => null];
+            }
+
+            return ['success' => false, 'message_id' => null,
+                'error' => $data['error'] ?? $data['message'] ?? ('Document send failed: ' . $response->status())];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message_id' => null, 'error' => $e->getMessage()];
+        }
     }
 
     public function testConnection(WhatsAppConfig $config): array

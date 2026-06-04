@@ -63,4 +63,21 @@ class UltraMsgDriverTest extends TestCase
         $this->assertNotEmpty($result['error']);
         $this->assertStringContainsString('500', $result['error']);
     }
+
+    public function test_send_document_posts_to_document_endpoint(): void
+    {
+        Http::fake([
+            'api.ultramsg.com/*' => Http::response(['sent' => 'true', 'id' => 'doc_1'], 200),
+        ]);
+
+        $result = (new UltraMsgDriver())->sendDocument(
+            $this->config(), '60123456789', base64_encode('PDFBYTES'),
+            'Receipt-PLG-001.pdf', 'Your receipt'
+        );
+
+        $this->assertTrue($result['success']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'messages/document')
+            && $r['filename'] === 'Receipt-PLG-001.pdf'
+            && str_starts_with($r['document'], 'data:application/pdf;base64,'));
+    }
 }
