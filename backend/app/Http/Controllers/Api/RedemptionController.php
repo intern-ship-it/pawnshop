@@ -616,9 +616,23 @@ class RedemptionController extends Controller
             // Add country code (use stored country_code, default to 60 for Malaysia)
             $phone = $countryCode . $phone;
 
+            // Load AiSensy template + ordered data map (UltraMsg ignores these)
+            $template = \App\Models\WhatsAppTemplate::where('template_key', 'redemption_completed')
+                ->where(function ($q) use ($redemption) {
+                    $q->where('branch_id', $redemption->branch_id)->orWhereNull('branch_id');
+                })
+                ->orderBy('branch_id', 'desc')
+                ->first();
+
+            $templateData = [
+                'customer_name' => $pledge->customer->name ?? '',
+                'pledge_no'     => $redemption->pledge->pledge_no,
+                'total_paid'    => number_format($redemption->total_payable, 2),
+            ];
+
             // Send text message via the shared WhatsApp service
             $result = app(\App\Services\WhatsApp\WhatsAppService::class)
-                ->sendText($config, $phone, $message, null, [], $pledge->customer->name ?? null);
+                ->sendText($config, $phone, $message, $template, $templateData, $pledge->customer->name ?? null);
 
             if ($result['success']) {
                 // Log the message immediately

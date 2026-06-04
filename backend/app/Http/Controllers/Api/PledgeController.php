@@ -1110,9 +1110,24 @@ class PledgeController extends Controller
                 );
             }
 
+            // Load AiSensy template + ordered data map (UltraMsg ignores these)
+            $template = \App\Models\WhatsAppTemplate::where('template_key', 'pledge_created')
+                ->where(function ($q) use ($pledge) {
+                    $q->where('branch_id', $pledge->branch_id)->orWhereNull('branch_id');
+                })
+                ->orderBy('branch_id', 'desc')
+                ->first();
+
+            $templateData = [
+                'customer_name' => $pledge->customer->name ?? '',
+                'pledge_no'     => $pledge->pledge_no,
+                'loan_amount'   => number_format($pledge->loan_amount, 2),
+                'due_date'      => \Carbon\Carbon::parse($pledge->due_date)->format('d/m/Y'),
+            ];
+
             // Send text message via the shared WhatsApp service
             $result = app(\App\Services\WhatsApp\WhatsAppService::class)
-                ->sendText($config, $phone, $message, null, [], $pledge->customer->name ?? null);
+                ->sendText($config, $phone, $message, $template, $templateData, $pledge->customer->name ?? null);
 
             if ($result['success']) {
                 // Log the message immediately

@@ -597,9 +597,24 @@ class RenewalController extends Controller
             // Add country code 
             $phone = $countryCode . $phone;
 
+            // Load AiSensy template + ordered data map (UltraMsg ignores these)
+            $template = \App\Models\WhatsAppTemplate::where('template_key', 'renewal_completed')
+                ->where(function ($q) use ($renewal) {
+                    $q->where('branch_id', $renewal->branch_id)->orWhereNull('branch_id');
+                })
+                ->orderBy('branch_id', 'desc')
+                ->first();
+
+            $templateData = [
+                'customer_name' => $renewal->pledge->customer->name ?? '',
+                'pledge_no'     => $renewal->pledge->pledge_no,
+                'interest_paid' => number_format($renewal->interest_amount, 2),
+                'new_due_date'  => \Carbon\Carbon::parse($renewal->new_due_date)->format('d/m/Y'),
+            ];
+
             // Send text message via the shared WhatsApp service
             $result = app(\App\Services\WhatsApp\WhatsAppService::class)
-                ->sendText($config, $phone, $message, null, [], $renewal->pledge->customer->name ?? null);
+                ->sendText($config, $phone, $message, $template, $templateData, $renewal->pledge->customer->name ?? null);
 
             if ($result['success']) {
                 // Log the message immediately
