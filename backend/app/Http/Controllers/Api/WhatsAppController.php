@@ -60,6 +60,12 @@ class WhatsAppController extends Controller
             }
         }
 
+        // AiSensy does not use instance_id (an UltraMsg concept). Clear any stale value
+        // so it doesn't linger after switching providers.
+        if (($validated['provider'] ?? null) === 'aisensy') {
+            $validated['instance_id'] = null;
+        }
+
         // Don't update token if it's masked or empty
         if (empty($validated['api_token']) || $validated['api_token'] === '********') {
             unset($validated['api_token']);
