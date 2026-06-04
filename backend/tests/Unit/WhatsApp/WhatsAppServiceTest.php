@@ -63,4 +63,29 @@ class WhatsAppServiceTest extends TestCase
 
         Http::assertSent(fn ($r) => $r->data()['templateParams'] === ['1', '', '2']);
     }
+
+    public function test_send_document_through_service_passes_url_and_params_to_aisensy(): void
+    {
+        \Illuminate\Support\Facades\Http::fake(['backend.aisensy.com/*' => \Illuminate\Support\Facades\Http::response(['success' => true], 200)]);
+        $config = new \App\Models\WhatsAppConfig(['provider' => 'aisensy', 'api_token' => 'key']);
+        $template = new \App\Models\WhatsAppTemplate([
+            'template_key' => 'pledge_doc',
+            'aisensy_campaign' => 'pledge_doc_v1',
+            'aisensy_params' => ['customer_name'],
+        ]);
+
+        $result = (new \App\Services\WhatsApp\WhatsAppService())->sendDocument(
+            $config, '60123', base64_encode('PDF'), 'Receipt.pdf', 'cap',
+            'https://example.com/r.pdf', $template, ['customer_name' => 'Ali'], 'Ali'
+        );
+
+        $this->assertTrue($result['success']);
+        \Illuminate\Support\Facades\Http::assertSent(function ($r) {
+            $b = $r->data();
+            return $b['campaignName'] === 'pledge_doc_v1'
+                && $b['templateParams'] === ['Ali']
+                && $b['media']['url'] === 'https://example.com/r.pdf'
+                && $b['media']['filename'] === 'Receipt.pdf';
+        });
+    }
 }
