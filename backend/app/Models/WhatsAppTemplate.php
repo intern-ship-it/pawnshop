@@ -19,11 +19,14 @@ class WhatsAppTemplate extends Model
         'content',
         'variables',
         'is_enabled',
+        'aisensy_campaign',
+        'aisensy_params',
     ];
 
     protected $casts = [
         'variables' => 'array',
         'is_enabled' => 'boolean',
+        'aisensy_params' => 'array',
     ];
 
     public function branch(): BelongsTo

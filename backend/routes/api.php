@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\HardwareController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\MykadProxyController;
 use App\Http\Controllers\Api\InterestPaymentController;
+use App\Http\Controllers\Api\WhatsAppReceiptController;
 
 /* |-------------------------------------------------------------------------- | API Routes |-------------------------------------------------------------------------- */
 
@@ -99,6 +100,12 @@ Route::get('/preview/renewal-receipt/{renewal}', function (\App\Models\Renewal $
         'multilang_image_uri' => $multilangUri,
     ]);
 });
+
+// Signed, time-limited public receipt PDF for AiSensy media fetch
+Route::get('/whatsapp/receipt/{type}/{id}', [WhatsAppReceiptController::class, 'show'])
+    ->middleware('signed')
+    ->where('type', 'pledge|renewal|redemption')
+    ->name('whatsapp.receipt');
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -388,6 +395,10 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/boxes', [StorageController::class , 'createBox']);
                 Route::put('/boxes/{box}', [StorageController::class , 'updateBox']);
                 Route::delete('/boxes/{box}', [StorageController::class , 'deleteBox']);
+                Route::post('/slots/add-subslot', [StorageController::class , 'addSubslot']);
+                Route::post('/boxes/add-slot', [StorageController::class , 'addSlot']);
+                Route::delete('/slots/{slot}', [StorageController::class , 'removeSubslot']);
+                Route::delete('/boxes/{box}/slot-group/{group}', [StorageController::class , 'removeSlotGroup']);
             }
             );
         }

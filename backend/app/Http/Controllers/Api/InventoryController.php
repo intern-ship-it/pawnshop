@@ -19,6 +19,9 @@ class InventoryController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Increase memory limit for bulk loading (e.g. per_page=500)
+        ini_set('memory_limit', '256M');
+
         // No branch filter
         $query = PledgeItem::with(['pledge.customer:id,name,ic_number', 'category', 'purity', 'vault', 'box', 'slot']);
 
@@ -89,7 +92,7 @@ class InventoryController extends Controller
         }
 
         $items = $query->orderBy('created_at', 'desc')
-            ->paginate($request->get('per_page', 20));
+            ->paginate((int) $request->get('per_page', 20));
 
         return $this->paginated($items);
     }

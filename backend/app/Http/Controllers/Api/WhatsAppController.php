@@ -8,10 +8,11 @@ use App\Models\WhatsAppTemplate;
 use App\Models\WhatsAppLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Http;
 
 class WhatsAppController extends Controller
 {
+    public function __construct(private \App\Services\WhatsApp\WhatsAppService $whatsapp) {}
+
     /**
      * Get WhatsApp configuration
      */
@@ -44,11 +45,12 @@ class WhatsAppController extends Controller
         $branchId = $request->user()->branch_id;
 
         $validated = $request->validate([
-            'provider' => 'required|in:ultramsg,twilio,wati',
-            'instance_id' => 'required|string|max:100',
-            'api_token' => 'nullable|string|max:255',
+            'provider' => 'required|in:ultramsg,twilio,wati,aisensy',
+            'instance_id' => 'nullable|string|max:100',
+            'api_token' => 'nullable|string|max:2000',
             'phone_number' => 'required|string|max:20',
             'is_enabled' => 'nullable|boolean',
+            'attach_pdf_receipt' => 'nullable|boolean',
         ]);
 
         // Normalize country code - ensure it starts with +
@@ -57,6 +59,12 @@ class WhatsAppController extends Controller
             if (!str_starts_with($validated['phone_number'], '+')) {
                 $validated['phone_number'] = '+' . $validated['phone_number'];
             }
+        }
+
+        // AiSensy does not use instance_id (an UltraMsg concept). Clear any stale value
+        // so it doesn't linger after switching providers.
+        if (($validated['provider'] ?? null) === 'aisensy') {
+            $validated['instance_id'] = null;
         }
 
         // Don't update token if it's masked or empty
@@ -96,7 +104,7 @@ class WhatsAppController extends Controller
         }
 
         try {
-            $result = $this->sendTestMessage($config);
+            $result = $this->whatsapp->testConnection($config);
 
             if ($result['success']) {
                 $config->update(['last_connected_at' => now()]);
@@ -139,6 +147,8 @@ class WhatsAppController extends Controller
             'content' => 'sometimes|string',
             'variables' => 'nullable|array',
             'is_enabled' => 'sometimes|boolean',
+            'aisensy_campaign' => 'sometimes|nullable|string|max:255',
+            'aisensy_params' => 'sometimes|nullable|array',
         ]);
 
         // If updating global template, find or create branch-specific copy
@@ -222,7 +232,14 @@ class WhatsAppController extends Controller
         ]);
 
         try {
-            $result = $this->sendWhatsAppMessage($config, $validated['recipient_phone'], $message);
+            $result = $this->whatsapp->sendText(
+                $config,
+                $validated['recipient_phone'],
+                $message,
+                $template,
+                $validated['data'],
+                $validated['recipient_name'] ?? null
+            );
 
             if ($result['success']) {
                 $log->update([
@@ -305,7 +322,7 @@ class WhatsAppController extends Controller
         }
 
         try {
-            $result = $this->sendWhatsAppMessage($config, $whatsAppLog->recipient_phone, $whatsAppLog->message_content);
+            $result = $this->whatsapp->sendText($config, $whatsAppLog->recipient_phone, $whatsAppLog->message_content);
 
             if ($result['success']) {
                 $whatsAppLog->update([
@@ -327,177 +344,5 @@ class WhatsAppController extends Controller
         catch (\Exception $e) {
             return $this->error('Failed to resend: ' . $e->getMessage(), 500);
         }
-    }
-
-    /**
-     * Send test message via configured provider
-     */
-    protected function sendTestMessage(WhatsAppConfig $config): array
-    {
-        // Test with a simple API call to verify credentials
-        return match ($config->provider) {
-                'ultramsg' => $this->testUltramsg($config),
-                'twilio' => $this->testTwilio($config),
-                'wati' => $this->testWati($config),
-                default => ['success' => false, 'error' => 'Unknown provider'],
-            };
-    }
-
-    /**
-     * Send WhatsApp message via configured provider
-     */
-    protected function sendWhatsAppMessage(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        return match ($config->provider) {
-                'ultramsg' => $this->sendViaUltramsg($config, $phone, $message),
-                'twilio' => $this->sendViaTwilio($config, $phone, $message),
-                'wati' => $this->sendViaWati($config, $phone, $message),
-                default => ['success' => false, 'error' => 'Unknown provider'],
-            };
-    }
-    /**
-     * Test Ultramsg connection
-     */
-    protected function testUltramsg(WhatsAppConfig $config): array
-    {
-        try {
-            $url = "https://api.ultramsg.com/{$config->instance_id}/instance/status";
-
-            $params = [
-                'token' => $config->api_token,
-            ];
-
-            $ch = curl_init();
-
-            $curlOptions = [
-                CURLOPT_URL => $url . '?' . http_build_query($params),
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 30,
-            ];
-
-            // Only disable SSL verification in local environment
-            if (app()->environment('local')) {
-                $curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
-                $curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
-            }
-
-            curl_setopt_array($ch, $curlOptions);
-
-            $response = curl_exec($ch);
-            $err = curl_error($ch);
-            curl_close($ch);
-
-            if ($err) {
-                return ['success' => false, 'error' => 'cURL Error: ' . $err];
-            }
-
-            $result = json_decode($response, true);
-
-            // Check if we got a valid response
-            if ($response && !isset($result['error'])) {
-                return ['success' => true];
-            }
-
-            return ['success' => false, 'error' => $result['error'] ?? $response];
-        }
-        catch (\Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-    /**
-     * Send via Ultramsg
-     */
-    protected function sendViaUltramsg(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        try {
-            $url = "https://api.ultramsg.com/{$config->instance_id}/messages/chat";
-
-            $params = [
-                'token' => $config->api_token,
-                'to' => $phone,
-                'body' => $message,
-            ];
-
-            $ch = curl_init();
-
-            $curlOptions = [
-                CURLOPT_URL => $url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => "",
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => "POST",
-                CURLOPT_POSTFIELDS => http_build_query($params),
-                CURLOPT_HTTPHEADER => [
-                    "content-type: application/x-www-form-urlencoded"
-                ],
-            ];
-
-            // Only disable SSL verification in local environment
-            if (app()->environment('local')) {
-                $curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
-                $curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
-            }
-
-            curl_setopt_array($ch, $curlOptions);
-
-            $response = curl_exec($ch);
-            $err = curl_error($ch);
-            curl_close($ch);
-
-            if ($err) {
-                return ['success' => false, 'error' => 'cURL Error: ' . $err];
-            }
-
-            $result = json_decode($response, true);
-
-            if (isset($result['sent']) && $result['sent'] === 'true') {
-                return ['success' => true, 'message_id' => $result['id'] ?? null];
-            }
-
-            return ['success' => false, 'error' => $result['error'] ?? $response];
-        }
-        catch (\Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-
-
-
-    /**
-     * Test Twilio connection (placeholder)
-     */
-    protected function testTwilio(WhatsAppConfig $config): array
-    {
-        // TODO: Implement Twilio test
-        return ['success' => true];
-    }
-
-    /**
-     * Send via Twilio (placeholder)
-     */
-    protected function sendViaTwilio(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        // TODO: Implement Twilio sending
-        return ['success' => false, 'error' => 'Twilio not implemented'];
-    }
-
-    /**
-     * Test WATI connection (placeholder)
-     */
-    protected function testWati(WhatsAppConfig $config): array
-    {
-        // TODO: Implement WATI test
-        return ['success' => true];
-    }
-
-    /**
-     * Send via WATI (placeholder)
-     */
-    protected function sendViaWati(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        // TODO: Implement WATI sending
-        return ['success' => false, 'error' => 'WATI not implemented'];
     }
 }

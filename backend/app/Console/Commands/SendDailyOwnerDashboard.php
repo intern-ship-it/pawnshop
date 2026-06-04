@@ -142,11 +142,6 @@ class SendDailyOwnerDashboard extends Command
             return;
         }
 
-        if ($config->provider !== 'ultramsg') {
-            $this->error("  ! Only UltraMsg is supported for document send, got '{$config->provider}' — skipping");
-            return;
-        }
-
         // ── 3. Build the public URL for the PDF ──
         $publicUrl = Storage::disk('public')->url($relPath);
         // Storage::url may return a relative path if APP_URL is unset — make it absolute.
@@ -167,13 +162,23 @@ class SendDailyOwnerDashboard extends Command
                 'related_type'    => 'OwnerDashboard',
             ]);
 
-            $result = $this->sendUltraMsgDocument(
-                $config,
-                $phone,
-                $publicUrl,
-                $fileName,
-                $caption
-            );
+            if ($config->provider === 'ultramsg') {
+                $result = $this->sendUltraMsgDocument($config, $phone, $publicUrl, $fileName, $caption);
+            } elseif ($config->provider === 'aisensy') {
+                // AiSensy fetches media from a public URL. This command has no campaign
+                // mapping in scope, so the AiSensy driver will report a clear error if no
+                // campaign is configured — logged as failed rather than silently skipped.
+                $result = app(\App\Services\WhatsApp\WhatsAppService::class)->sendDocument(
+                    $config,
+                    $phone,
+                    '',            // no base64 in hand; AiSensy uses the public URL instead
+                    $fileName,
+                    $caption,
+                    $publicUrl
+                );
+            } else {
+                $result = ['success' => false, 'error' => "Provider '{$config->provider}' not supported for document send"];
+            }
 
             if ($result['success']) {
                 $log->update([

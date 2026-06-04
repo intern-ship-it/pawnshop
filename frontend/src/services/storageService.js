@@ -103,6 +103,44 @@ const storageService = {
   },
 
   /**
+   * Add one subslot to a specific slot group in a box
+   * @param {number} boxId
+   * @param {number} slotGroup
+   * @returns {Promise}
+   */
+  async addSubslot(boxId, slotGroup) {
+    return apiPost('/storage/slots/add-subslot', { box_id: boxId, slot_group: slotGroup })
+  },
+
+  /**
+   * Add a new slot (group) to a box
+   * @param {number} boxId
+   * @returns {Promise}
+   */
+  async addSlot(boxId) {
+    return apiPost('/storage/boxes/add-slot', { box_id: boxId })
+  },
+
+  /**
+   * Remove one empty subslot by its slot id
+   * @param {number} slotId
+   * @returns {Promise}
+   */
+  async removeSubslot(slotId) {
+    return apiDelete(`/storage/slots/${slotId}`)
+  },
+
+  /**
+   * Remove an entire slot (group) and its subslots from a box
+   * @param {number} boxId
+   * @param {number} slotGroup
+   * @returns {Promise}
+   */
+  async removeSlot(boxId, slotGroup) {
+    return apiDelete(`/storage/boxes/${boxId}/slot-group/${slotGroup}`)
+  },
+
+  /**
    * Get available slots
    * @param {Object} params - vault_id, box_id
    * @returns {Promise}

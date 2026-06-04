@@ -203,6 +203,7 @@ const defaultConfig = {
   token: "",
   phoneNumberId: "",
   defaultCountryCode: "+60",
+  attachPdfReceipt: false,
   companyName: "PawnSys Sdn Bhd",
   companyPhone: "03-1234 5678",
 };
@@ -294,6 +295,7 @@ export default function WhatsAppSettings() {
           instanceId: c.instance_id || "",
           token: tokenExists ? "" : "", // Keep empty, we'll show indicator separately
           defaultCountryCode: c.phone_number || "+60",
+          attachPdfReceipt: c.attach_pdf_receipt || false,
           companyName: companyName,
           companyPhone: companyPhone,
         });
@@ -321,6 +323,10 @@ export default function WhatsAppSettings() {
             event: t.template_key,
             enabled: t.is_enabled,
             template: t.content,
+            aisensy_campaign: t.aisensy_campaign || "",
+            aisensy_params: Array.isArray(t.aisensy_params)
+              ? t.aisensy_params
+              : [],
           })),
         );
       }
@@ -352,6 +358,7 @@ export default function WhatsAppSettings() {
         instance_id: config.instanceId,
         phone_number: countryCode, // Always has + prefix now
         is_enabled: config.enabled,
+        attach_pdf_receipt: config.attachPdfReceipt,
       };
 
       // Only send token if user entered a new one
@@ -465,13 +472,18 @@ export default function WhatsAppSettings() {
   // Save template to API
   const saveTemplate = async () => {
     try {
+      const payload = {
+        name: editingTemplate.name,
+        content: editingTemplate.template,
+        is_enabled: editingTemplate.enabled,
+      };
+      if (config.provider === "aisensy") {
+        payload.aisensy_campaign = editingTemplate.aisensy_campaign || null;
+        payload.aisensy_params = editingTemplate.aisensy_params || [];
+      }
       const response = await whatsappService.updateTemplate(
         editingTemplate.id,
-        {
-          name: editingTemplate.name,
-          content: editingTemplate.template,
-          is_enabled: editingTemplate.enabled,
-        },
+        payload,
       );
 
       if (response.success) {
@@ -729,27 +741,34 @@ export default function WhatsAppSettings() {
                     <option value="ultramsg">UltraMsg</option>
                     <option value="twilio">Twilio</option>
                     <option value="wati">WATI</option>
+                    <option value="aisensy">AiSensy</option>
                   </select>
                 </div>
 
-                <Input
-                  label="Instance ID"
-                  placeholder="Enter instance ID"
-                  value={config.instanceId}
-                  onChange={(e) =>
-                    setConfig({ ...config, instanceId: e.target.value })
-                  }
-                  leftIcon={Globe}
-                />
+                {config.provider !== "aisensy" && (
+                  <Input
+                    label="Instance ID"
+                    placeholder="Enter instance ID"
+                    value={config.instanceId}
+                    onChange={(e) =>
+                      setConfig({ ...config, instanceId: e.target.value })
+                    }
+                    leftIcon={Globe}
+                  />
+                )}
 
                 <div>
                   <Input
-                    label="API Token"
+                    label={
+                      config.provider === "aisensy" ? "API Key" : "API Token"
+                    }
                     type="password"
                     placeholder={
                       hasExistingToken && !config.token
                         ? "••••••••••••••••"
-                        : "Enter API token"
+                        : config.provider === "aisensy"
+                          ? "Enter API key"
+                          : "Enter API token"
                     }
                     value={config.token}
                     onChange={(e) =>
@@ -774,6 +793,44 @@ export default function WhatsAppSettings() {
                   }
                   leftIcon={Phone}
                 />
+
+                {/* Attach PDF receipt toggle — hidden for now (backend stays OFF by default).
+                    To re-enable, change `false &&` below to `true &&`. */}
+                {false && (
+                  <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg">
+                    <div className="pr-3">
+                      <span className="text-sm font-medium">
+                        Attach PDF receipt
+                      </span>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Also send the full PDF receipt with confirmation messages
+                        (UltraMsg & AiSensy).
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          attachPdfReceipt: !config.attachPdfReceipt,
+                        })
+                      }
+                      className={cn(
+                        "w-12 h-6 rounded-full transition-colors relative flex-shrink-0",
+                        config.attachPdfReceipt ? "bg-green-500" : "bg-zinc-300",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform",
+                          config.attachPdfReceipt
+                            ? "translate-x-6"
+                            : "translate-x-0.5",
+                        )}
+                      />
+                    </button>
+                  </div>
+                )}
 
                 {/* Connection Status */}
                 <div className="flex items-center justify-between pt-4 border-t border-zinc-200">
@@ -843,14 +900,33 @@ export default function WhatsAppSettings() {
                   <MessageCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-700">
                     <p className="font-medium">How it works:</p>
-                    <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
-                      <li>Sign up at ultramsg.com or similar provider</li>
-                      <li>Get your Instance ID and Token</li>
-                      <li>Enter credentials above</li>
-                      <li>Test connection</li>
-                      <li>Customize message templates</li>
-                      <li>Messages will be sent automatically!</li>
-                    </ol>
+                    {config.provider === "aisensy" ? (
+                      <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                        <li>
+                          Create &amp; get your WhatsApp templates approved in
+                          AiSensy (Meta)
+                        </li>
+                        <li>
+                          Create a Live API Campaign for each message type
+                        </li>
+                        <li>Copy your API Key from Manage → API Key</li>
+                        <li>Paste the API Key above and enable WhatsApp</li>
+                        <li>
+                          Map each template to its AiSensy campaign +
+                          parameters (Templates tab)
+                        </li>
+                        <li>Messages will be sent automatically!</li>
+                      </ol>
+                    ) : (
+                      <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                        <li>Sign up at ultramsg.com or similar provider</li>
+                        <li>Get your Instance ID and Token</li>
+                        <li>Enter credentials above</li>
+                        <li>Test connection</li>
+                        <li>Customize message templates</li>
+                        <li>Messages will be sent automatically!</li>
+                      </ol>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1151,9 +1227,8 @@ export default function WhatsAppSettings() {
               {/* Note */}
               <div className="mt-4 p-3 bg-amber-50 rounded-lg">
                 <p className="text-xs text-amber-700">
-                  <strong>Note:</strong> In this prototype, messages are
-                  simulated. In production, messages will be sent via the
-                  configured WhatsApp API provider.
+                  <strong>Note:</strong> Test messages are sent for real via the
+                  configured WhatsApp API provider (UltraMsg or AiSensy).
                 </p>
               </div>
             </Card>
@@ -1240,6 +1315,46 @@ export default function WhatsAppSettings() {
                   ))}
                 </div>
               </div>
+
+              {config.provider === "aisensy" && (
+                <>
+                  <Input
+                    label="AiSensy Campaign Name"
+                    placeholder="e.g. pledge_created_v1"
+                    value={editingTemplate.aisensy_campaign || ""}
+                    onChange={(e) =>
+                      setEditingTemplate({
+                        ...editingTemplate,
+                        aisensy_campaign: e.target.value,
+                      })
+                    }
+                  />
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
+                      Parameters (ordered, comma-separated variable names)
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm"
+                      placeholder="customer_name, pledge_no, loan_amount"
+                      value={(editingTemplate.aisensy_params || []).join(", ")}
+                      onChange={(e) =>
+                        setEditingTemplate({
+                          ...editingTemplate,
+                          aisensy_params: e.target.value
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter((s) => s.length > 0),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-zinc-500 mt-1">
+                      These map in order to AiSensy templateParams ({"{{1}}"},{" "}
+                      {"{{2}}"}, …).
+                    </p>
+                  </div>
+                </>
+              )}
 
               <div className="flex gap-3 mt-6">
                 <Button

@@ -55,7 +55,9 @@ export default function StorageLocationSelector({
       if (parentBox && parentBox.has_subslots) {
         const slot = slots.find((s) => String(s.id) === String(value.slot_id));
         if (slot) {
-          const lSlot = Math.ceil(slot.slot_number / (parentBox.subslots_per_slot || 1));
+          const lSlot = slot.slot_group != null
+            ? slot.slot_group
+            : Math.ceil(slot.slot_number / (parentBox.subslots_per_slot || 1));
           setLogicalSlot(lSlot.toString());
         }
       } else {
@@ -165,9 +167,14 @@ export default function StorageLocationSelector({
   let subslotOptions = [];
 
   if (hasSubslots) {
+    const groupOf = (s) =>
+      s.slot_group != null ? s.slot_group : Math.ceil(s.slot_number / subslotsPerSlot);
+    const subOf = (s) =>
+      s.subslot_number != null ? s.subslot_number : ((s.slot_number - 1) % subslotsPerSlot) + 1;
+
     const activeLogicalSlots = new Set();
     slots.forEach((s) => {
-      activeLogicalSlots.add(Math.ceil(s.slot_number / subslotsPerSlot));
+      activeLogicalSlots.add(groupOf(s));
     });
 
     mainSlotOptions = Array.from(activeLogicalSlots)
@@ -179,16 +186,10 @@ export default function StorageLocationSelector({
 
     if (logicalSlot) {
       subslotOptions = slots
-          .filter(
-            (s) =>
-              Math.ceil(s.slot_number / subslotsPerSlot) ===
-              parseInt(logicalSlot)
-          )
+          .filter((s) => groupOf(s) === parseInt(logicalSlot))
           .map((s) => ({
             value: s.id.toString(),
-            label: `Subslot ${
-              ((s.slot_number - 1) % subslotsPerSlot) + 1
-            }${s.is_occupied ? " (Occupied)" : " (Available)"}`,
+            label: `Subslot ${subOf(s)}${s.is_occupied ? " (Occupied)" : " (Available)"}`,
             disabled: s.is_occupied,
           }));
     }
@@ -326,8 +327,9 @@ export default function StorageLocationSelector({
               const drawerName = b.box_number || b.name || "Drawer";
               
               if (b.has_subslots) {
-                const sNum = Math.ceil(s.slot_number / (b.subslots_per_slot || 5));
-                const subNum = ((s.slot_number - 1) % (b.subslots_per_slot || 5)) + 1;
+                const per = b.subslots_per_slot || 5;
+                const sNum = s.slot_group != null ? s.slot_group : Math.ceil(s.slot_number / per);
+                const subNum = s.subslot_number != null ? s.subslot_number : ((s.slot_number - 1) % per) + 1;
                 return `${lockerName.toUpperCase()} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
               }
               

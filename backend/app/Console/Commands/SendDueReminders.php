@@ -43,11 +43,15 @@ class SendDueReminders extends Command
     protected int $failed = 0;
     protected int $noPhone = 0;
 
+    protected \App\Services\WhatsApp\WhatsAppService $whatsapp;
+
     /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(\App\Services\WhatsApp\WhatsAppService $whatsapp): int
     {
+        $this->whatsapp = $whatsapp;
+
         $isDryRun = $this->option('dry-run');
         $branchFilter = $this->option('branch');
         $today = Carbon::today();
@@ -229,8 +233,8 @@ class SendDueReminders extends Command
             return;
         }
 
-        // Send via UltraMsg (or configured provider)
-        $result = $this->sendViaProvider($config, $phone, $message);
+        // Send via shared WhatsApp service (supports ultramsg + aisensy)
+        $result = $this->whatsapp->sendText($config, $phone, $message, $template, $data, $customer->name);
 
         // Log the attempt
         $log = WhatsAppLog::create([
@@ -285,96 +289,5 @@ class SendDueReminders extends Command
             'company_name' => $pledge->branch?->name ?? 'PawnSys',
             'company_phone' => $pledge->branch?->phone ?? '',
         ];
-    }
-
-    /**
-     * Send WhatsApp message via the configured provider.
-     * Mirrors WhatsAppController::sendWhatsAppMessage() logic.
-     */
-    protected function sendViaProvider(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        return match ($config->provider) {
-            'ultramsg' => $this->sendViaUltramsg($config, $phone, $message),
-            'twilio'   => $this->sendViaTwilio($config, $phone, $message),
-            'wati'     => $this->sendViaWati($config, $phone, $message),
-            default    => ['success' => false, 'error' => 'Unknown provider: ' . $config->provider],
-        };
-    }
-
-    /**
-     * Send via UltraMsg API.
-     * Exact same logic as WhatsAppController::sendViaUltramsg()
-     */
-    protected function sendViaUltramsg(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        try {
-            $url = "https://api.ultramsg.com/{$config->instance_id}/messages/chat";
-
-            $params = [
-                'token' => $config->api_token,
-                'to' => $phone,
-                'body' => $message,
-            ];
-
-            $ch = curl_init();
-
-            $curlOptions = [
-                CURLOPT_URL => $url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => "",
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => "POST",
-                CURLOPT_POSTFIELDS => http_build_query($params),
-                CURLOPT_HTTPHEADER => [
-                    "content-type: application/x-www-form-urlencoded"
-                ],
-            ];
-
-            // Only disable SSL verification in local environment
-            if (app()->environment('local')) {
-                $curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
-                $curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
-            }
-
-            curl_setopt_array($ch, $curlOptions);
-
-            $response = curl_exec($ch);
-            $err = curl_error($ch);
-            curl_close($ch);
-
-            if ($err) {
-                return ['success' => false, 'error' => 'cURL Error: ' . $err];
-            }
-
-            $result = json_decode($response, true);
-
-            if (isset($result['sent']) && $result['sent'] === 'true') {
-                return ['success' => true, 'message_id' => $result['id'] ?? null];
-            }
-
-            return ['success' => false, 'error' => $result['error'] ?? $response];
-        } catch (\Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Send via Twilio (placeholder - match your WhatsAppController implementation)
-     */
-    protected function sendViaTwilio(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        // TODO: Implement if you use Twilio
-        return ['success' => false, 'error' => 'Twilio not implemented in scheduler'];
-    }
-
-    /**
-     * Send via WATI (placeholder - match your WhatsAppController implementation)
-     */
-    protected function sendViaWati(WhatsAppConfig $config, string $phone, string $message): array
-    {
-        // TODO: Implement if you use WATI
-        return ['success' => false, 'error' => 'WATI not implemented in scheduler'];
     }
 }

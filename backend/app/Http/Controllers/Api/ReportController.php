@@ -23,6 +23,56 @@ class ReportController extends Controller
     }
 
     /**
+     * Helper to apply global search across Pledge or Pledge-related models
+     */
+    private function applyGlobalSearch($query, $search, $isPledgeTable = true)
+    {
+        if (!$search) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($search, $isPledgeTable) {
+            if ($isPledgeTable) {
+                // Main table is Pledge
+                $q->where('pledge_no', 'like', "%{$search}%")
+                  ->orWhere('receipt_no', 'like', "%{$search}%")
+                  ->orWhereHas('customer', function ($q2) use ($search) {
+                      $q2->where('name', 'like', "%{$search}%")
+                         ->orWhere('ic_number', 'like', "%{$search}%")
+                         ->orWhere('phone', 'like', "%{$search}%");
+                  });
+            } else {
+                // Main table has a pledge relationship
+                $q->whereHas('pledge', function ($q2) use ($search) {
+                    $q2->where('pledge_no', 'like', "%{$search}%")
+                       ->orWhere('receipt_no', 'like', "%{$search}%")
+                       ->orWhereHas('customer', function ($q3) use ($search) {
+                           $q3->where('name', 'like', "%{$search}%")
+                              ->orWhere('ic_number', 'like', "%{$search}%")
+                              ->orWhere('phone', 'like', "%{$search}%");
+                       });
+                });
+            }
+        });
+    }
+
+    /**
+     * Helper to apply search directly on Customer model
+     */
+    private function applyCustomerSearch($query, $search)
+    {
+        if (!$search) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('ic_number', 'like', "%{$search}%")
+              ->orWhere('phone', 'like', "%{$search}%");
+        });
+    }
+
+    /**
      * Pledges Report
      */
     public function pledges(Request $request): JsonResponse
@@ -43,6 +93,11 @@ class ReportController extends Controller
         // Status filter
         if ($status = $request->get('status')) {
             $query->where('status', $status);
+        }
+
+        // Global search
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, true);
         }
 
         $pledges = $query->orderBy('pledge_date', 'desc')->get();
@@ -82,6 +137,10 @@ class ReportController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, false);
+        }
+
         $renewals = $query->orderBy('created_at', 'desc')->get();
 
         $interestQuery = \App\Models\InterestPayment::where('branch_id', $branchId)
@@ -92,6 +151,10 @@ class ReportController extends Controller
         }
         if ($to) {
             $interestQuery->whereDate('created_at', '<=', $to);
+        }
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($interestQuery, $search, false);
         }
 
         $interestPayments = $interestQuery->orderBy('created_at', 'desc')->get();
@@ -131,6 +194,10 @@ class ReportController extends Controller
             $query->whereDate('created_at', '<=', $to);
         }
 
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, false);
+        }
+
         $redemptions = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
@@ -156,12 +223,16 @@ class ReportController extends Controller
         $branchId = $request->user()->branch_id;
         $today = Carbon::today();
 
-        $pledges = Pledge::where('branch_id', $branchId)
+        $query = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
             ->with(['customer:id,name,ic_number,phone'])
-            ->withCount('items')
-            ->orderBy('due_date')
-            ->get();
+            ->withCount('items');
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, true);
+        }
+
+        $pledges = $query->orderBy('due_date')->get();
 
         // Calculate current interest for each and categorize by due status
         $activePledges = [];
@@ -183,13 +254,121 @@ class ReportController extends Controller
             }
         });
 
+        // --- Breakdown by Pledge Age ---
+        $byAge = [
+            ['label' => '0-1 Month', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '1-3 Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '3-6 Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '6-12 Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+            ['label' => '12+ Months', 'count' => 0, 'principal' => 0, 'outstanding' => 0],
+        ];
+
+        // --- Breakdown by Loan Amount Range ---
+        $byLoanRange = [
+            ['label' => 'Below RM 5,000', 'count' => 0, 'total' => 0],
+            ['label' => 'RM 5,000 - 20,000', 'count' => 0, 'total' => 0],
+            ['label' => 'RM 20,000 - 50,000', 'count' => 0, 'total' => 0],
+            ['label' => 'RM 50,000 - 100,000', 'count' => 0, 'total' => 0],
+            ['label' => 'Above RM 100,000', 'count' => 0, 'total' => 0],
+        ];
+
+        // --- Top 10 Customers by Outstanding ---
+        $customerTotals = [];
+
+        $pledges->each(function ($pledge) use ($today, &$byAge, &$byLoanRange, &$customerTotals) {
+            $monthsElapsed = Carbon::parse($pledge->pledge_date)->diffInMonths($today);
+            $loanAmount = (float) ($pledge->loan_amount ?? 0);
+            $outstanding = (float) ($pledge->total_outstanding ?? 0);
+
+            // Age breakdown
+            if ($monthsElapsed <= 1) {
+                $byAge[0]['count']++;
+                $byAge[0]['principal'] += $loanAmount;
+                $byAge[0]['outstanding'] += $outstanding;
+            } elseif ($monthsElapsed <= 3) {
+                $byAge[1]['count']++;
+                $byAge[1]['principal'] += $loanAmount;
+                $byAge[1]['outstanding'] += $outstanding;
+            } elseif ($monthsElapsed <= 6) {
+                $byAge[2]['count']++;
+                $byAge[2]['principal'] += $loanAmount;
+                $byAge[2]['outstanding'] += $outstanding;
+            } elseif ($monthsElapsed <= 12) {
+                $byAge[3]['count']++;
+                $byAge[3]['principal'] += $loanAmount;
+                $byAge[3]['outstanding'] += $outstanding;
+            } else {
+                $byAge[4]['count']++;
+                $byAge[4]['principal'] += $loanAmount;
+                $byAge[4]['outstanding'] += $outstanding;
+            }
+
+            // Loan range breakdown
+            if ($loanAmount < 5000) {
+                $byLoanRange[0]['count']++;
+                $byLoanRange[0]['total'] += $loanAmount;
+            } elseif ($loanAmount < 20000) {
+                $byLoanRange[1]['count']++;
+                $byLoanRange[1]['total'] += $loanAmount;
+            } elseif ($loanAmount < 50000) {
+                $byLoanRange[2]['count']++;
+                $byLoanRange[2]['total'] += $loanAmount;
+            } elseif ($loanAmount < 100000) {
+                $byLoanRange[3]['count']++;
+                $byLoanRange[3]['total'] += $loanAmount;
+            } else {
+                $byLoanRange[4]['count']++;
+                $byLoanRange[4]['total'] += $loanAmount;
+            }
+
+            // Customer aggregation
+            $customerId = $pledge->customer_id;
+            $customerName = $pledge->customer->name ?? 'Unknown';
+            if (!isset($customerTotals[$customerId])) {
+                $customerTotals[$customerId] = [
+                    'name' => $customerName,
+                    'pledge_count' => 0,
+                    'total_principal' => 0,
+                    'total_outstanding' => 0,
+                ];
+            }
+            $customerTotals[$customerId]['pledge_count']++;
+            $customerTotals[$customerId]['total_principal'] += $loanAmount;
+            $customerTotals[$customerId]['total_outstanding'] += $outstanding;
+        });
+
+        // Sort customers by outstanding desc and take top 10
+        $topCustomers = collect($customerTotals)
+            ->sortByDesc('total_outstanding')
+            ->take(10)
+            ->values()
+            ->toArray();
+
+        // Round breakdown values
+        foreach ($byAge as &$age) {
+            $age['principal'] = round($age['principal'], 2);
+            $age['outstanding'] = round($age['outstanding'], 2);
+        }
+        foreach ($byLoanRange as &$range) {
+            $range['total'] = round($range['total'], 2);
+        }
+
+        $totalPrincipal = $pledges->sum('loan_amount');
+        $totalInterest = $pledges->sum('current_interest');
+        $totalOutstanding = $pledges->sum('total_outstanding');
+
         $summary = [
             'total_pledges' => $pledges->count(),
             'active_count' => count($activePledges),
             'overdue_count' => count($overduePledges),
-            'total_principal' => $pledges->sum('loan_amount'),
-            'total_interest' => $pledges->sum('current_interest'),
-            'total_outstanding' => $pledges->sum('total_outstanding'),
+            'total_principal' => round($totalPrincipal, 2),
+            'total_interest' => round($totalInterest, 2),
+            'total_outstanding' => round($totalOutstanding, 2),
+            'principal_percentage' => $totalOutstanding > 0 ? round(($totalPrincipal / $totalOutstanding) * 100, 1) : 0,
+            'interest_percentage' => $totalOutstanding > 0 ? round(($totalInterest / $totalOutstanding) * 100, 1) : 0,
+            'by_age' => $byAge,
+            'by_loan_range' => $byLoanRange,
+            'top_customers' => $topCustomers,
         ];
 
         return $this->success([
@@ -206,13 +385,17 @@ class ReportController extends Controller
         $branchId = $request->user()->branch_id;
         $today = Carbon::today();
 
-        $pledges = Pledge::where('branch_id', $branchId)
+        $query = Pledge::where('branch_id', $branchId)
             ->where('status', 'active')
             ->where('due_date', '<', $today)
             ->with(['customer:id,name,ic_number,phone'])
-            ->withCount('items')
-            ->orderBy('due_date')
-            ->get();
+            ->withCount('items');
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($query, $search, true);
+        }
+
+        $pledges = $query->orderBy('due_date')->get();
 
         // Add days overdue
         $pledges->each(function ($pledge) use ($today) {
@@ -322,14 +505,8 @@ class ReportController extends Controller
         $fromDate = $request->get('from_date');
         $toDate = $request->get('to_date');
 
-        $query = PledgeItem::whereHas('pledge', function ($q) use ($fromDate, $toDate) {
+        $query = PledgeItem::whereHas('pledge', function ($q) {
             $q->where('status', 'active');
-            if ($fromDate) {
-                $q->whereDate('pledge_date', '>=', $fromDate);
-            }
-            if ($toDate) {
-                $q->whereDate('pledge_date', '<=', $toDate);
-            }
         });
 
         if ($request->has('item_ids')) {
@@ -347,26 +524,11 @@ class ReportController extends Controller
         $items = $query->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
             ->get()
             ->map(function ($item) {
-                // Ensure properties are treated as numeric to avoid TypeError on empty strings or nulls
-                $grossValue = (float) ($item->gross_value ?? 0);
-                $pricePerGram = (float) ($item->price_per_gram ?? 0);
-                $netWeight = (float) ($item->net_weight ?? 0);
-                $netValue = (float) ($item->net_value ?? 0);
+                // Cast to numeric to avoid TypeError on empty strings or nulls (no value fallback)
+                $item->gross_value = (float) ($item->gross_value ?? 0);
+                $item->net_weight = (float) ($item->net_weight ?? 0);
+                $item->net_value = (float) ($item->net_value ?? 0);
 
-                // Ensure gross_value is never 0 if weight/price exists
-                if ($grossValue <= 0 && $pricePerGram > 0) {
-                    $grossValue = $netWeight * $pricePerGram;
-                }
-                
-                // If still 0, at least use net_value as proxy (though gross is usually higher)
-                if ($grossValue <= 0) {
-                    $grossValue = $netValue;
-                }
-                
-                $item->gross_value = $grossValue;
-                $item->net_weight = $netWeight;
-                $item->net_value = $netValue;
-                
                 return $item;
             });
 
@@ -449,6 +611,10 @@ class ReportController extends Controller
             $query->has('activePledges');
         }
 
+        if ($search = $request->get('search')) {
+            $this->applyCustomerSearch($query, $search);
+        }
+
         $customers = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
@@ -476,31 +642,49 @@ class ReportController extends Controller
         $toDate = $request->get('to_date', $fromDate);
 
         // Pledges
-        $pledges = Pledge::where('branch_id', $branchId)
+        $pledgeQuery = Pledge::where('branch_id', $branchId)
             ->whereBetween('pledge_date', [$fromDate, $toDate])
-            ->with(['customer:id,name', 'payments', 'createdBy:id,name'])
-            ->orderBy('created_at')
-            ->get();
+            ->with(['customer:id,name', 'payments', 'createdBy:id,name']);
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($pledgeQuery, $search, true);
+        }
+
+        $pledges = $pledgeQuery->orderBy('created_at')->get();
 
         // Renewals & Interest Payments
-        $renewals = Renewal::where('branch_id', $branchId)
+        $renewalQuery = Renewal::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
-            ->with(['pledge.customer:id,name', 'createdBy:id,name'])
-            ->get();
+            ->with(['pledge.customer:id,name', 'createdBy:id,name']);
 
-        $interestPayments = \App\Models\InterestPayment::where('branch_id', $branchId)
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($renewalQuery, $search, false);
+        }
+
+        $renewals = $renewalQuery->get();
+
+        $interestQuery = \App\Models\InterestPayment::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
-            ->with(['pledge.customer:id,name', 'createdBy:id,name'])
-            ->get();
+            ->with(['pledge.customer:id,name', 'createdBy:id,name']);
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($interestQuery, $search, false);
+        }
+
+        $interestPayments = $interestQuery->get();
 
         $combinedRenewals = $renewals->concat($interestPayments)->sortByDesc('created_at')->values();
 
         // Redemptions
-        $redemptions = Redemption::where('branch_id', $branchId)
+        $redemptionQuery = Redemption::where('branch_id', $branchId)
             ->whereBetween(DB::raw('DATE(created_at)'), [$fromDate, $toDate])
-            ->with(['pledge.customer:id,name', 'createdBy:id,name'])
-            ->orderBy('created_at')
-            ->get();
+            ->with(['pledge.customer:id,name', 'createdBy:id,name']);
+
+        if ($search = $request->get('search')) {
+            $this->applyGlobalSearch($redemptionQuery, $search, false);
+        }
+
+        $redemptions = $redemptionQuery->orderBy('created_at')->get();
 
         return $this->success([
             'from_date' => $fromDate,
@@ -643,10 +827,35 @@ class ReportController extends Controller
 
         switch ($reportType) {
             case 'overview':
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
+                if (isset($data->pledges) && is_countable($data->pledges)) {
+                    foreach ($data->pledges as $pledge) {
+                        $items = $pledge->items ?? [];
+                        $rows[] = [
+                            date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
+                            $pledge->receipt_no ?? '',
+                            $pledge->pledge_no ?? '',
+                            $pledge->customer->name ?? '',
+                            "\t" . ($pledge->customer->ic_number ?? ''),
+                            is_countable($items) ? count($items) : 0,
+                            number_format($pledge->total_weight ?? 0, 3),
+                            number_format($pledge->loan_amount ?? 0, 2),
+                            ($pledge->interest_rate ?? 0) . '%',
+                            date('d/m/Y', strtotime($pledge->due_date ?? '')),
+                            ucfirst($pledge->status ?? ''),
+                        ];
+                    }
+                }
+                break;
+
             case 'pledges':
                 $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
+                        // Only export active pledges for Pledge Reports
+                        if (($pledge->status ?? '') !== 'active') {
+                            continue;
+                        }
                         $items = $pledge->items ?? [];
                         $rows[] = [
                             date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
@@ -684,12 +893,11 @@ class ReportController extends Controller
                 break;
 
             case 'redemptions':
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method'];
+                $rows[] = ['Date', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method'];
                 if (isset($data->redemptions) && is_countable($data->redemptions)) {
                     foreach ($data->redemptions as $redemption) {
                         $rows[] = [
                             date('d/m/Y H:i', strtotime($redemption->created_at ?? '')),
-                            $redemption->receipt_no ?? '',
                             $redemption->pledge->pledge_no ?? '',
                             $redemption->pledge->customer->name ?? '',
                             number_format($redemption->principal_amount ?? 0, 2),

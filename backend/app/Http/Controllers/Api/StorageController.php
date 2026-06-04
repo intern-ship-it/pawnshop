@@ -89,11 +89,13 @@ class StorageController extends Controller
                     'total_slots' => $slotsPerBox,
                 ]);
 
-                // Create 20 slots per box
+                // Create slots per box (plain drawers: group = slot number, subslot = 1)
                 for ($slotNum = 1; $slotNum <= $slotsPerBox; $slotNum++) {
                     Slot::create([
                         'box_id' => $box->id,
                         'slot_number' => $slotNum,
+                        'slot_group' => $slotNum,
+                        'subslot_number' => 1,
                     ]);
                 }
             }
@@ -230,11 +232,14 @@ class StorageController extends Controller
                 'description' => $validated['description'] ?? null,
             ]);
 
-            // Create slots
+            // Create slots with explicit stored position so new drawers are
+            // consistent with backfilled ones (and the add-slot/subslot endpoints work).
             for ($i = 1; $i <= $actualTotalSlots; $i++) {
                 Slot::create([
                     'box_id' => $box->id,
                     'slot_number' => $i,
+                    'slot_group' => $hasSubslots ? (int) ceil($i / $subslotsPerSlot) : $i,
+                    'subslot_number' => $hasSubslots ? (($i - 1) % $subslotsPerSlot) + 1 : 1,
                 ]);
             }
 
@@ -268,6 +273,197 @@ class StorageController extends Controller
         $box->update($validated);
 
         return $this->success($box, 'Box updated successfully');
+    }
+
+    /**
+     * Add one empty subslot to a specific slot group within a box.
+     * Pure insert — never touches existing/occupied rows.
+     */
+    public function addSubslot(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'box_id' => 'required|exists:boxes,id',
+            'slot_group' => 'required|integer|min:1',
+        ]);
+
+        $box = Box::find($validated['box_id']);
+
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $groupExists = Slot::where('box_id', $box->id)
+            ->where('slot_group', $validated['slot_group'])
+            ->exists();
+
+        if (!$groupExists) {
+            return $this->error('Slot not found in this drawer', 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $nextSubslot = (int) Slot::where('box_id', $box->id)
+                ->where('slot_group', $validated['slot_group'])
+                ->max('subslot_number') + 1;
+
+            $nextSlotNumber = (int) Slot::where('box_id', $box->id)
+                ->max('slot_number') + 1;
+
+            $slot = Slot::create([
+                'box_id' => $box->id,
+                'slot_number' => $nextSlotNumber,
+                'slot_group' => $validated['slot_group'],
+                'subslot_number' => $nextSubslot,
+                'is_occupied' => false,
+            ]);
+
+            $box->increment('total_slots');
+
+            DB::commit();
+
+            return $this->success($slot, 'Subslot added successfully', 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to add subslot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Add one new slot (a new slot_group) to a box, with the box's default
+     * number of subslots (1 for plain drawers). Pure insert.
+     */
+    public function addSlot(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'box_id' => 'required|exists:boxes,id',
+        ]);
+
+        $box = Box::find($validated['box_id']);
+
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $newGroup = (int) Slot::where('box_id', $box->id)->max('slot_group') + 1;
+            $count = $box->has_subslots ? max(1, (int) $box->subslots_per_slot) : 1;
+            $nextSlotNumber = (int) Slot::where('box_id', $box->id)->max('slot_number');
+
+            for ($i = 1; $i <= $count; $i++) {
+                $nextSlotNumber++;
+                Slot::create([
+                    'box_id' => $box->id,
+                    'slot_number' => $nextSlotNumber,
+                    'slot_group' => $newGroup,
+                    'subslot_number' => $i,
+                    'is_occupied' => false,
+                ]);
+            }
+
+            $box->increment('total_slots', $count);
+
+            DB::commit();
+
+            return $this->success(
+                ['slot_group' => $newGroup, 'subslots_created' => $count],
+                'Slot added successfully',
+                201
+            );
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to add slot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove a single empty subslot. Refuses if the subslot holds an item.
+     * Never renumbers remaining subslots, so no stored item's label changes.
+     */
+    public function removeSubslot(Request $request, Slot $slot): JsonResponse
+    {
+        $box = $slot->box;
+
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        if ($this->slotHasItem($slot)) {
+            return $this->error('Cannot remove a subslot that holds an item', 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $slot->delete();
+            $box->decrement('total_slots');
+
+            DB::commit();
+
+            return $this->success(null, 'Subslot removed successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to remove subslot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Remove an entire slot (group) and all its subslots. Refuses if ANY
+     * subslot in the group holds an item. Never renumbers other groups.
+     */
+    public function removeSlotGroup(Request $request, Box $box, int $group): JsonResponse
+    {
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $slots = Slot::where('box_id', $box->id)
+            ->where('slot_group', $group)
+            ->get();
+
+        if ($slots->isEmpty()) {
+            return $this->error('Slot not found in this drawer', 422);
+        }
+
+        foreach ($slots as $slot) {
+            if ($this->slotHasItem($slot)) {
+                return $this->error('Cannot remove a slot that holds items', 422);
+            }
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $count = $slots->count();
+            Slot::where('box_id', $box->id)
+                ->where('slot_group', $group)
+                ->delete();
+            $box->decrement('total_slots', $count);
+
+            DB::commit();
+
+            return $this->success(['removed' => $count], 'Slot removed successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to remove slot: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * A subslot is considered occupied if its flag is set or any stored
+     * pledge item still references it.
+     */
+    private function slotHasItem(Slot $slot): bool
+    {
+        if ($slot->is_occupied) {
+            return true;
+        }
+
+        return PledgeItem::where('slot_id', $slot->id)
+            ->where('status', 'stored')
+            ->exists();
     }
 
     /**
@@ -391,10 +587,14 @@ class StorageController extends Controller
 
         $slotStr = $slot->slot_number;
         if ($slot->box->has_subslots) {
-            $subslotsPerSlot = $slot->box->subslots_per_slot ?: 1;
-            $slotNum = ceil($slot->slot_number / $subslotsPerSlot);
-            $subslotNum = (($slot->slot_number - 1) % $subslotsPerSlot) + 1;
-            $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            if ($slot->slot_group !== null && $slot->subslot_number !== null) {
+                $slotStr = sprintf('%d-%d', $slot->slot_group, $slot->subslot_number);
+            } else {
+                $subslotsPerSlot = $slot->box->subslots_per_slot ?: 1;
+                $slotNum = ceil($slot->slot_number / $subslotsPerSlot);
+                $subslotNum = (($slot->slot_number - 1) % $subslotsPerSlot) + 1;
+                $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            }
         }
 
         return $this->success([

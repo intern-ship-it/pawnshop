@@ -171,8 +171,12 @@ export default function PledgeDetail() {
                 const drawerName = item.box.box_number || item.box.name || "Drawer";
                 if (item.box.has_subslots && item.slot.slot_number) {
                   const subPerSlot = item.box.subslots_per_slot || 5;
-                  const sNum = Math.ceil(item.slot.slot_number / subPerSlot);
-                  const subNum = ((item.slot.slot_number - 1) % subPerSlot) + 1;
+                  const sNum = item.slot.slot_group != null
+                    ? item.slot.slot_group
+                    : Math.ceil(item.slot.slot_number / subPerSlot);
+                  const subNum = item.slot.subslot_number != null
+                    ? item.slot.subslot_number
+                    : ((item.slot.slot_number - 1) % subPerSlot) + 1;
                   return `${lockerName} > DRAWER ${drawerName} > SLOT ${sNum} > SUBSLOT ${subNum}`;
                 }
                 return `${lockerName} > DRAWER ${drawerName} > SLOT ${item.slot.slot_number}`;
