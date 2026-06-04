@@ -755,15 +755,12 @@ function OverviewReport({ data }) {
           <p className="text-white/80 text-xs font-medium uppercase tracking-wider">Live Inventory</p>
           <p className="text-2xl font-bold mt-1">
             {inventorySummary.total_items || 0}
-            <span className="text-xs font-normal text-white/60 ml-2 block sm:inline">
-              (New: {pledgesSummary.total_pledges || 0} - Red: {redemptionsSummary.total_redemptions || 0} = { (pledgesSummary.total_pledges || 0) - (redemptionsSummary.total_redemptions || 0) >= 0 ? "+" : ""}{(pledgesSummary.total_pledges || 0) - (redemptionsSummary.total_redemptions || 0)})
-            </span>
           </p>
           <div className="mt-4 pt-3 border-t border-white/10">
             <p className="text-white text-lg font-bold leading-tight">
               {formatCurrency(inventorySummary.total_gross_value || 0)}
             </p>
-            <p className="text-[10px] text-white/60 font-medium">100% Market Value (Stock Valuation)</p>
+            <p className="text-[10px] text-white/60 font-medium">Gross Value</p>
           </div>
         </Card>
       </div>
@@ -904,15 +901,7 @@ function OverviewReport({ data }) {
               <p className="text-lg font-bold text-green-600">
                 {formatCurrency(inventorySummary.total_gross_value || 0)}
               </p>
-              <p className="text-[10px] text-zinc-400">100% Value</p>
-              <p className="text-sm font-semibold text-zinc-700 mt-1">
-                {formatCurrency(
-                  typeof inventorySummary.total_value === "object"
-                    ? inventorySummary.total_value?.total_value || 0
-                    : inventorySummary.total_value || 0
-                )}
-              </p>
-              <p className="text-[10px] text-zinc-400">Loan Value</p>
+              <p className="text-[10px] text-zinc-400">Gross Value</p>
             </div>
           </div>
 

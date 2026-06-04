@@ -155,7 +155,12 @@ class Pledge extends Model
 
     public function getMonthsElapsedAttribute(): int
     {
-        return Carbon::parse($this->pledge_date)->diffInMonths(Carbon::today());
+        // Charge per STARTED month: any leftover days past a completed month
+        // round up to the next full month (e.g. 1 month 8 days = 2 months).
+        // ceil() on the calendar-aware float keeps 31-day months correct.
+        $months = Carbon::parse($this->pledge_date)->diffInMonths(Carbon::today(), true);
+
+        return (int) ceil($months);
     }
 
     public function getCurrentInterestRateAttribute(): float

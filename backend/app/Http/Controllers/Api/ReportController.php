@@ -524,26 +524,11 @@ class ReportController extends Controller
         $items = $query->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
             ->get()
             ->map(function ($item) {
-                // Ensure properties are treated as numeric to avoid TypeError on empty strings or nulls
-                $grossValue = (float) ($item->gross_value ?? 0);
-                $pricePerGram = (float) ($item->price_per_gram ?? 0);
-                $netWeight = (float) ($item->net_weight ?? 0);
-                $netValue = (float) ($item->net_value ?? 0);
+                // Cast to numeric to avoid TypeError on empty strings or nulls (no value fallback)
+                $item->gross_value = (float) ($item->gross_value ?? 0);
+                $item->net_weight = (float) ($item->net_weight ?? 0);
+                $item->net_value = (float) ($item->net_value ?? 0);
 
-                // Ensure gross_value is never 0 if weight/price exists
-                if ($grossValue <= 0 && $pricePerGram > 0) {
-                    $grossValue = $netWeight * $pricePerGram;
-                }
-                
-                // If still 0, at least use net_value as proxy (though gross is usually higher)
-                if ($grossValue <= 0) {
-                    $grossValue = $netValue;
-                }
-                
-                $item->gross_value = $grossValue;
-                $item->net_weight = $netWeight;
-                $item->net_value = $netValue;
-                
                 return $item;
             });
 
