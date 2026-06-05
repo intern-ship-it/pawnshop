@@ -166,6 +166,44 @@ const storageService = {
   async getCapacity() {
     return apiGet('/storage/capacity')
   },
+
+  // ============ SLOT HOLDS (concurrency guard) ============
+
+  /**
+   * Get live holds for all slots in a box (for grey rendering + polling)
+   * @param {number} boxId
+   * @returns {Promise}
+   */
+  async getHolds(boxId) {
+    return apiGet(`/storage/boxes/${boxId}/holds`)
+  },
+
+  /**
+   * Claim (or renew, if already mine) a hold on a slot. 409 if held by another user.
+   * @param {number} slotId
+   * @returns {Promise}
+   */
+  async claimHold(slotId) {
+    return apiPost(`/storage/holds/${slotId}/claim`)
+  },
+
+  /**
+   * Renew my hold on a slot (called every ~30s while the form is open)
+   * @param {number} slotId
+   * @returns {Promise}
+   */
+  async renewHold(slotId) {
+    return apiPost(`/storage/holds/${slotId}/renew`)
+  },
+
+  /**
+   * Release my hold on a slot (on slot change / cancel / leaving the page)
+   * @param {number} slotId
+   * @returns {Promise}
+   */
+  async releaseHold(slotId) {
+    return apiDelete(`/storage/holds/${slotId}/release`)
+  },
 }
 
 export default storageService

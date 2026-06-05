@@ -9,6 +9,7 @@ use App\Models\PledgePayment;
 use App\Models\Customer;
 use App\Models\GoldPrice;
 use App\Models\Slot;
+use App\Models\SlotHold;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Services\InterestCalculationService;
@@ -653,6 +654,29 @@ class PledgeController extends Controller
                     'location_assigned_at' => isset($item['slot_id']) ? now() : null,
                     'location_assigned_by' => isset($item['slot_id']) ? $userId : null,
                 ]);
+                // Final concurrency guard (last-resort net) — runs BEFORE the
+                // existing assignment below. Locks the slot row and rejects if
+                // another pledge already occupies it or another user is holding
+                // it. This is a check placed in front of the assignment logic;
+                // the assignment block itself is unchanged.
+                if (isset($item['slot_id'])) {
+                    $lockedSlot = Slot::where('id', $item['slot_id'])->lockForUpdate()->first();
+
+                    $heldByOther = SlotHold::live()
+                        ->where('slot_id', $item['slot_id'])
+                        ->where('held_by', '!=', $userId)
+                        ->exists();
+
+                    if (($lockedSlot && $lockedSlot->is_occupied) || $heldByOther) {
+                        DB::rollBack();
+
+                        return $this->error(
+                            'A selected slot was just taken by another user. Please reselect storage and try again.',
+                            409
+                        );
+                    }
+                }
+
                 // Update slot if assigned
                 if (isset($item['slot_id'])) {
                     Slot::where('id', $item['slot_id'])->update([
@@ -665,6 +689,9 @@ class PledgeController extends Controller
                     if (isset($item['box_id'])) {
                         \App\Models\Box::where('id', $item['box_id'])->increment('occupied_slots');
                     }
+
+                    // Release the advisory hold now that the slot is permanently assigned.
+                    SlotHold::where('slot_id', $item['slot_id'])->delete();
                 }
 
                 $itemNumber++;
