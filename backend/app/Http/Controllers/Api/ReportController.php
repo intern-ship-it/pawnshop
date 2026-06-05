@@ -505,11 +505,14 @@ class ReportController extends Controller
         $fromDate = $request->get('from_date');
         $toDate = $request->get('to_date');
 
-        $query = PledgeItem::whereHas('pledge', function ($q) {
-            $q->where('status', 'active');
-        });
+        $query = PledgeItem::query();
 
         if ($request->has('item_ids')) {
+            // Explicit id list (legacy path) — keep the original active-pledge scope.
+            $query->whereHas('pledge', function ($q) {
+                $q->where('status', 'active');
+            });
+
             $itemIds = $request->get('item_ids');
             if (is_string($itemIds)) {
                 $itemIds = explode(',', $itemIds);
@@ -518,7 +521,9 @@ class ReportController extends Controller
                 $query->whereIn('id', $itemIds);
             }
         } else {
-            $query->where('status', 'stored');
+            // Filtered export: mirror the inventory list endpoint so the exported
+            // rows match exactly what the user has filtered to on screen.
+            $this->applyInventoryFilters($query, $request);
         }
 
         $items = $query->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
@@ -590,6 +595,74 @@ class ReportController extends Controller
             'items' => $isExport ? $items : [],
             'summary' => $summary,
         ]);
+    }
+
+    /**
+     * Apply the same filters the inventory list endpoint uses, so a filtered
+     * export returns exactly the rows the user sees on screen.
+     *
+     * Mirrors App\Http\Controllers\Api\InventoryController::index. Keep the two
+     * in sync if the list filters change.
+     */
+    private function applyInventoryFilters($query, Request $request): void
+    {
+        // Item status (stored / released). Default: stored or null (in storage).
+        $status = $request->get('status');
+        if ($status === 'all') {
+            // no status filter
+        } elseif ($status === 'in_storage' || $status === 'stored') {
+            $query->where(function ($q) {
+                $q->where('status', 'stored')->orWhereNull('status');
+            });
+        } elseif ($status === 'released' || $status === 'redeemed') {
+            $query->where('status', 'released');
+        } elseif (!empty($status)) {
+            $query->where('status', $status);
+        } else {
+            $query->where(function ($q) {
+                $q->where('status', 'stored')->orWhereNull('status');
+            });
+        }
+
+        // Category (id or name/code)
+        if ($categoryId = $request->get('category_id')) {
+            $query->where('category_id', $categoryId);
+        }
+        if ($category = $request->get('category')) {
+            $query->whereHas('category', function ($q) use ($category) {
+                $q->where('name_en', $category)->orWhere('code', $category);
+            });
+        }
+
+        // Purity (id or code/name)
+        if ($purityId = $request->get('purity_id')) {
+            $query->where('purity_id', $purityId);
+        }
+        if ($purity = $request->get('purity')) {
+            $query->whereHas('purity', function ($q) use ($purity) {
+                $q->where('code', $purity)->orWhere('name', $purity);
+            });
+        }
+
+        // Location (unassigned = no slot)
+        if ($request->get('location') === 'unassigned') {
+            $query->whereNull('slot_id');
+        }
+
+        // Search across barcode / item_no / pledge_no / receipt_no / customer name
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('barcode', 'like', "%{$search}%")
+                    ->orWhere('item_no', 'like', "%{$search}%")
+                    ->orWhereHas('pledge', function ($pq) use ($search) {
+                        $pq->where('pledge_no', 'like', "%{$search}%")
+                            ->orWhere('receipt_no', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('pledge.customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
     }
 
     /**

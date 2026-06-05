@@ -50,9 +50,14 @@ class PledgeController extends Controller
             ->withMax('interestPayments as interest_paid_through', 'period_to');
 
         if ($request->boolean('with_items')) {
-            // Only load items that have NOT been redeemed/released
+            // Only load items that have NOT been redeemed/released.
+            // Exclude the `photo` column: it holds a base64 image (~110KB each),
+            // so loading it for every item in a bulk list blows past the PHP
+            // memory limit. List/reconciliation views never use the photo;
+            // the item detail endpoint loads it separately when needed.
             $query->with(['items' => function ($q) {
                 $q->whereNotIn('status', ['redeemed', 'released'])
+                    ->select($this->itemListColumns())
                     ->with(['category', 'purity', 'vault', 'box', 'slot']);
             }]);
         }
@@ -135,6 +140,26 @@ class PledgeController extends Controller
         $pledges = $query->paginate($request->get('per_page', 15));
 
         return $this->paginated($pledges);
+    }
+
+    /**
+     * Columns to load for items in list/bulk contexts. Deliberately excludes the
+     * heavy `photo` (base64 image) column. Includes all foreign keys so the
+     * eager-loaded category/purity/vault/box/slot relations resolve correctly.
+     */
+    private function itemListColumns(): array
+    {
+        return [
+            'id', 'pledge_id', 'redemption_id', 'item_no', 'barcode',
+            'category_id', 'purity_id',
+            'gross_weight', 'stone_deduction_type', 'stone_deduction_value',
+            'net_weight', 'price_per_gram', 'gross_value', 'deduction_amount', 'net_value',
+            'description', 'remarks',
+            'vault_id', 'box_id', 'slot_id',
+            'location_assigned_at', 'location_assigned_by',
+            'status', 'redeemed_at', 'redeemed_from_location', 'released_at',
+            'created_at', 'updated_at',
+        ];
     }
 
     /**
