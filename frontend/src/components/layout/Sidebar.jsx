@@ -112,13 +112,14 @@ const menuConfig = [
         exact: true,
         permission: "storage.view",
       },
-      {
-        name: "Reconciliation",
-        path: "/inventory/reconciliation",
-        icon: ClipboardCheck,
-        exact: true,
-        permission: "reconciliation.view",
-      },
+      // Reconciliation menu hidden from sidebar (route/page kept intact)
+      // {
+      //   name: "Reconciliation",
+      //   path: "/inventory/reconciliation",
+      //   icon: ClipboardCheck,
+      //   exact: true,
+      //   permission: "reconciliation.view",
+      // },
       {
         name: "Auctions",
         path: "/auctions",

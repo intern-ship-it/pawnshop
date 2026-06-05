@@ -292,6 +292,9 @@ export default function NewPledge() {
   const [storageError, setStorageError] = useState(null);
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [hoveredOccupiedSlot, setHoveredOccupiedSlot] = useState(null);
+  // Advisory slot holds (concurrency guard): { [slotId]: { mine: bool } }
+  const [holds, setHolds] = useState({});
+  const heldSlotRef = useRef(null); // slotId currently held by me (for renew/release)
 
   // Step 6: Signature state
   const [signature, setSignature] = useState(null);
@@ -373,6 +376,48 @@ export default function NewPledge() {
       fetchSlots(selectedBox);
     }
   }, [selectedBox]);
+
+  // Poll live holds for the selected box (~5s) so other users' grey appears
+  // automatically, without a click or page refresh.
+  useEffect(() => {
+    if (!selectedBox) {
+      setHolds({});
+      return;
+    }
+    fetchHolds(selectedBox);
+    const interval = setInterval(() => fetchHolds(selectedBox), 5000);
+    return () => clearInterval(interval);
+  }, [selectedBox]);
+
+  // Renew my hold (~30s) while the form is open, so a slow-but-active user
+  // keeps the slot. The hold dies ~60s after I stop renewing (leave/close).
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const slotId = heldSlotRef.current;
+      if (slotId) {
+        storageService.renewHold(slotId).catch((err) => {
+          console.error("Error renewing hold:", err);
+        });
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Release my hold when leaving the page (unmount) or closing the tab.
+  useEffect(() => {
+    const onUnload = () => {
+      const slotId = heldSlotRef.current;
+      if (slotId) {
+        // Best-effort fire-and-forget; TTL is the real guarantee.
+        storageService.releaseHold(slotId).catch(() => {});
+      }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      releaseMyHold();
+    };
+  }, []);
 
   // Fetch categories, purities, banks from backend
   const fetchBackendData = async () => {
@@ -613,6 +658,36 @@ export default function NewPledge() {
     }
   };
 
+  // ---- Slot holds (concurrency guard) ----
+
+  // Read live holds for the current box and paint them (grey = held by another user)
+  const fetchHolds = async (boxId) => {
+    if (!boxId) return;
+    try {
+      const response = await storageService.getHolds(boxId);
+      const list = response.data?.data || response.data || [];
+      const map = {};
+      list.forEach((h) => {
+        map[h.slot_id] = { mine: !!h.mine };
+      });
+      setHolds(map);
+    } catch (error) {
+      console.error("Error fetching holds:", error);
+    }
+  };
+
+  // Release my current hold (best-effort; the 60s TTL frees it anyway)
+  const releaseMyHold = async () => {
+    const slotId = heldSlotRef.current;
+    if (!slotId) return;
+    heldSlotRef.current = null;
+    try {
+      await storageService.releaseHold(slotId);
+    } catch (error) {
+      console.error("Error releasing hold:", error);
+    }
+  };
+
   // Handle vault change
   const handleVaultChange = (vaultId) => {
     const numericVaultId = parseInt(vaultId, 10);
@@ -631,9 +706,11 @@ export default function NewPledge() {
     setSelectedSlot(null);
   };
 
-  // Auto-assign: pick first available slot for entire pledge
+  // Auto-assign: pick first available slot (skipping ones held by others) for entire pledge
   const handleAutoAssign = () => {
-    const availableSlots = slots.filter((s) => !s.is_occupied);
+    const availableSlots = slots.filter(
+      (s) => !s.is_occupied && !(holds[s.id] && !holds[s.id].mine),
+    );
 
     if (availableSlots.length === 0) {
       dispatch(
@@ -649,7 +726,7 @@ export default function NewPledge() {
     const slot = availableSlots[0];
     const activeBox = boxes.find((b) => b.id === parseInt(selectedBox));
     let displayNum = slot.slot_number;
-    
+
     if (activeBox?.has_subslots) {
       const subPerSlot = activeBox.subslots_per_slot || 1;
       const sNum = slot.slot_group != null ? slot.slot_group : Math.ceil(slot.slot_number / subPerSlot);
@@ -657,20 +734,14 @@ export default function NewPledge() {
       displayNum = `${sNum}-${subNum}`;
     }
 
-    setSelectedSlot({
+    // Claim a hold (handles the rare race where the chosen slot was just taken).
+    selectSlotWithHold({
       vaultId: selectedVault,
       boxId: selectedBox,
       slotId: slot.id,
       slotNumber: displayNum,
+      isOccupied: slot.is_occupied,
     });
-
-    dispatch(
-      addToast({
-        type: "success",
-        title: "Slot Selected",
-        message: `All items assigned to Slot ${displayNum}`,
-      }),
-    );
   };
 
   // Select a single slot for the entire pledge
@@ -710,7 +781,59 @@ export default function NewPledge() {
 
   // Clear selected slot
   const handleClearSlot = () => {
+    releaseMyHold();
     setSelectedSlot(null);
+  };
+
+  // Select a slot for the whole pledge, claiming an advisory hold first.
+  // - If it's already my selection → deselect + release the hold.
+  // - If another user holds it → reject (grey) and refresh holds.
+  // - Otherwise → claim, release any previously-held slot, then select.
+  const selectSlotWithHold = async (payload) => {
+    // Toggle off
+    if (selectedSlot && selectedSlot.slotId === payload.slotId) {
+      await releaseMyHold();
+      setSelectedSlot(null);
+      fetchHolds(selectedBox);
+      return;
+    }
+
+    try {
+      await storageService.claimHold(payload.slotId);
+    } catch (error) {
+      if (error?.response?.status === 409) {
+        // Paint it grey immediately and tell the user to pick another.
+        setHolds((prev) => ({ ...prev, [payload.slotId]: { mine: false } }));
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Slot Just Taken",
+            message:
+              error.response?.data?.message ||
+              "This slot was just taken by another user. Please choose a different one.",
+          }),
+        );
+        fetchHolds(selectedBox);
+        return;
+      }
+      console.error("Error claiming hold:", error);
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Could Not Reserve Slot",
+          message: "Please try again.",
+        }),
+      );
+      return;
+    }
+
+    // Claim succeeded — release any slot I held before, then select this one.
+    if (heldSlotRef.current && heldSlotRef.current !== payload.slotId) {
+      await releaseMyHold();
+    }
+    heldSlotRef.current = payload.slotId;
+    setSelectedSlot(payload);
+    setHolds((prev) => ({ ...prev, [payload.slotId]: { mine: true } }));
   };
 
   // Helper to get category ID from category value/name
@@ -3155,38 +3278,36 @@ export default function NewPledge() {
                                 <div className="p-2 grid grid-cols-5 gap-1 justify-center align-middle place-items-center text-center">
                                   {subslots.map((slot) => {
                                     const isSelected = isSlotAssignedInPledge(slot.id);
+                                    const heldByOther = holds[slot.id] && !holds[slot.id].mine;
                                     const occupiedItems = slot.is_occupied ? (slot.current_items || (slot.current_item ? [slot.current_item] : [])) : [];
                                     const firstItem = occupiedItems[0] || null;
                                     return (
-                                      <div 
-                                        key={slot.id} 
+                                      <div
+                                        key={slot.id}
                                         className="relative"
                                         onMouseEnter={() => slot.is_occupied && occupiedItems.length > 0 && setHoveredOccupiedSlot(slot.id)}
                                         onMouseLeave={() => setHoveredOccupiedSlot(null)}
                                       >
                                         <button
                                           type="button"
-                                          disabled={slot.is_occupied}
-                                          onClick={() => {
-                                            if (isSelected) {
-                                              setSelectedSlot(null);
-                                            } else {
-                                              setSelectedSlot({
-                                                slotId: slot.id,
-                                                vaultId: selectedVault,
-                                                boxId: selectedBox,
-                                                slotNumber: `${sNum}-${slot.subNum}`,
-                                                isOccupied: slot.is_occupied
-                                              });
-                                            }
-                                          }}
+                                          disabled={slot.is_occupied || heldByOther}
+                                          onClick={() =>
+                                            selectSlotWithHold({
+                                              slotId: slot.id,
+                                              vaultId: selectedVault,
+                                              boxId: selectedBox,
+                                              slotNumber: `${sNum}-${slot.subNum}`,
+                                              isOccupied: slot.is_occupied,
+                                            })
+                                          }
                                           className={cn(
                                             "w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-all",
                                             slot.is_occupied && "bg-red-100 text-red-400 cursor-help",
-                                            !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                            !slot.is_occupied && heldByOther && "bg-zinc-200 text-zinc-400 cursor-not-allowed",
+                                            !slot.is_occupied && !heldByOther && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
                                             isSelected && "bg-amber-500 text-white ring-2 ring-amber-300"
                                           )}
-                                          title=""
+                                          title={heldByOther ? "Held by another user" : ""}
                                         >
                                           {slot.subNum}
                                         </button>
@@ -3233,38 +3354,36 @@ export default function NewPledge() {
                         <div className="grid grid-cols-10 gap-2 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                           {slots.map((slot) => {
                             const isSelected = isSlotAssignedInPledge(slot.id);
+                            const heldByOther = holds[slot.id] && !holds[slot.id].mine;
                             const occupiedItems = slot.is_occupied ? (slot.current_items || (slot.current_item ? [slot.current_item] : [])) : [];
                             const firstItem = occupiedItems[0] || null;
                             return (
-                              <div 
-                                key={slot.id} 
+                              <div
+                                key={slot.id}
                                 className="relative"
                                 onMouseEnter={() => slot.is_occupied && occupiedItems.length > 0 && setHoveredOccupiedSlot(slot.id)}
                                 onMouseLeave={() => setHoveredOccupiedSlot(null)}
                               >
                                 <button
                                   type="button"
-                                  disabled={slot.is_occupied}
-                                  onClick={() => {
-                                    if (isSelected) {
-                                      setSelectedSlot(null);
-                                    } else {
-                                      setSelectedSlot({
-                                        slotId: slot.id,
-                                        vaultId: selectedVault,
-                                        boxId: selectedBox,
-                                        slotNumber: slot.slot_number,
-                                        isOccupied: slot.is_occupied
-                                      });
-                                    }
-                                  }}
+                                  disabled={slot.is_occupied || heldByOther}
+                                  onClick={() =>
+                                    selectSlotWithHold({
+                                      slotId: slot.id,
+                                      vaultId: selectedVault,
+                                      boxId: selectedBox,
+                                      slotNumber: slot.slot_number,
+                                      isOccupied: slot.is_occupied,
+                                    })
+                                  }
                                   className={cn(
                                     "w-10 h-10 rounded-lg text-xs font-bold transition-all",
                                     slot.is_occupied && "bg-red-100 text-red-400 cursor-help",
-                                    !slot.is_occupied && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
+                                    !slot.is_occupied && heldByOther && "bg-zinc-200 text-zinc-400 cursor-not-allowed",
+                                    !slot.is_occupied && !heldByOther && !isSelected && "bg-emerald-100 text-emerald-600 hover:bg-emerald-200",
                                     isSelected && "bg-amber-500 text-white ring-2 ring-amber-300",
                                   )}
-                                  title=""
+                                  title={heldByOther ? "Held by another user" : ""}
                                 >
                                   {slot.slot_number}
                                 </button>
@@ -3306,6 +3425,7 @@ export default function NewPledge() {
                       <div className="flex gap-4 mt-2 text-xs">
                         <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-emerald-100 border border-emerald-300" /><span className="text-zinc-500">Available</span></div>
                         <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-red-100 border border-red-300" /><span className="text-zinc-500">Occupied (hover to see items)</span></div>
+                        <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-zinc-200 border border-zinc-300" /><span className="text-zinc-500">Held by another user</span></div>
                         <div className="flex items-center gap-1"><div className="w-4 h-4 rounded bg-amber-500" /><span className="text-zinc-500">Selected (This Pledge)</span></div>
                       </div>
                     </>

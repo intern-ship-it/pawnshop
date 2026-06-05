@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\RenewalController;
 use App\Http\Controllers\Api\RedemptionController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\StorageController;
+use App\Http\Controllers\Api\SlotHoldController;
 use App\Http\Controllers\Api\ReconciliationController;
 use App\Http\Controllers\Api\AuctionController;
 use App\Http\Controllers\Api\ReportController;
@@ -383,6 +384,19 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/next-available-slot', [StorageController::class , 'nextAvailableSlot']);
                 Route::get('/box-summary/{box}', [StorageController::class , 'boxSummary']);
                 Route::get('/capacity', [StorageController::class , 'capacity']);
+
+                // Advisory slot holds — reading hold state is view-only
+                Route::get('/boxes/{box}/holds', [SlotHoldController::class , 'index']);
+            }
+            );
+
+            // Advisory slot holds — claiming/renewing/releasing mutates state and
+            // is only reachable from the New Pledge flow, so gate by pledges,create.
+            Route::middleware('check.permission:pledges,create')->group(
+                function () {
+                Route::post('/holds/{slot}/claim', [SlotHoldController::class , 'claim']);
+                Route::post('/holds/{slot}/renew', [SlotHoldController::class , 'renew']);
+                Route::delete('/holds/{slot}/release', [SlotHoldController::class , 'release']);
             }
             );
 

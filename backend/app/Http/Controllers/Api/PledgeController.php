@@ -9,6 +9,7 @@ use App\Models\PledgePayment;
 use App\Models\Customer;
 use App\Models\GoldPrice;
 use App\Models\Slot;
+use App\Models\SlotHold;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Services\InterestCalculationService;
@@ -50,9 +51,14 @@ class PledgeController extends Controller
             ->withMax('interestPayments as interest_paid_through', 'period_to');
 
         if ($request->boolean('with_items')) {
-            // Only load items that have NOT been redeemed/released
+            // Only load items that have NOT been redeemed/released.
+            // Exclude the `photo` column: it holds a base64 image (~110KB each),
+            // so loading it for every item in a bulk list blows past the PHP
+            // memory limit. List/reconciliation views never use the photo;
+            // the item detail endpoint loads it separately when needed.
             $query->with(['items' => function ($q) {
                 $q->whereNotIn('status', ['redeemed', 'released'])
+                    ->select($this->itemListColumns())
                     ->with(['category', 'purity', 'vault', 'box', 'slot']);
             }]);
         }
@@ -135,6 +141,26 @@ class PledgeController extends Controller
         $pledges = $query->paginate($request->get('per_page', 15));
 
         return $this->paginated($pledges);
+    }
+
+    /**
+     * Columns to load for items in list/bulk contexts. Deliberately excludes the
+     * heavy `photo` (base64 image) column. Includes all foreign keys so the
+     * eager-loaded category/purity/vault/box/slot relations resolve correctly.
+     */
+    private function itemListColumns(): array
+    {
+        return [
+            'id', 'pledge_id', 'redemption_id', 'item_no', 'barcode',
+            'category_id', 'purity_id',
+            'gross_weight', 'stone_deduction_type', 'stone_deduction_value',
+            'net_weight', 'price_per_gram', 'gross_value', 'deduction_amount', 'net_value',
+            'description', 'remarks',
+            'vault_id', 'box_id', 'slot_id',
+            'location_assigned_at', 'location_assigned_by',
+            'status', 'redeemed_at', 'redeemed_from_location', 'released_at',
+            'created_at', 'updated_at',
+        ];
     }
 
     /**
@@ -628,6 +654,29 @@ class PledgeController extends Controller
                     'location_assigned_at' => isset($item['slot_id']) ? now() : null,
                     'location_assigned_by' => isset($item['slot_id']) ? $userId : null,
                 ]);
+                // Final concurrency guard (last-resort net) — runs BEFORE the
+                // existing assignment below. Locks the slot row and rejects if
+                // another pledge already occupies it or another user is holding
+                // it. This is a check placed in front of the assignment logic;
+                // the assignment block itself is unchanged.
+                if (isset($item['slot_id'])) {
+                    $lockedSlot = Slot::where('id', $item['slot_id'])->lockForUpdate()->first();
+
+                    $heldByOther = SlotHold::live()
+                        ->where('slot_id', $item['slot_id'])
+                        ->where('held_by', '!=', $userId)
+                        ->exists();
+
+                    if (($lockedSlot && $lockedSlot->is_occupied) || $heldByOther) {
+                        DB::rollBack();
+
+                        return $this->error(
+                            'A selected slot was just taken by another user. Please reselect storage and try again.',
+                            409
+                        );
+                    }
+                }
+
                 // Update slot if assigned
                 if (isset($item['slot_id'])) {
                     Slot::where('id', $item['slot_id'])->update([
@@ -640,6 +689,9 @@ class PledgeController extends Controller
                     if (isset($item['box_id'])) {
                         \App\Models\Box::where('id', $item['box_id'])->increment('occupied_slots');
                     }
+
+                    // Release the advisory hold now that the slot is permanently assigned.
+                    SlotHold::where('slot_id', $item['slot_id'])->delete();
                 }
 
                 $itemNumber++;

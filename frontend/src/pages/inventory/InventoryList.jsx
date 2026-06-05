@@ -110,6 +110,9 @@ export default function InventoryList() {
   // Data State
   const [inventoryItems, setInventoryItems] = useState([]);
   const [inventorySummary, setInventorySummary] = useState({});
+  // Server-side pagination meta (total/last_page come from the API)
+  const [totalItemsCount, setTotalItemsCount] = useState(0);
+  const [serverLastPage, setServerLastPage] = useState(1);
 
   // Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,37 +162,61 @@ export default function InventoryList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Load data on mount
+  // Debounce the search box so we don't hit the server on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    fetchInventory();
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Load summary once on mount (counts come from SQL aggregates)
+  useEffect(() => {
     fetchSummary();
   }, []);
 
-  // Refetch when status filter changes
-  useEffect(() => {
-    fetchInventory();
-  }, [statusFilter]);
+  /**
+   * Build the active filter params (no pagination). Shared by the list fetch
+   * and Excel export so the exported rows always match the on-screen filters.
+   */
+  const buildFilterParams = () => {
+    const params = {};
+    // ISSUE 2 FIX: Send correct status values to backend
+    if (statusFilter !== "all") params.status = statusFilter; // "in_storage" or "released"
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (categoryFilter !== "all") params.category = categoryFilter;
+    if (purityFilter !== "all") params.purity = purityFilter;
+    if (locationFilter === "unassigned") params.location = "unassigned";
+    return params;
+  };
 
   /**
-   * ISSUE 2 FIX: Fetch inventory with correct status parameter
+   * Server-side fetch: only the current page is loaded. Page number,
+   * page size, status, search, and filters are all sent to the backend,
+   * which paginates/filters/counts in SQL. This is the key fix for the
+   * slow initial load (previously the whole table was downloaded).
    */
   const fetchInventory = async () => {
     setIsLoading(true);
     try {
-      const params = { per_page: 500 };
-
-      // ISSUE 2 FIX: Send correct status values to backend
-      if (statusFilter !== "all") {
-        params.status = statusFilter; // "in_storage" or "released"
-      }
+      const params = {
+        page: currentPage,
+        per_page: itemsPerPage,
+        ...buildFilterParams(),
+      };
 
       const response = await inventoryService.getAll(params);
 
       if (response.success && response.data) {
         const items = response.data.data || response.data;
         setInventoryItems(Array.isArray(items) ? items : []);
+        // Pagination meta from the API (Controller@paginated)
+        const meta = response.meta || response.data.meta || {};
+        setTotalItemsCount(meta.total ?? (Array.isArray(items) ? items.length : 0));
+        setServerLastPage(meta.last_page ?? 1);
       } else {
         setInventoryItems([]);
+        setTotalItemsCount(0);
+        setServerLastPage(1);
         dispatch(
           addToast({
             type: "error",
@@ -201,6 +228,8 @@ export default function InventoryList() {
     } catch (error) {
       console.error("Error fetching inventory:", error);
       setInventoryItems([]);
+      setTotalItemsCount(0);
+      setServerLastPage(1);
       dispatch(
         addToast({
           type: "error",
@@ -212,6 +241,20 @@ export default function InventoryList() {
       setIsLoading(false);
     }
   };
+
+  // Refetch whenever the page, page size, status, search, or filters change.
+  useEffect(() => {
+    fetchInventory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentPage,
+    itemsPerPage,
+    statusFilter,
+    debouncedSearch,
+    categoryFilter,
+    purityFilter,
+    locationFilter,
+  ]);
 
   // Fetch inventory summary from API
   const fetchSummary = async () => {
@@ -318,7 +361,8 @@ export default function InventoryList() {
     return purity.code || purity.name_en || purity.name || "916";
   };
 
-  // Get unique categories
+  // Category options for the filter dropdown. Built from the loaded page;
+  // the actual category filtering is applied server-side via the `category` param.
   const categories = useMemo(() => {
     const cats = new Set();
     inventoryItems.forEach((item) => {
@@ -328,59 +372,9 @@ export default function InventoryList() {
     return Array.from(cats);
   }, [inventoryItems]);
 
-  // Get unique locations
-  const locations = useMemo(() => {
-    const locs = new Set();
-    inventoryItems.forEach((item) => {
-      const loc = formatLocation(item);
-      if (loc) locs.add(loc);
-    });
-    return Array.from(locs);
-  }, [inventoryItems]);
-
-  // Filter items client-side (for additional filters beyond status)
-  const filteredItems = useMemo(() => {
-    return inventoryItems.filter((item) => {
-      // Search
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matches =
-          item.barcode?.toLowerCase().includes(query) ||
-          item.pledge?.pledge_no?.toLowerCase().includes(query) ||
-          item.pledge?.receipt_no?.toLowerCase().includes(query) ||
-          item.pledge?.customer?.name?.toLowerCase().includes(query) ||
-          getCategoryName(item.category).toLowerCase().includes(query);
-        if (!matches) return false;
-      }
-
-      // Category
-      const itemCategory = getCategoryName(item.category);
-      if (categoryFilter !== "all" && itemCategory !== categoryFilter)
-        return false;
-
-      // Purity
-      const itemPurity = getPurityName(item.purity);
-      if (purityFilter !== "all" && itemPurity !== purityFilter) return false;
-
-      // Location
-      const itemLoc = formatLocation(item);
-      if (locationFilter === "unassigned" && itemLoc) return false;
-      if (
-        locationFilter !== "all" &&
-        locationFilter !== "unassigned" &&
-        itemLoc !== locationFilter
-      )
-        return false;
-
-      return true;
-    });
-  }, [
-    inventoryItems,
-    searchQuery,
-    categoryFilter,
-    purityFilter,
-    locationFilter,
-  ]);
+  // Server-side pagination: the API already applied status, search, category,
+  // purity, and location filters, so the current page IS the result set.
+  const filteredItems = inventoryItems;
 
   /**
    * ISSUE 2 FIX: Calculate stats using ITEM status (not pledge status)
@@ -426,17 +420,15 @@ export default function InventoryList() {
     [inventorySummary, inventoryItems],
   );
 
-  // Pagination Logic
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const paginatedItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredItems.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredItems, currentPage, itemsPerPage]);
+  // Pagination comes from the server (meta.last_page / meta.total).
+  const totalPages = serverLastPage;
+  const paginatedItems = inventoryItems; // already the current page
 
-  // Reset to first page when filters change
+  // Reset to first page when filters/search change (debouncedSearch drives the
+  // actual refetch, so reset on it to avoid an extra page-1 fetch per keystroke).
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, purityFilter, locationFilter, statusFilter]);
+  }, [debouncedSearch, categoryFilter, purityFilter, locationFilter, statusFilter]);
 
   // Check if filters are active
   const hasActiveFilters =
@@ -452,7 +444,7 @@ export default function InventoryList() {
     setSearchQuery("");
     setStatusFilter("all");
     setCurrentPage(1);
-    fetchInventory();
+    // Refetch is handled by the filters effect when state updates above.
   };
 
   // Toggle item selection
@@ -1128,14 +1120,18 @@ export default function InventoryList() {
     );
 
     try {
-      const itemIds = filteredItems.map(item => item.id).join(',');
-      await reportService.exportReport("inventory", "xlsx", { item_ids: itemIds });
-      
+      // Export respects the active filters so the spreadsheet matches what the
+      // user has filtered to on screen. We send the same filter params as the
+      // list fetch (minus pagination); the backend exports every matching row.
+      await reportService.exportReport("inventory", "xlsx", buildFilterParams());
+
       dispatch(
         addToast({
           type: "success",
           title: "Export Complete",
-          message: `Exported ${filteredItems.length} items to Excel`,
+          message: hasActiveFilters || statusFilter !== "all" || debouncedSearch
+            ? "Exported filtered inventory to Excel"
+            : "Exported all inventory to Excel",
         })
       );
     } catch (error) {
@@ -1427,7 +1423,6 @@ export default function InventoryList() {
                   options={[
                     { value: "all", label: "All Locations" },
                     { value: "unassigned", label: "⚠️ Unassigned" },
-                    ...locations.map((l) => ({ value: l, label: l })),
                   ]}
                 />
                 <div className="flex items-end">
@@ -1511,7 +1506,7 @@ export default function InventoryList() {
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-zinc-500">
                 Showing <strong>{paginatedItems.length}</strong> of{" "}
-                <strong>{filteredItems.length}</strong> items
+                <strong>{totalItemsCount}</strong> items
                 {totalPages > 1 && (
                   <span className="ml-1">
                     (Page {currentPage} of {totalPages})
@@ -1862,8 +1857,8 @@ export default function InventoryList() {
 
                 <p className="text-sm text-zinc-500">
                   {(currentPage - 1) * itemsPerPage + 1} -{" "}
-                  {Math.min(currentPage * itemsPerPage, filteredItems.length)}{" "}
-                  of {filteredItems.length}
+                  {Math.min(currentPage * itemsPerPage, totalItemsCount)}{" "}
+                  of {totalItemsCount}
                 </p>
               </div>
             )}
@@ -1881,7 +1876,7 @@ export default function InventoryList() {
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-zinc-500">
                 Showing <strong>{paginatedItems.length}</strong> of{" "}
-                <strong>{filteredItems.length}</strong> items
+                <strong>{totalItemsCount}</strong> items
                 {totalPages > 1 && (
                   <span className="ml-1">
                     (Page {currentPage} of {totalPages})
@@ -2076,8 +2071,8 @@ export default function InventoryList() {
 
                 <p className="text-sm text-zinc-500">
                   {(currentPage - 1) * itemsPerPage + 1} -{" "}
-                  {Math.min(currentPage * itemsPerPage, filteredItems.length)}{" "}
-                  of {filteredItems.length}
+                  {Math.min(currentPage * itemsPerPage, totalItemsCount)}{" "}
+                  of {totalItemsCount}
                 </p>
               </div>
             )}

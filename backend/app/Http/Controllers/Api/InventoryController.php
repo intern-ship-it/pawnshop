@@ -19,11 +19,29 @@ class InventoryController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        // Increase memory limit for bulk loading (e.g. per_page=500)
-        ini_set('memory_limit', '256M');
+        // Server-side pagination: only the rows on the current page are loaded
+        // and serialized, so we never pull the whole table into memory.
+        // Relations select only the columns the list/labels actually use.
+        // Restrict only the large relations (pledge + customer) to the columns the
+        // list/labels use. The small lookup tables (category, purity, vault, box,
+        // slot) are loaded in full because the frontend/model rely on accessors
+        // and the per-row cost is negligible. Pagination is what bounds the payload.
+        // Exclude the heavy `photo` column (base64 image, ~110KB/row) which the
+        // list/labels never use — it dominates the payload otherwise.
+        $itemColumns = array_values(array_diff(
+            \Illuminate\Support\Facades\Schema::getColumnListing('pledge_items'),
+            ['photo']
+        ));
 
-        // No branch filter
-        $query = PledgeItem::with(['pledge.customer:id,name,ic_number', 'category', 'purity', 'vault', 'box', 'slot']);
+        $query = PledgeItem::select($itemColumns)->with([
+            'pledge:id,pledge_no,receipt_no,customer_id,status',
+            'pledge.customer:id,name,ic_number',
+            'category',
+            'purity',
+            'vault',
+            'box',
+            'slot',
+        ]);
 
         // ISSUE 2 FIX: Filter by item status (stored/released)
         if ($status = $request->get('status')) {
@@ -61,14 +79,29 @@ class InventoryController extends Controller
             });
         }
 
-        // Filter by category
+        // Filter by category (accepts id or name for client compatibility)
         if ($categoryId = $request->get('category_id')) {
             $query->where('category_id', $categoryId);
         }
+        if ($category = $request->get('category')) {
+            $query->whereHas('category', function ($q) use ($category) {
+                $q->where('name_en', $category)->orWhere('code', $category);
+            });
+        }
 
-        // Filter by purity
+        // Filter by purity (accepts id or code, e.g. "916")
         if ($purityId = $request->get('purity_id')) {
             $query->where('purity_id', $purityId);
+        }
+        if ($purity = $request->get('purity')) {
+            $query->whereHas('purity', function ($q) use ($purity) {
+                $q->where('code', $purity)->orWhere('name', $purity);
+            });
+        }
+
+        // Filter unassigned (no slot)
+        if ($request->get('location') === 'unassigned') {
+            $query->whereNull('slot_id');
         }
 
         // Filter by vault
@@ -91,8 +124,11 @@ class InventoryController extends Controller
             });
         }
 
+        // Cap page size so a single request can never pull the whole table.
+        $perPage = min(max((int) $request->get('per_page', 20), 1), 100);
+
         $items = $query->orderBy('created_at', 'desc')
-            ->paginate((int) $request->get('per_page', 20));
+            ->paginate($perPage);
 
         return $this->paginated($items);
     }
@@ -387,73 +423,80 @@ class InventoryController extends Controller
      */
     public function summary(Request $request): JsonResponse
     {
-        // Get ALL items (no branch filter for now)
-        $allItems = PledgeItem::with('pledge')->get();
+        // All counts/sums are computed in SQL — we never load the table into PHP.
 
-        // Items currently in storage (status = stored or null)
-        $storedItems = $allItems->filter(function ($item) {
-            return $item->status === 'stored' || $item->status === null;
-        });
+        // "Stored" = status 'stored' or NULL (legacy). Reused below.
+        // Column is qualified because this scope is also used after a JOIN to
+        // `pledges` (which also has a `status` column), where a bare `status`
+        // would be ambiguous.
+        $storedScope = function ($q) {
+            $q->where('pledge_items.status', 'stored')
+                ->orWhereNull('pledge_items.status');
+        };
 
-        // Items that have been released
-        $releasedItems = $allItems->filter(function ($item) {
-            return $item->status === 'released';
-        });
+        // One aggregate row for the stored totals (COUNT/SUM in the DB).
+        $stored = PledgeItem::where($storedScope)
+            ->selectRaw('COUNT(*) as cnt')
+            ->selectRaw('COALESCE(SUM(net_weight), 0) as net_weight')
+            ->selectRaw('COALESCE(SUM(net_value), 0) as net_value')
+            ->selectRaw('COALESCE(SUM(gross_value), 0) as gross_value')
+            ->selectRaw('COALESCE(SUM(slot_id IS NULL), 0) as unassigned')
+            ->first();
 
-        // Get pledge IDs to check their statuses
-        $pledgeIds = $storedItems->pluck('pledge_id')->unique();
-        $pledges = \App\Models\Pledge::whereIn('id', $pledgeIds)->get()->keyBy('id');
+        $totalItems = PledgeItem::count();
+        $releasedCount = PledgeItem::where('status', 'released')->count();
 
-        // Count by pledge status (only for stored items)
-        $activeCount = 0;
-        $overdueCount = 0;
+        // Pledge-status counts for stored items, grouped in SQL.
+        $pledgeStatusCounts = PledgeItem::where($storedScope)
+            ->join('pledges', 'pledge_items.pledge_id', '=', 'pledges.id')
+            ->groupBy('pledges.status')
+            ->selectRaw('pledges.status as status, COUNT(*) as cnt')
+            ->pluck('cnt', 'status');
 
-        foreach ($storedItems as $item) {
-            $pledge = $pledges->get($item->pledge_id);
-            if ($pledge) {
-                if ($pledge->status === 'active') {
-                    $activeCount++;
-                } elseif ($pledge->status === 'overdue') {
-                    $overdueCount++;
-                }
-            }
-        }
+        // Per-category and per-purity breakdowns, grouped in SQL.
+        $byCategory = PledgeItem::where($storedScope)
+            ->groupBy('category_id')
+            ->selectRaw('category_id, COUNT(*) as count')
+            ->selectRaw('COALESCE(SUM(net_weight), 0) as weight')
+            ->selectRaw('COALESCE(SUM(net_value), 0) as value')
+            ->selectRaw('COALESCE(SUM(gross_value), 0) as gross_value')
+            ->get()->keyBy('category_id')->map(fn($g) => [
+                'count' => (int) $g->count,
+                'weight' => round((float) $g->weight, 3),
+                'value' => round((float) $g->value, 2),
+                'gross_value' => round((float) $g->gross_value, 2),
+            ]);
+
+        $byPurity = PledgeItem::where($storedScope)
+            ->groupBy('purity_id')
+            ->selectRaw('purity_id, COUNT(*) as count')
+            ->selectRaw('COALESCE(SUM(net_weight), 0) as weight')
+            ->selectRaw('COALESCE(SUM(net_value), 0) as value')
+            ->selectRaw('COALESCE(SUM(gross_value), 0) as gross_value')
+            ->get()->keyBy('purity_id')->map(fn($g) => [
+                'count' => (int) $g->count,
+                'weight' => round((float) $g->weight, 3),
+                'value' => round((float) $g->value, 2),
+                'gross_value' => round((float) $g->gross_value, 2),
+            ]);
 
         $summary = [
-            // Total counts
-            'total_items' => $allItems->count(),
+            'total_items' => $totalItems,
 
-            // By ITEM status
-            'in_storage' => $storedItems->count(),
-            'released' => $releasedItems->count(),
+            'in_storage' => (int) $stored->cnt,
+            'released' => $releasedCount,
 
-            // By PLEDGE status (for stored items only)
-            'active_count' => $activeCount,
-            'overdue_count' => $overdueCount,
+            'active_count' => (int) ($pledgeStatusCounts['active'] ?? 0),
+            'overdue_count' => (int) ($pledgeStatusCounts['overdue'] ?? 0),
 
-            // Weight and value (stored items only)
-            'total_weight' => round($storedItems->sum('net_weight'), 3),
-            'total_value' => round($storedItems->sum('net_value'), 2),
-            'total_gross_value' => round($storedItems->sum('gross_value'), 2),
+            'total_weight' => round((float) $stored->net_weight, 3),
+            'total_value' => round((float) $stored->net_value, 2),
+            'total_gross_value' => round((float) $stored->gross_value, 2),
 
-            // By category (stored items only)
-            'by_category' => $storedItems->groupBy('category_id')->map(fn($g) => [
-                'count' => $g->count(),
-                'weight' => round($g->sum('net_weight'), 3),
-                'value' => round($g->sum('net_value'), 2),
-                'gross_value' => round($g->sum('gross_value'), 2),
-            ]),
+            'by_category' => $byCategory,
+            'by_purity' => $byPurity,
 
-            // By purity (stored items only)
-            'by_purity' => $storedItems->groupBy('purity_id')->map(fn($g) => [
-                'count' => $g->count(),
-                'weight' => round($g->sum('net_weight'), 3),
-                'value' => round($g->sum('net_value'), 2),
-                'gross_value' => round($g->sum('gross_value'), 2),
-            ]),
-
-            // Items without location assignment
-            'unassigned' => $storedItems->whereNull('slot_id')->count(),
+            'unassigned' => (int) $stored->unassigned,
         ];
 
         return $this->success($summary);
