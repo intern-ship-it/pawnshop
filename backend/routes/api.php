@@ -385,8 +385,15 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/box-summary/{box}', [StorageController::class , 'boxSummary']);
                 Route::get('/capacity', [StorageController::class , 'capacity']);
 
-                // Advisory slot holds (concurrency guard for the pledge slot grid)
+                // Advisory slot holds — reading hold state is view-only
                 Route::get('/boxes/{box}/holds', [SlotHoldController::class , 'index']);
+            }
+            );
+
+            // Advisory slot holds — claiming/renewing/releasing mutates state and
+            // is only reachable from the New Pledge flow, so gate by pledges,create.
+            Route::middleware('check.permission:pledges,create')->group(
+                function () {
                 Route::post('/holds/{slot}/claim', [SlotHoldController::class , 'claim']);
                 Route::post('/holds/{slot}/renew', [SlotHoldController::class , 'renew']);
                 Route::delete('/holds/{slot}/release', [SlotHoldController::class , 'release']);

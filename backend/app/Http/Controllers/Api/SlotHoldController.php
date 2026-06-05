@@ -37,6 +37,10 @@ class SlotHoldController extends Controller
      */
     public function claim(Request $request, Slot $slot): JsonResponse
     {
+        if ($slot->box->vault->branch_id !== $request->user()->branch_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $userId = $request->user()->id;
         $expiresAt = now()->addSeconds(self::TTL_SECONDS);
 
@@ -88,6 +92,10 @@ class SlotHoldController extends Controller
      */
     public function renew(Request $request, Slot $slot): JsonResponse
     {
+        if ($slot->box->vault->branch_id !== $request->user()->branch_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $userId = $request->user()->id;
 
         $hold = SlotHold::live()
@@ -114,6 +122,10 @@ class SlotHoldController extends Controller
      */
     public function release(Request $request, Slot $slot): JsonResponse
     {
+        if ($slot->box->vault->branch_id !== $request->user()->branch_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         SlotHold::where('slot_id', $slot->id)
             ->where('held_by', $request->user()->id)
             ->delete();
@@ -127,6 +139,10 @@ class SlotHoldController extends Controller
      */
     public function index(Request $request, Box $box): JsonResponse
     {
+        if ($box->vault->branch_id !== $request->user()->branch_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $userId = $request->user()->id;
 
         $slotIds = Slot::where('box_id', $box->id)->pluck('id');
