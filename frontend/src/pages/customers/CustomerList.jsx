@@ -447,7 +447,7 @@ export default function CustomerList() {
           {/* Table Header */}
           <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-gradient-to-r from-zinc-100 to-zinc-50 border-b-2 border-amber-200 text-xs font-bold text-zinc-700 uppercase tracking-wider">
             <div className="col-span-3">Customer</div>
-            <div className="col-span-2">IC Number</div>
+            <div className="col-span-2">IC / Passport</div>
             <div className="col-span-3">Contact</div>
             <div className="col-span-1">Status</div>
             <div className="col-span-2">Registered</div>

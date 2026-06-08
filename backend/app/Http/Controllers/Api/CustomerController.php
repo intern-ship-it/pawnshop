@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Pledge;
 use App\Models\AuditLog;
+use App\Rules\ValidIdentification;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -110,12 +111,16 @@ class CustomerController extends Controller
     {
         $branchId = $request->user()->branch_id;
 
+        // Resolve ic_type up front so the identification format rule can branch on it
+        $icType = $request->input('ic_type', 'mykad');
+
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'ic_number' => [
                 'required',
                 'string',
                 'max:20',
+                new ValidIdentification($icType),
                 \Illuminate\Validation\Rule::unique('customers', 'ic_number')
                     ->where('branch_id', $branchId),
             ],
@@ -166,21 +171,7 @@ class CustomerController extends Controller
             );
         }
 
-        // ── IC/Passport format validation ──
-        $icType = $validated['ic_type'] ?? 'mykad';
-        $icNumber = $validated['ic_number'] ?? '';
-
-        if ($icType === 'passport') {
-            if (!preg_match('/^[A-Z0-9]{5,15}$/i', $icNumber)) {
-                return $this->error('Passport must be 5-15 alphanumeric characters', 422);
-            }
-        } elseif ($icType === 'mykad') {
-            $cleanIC = preg_replace('/[-\s]/', '', $icNumber);
-            if (!preg_match('/^\d{12}$/', $cleanIC)) {
-                return $this->error('Malaysian IC number must be exactly 12 digits', 422);
-            }
-        }
-
+        // IC/Passport format is validated via the ValidIdentification rule above.
 
         $userId = $request->user()->id;
 
@@ -294,12 +285,17 @@ class CustomerController extends Controller
             return $this->error('Unauthorized', 403);
         }
 
+        // Use the incoming ic_type when supplied, otherwise the customer's current type,
+        // so the identification format rule branches correctly on a partial update.
+        $icType = $request->input('ic_type', $customer->ic_type ?? 'mykad');
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:100',
             'ic_number' => [
                 'sometimes',
                 'string',
                 'max:20',
+                new ValidIdentification($icType),
                 \Illuminate\Validation\Rule::unique('customers', 'ic_number')
                     ->where('branch_id', $request->user()->branch_id)
                     ->ignore($customer->id),

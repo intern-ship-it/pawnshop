@@ -80,7 +80,7 @@ class ReportController extends Controller
         $branchId = $request->user()->branch_id;
 
         $query = Pledge::where('branch_id', $branchId)
-            ->with(['customer:id,name,ic_number,phone', 'items:id,pledge_id,category_id,net_weight,net_value', 'createdBy:id,name']);
+            ->with(['customer:id,name,ic_number,phone', 'items:id,pledge_id,category_id,net_weight,net_value', 'createdBy:id,name', 'payments:id,pledge_id,cash_amount,transfer_amount']);
 
         // Date filters
         if ($from = $request->get('from_date')) {
@@ -850,13 +850,18 @@ class ReportController extends Controller
                 return $this->error('Failed to fetch report data', 500);
             }
 
-            // Generate rows
-            $rows = $this->generateReportArray($reportType, $data, $request);
+            // Generate rows ($bannerSpec is populated for reports that need a merged banner header, e.g. overview)
+            $bannerSpec = null;
+            $rows = $this->generateReportArray($reportType, $data, $request, $bannerSpec);
 
             if ($format === 'xlsx') {
                 $filename = $reportType . '_report_' . date('Y-m-d_His') . '.xlsx';
                 $headerRowCount = ($request->get('from_date') && $request->get('to_date')) ? 4 : 1;
-                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\GenericReportExport($rows, $headerRowCount), $filename);
+                // A banner row sits directly above the column titles, so the titles shift down by one.
+                if ($bannerSpec) {
+                    $headerRowCount++;
+                }
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\GenericReportExport($rows, $headerRowCount, $bannerSpec), $filename);
             } else {
                 $output = fopen('php://temp', 'r+');
                 foreach ($rows as $row) {
@@ -885,7 +890,7 @@ class ReportController extends Controller
      * Generate CSV content from report data
      * Note: $data comes from getData() so all collections are arrays/objects, not Laravel Collections
      */
-    private function generateReportArray(string $reportType, $data, Request $request): array
+    private function generateReportArray(string $reportType, $data, Request $request, ?array &$bannerSpec = null): array
     {
         $rows = [];
 
@@ -900,10 +905,28 @@ class ReportController extends Controller
 
         switch ($reportType) {
             case 'overview':
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
+                // "Payment Mode" banner row above the Transfer/Cash columns (cols L & M, after Status).
+                // Empty cells elsewhere; the export merges L:M and styles it.
+                $bannerRowNumber = count($rows) + 1; // 1-based row index of the banner we are about to add
+                $rows[] = ['', '', '', '', '', '', '', '', '', '', '', 'Payment Mode', ''];
+                $bannerSpec = [
+                    'row' => $bannerRowNumber,
+                    'startCol' => 'L',
+                    'endCol' => 'M',
+                ];
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status', 'Transfer', 'Cash'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
                         $items = $pledge->items ?? [];
+                        $payments = $pledge->payments ?? [];
+                        $transferPaid = 0;
+                        $cashPaid = 0;
+                        if (is_countable($payments)) {
+                            foreach ($payments as $payment) {
+                                $transferPaid += $payment->transfer_amount ?? 0;
+                                $cashPaid += $payment->cash_amount ?? 0;
+                            }
+                        }
                         $rows[] = [
                             date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
                             $pledge->receipt_no ?? '',
@@ -916,6 +939,8 @@ class ReportController extends Controller
                             ($pledge->interest_rate ?? 0) . '%',
                             date('d/m/Y', strtotime($pledge->due_date ?? '')),
                             ucfirst($pledge->status ?? ''),
+                            $transferPaid > 0 ? number_format($transferPaid, 2) : '',
+                            $cashPaid > 0 ? number_format($cashPaid, 2) : '',
                         ];
                     }
                 }

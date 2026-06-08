@@ -9,7 +9,7 @@ import {
   STORAGE_KEYS,
 } from "@/utils/localStorage";
 import { getStorageUrl, compressImage } from "@/utils/helpers";
-import { validateIC, validatePhone, validateEmail } from "@/utils/validators";
+import { validateIC, validatePassport, validateEmail } from "@/utils/validators";
 import { formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -200,9 +200,9 @@ export default function CustomerCreate() {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Auto-format IC number with dashes
+    // Auto-format IC number with dashes — digits only, capped at 12.
     if (name === "icNumber") {
-      const cleaned = value.replace(/[-\s]/g, "");
+      const cleaned = value.replace(/\D/g, "").slice(0, 12);
       let formatted = cleaned;
 
       if (cleaned.length > 6 && cleaned.length <= 8) {
@@ -219,8 +219,8 @@ export default function CustomerCreate() {
       setTouched((prev) => ({ ...prev, [name]: true }));
       setTimeout(() => validateField(name, formatted), 0);
     } else if (name === "passportNumber") {
-      // Auto-uppercase passport and validate immediately
-      const finalValue = value.toUpperCase();
+      // Alphanumeric only, uppercase, capped at 15 chars.
+      const finalValue = value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 15);
       setFormData((prev) => ({ ...prev, [name]: finalValue }));
       setTouched((prev) => ({ ...prev, [name]: true }));
       setTimeout(() => validateField(name, finalValue), 0);
@@ -273,8 +273,12 @@ export default function CustomerCreate() {
       case "passportNumber":
         const cleanPassport = (value || "").trim();
         if (!cleanPassport) error = "Passport number is required";
-        else if (!/^[A-Z0-9]{5,15}$/i.test(cleanPassport))
-          error = "Passport must be 5-15 alphanumeric characters";
+        else {
+          const passportResult = validatePassport(cleanPassport);
+          if (!passportResult.valid) {
+            error = passportResult.error;
+          }
+        }
         if (!error && cleanPassport) {
           const exists = customers.find(
             (c) => c.icNumber?.replace(/[-\s]/g, "").toUpperCase() === cleanPassport.toUpperCase()
