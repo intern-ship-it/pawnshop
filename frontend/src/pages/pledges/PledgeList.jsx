@@ -948,7 +948,10 @@ export default function PledgeList() {
           ) || 0;
           const storageLocation = data.data.storage_location || data.data.items?.[0]?.storage_location || "";
           const totalItemsNum = parseInt(data.data.total_items || data.data.items?.length || pledge.itemsCount || pledge.items?.length) || 1;
-          const displayCategory = totalItemsNum >= 2 ? `${totalItemsNum} ITEMS` : (data.data.items?.[0]?.category || pledge.items?.[0]?.category?.name_en || "ITEM");
+          const firstItem = data.data.items?.[0] || pledge.items?.[0] || {};
+          const firstQty = parseInt(firstItem.quantity) || 1;
+          const firstCategory = data.data.items?.[0]?.category || pledge.items?.[0]?.category?.name_en || "ITEM";
+          const displayCategory = totalItemsNum >= 2 ? `${totalItemsNum} ITEMS` : `${firstQty} × ${firstCategory}`;
           const rawRemark = reasonText || "REPRINT";
           let badgeText = "REPRINT";
           let commentToDisplay = rawRemark;

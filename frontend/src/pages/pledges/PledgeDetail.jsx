@@ -149,6 +149,7 @@ export default function PledgeDetail() {
             category:
               item.category?.name_en || item.category?.name || "Unknown",
             categoryMs: item.category?.name_ms || "",
+            quantity: parseInt(item.quantity) || 1,
             purity: item.purity?.code || "",
             purityName: item.purity?.name || "",
             grossWeight: parseFloat(item.gross_weight) || 0,
@@ -198,6 +199,7 @@ export default function PledgeDetail() {
             referenceNo: payment.reference_no,
             paymentMethod: payment.payment_method,
             paymentDate: payment.payment_date,
+            createdBy: payment.created_by_user?.name || payment.created_by?.name || "",
           })),
           renewals: (data.renewals || []).map((renewal) => ({
             id: renewal.id,
@@ -244,7 +246,7 @@ export default function PledgeDetail() {
           })),
           createdAt: data.created_at,
           updatedAt: data.updated_at,
-          createdBy: data.created_by_user?.name || "",
+          createdBy: data.created_by_user?.name || data.created_by?.name || "",
         };
 
         setPledge(transformedPledge);
@@ -1128,6 +1130,7 @@ export default function PledgeDetail() {
                                     "group-hover:text-amber-600 transition-colors",
                                   )}
                                 >
+                                  {`${item.quantity ?? 1} × `}
                                   {item.category}
                                   {item.photo && (
                                     <Image className="w-3 h-3 inline-block ml-1 text-zinc-400 group-hover:text-amber-500" />
@@ -1293,7 +1296,7 @@ export default function PledgeDetail() {
                             {redeemedItems.map((it) => (
                               <tr key={it.id} className="hover:bg-amber-50/40 transition-colors">
                                 <td className="py-3 px-4">
-                                  <p className="font-semibold text-zinc-800">{it.category}</p>
+                                  <p className="font-semibold text-zinc-800">{`${it.quantity ?? 1} × `}{it.category}</p>
                                   {it.description && (
                                     <p className="text-xs text-zinc-500 mt-0.5">{it.description}</p>
                                   )}
@@ -1457,15 +1460,15 @@ export default function PledgeDetail() {
                     <p className="font-semibold text-zinc-800">
                       Pledge Created
                     </p>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm font-semibold text-blue-600">
                       {formatDate(pledge.pledgeDate || pledge.createdAt)}
                     </p>
-                    <p className="text-sm text-zinc-600 mt-1">
+                    <p className="text-sm font-semibold text-emerald-600 mt-1">
                       Loan amount: {formatCurrency(pledge.loanAmount)} (
                       {pledge.items?.length || 0} items)
                     </p>
                     {pledge.createdBy && (
-                      <p className="text-xs text-zinc-400">
+                      <p className="text-xs font-semibold text-amber-600 mt-1">
                         By: {pledge.createdBy}
                       </p>
                     )}
@@ -1486,10 +1489,10 @@ export default function PledgeDetail() {
                         <p className="font-semibold text-zinc-800">
                           Payout - {payment.paymentMethod}
                         </p>
-                        <p className="text-sm text-zinc-500">
+                        <p className="text-sm font-semibold text-blue-600">
                           {formatDate(payment.paymentDate)}
                         </p>
-                        <div className="text-sm text-zinc-600 mt-1">
+                        <div className="text-sm font-semibold text-emerald-600 mt-1">
                           {payment.cashAmount > 0 && (
                             <p>Cash: {formatCurrency(payment.cashAmount)}</p>
                           )}
@@ -1500,6 +1503,11 @@ export default function PledgeDetail() {
                             </p>
                           )}
                         </div>
+                        {(payment.createdBy || pledge.createdBy) && (
+                          <p className="text-xs font-semibold text-amber-600 mt-1">
+                            By: {payment.createdBy || pledge.createdBy}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}

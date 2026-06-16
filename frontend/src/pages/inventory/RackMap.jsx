@@ -10,6 +10,7 @@ import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import storageService from "@/services/storageService";
 import inventoryService from "@/services/inventoryService";
+import reportService from "@/services/reportService";
 import { formatCurrency } from "@/utils/formatters";
 import { getStorageUrl } from "@/utils/helpers"; // ISSUE 3 FIX: Import for image URLs
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ import {
   ZoomIn, // ISSUE 3 FIX: For view image button
   Trash2,
   Minus,
+  Download,
 } from "lucide-react";
 
 export default function RackMap({ embedded = false }) {
@@ -69,6 +71,8 @@ export default function RackMap({ embedded = false }) {
   const [newBoxSubslots, setNewBoxSubslots] = useState(5);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingSlotItems, setIsLoadingSlotItems] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -578,160 +582,198 @@ export default function RackMap({ embedded = false }) {
     }
   };
 
-  // Print map
-  const handlePrintMap = () => {
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Locker Map - ${currentVault?.name || "All Lockers"}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-          .header h1 { font-size: 24px; margin-bottom: 5px; }
-          .header p { color: #666; font-size: 12px; }
-          .stats { display: flex; justify-content: space-around; margin-bottom: 20px; padding: 10px; background: #f5f5f5; }
-          .stat { text-align: center; }
-          .stat-value { font-size: 20px; font-weight: bold; }
-          .stat-label { font-size: 10px; color: #666; }
-          .vault-section { margin-bottom: 30px; page-break-inside: avoid; }
-          .vault-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; padding: 5px; background: #f59e0b; color: white; }
-          .box-section { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; }
-          .box-header { display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
-          .box-name { font-weight: bold; }
-          .box-stats { font-size: 12px; color: #666; }
-          .slots-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
-          .slot { width: 100%; aspect-ratio: 1; border: 1px solid #ddd; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; }
-          .slot.empty { background: #f9fafb; }
-          .slot.occupied { background: #fef3c7; border-color: #f59e0b; }
-          .slot.overdue { background: #fee2e2; border-color: #ef4444; }
-          .slot-number { font-weight: bold; }
-          .slot-pledge { font-size: 8px; color: #666; }
-          .legend { display: flex; gap: 20px; margin-top: 20px; justify-content: center; }
-          .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; }
-          .legend-box { width: 15px; height: 15px; border: 1px solid #ddd; }
-          .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
-          @media print { body { padding: 10px; } }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>🗄️ Locker Map</h1>
-          <p>Printed on: ${new Date().toLocaleString("en-MY")}</p>
-        </div>
-        
-        <div class="stats">
-          <div class="stat">
-            <div class="stat-value">${overallStats.totalVaults}</div>
-            <div class="stat-label">Total Lockers</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value">${overallStats.totalItems}</div>
-            <div class="stat-label">Total Items</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value">${overallStats.totalWeight}g</div>
-            <div class="stat-label">Total Weight</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value">RM ${overallStats.totalValue.toLocaleString()}</div>
-            <div class="stat-label">Total Value</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value" style="color: #ef4444;">${
-              overallStats.overdueItems
-            }</div>
-            <div class="stat-label">Overdue</div>
-          </div>
-        </div>
-
-        ${
-          currentVault
-            ? `
-          <div class="vault-section">
-            <div class="vault-title">${currentVault.name} ${
-              currentVault.description ? `- ${currentVault.description}` : ""
-            }</div>
-            ${boxes
-              .map((box) => {
-                const summary = boxSummaries[box.id] || {};
-                return `
-                <div class="box-section">
-                  <div class="box-header">
-                    <span class="box-name">${box.name}</span>
-                    <span class="box-stats">${
-                      summary.item_count || 0
-                    } items | ${(summary.total_weight || 0).toFixed(
-                      1,
-                    )}g | RM ${(summary.total_value || 0).toLocaleString()}</span>
-                  </div>
-                  <div class="slots-grid">
-                    ${(selectedBox === box.id ? slots : [])
-                      .map(
-                        (slot) => `
-                      <div class="slot ${
-                        slot.is_occupied
-                          ? slot.pledge_item?.pledge?.status === "overdue"
-                            ? "overdue"
-                            : "occupied"
-                          : "empty"
-                      }">
-                        <span class="slot-number">${
-                          box.has_subslots
-                            ? `${slotPos(slot, box)[0]}-${slotPos(slot, box)[1]}`
-                            : String(slot.slot_number).padStart(2, "0")
-                        }</span>
-                        ${
-                          slot.is_occupied && slot.pledge_item
-                            ? `<span class="slot-pledge">${
-                                slot.pledge_item.pledge?.pledge_no || ""
-                              }</span>`
-                            : ""
-                        }
-                      </div>
-                    `,
-                      )
-                      .join("")}
-                  </div>
-                </div>
-              `;
-              })
-              .join("")}
-          </div>
-        `
-            : '<p style="text-align: center; color: #999;">No locker selected</p>'
-        }
-
-        <div class="legend">
-          <div class="legend-item"><div class="legend-box" style="background: #f9fafb;"></div> Empty</div>
-          <div class="legend-item"><div class="legend-box" style="background: #fef3c7;"></div> Occupied</div>
-          <div class="legend-item"><div class="legend-box" style="background: #fee2e2;"></div> Overdue</div>
-        </div>
-
-        <div class="footer">
-          <p>PawnSys - Pawn Shop Management System</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const printWindow = window.open("", "_blank");
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-      }, 250);
-    } else {
+  // Export an Excel listing every empty location across all lockers & drawers
+  // Columns: Locker | Drawer | Location. Generated server-side via the shared report export.
+  const handleExportEmptySlots = async () => {
+    setIsExporting(true);
+    try {
+      const response = await reportService.exportReport("empty_slots", "xlsx");
+      if (response.success) {
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Export Started",
+            message: "Empty slots report downloaded",
+          }),
+        );
+      }
+    } catch (error) {
       dispatch(
         addToast({
           type: "error",
-          title: "Error",
-          message: "Please allow popups to print",
+          title: "Export Failed",
+          message: error.message || "Failed to export empty slots",
         }),
       );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Print a reconciliation sheet: every slot in every locker & drawer, each with an
+  // empty tick box, so staff can physically walk the lockers and mark what they find.
+  const handlePrintReconciliation = async () => {
+    setIsPrinting(true);
+    try {
+      // The page only holds the selected drawer's slots, so fetch all slots for every
+      // box across every vault before building the sheet.
+      const sections = [];
+      for (const vault of vaults) {
+        const boxesRes = await storageService.getBoxes(vault.id);
+        const vaultBoxes = boxesRes.success && boxesRes.data ? boxesRes.data : [];
+        for (const box of vaultBoxes) {
+          const slotsRes = await storageService.getSlots(box.id);
+          const boxSlots = slotsRes.success && slotsRes.data ? slotsRes.data : [];
+          sections.push({ vault, box, slots: boxSlots });
+        }
+      }
+
+      if (sections.length === 0) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Nothing to print",
+            message: "No lockers or drawers found",
+          }),
+        );
+        return;
+      }
+
+      const escapeHtml = (str) =>
+        String(str ?? "").replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c]);
+
+      const sectionsHtml = sections
+        .map(({ vault, box, slots: boxSlots }) => {
+          const occupied = boxSlots.filter((s) => s.is_occupied).length;
+          const empty = boxSlots.length - occupied;
+
+          const slotsHtml = boxSlots
+            .map((slot) => {
+              const isOccupied = slot.is_occupied;
+              const item =
+                (slot.current_items && slot.current_items[0]) ||
+                slot.current_item ||
+                slot.pledge_item;
+              const label = box.has_subslots
+                ? `${slotPos(slot, box)[0]}-${slotPos(slot, box)[1]}`
+                : String(slot.slot_number).padStart(2, "0");
+              const pledgeNo = isOccupied ? item?.pledge?.pledge_no || "" : "";
+              return `
+                <div class="slot ${isOccupied ? "occupied" : "empty"}">
+                  <span class="tick"></span>
+                  <span class="slot-number">${escapeHtml(label)}</span>
+                  <span class="slot-status">${isOccupied ? "Occupied" : "Empty"}</span>
+                  <span class="slot-pledge">${escapeHtml(pledgeNo)}</span>
+                </div>
+              `;
+            })
+            .join("");
+
+          return `
+            <div class="box-section">
+              <div class="box-header">
+                <span class="box-name">${escapeHtml(vault.name)} → ${escapeHtml(box.name)}</span>
+                <span class="box-stats">${boxSlots.length} slots • ${occupied} occupied • ${empty} empty</span>
+              </div>
+              <div class="slots-grid">${slotsHtml}</div>
+            </div>
+          `;
+        })
+        .join("");
+
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Slot Reconciliation Sheet</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
+            .header { text-align: center; margin-bottom: 16px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+            .header h1 { font-size: 22px; margin-bottom: 4px; }
+            .header p { color: #666; font-size: 12px; }
+            .signoff { display: flex; gap: 40px; margin: 10px 0 12px; font-size: 12px; }
+            .signoff div { flex: 1; border-bottom: 1px solid #999; padding-bottom: 2px; }
+            .box-section { margin-bottom: 16px; border: 1px solid #ccc; padding: 10px; }
+            .box-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+            .box-name { font-weight: bold; font-size: 14px; }
+            .box-stats { font-size: 11px; color: #666; }
+            .slots-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+            .slot { min-width: 0; overflow: hidden; border: 1px solid #ccc; border-radius: 4px; padding: 5px 3px; text-align: center; font-size: 10px; position: relative; min-height: 58px; page-break-inside: avoid; }
+            .slot.occupied { background: #fff7ed; border-color: #f59e0b; }
+            .slot.empty { background: #f9fafb; }
+            .tick { display: block; width: 16px; height: 16px; border: 1.5px solid #333; border-radius: 3px; margin: 0 auto 3px; background: #fff; }
+            .slot-number { display: block; font-weight: bold; font-size: 12px; }
+            .slot-status { display: block; font-size: 8px; color: #555; text-transform: uppercase; letter-spacing: 0.3px; }
+            .slot-pledge { display: block; font-size: 8px; color: #888; margin-top: 1px; overflow-wrap: anywhere; }
+            .legend { display: flex; gap: 18px; margin: 6px 0 12px; font-size: 11px; }
+            .legend-item { display: flex; align-items: center; gap: 5px; }
+            .legend-box { width: 14px; height: 14px; border: 1px solid #ccc; }
+            .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
+            @page { size: A4 portrait; margin: 12mm; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Slot Reconciliation Sheet</h1>
+            <p>Printed on: ${escapeHtml(new Date().toLocaleString("en-MY"))} — tick each slot as you physically verify it</p>
+          </div>
+
+          <div class="signoff">
+            <div>Checked by: ____________________</div>
+            <div>Date: ____________________</div>
+            <div>Signature: ____________________</div>
+          </div>
+
+          <div class="legend">
+            <div class="legend-item"><div class="legend-box" style="background: #fff7ed; border-color: #f59e0b;"></div> System: Occupied</div>
+            <div class="legend-item"><div class="legend-box" style="background: #f9fafb;"></div> System: Empty</div>
+            <div class="legend-item"><div class="legend-box"></div> Tick when verified</div>
+          </div>
+
+          ${sectionsHtml}
+
+          <div class="footer">
+            <p>PawnSys - Pawn Shop Management System</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
+      } else {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Error",
+            message: "Please allow popups to print",
+          }),
+        );
+      }
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Print Failed",
+          message: error.message || "Failed to build reconciliation sheet",
+        }),
+      );
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -1639,8 +1681,21 @@ export default function RackMap({ embedded = false }) {
       subtitle="Visual storage location management"
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" leftIcon={Printer} onClick={handlePrintMap}>
-            Print Map
+          <Button
+            variant="outline"
+            leftIcon={Download}
+            onClick={handleExportEmptySlots}
+            loading={isExporting}
+          >
+            Export Empty Slots
+          </Button>
+          <Button
+            variant="outline"
+            leftIcon={Printer}
+            onClick={handlePrintReconciliation}
+            loading={isPrinting}
+          >
+            Print Reconciliation
           </Button>
           <Button
             variant="accent"

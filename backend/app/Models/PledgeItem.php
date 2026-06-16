@@ -16,6 +16,7 @@ class PledgeItem extends Model
         'item_no',
         'barcode',
         'category_id',
+        'quantity',
         'purity_id',
         'gross_weight',
         'stone_deduction_type',
@@ -41,6 +42,7 @@ class PledgeItem extends Model
     ];
 
     protected $casts = [
+        'quantity' => 'integer',
         'redeemed_at' => 'datetime',
         'gross_weight' => 'decimal:3',
         'stone_deduction_value' => 'decimal:3',

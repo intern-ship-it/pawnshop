@@ -163,6 +163,7 @@ const purityOptions = [
 const emptyItem = {
   id: "",
   category: "",
+  quantity: 1,
   description: "",
   weight: "",
   purity: "916",
@@ -1505,6 +1506,7 @@ export default function NewPledge() {
               "",
             category:
               data.data.items?.[0]?.category || "",
+            quantity: parseInt(data.data.items?.[0]?.quantity) || 1,
             description: data.data.items?.[0]?.description || "",
           };
           barcodeWindow.document.write(
@@ -1727,7 +1729,8 @@ export default function NewPledge() {
   const generateBarcodeHTML = (pledgeData, pledgeNo, receiptNo, isReprint = false, reprintReasonText = "") => {
     const barcodeImage = pledgeData.barcode_image || pledgeData.image || "";
     const totalItems = parseInt(pledgeData.total_items) || 1;
-    const categoryName = totalItems >= 2 ? `${totalItems} ITEMS` : (pledgeData.category || "Item");
+    const itemQty = parseInt(pledgeData.quantity) || 1;
+    const categoryName = totalItems >= 2 ? `${totalItems} ITEMS` : `${itemQty} × ${pledgeData.category || "Item"}`;
     const totalWeight = pledgeData.total_weight || "0";
     const storageLocation = pledgeData.storage_location || "";
     const purityName = pledgeData.purity || "916";
@@ -2139,6 +2142,7 @@ export default function NewPledge() {
 
           const itemPayload = {
             category_id: categoryId,
+            quantity: parseInt(item.quantity) || 1,
             purity_id: purityId,
             gross_weight: parseFloat(item.weight),
             stone_deduction_type: item.stoneDeductionType || "amount",
@@ -2691,7 +2695,10 @@ export default function NewPledge() {
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                      <Select label="Category" value={item.category} onChange={(e) => updateItem(item.id, "category", e.target.value)} options={[{ value: "", label: "Select..." }, ...categoryOptions]} required />
+                      <div className="space-y-3">
+                        <Select label="Category" value={item.category} onChange={(e) => updateItem(item.id, "category", e.target.value)} options={[{ value: "", label: "Select..." }, ...categoryOptions]} required />
+                        <Input label="Qty (pcs)" type="number" step="1" min="1" placeholder="1" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", e.target.value)} leftIcon={Package} />
+                      </div>
                       <Select label="Purity" value={item.purity} onChange={(e) => { const newPurity = e.target.value; updateItem(item.id, "purity", newPurity); const marketPriceForPurity = goldPrices[newPurity] || getMarketPrice(newPurity); updateItem(item.id, "pricePerGram", marketPriceForPurity.toFixed(2)); }} options={dynamicPurityOptions} />
                       <div>
                         <label className="block text-sm font-medium text-zinc-700 mb-1.5">Price/g (RM) <span className="text-amber-500">*</span></label>
@@ -2889,6 +2896,7 @@ export default function NewPledge() {
                           setTimeout(() => e.target.select(), 0);
                         }}
                         onChange={(e) => setFinalLoanAmountOverride(e.target.value)}
+                        onWheel={(e) => e.target.blur()}
                         className="w-48 text-right text-2xl font-bold bg-white/20 text-white placeholder-white/60 border border-white/30 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       {finalLoanAmountOverride !== "" && (
@@ -3005,6 +3013,7 @@ export default function NewPledge() {
                               setRateOverrides(prev => ({ ...prev, [rateType]: val }));
                               setRateSource(val != null ? 'manual' : (customer?.custom_interest_rate != null ? 'customer' : 'global'));
                             }}
+                            onWheel={(e) => e.target.blur()}
                             className="w-24 px-2 py-1 text-sm border border-violet-300 rounded-lg focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-center font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                           <span className="text-sm text-zinc-500">% per month</span>

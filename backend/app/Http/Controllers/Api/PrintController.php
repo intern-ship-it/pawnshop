@@ -219,6 +219,7 @@ class PrintController extends Controller
                 'image' => $barcodeImage,
                 'pledge_no' => $pledge->pledge_no,
                 'category' => $firstItem && $firstItem->category ? ($firstItem->category->name_en ?? '') : ($pledge->items->count() . ' item(s)'),
+                'quantity' => $firstItem->quantity ?? 1,
                 'purity' => $firstItem && $firstItem->purity ? ($firstItem->purity->code ?? '') : '',
                 'net_weight' => $pledge->items->sum('net_weight'),
                 'item_summary' => $itemSummary,
