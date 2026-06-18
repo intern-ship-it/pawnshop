@@ -657,7 +657,7 @@ export default function PledgeDetail() {
           {(pledge.status === "active" || pledge.status === "overdue") && (
             <>
               <Button
-                variant="primary"
+                variant="success"
                 leftIcon={RefreshCw}
                 onClick={() => navigate("/renewals")}
               >
@@ -1367,63 +1367,107 @@ export default function PledgeDetail() {
               </h3>
 
               {pledge.payments?.length > 0 ? (
-                <div className="space-y-4">
-                  {pledge.payments.map((payment, idx) => (
-                    <div key={idx} className="border border-zinc-200 rounded-lg p-5 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-zinc-500">Payment Mode</span>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-amber-100 text-amber-700 capitalize">
-                          {payment.paymentMethod === "transfer" ? "Full Transfer" :
-                           payment.paymentMethod === "cash" ? "Full Cash" :
-                           payment.paymentMethod === "partial" ? "Partial" :
-                           payment.paymentMethod}
+                (() => {
+                  // Payments may be split into multiple rows (one per bank).
+                  // Aggregate them into a single, friendly summary + bank list.
+                  const rows = pledge.payments;
+                  const primary = rows[0];
+                  const totalCash = rows.reduce((s, p) => s + (p.cashAmount || 0), 0);
+                  const totalTransfer = rows.reduce((s, p) => s + (p.transferAmount || 0), 0);
+                  const totalPayout = totalCash + totalTransfer;
+                  const referenceNo = rows.find((p) => p.referenceNo)?.referenceNo;
+                  const paymentDate = rows.find((p) => p.paymentDate)?.paymentDate;
+                  const banks = rows.filter((p) => p.bankName);
+                  const methodLabel =
+                    primary.paymentMethod === "transfer" ? "Full Transfer" :
+                    primary.paymentMethod === "cash" ? "Full Cash" :
+                    primary.paymentMethod === "partial" ? "Partial" :
+                    primary.paymentMethod;
+
+                  // Rotating color palette so each bank in a split is visually distinct.
+                  const bankPalette = [
+                    { accent: "border-l-blue-400", chip: "bg-blue-100 text-blue-600", amount: "text-blue-700" },
+                    { accent: "border-l-violet-400", chip: "bg-violet-100 text-violet-600", amount: "text-violet-700" },
+                    { accent: "border-l-amber-400", chip: "bg-amber-100 text-amber-600", amount: "text-amber-700" },
+                  ];
+
+                  return (
+                    <div className="border border-zinc-200 rounded-xl overflow-hidden">
+                      {/* Summary header */}
+                      <div className="bg-gradient-to-r from-amber-50 to-zinc-50/40 px-5 py-4 border-b border-amber-100 flex items-start justify-between gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                          <div>
+                            <p className="text-xs text-zinc-400 mb-1">Total Payout</p>
+                            <p className="text-base font-bold text-amber-700">{formatCurrency(totalPayout)}</p>
+                          </div>
+                          {paymentDate && (
+                            <div>
+                              <p className="text-xs text-zinc-400 mb-1">Payment Date</p>
+                              <p className="text-sm font-semibold text-zinc-800">{formatDate(paymentDate)}</p>
+                            </div>
+                          )}
+                          {referenceNo && (
+                            <div>
+                              <p className="text-xs text-zinc-400 mb-1">Reference Number</p>
+                              <p className="text-sm font-semibold text-zinc-800 font-mono">{referenceNo}</p>
+                            </div>
+                          )}
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-amber-100 text-amber-700 capitalize whitespace-nowrap">
+                          {methodLabel}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {payment.cashAmount > 0 && (
-                          <div>
-                            <p className="text-xs text-zinc-400 mb-1">Cash Amount</p>
-                            <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.cashAmount)}</p>
+                      <div className="p-5 space-y-4">
+                        {/* Cash line */}
+                        {totalCash > 0 && (
+                          <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3">
+                            <span className="text-sm font-medium text-emerald-700 flex items-center gap-2">
+                              <Wallet className="w-4 h-4" /> Cash
+                            </span>
+                            <span className="text-sm font-bold text-emerald-700">{formatCurrency(totalCash)}</span>
                           </div>
                         )}
-                        {payment.transferAmount > 0 && (
+
+                        {/* Bank split list */}
+                        {banks.length > 0 && (
                           <div>
-                            <p className="text-xs text-zinc-400 mb-1">Transfer Amount</p>
-                            <p className="text-sm font-semibold text-zinc-800">{formatCurrency(payment.transferAmount)}</p>
-                          </div>
-                        )}
-                        {payment.bankName && (
-                          <div>
-                            <p className="text-xs text-zinc-400 mb-1">Bank Name</p>
-                            <p className="text-sm font-semibold text-zinc-800 flex items-center gap-1.5">
-                              <Building2 className="w-4 h-4 text-zinc-400" />
-                              {payment.bankName}
-                            </p>
-                          </div>
-                        )}
-                        {payment.accountNumber && (
-                          <div>
-                            <p className="text-xs text-zinc-400 mb-1">Account Number</p>
-                            <p className="text-sm font-semibold text-zinc-800 font-mono">{payment.accountNumber}</p>
-                          </div>
-                        )}
-                        {payment.referenceNo && (
-                          <div>
-                            <p className="text-xs text-zinc-400 mb-1">Reference Number</p>
-                            <p className="text-sm font-semibold text-zinc-800 font-mono">{payment.referenceNo}</p>
-                          </div>
-                        )}
-                        {payment.paymentDate && (
-                          <div>
-                            <p className="text-xs text-zinc-400 mb-1">Payment Date</p>
-                            <p className="text-sm font-semibold text-zinc-800">{formatDate(payment.paymentDate)}</p>
+                            {banks.length > 1 && (
+                              <p className="text-xs font-medium text-zinc-400 mb-2">
+                                Transferred to {banks.length} banks
+                              </p>
+                            )}
+                            <div className="space-y-2">
+                              {banks.map((b, i) => {
+                                const c = bankPalette[i % bankPalette.length];
+                                return (
+                                  <div key={i} className={cn("flex items-center justify-between gap-4 px-4 py-3 rounded-lg border border-zinc-200 border-l-4 bg-white", c.accent)}>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <span className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", c.chip)}>
+                                        <Building2 className="w-4 h-4" />
+                                      </span>
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-zinc-800 truncate">{b.bankName}</p>
+                                        {b.accountNumber && (
+                                          <p className="text-xs text-zinc-500 font-mono mt-0.5 truncate">
+                                            {b.accountNumber}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className={cn("text-sm font-bold whitespace-nowrap", c.amount)}>
+                                      {formatCurrency(b.transferAmount)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })()
               ) : (
                 <div className="text-center py-12 text-zinc-400">
                   <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -1475,42 +1519,49 @@ export default function PledgeDetail() {
                   </div>
                 </div>
 
-                {/* Payment Info */}
+                {/* Payment Info - payments may be split across banks; show as one entry */}
                 {pledge.payments?.length > 0 &&
-                  pledge.payments.map((payment, idx) => (
-                    <div key={idx} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <CreditCard className="w-5 h-5 text-blue-600" />
+                  (() => {
+                    const rows = pledge.payments;
+                    const primary = rows[0];
+                    const totalCash = rows.reduce((s, p) => s + (p.cashAmount || 0), 0);
+                    const banks = rows.filter((p) => p.bankName);
+                    const paymentDate = rows.find((p) => p.paymentDate)?.paymentDate;
+                    const createdBy = primary.createdBy || pledge.createdBy;
+                    return (
+                      <div className="flex gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                            <CreditCard className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="w-px h-full bg-zinc-200" />
                         </div>
-                        <div className="w-px h-full bg-zinc-200" />
-                      </div>
-                      <div className="pb-6">
-                        <p className="font-semibold text-zinc-800">
-                          Payout - {payment.paymentMethod}
-                        </p>
-                        <p className="text-sm font-semibold text-blue-600">
-                          {formatDate(payment.paymentDate)}
-                        </p>
-                        <div className="text-sm font-semibold text-emerald-600 mt-1">
-                          {payment.cashAmount > 0 && (
-                            <p>Cash: {formatCurrency(payment.cashAmount)}</p>
-                          )}
-                          {payment.transferAmount > 0 && (
-                            <p>
-                              Transfer: {formatCurrency(payment.transferAmount)}{" "}
-                              ({payment.bankName})
+                        <div className="pb-6">
+                          <p className="font-semibold text-zinc-800">
+                            Payout - {primary.paymentMethod}
+                          </p>
+                          <p className="text-sm font-semibold text-blue-600">
+                            {formatDate(paymentDate)}
+                          </p>
+                          <div className="text-sm font-semibold text-emerald-600 mt-1 space-y-0.5">
+                            {totalCash > 0 && (
+                              <p>Cash: {formatCurrency(totalCash)}</p>
+                            )}
+                            {banks.map((b, i) => (
+                              <p key={i}>
+                                Transfer: {formatCurrency(b.transferAmount)} ({b.bankName})
+                              </p>
+                            ))}
+                          </div>
+                          {createdBy && (
+                            <p className="text-xs font-semibold text-amber-600 mt-1">
+                              By: {createdBy}
                             </p>
                           )}
                         </div>
-                        {(payment.createdBy || pledge.createdBy) && (
-                          <p className="text-xs font-semibold text-amber-600 mt-1">
-                            By: {payment.createdBy || pledge.createdBy}
-                          </p>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })()}
 
                 {/* Renewals - show each renewal with date */}
                 {pledge.renewals?.length > 0

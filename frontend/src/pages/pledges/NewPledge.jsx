@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
   setCustomers,
@@ -175,6 +175,7 @@ const emptyItem = {
 
 export default function NewPledge() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const { selectedCustomer, customers } = useAppSelector(
     (state) => state.customers,
@@ -185,6 +186,7 @@ export default function NewPledge() {
   const signatureCanvasRef = useRef(null);
   const signatureUploadRef = useRef(null);
   const photoInputRefs = useRef({});
+  const prefilledCustomerRef = useRef(false); // ?customer=<id> handled once
 
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
@@ -269,9 +271,39 @@ export default function NewPledge() {
   const [payoutMethod, setPayoutMethod] = useState("cash");
   const [cashAmount, setCashAmount] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
-  const [bankId, setBankId] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
+  // Multi-bank transfer split (max 3). Each: { bankId, accountNumber, amount }
+  const [transferSplits, setTransferSplits] = useState([
+    { bankId: "", accountNumber: "", amount: "" },
+  ]);
   const [referenceNo, setReferenceNo] = useState("");
+
+  const MAX_TRANSFER_SPLITS = 3;
+
+  const updateSplit = (index, field, value) => {
+    setTransferSplits((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
+    );
+  };
+
+  const addSplit = () => {
+    setTransferSplits((prev) =>
+      prev.length >= MAX_TRANSFER_SPLITS
+        ? prev
+        : [...prev, { bankId: "", accountNumber: "", amount: "" }],
+    );
+  };
+
+  const removeSplit = (index) => {
+    setTransferSplits((prev) =>
+      prev.length <= 1 ? prev : prev.filter((_, i) => i !== index),
+    );
+  };
+
+  // Sum of split amounts (for validation + live indicator)
+  const splitsTotal = transferSplits.reduce(
+    (sum, s) => sum + (parseFloat(s.amount) || 0),
+    0,
+  );
   const [handlingSettings, setHandlingSettings] = useState({
     type: "fixed",
     value: 0,
@@ -304,6 +336,7 @@ export default function NewPledge() {
 
   // General state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLoanConfirmModal, setShowLoanConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdPledgeId, setCreatedPledgeId] = useState(null);
   const [createdReceiptNo, setCreatedReceiptNo] = useState(null);
@@ -945,6 +978,33 @@ export default function NewPledge() {
       setSearchQuery(selectedCustomer.ic_number || selectedCustomer.icNumber || "");
     }
   }, [selectedCustomer]);
+
+  // Pre-fill from ?customer=<id> (e.g. "New Pledge" on a customer page):
+  // load the customer, run the full selection, and jump to the Valuation step.
+  useEffect(() => {
+    const customerId = searchParams.get("customer");
+    if (!customerId || prefilledCustomerRef.current) return;
+    prefilledCustomerRef.current = true;
+
+    (async () => {
+      try {
+        const response = await customerService.getById(customerId);
+        const cust = response.data?.data || response.data || null;
+        if (cust && cust.id) {
+          await handleCustomerSelect(cust);
+          setCurrentStep(2);
+        }
+      } catch (err) {
+        console.error("Failed to pre-fill customer:", err);
+        dispatch(addToast({
+          type: "error",
+          title: "Could Not Load Customer",
+          message: "Please search and select the customer manually.",
+        }));
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Update items' prices when gold prices are loaded
   useEffect(() => {
@@ -1941,6 +2001,16 @@ export default function NewPledge() {
     }
   }, [payoutMethod, netPayoutAmount]);
 
+  // With a single bank row, the split amount mirrors the full transfer total
+  // (read-only). Multiple rows make amounts editable and must sum to the total.
+  useEffect(() => {
+    if (transferSplits.length === 1) {
+      setTransferSplits((prev) => [
+        { ...prev[0], amount: transferAmount || "" },
+      ]);
+    }
+  }, [transferAmount, transferSplits.length]);
+
   // Signature canvas handlers
   const initSignatureCanvas = () => {
     const canvas = signatureCanvasRef.current;
@@ -2044,6 +2114,25 @@ export default function NewPledge() {
           }));
           return false;
         }
+        // Photo and Remarks are mandatory for every valid item
+        const missingPhotoOrRemark = validItems.filter(
+          (item) => !item.photo || !item.description || !item.description.trim(),
+        );
+        if (missingPhotoOrRemark.length > 0) {
+          const details = missingPhotoOrRemark.map((m) => {
+            const idx = items.indexOf(m);
+            const missing = [];
+            if (!m.photo) missing.push("photo");
+            if (!m.description || !m.description.trim()) missing.push("remarks");
+            return `Item ${idx + 1} (missing ${missing.join(" & ")})`;
+          }).join(", ");
+          dispatch(addToast({
+            type: "error",
+            title: "Photo & Remarks Required",
+            message: `Please add a photo and remarks for: ${details}.`,
+          }));
+          return false;
+        }
         return true;
       }
       case 3:
@@ -2052,24 +2141,30 @@ export default function NewPledge() {
           return false;
         }
         return true;
-      case 4:
+      case 4: {
+        const transfer = parseFloat(transferAmount) || 0;
         if (payoutMethod === "partial") {
           const cash = parseFloat(cashAmount) || 0;
-          const transfer = parseFloat(transferAmount) || 0;
           if (Math.abs(cash + transfer - loanAmount) > 0.01) {
             dispatch(addToast({ type: "error", title: "Mismatch", message: "Cash + Transfer must equal loan amount" }));
             return false;
           }
-          if (transfer > 0 && (!bankId || !accountNumber)) {
-            dispatch(addToast({ type: "error", title: "Required", message: "Bank details required for transfer" }));
+        }
+        // Validate the bank split whenever there is a transfer portion
+        const hasTransfer = payoutMethod === "transfer" || (payoutMethod === "partial" && transfer > 0);
+        if (hasTransfer) {
+          const incompleteRow = transferSplits.some((s) => !s.bankId || !s.accountNumber);
+          if (incompleteRow) {
+            dispatch(addToast({ type: "error", title: "Required", message: "Bank name and account number are required for every bank." }));
+            return false;
+          }
+          if (Math.abs(splitsTotal - transfer) > 0.01) {
+            dispatch(addToast({ type: "error", title: "Split Mismatch", message: `Bank amounts (${formatCurrency(splitsTotal)}) must add up to the transfer amount (${formatCurrency(transfer)}).` }));
             return false;
           }
         }
-        if (payoutMethod === "transfer" && (!bankId || !accountNumber)) {
-          dispatch(addToast({ type: "error", title: "Required", message: "Bank details required for transfer" }));
-          return false;
-        }
         return true;
+      }
       case 5:
         // Storage: ONE slot must be selected for entire pledge
         if (!selectedSlot) {
@@ -2084,10 +2179,50 @@ export default function NewPledge() {
     }
   };
 
+  // Build the loan summary shown in the Step 3 confirmation modal. Uses the
+  // same standard/first-period rate logic as the Interest Breakdown table.
+  const getLoanSummary = () => {
+    const selectedRate =
+      interestRatesList.find((r) => r.id === interestScenario) ||
+      interestRatesList.find((r) => r.rate_type === "custom" || r.rate_type === "standard") ||
+      interestRatesList[0];
+    const rateType = selectedRate
+      ? selectedRate.rate_type === "custom" ? "standard" : selectedRate.rate_type
+      : "standard";
+    const ratePercent = selectedRate
+      ? (rateOverrides[rateType] != null ? rateOverrides[rateType] : parseFloat(selectedRate.rate_percentage) || 0)
+      : 0;
+    const fromMonth = selectedRate ? parseInt(selectedRate.from_month) || 1 : 1;
+    const toMonth = selectedRate ? parseInt(selectedRate.to_month) || (fromMonth + 5) : 6;
+    const months = toMonth >= fromMonth ? toMonth - fromMonth + 1 : 6;
+    const monthlyInterest = loanAmount * (ratePercent / 100);
+    return {
+      percentage: effectivePercentage,
+      netValue: totals.netValue,
+      loanAmount,
+      ratePercent,
+      months,
+      monthlyInterest,
+      totalInterest: monthlyInterest * months,
+      rateLabel: selectedRate?.name || selectedRate?.rate_type || "Standard",
+      dueDate: calculateDueDate(),
+    };
+  };
+
   const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(currentStep + 1);
+    if (!validateStep(currentStep)) return;
+    // On the Valuation step, confirm loan terms before advancing.
+    if (currentStep === 3) {
+      setShowLoanConfirmModal(true);
+      return;
     }
+    setCurrentStep(currentStep + 1);
+  };
+
+  // Confirm from the loan-terms modal -> advance to the next step.
+  const confirmLoanAndProceed = () => {
+    setShowLoanConfirmModal(false);
+    setCurrentStep(4);
   };
 
   const handlePrev = () => {
@@ -2181,9 +2316,18 @@ export default function NewPledge() {
         reference_no: referenceNo || null,
       };
 
-      if ((payoutMethod === "transfer" || payoutMethod === "partial") && bankId) {
-        payment.bank_id = parseInt(bankId);
-        payment.account_number = accountNumber || null;
+      if (payoutMethod === "transfer" || payoutMethod === "partial") {
+        const validSplits = transferSplits.filter((s) => s.bankId);
+        if (validSplits.length > 0) {
+          payment.transfer_splits = validSplits.map((s) => ({
+            bank_id: parseInt(s.bankId),
+            account_number: s.accountNumber || null,
+            amount: parseFloat(s.amount) || 0,
+          }));
+          // Keep top-level bank for backward compatibility (receipt reads payments->first())
+          payment.bank_id = payment.transfer_splits[0].bank_id;
+          payment.account_number = payment.transfer_splits[0].account_number;
+        }
       }
 
       const pledgeData = {
@@ -2719,13 +2863,13 @@ export default function NewPledge() {
                         </div>
                       </div>
                       <div className="col-span-2 md:col-span-3 lg:col-span-5 xl:col-span-6">
-                        <Input label="Description / Remarks" placeholder="e.g., gold chain with pendant" value={item.description || ""} onChange={(e) => updateItem(item.id, "description", e.target.value)} />
+                        <Input label="Description / Remarks" required placeholder="e.g., gold chain with pendant" value={item.description || ""} onChange={(e) => updateItem(item.id, "description", e.target.value)} />
                       </div>
                     </div>
 
                     <div className="mt-4">
                       <div>
-                        <label className="block text-sm font-medium text-zinc-700 mb-1.5">Item Photo</label>
+                        <label className="block text-sm font-medium text-zinc-700 mb-1.5">Item Photo <span className="text-red-500">*</span></label>
                         <input ref={(el) => (photoInputRefs.current[item.id] = el)} type="file" accept="image/*" onChange={(e) => handleItemPhoto(e, item.id)} className="hidden" />
                         {item.photo ? (
                           <div className="relative inline-block">
@@ -3151,10 +3295,67 @@ export default function NewPledge() {
                 {(payoutMethod === "transfer" || payoutMethod === "partial") && (
                   <>
                     <Input label="Transfer Amount (RM)" type="number" step="0.01" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} disabled={payoutMethod === "transfer"} leftIcon={Building2} />
-                    <div className="grid grid-cols-2 gap-4">
-                      <Select label="Bank Name" value={bankId} onChange={(e) => setBankId(e.target.value)} options={[{ value: "", label: "Select Bank..." }, ...backendBanks.map((bank) => ({ value: String(bank.id), label: bank.name }))]} required />
-                      <Input label="Account Number" placeholder="Enter account number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} required />
+
+                    {/* Multi-bank transfer split (max 3) */}
+                    <div className="space-y-3">
+                      {transferSplits.map((split, index) => (
+                        <div key={index} className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 items-end">
+                          <Select
+                            label={index === 0 ? "Bank Name" : `Bank ${index + 1}`}
+                            value={split.bankId}
+                            onChange={(e) => updateSplit(index, "bankId", e.target.value)}
+                            options={[{ value: "", label: "Select Bank..." }, ...backendBanks.map((bank) => ({ value: String(bank.id), label: bank.name }))]}
+                            required
+                          />
+                          <Input
+                            label="Account Number"
+                            placeholder="Enter account number"
+                            value={split.accountNumber}
+                            onChange={(e) => updateSplit(index, "accountNumber", e.target.value)}
+                            required
+                          />
+                          <Input
+                            label="Amount (RM)"
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={split.amount}
+                            onChange={(e) => updateSplit(index, "amount", e.target.value)}
+                            disabled={transferSplits.length === 1}
+                            className="w-32"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeSplit(index)}
+                            disabled={transferSplits.length <= 1}
+                            className="mb-1.5 p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Remove bank"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+
+                      <div className="flex items-center justify-between">
+                        {transferSplits.length < MAX_TRANSFER_SPLITS ? (
+                          <Button type="button" variant="outline" size="sm" leftIcon={Plus} onClick={addSplit}>
+                            Add Bank ({transferSplits.length}/{MAX_TRANSFER_SPLITS})
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-zinc-400">Maximum {MAX_TRANSFER_SPLITS} banks</span>
+                        )}
+                        {transferSplits.length > 1 && (
+                          <span className="text-sm">
+                            <span className="text-zinc-500">Split total: </span>
+                            <span className={cn("font-medium", Math.abs(splitsTotal - (parseFloat(transferAmount) || 0)) < 0.01 ? "text-emerald-600" : "text-red-600")}>
+                              {formatCurrency(splitsTotal)}
+                            </span>
+                            <span className="text-zinc-400"> / {formatCurrency(parseFloat(transferAmount) || 0)}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
+
                     <Input label="Reference Number (Optional)" placeholder="Transaction reference" value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} />
                   </>
                 )}
@@ -3727,6 +3928,64 @@ export default function NewPledge() {
             }}>New Pledge</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Loan Terms Confirmation Modal (Step 3 -> Step 4) */}
+      <Modal
+        isOpen={showLoanConfirmModal}
+        onClose={() => setShowLoanConfirmModal(false)}
+        title="Confirm Loan Terms"
+        size="md"
+      >
+        {(() => {
+          const s = getLoanSummary();
+          return (
+            <div className="space-y-5">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  Please confirm the loan terms below before proceeding to payout.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-200 divide-y divide-zinc-100 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-zinc-500">Loan Percentage</span>
+                  <span className="text-sm font-semibold text-zinc-800">{s.percentage}%</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-zinc-500">Principal (Net Value)</span>
+                  <span className="text-sm font-semibold text-zinc-800">{formatCurrency(s.netValue)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3 bg-amber-50">
+                  <span className="text-sm font-medium text-amber-700">Loan Amount</span>
+                  <span className="text-base font-bold text-amber-700">{formatCurrency(s.loanAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-zinc-500">Monthly Interest ({s.ratePercent.toFixed(2)}%)</span>
+                  <span className="text-sm font-semibold text-blue-600">{formatCurrency(s.monthlyInterest)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-zinc-500">Total Interest ({s.months} months)</span>
+                  <span className="text-sm font-bold text-blue-600">{formatCurrency(s.totalInterest)}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-zinc-500">Due Date</span>
+                  <span className="text-sm font-semibold text-zinc-800">{s.dueDate.toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-1">
+                <Button variant="outline" onClick={() => setShowLoanConfirmModal(false)}>
+                  Cancel
+                </Button>
+                <Button variant="accent" rightIcon={ArrowRight} onClick={confirmLoanAndProceed}>
+                  Confirm &amp; Continue
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Reprint Reason Modal */}

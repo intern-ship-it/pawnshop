@@ -35,6 +35,8 @@ import {
   AlertCircle,
   Image,
   FileText,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
 
 export default function CustomerCreate() {
@@ -126,6 +128,11 @@ export default function CustomerCreate() {
   // Validation state
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
+
+  // Live DB duplicate check for IC / passport number
+  // { checking: bool, exists: bool, customer: {id, name} | null }
+  const [dupCheck, setDupCheck] = useState({ checking: false, exists: false, customer: null });
+  const dupCheckTimerRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sameAsPhone, setSameAsPhone] = useState(true);
   const [currentCaptureType, setCurrentCaptureType] = useState(null); // 'icFront', 'icBack', or 'profile'
@@ -193,6 +200,34 @@ export default function CustomerCreate() {
     }
   }, [formData.icNumber, isForeigner]);
 
+  // Debounced live duplicate check whenever a valid-format IC/passport is entered.
+  // Runs ~500ms after typing stops; the scan handler triggers it immediately.
+  useEffect(() => {
+    const raw = isForeigner ? formData.passportNumber : formData.icNumber;
+    const clean = isForeigner
+      ? (raw || "").trim()
+      : (raw || "").replace(/[-\s]/g, "");
+    const formatValid = isForeigner
+      ? validatePassport(clean).valid
+      : validateIC(clean).valid;
+
+    if (dupCheckTimerRef.current) clearTimeout(dupCheckTimerRef.current);
+
+    if (!clean || !formatValid) {
+      setDupCheck({ checking: false, exists: false, customer: null });
+      return;
+    }
+
+    dupCheckTimerRef.current = setTimeout(() => {
+      runDuplicateCheck(raw);
+    }, 500);
+
+    return () => {
+      if (dupCheckTimerRef.current) clearTimeout(dupCheckTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.icNumber, formData.passportNumber, isForeigner]);
+
   // Fields that should NOT be auto-uppercased (dropdowns need internal values to match exactly)
   const noUppercaseFields = ["email", "gender", "state", "nationality", "race"];
 
@@ -244,6 +279,65 @@ export default function CustomerCreate() {
   };
 
   // Validate single field
+  // Live DB lookup: does this IC/passport already belong to a customer?
+  // searchByIC matches the `ic_number` column exactly (passports share it),
+  // branch-scoped — same rule the server enforces on save.
+  const runDuplicateCheck = async (rawValue) => {
+    const clean = isForeigner
+      ? (rawValue || "").trim().toUpperCase()
+      : (rawValue || "").replace(/[-\s]/g, "");
+    if (!clean) {
+      setDupCheck({ checking: false, exists: false, customer: null });
+      return;
+    }
+    setDupCheck({ checking: true, exists: false, customer: null });
+    try {
+      const response = await customerService.searchByIC(clean);
+      const found = response.data?.customer || response.data?.data?.customer || null;
+      setDupCheck({ checking: false, exists: !!found, customer: found });
+    } catch (err) {
+      // On error, don't block the user — fall back to the server check on save.
+      console.error("Duplicate IC check failed:", err);
+      setDupCheck({ checking: false, exists: false, customer: null });
+    }
+  };
+
+  // Inline status shown under the IC/passport field for the live duplicate check.
+  const renderDupStatus = () => {
+    if (dupCheck.checking) {
+      return (
+        <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Checking if already registered…
+        </p>
+      );
+    }
+    if (dupCheck.exists) {
+      const cust = dupCheck.customer;
+      return (
+        <div className="mt-1.5 p-2 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <p className="font-medium text-red-700">
+              Already registered{cust?.name ? ` to ${cust.name}` : ""}.
+            </p>
+            {cust?.id && (
+              <button
+                type="button"
+                onClick={() => navigate(`/customers/${cust.id}`)}
+                className="mt-0.5 inline-flex items-center gap-1 font-medium text-red-600 hover:text-red-700 underline underline-offset-2"
+              >
+                Open existing customer
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   const validateField = (name, value) => {
     let error = null;
 
@@ -431,7 +525,11 @@ export default function CustomerCreate() {
   // Handle MyKAD card reader scan data
   const handleScanData = (data) => {
     if (data.name) setFormData(prev => ({ ...prev, name: data.name }));
-    if (data.icNumber) setFormData(prev => ({ ...prev, icNumber: formatIC(data.icNumber) }));
+    if (data.icNumber) {
+      setFormData(prev => ({ ...prev, icNumber: formatIC(data.icNumber) }));
+      // Check immediately after a scan, don't wait for the debounce.
+      runDuplicateCheck(data.icNumber);
+    }
     if (data.address) setFormData(prev => ({ ...prev, address: data.address }));
     if (data.postcode) setFormData(prev => ({ ...prev, postcode: data.postcode }));
     if (data.city) setFormData(prev => ({ ...prev, city: data.city }));
@@ -512,6 +610,17 @@ export default function CustomerCreate() {
           type: "error",
           title: "Validation Error",
           message: "Please fix the errors before submitting",
+        })
+      );
+      return;
+    }
+
+    if (dupCheck.exists) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Customer Already Exists",
+          message: `This ${isForeigner ? "passport" : "IC"} number is already registered${dupCheck.customer?.name ? ` to ${dupCheck.customer.name}` : ""}.`,
         })
       );
       return;
@@ -768,6 +877,7 @@ export default function CustomerCreate() {
                         required
                         leftIcon={CreditCard}
                       />
+                      {renderDupStatus()}
                     </div>
                   ) : (
                     <div>
@@ -782,12 +892,13 @@ export default function CustomerCreate() {
                         required
                         leftIcon={CreditCard}
                       />
-                      {formData.icNumber && !errors.icNumber && (
+                      {formData.icNumber && !errors.icNumber && !dupCheck.exists && (
                         <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
                           <Check className="w-3 h-3" />
                           Formatted: {formatIC(formData.icNumber)}
                         </p>
                       )}
+                      {renderDupStatus()}
                     </div>
                   )}
 
@@ -1292,6 +1403,7 @@ export default function CustomerCreate() {
                   fullWidth
                   leftIcon={Save}
                   loading={isSubmitting}
+                  disabled={dupCheck.exists || dupCheck.checking}
                 >
                   {isSubmitting ? "Saving..." : "Save Customer"}
                 </Button>
