@@ -434,7 +434,11 @@ class CustomerController extends Controller
         }
 
         $pledges = $customer->pledges()
-            ->with(['items.category', 'items.purity'])
+            // Exclude the heavy base64 `photo` column from items. Loading it for
+            // every item across a customer's whole pledge history exhausts the
+            // PHP memory limit; this list view never renders the photo.
+            ->with(['items' => fn ($q) => $q->select(\App\Models\PledgeItem::listColumns())
+                ->with(['category', 'purity'])])
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 15));
 
@@ -453,7 +457,10 @@ class CustomerController extends Controller
 
         $pledges = $customer->pledges()
             ->whereIn('status', ['active', 'overdue']) // FIX: Include overdue
-            ->with(['items.category', 'items.purity'])
+            // Exclude the heavy base64 `photo` column (see pledges() above) —
+            // this uses get() with no pagination, so the memory risk is highest.
+            ->with(['items' => fn ($q) => $q->select(\App\Models\PledgeItem::listColumns())
+                ->with(['category', 'purity'])])
             ->orderBy('due_date')
             ->get();
 

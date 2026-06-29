@@ -55,6 +55,27 @@ class PledgeItem extends Model
         'released_at' => 'datetime',
     ];
 
+    /**
+     * All item columns EXCEPT the heavy base64 `photo`. Use this in list/bulk
+     * queries (customer history, day-end, etc.) so loading many items at once
+     * does not exhaust the PHP memory limit. The item-detail endpoint loads the
+     * photo separately when it is actually needed.
+     */
+    public static function listColumns(): array
+    {
+        return [
+            'id', 'pledge_id', 'redemption_id', 'item_no', 'barcode',
+            'category_id', 'quantity', 'purity_id',
+            'gross_weight', 'stone_deduction_type', 'stone_deduction_value',
+            'net_weight', 'price_per_gram', 'gross_value', 'deduction_amount', 'net_value',
+            'description', 'remarks',
+            'vault_id', 'box_id', 'slot_id',
+            'location_assigned_at', 'location_assigned_by',
+            'status', 'redeemed_at', 'redeemed_from_location', 'released_at',
+            'created_at', 'updated_at',
+        ];
+    }
+
     public function pledge(): BelongsTo
     {
         return $this->belongsTo(Pledge::class);
