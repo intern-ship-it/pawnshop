@@ -147,9 +147,14 @@ class PrintController extends Controller
             $drawerLetter = $pledgeItem->box->box_number;
             $slotStr = $pledgeItem->slot->slot_number;
             if ($pledgeItem->box->has_subslots) {
-                $subPerSlot = $pledgeItem->box->subslots_per_slot ?: 1;
-                $sNum = ceil($pledgeItem->slot->slot_number / $subPerSlot);
-                $subNum = (($pledgeItem->slot->slot_number - 1) % $subPerSlot) + 1;
+                if ($pledgeItem->slot->slot_group !== null && $pledgeItem->slot->subslot_number !== null) {
+                    $sNum = $pledgeItem->slot->slot_group;
+                    $subNum = $pledgeItem->slot->subslot_number;
+                } else {
+                    $subPerSlot = $pledgeItem->box->subslots_per_slot ?: 1;
+                    $sNum = ceil($pledgeItem->slot->slot_number / $subPerSlot);
+                    $subNum = (($pledgeItem->slot->slot_number - 1) % $subPerSlot) + 1;
+                }
                 $slotStr = sprintf('%d-%d', $sNum, $subNum);
             }
             $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotStr}";
@@ -200,9 +205,14 @@ class PrintController extends Controller
             $drawerLetter = $firstItem->box->box_number;
             $slotStr = $firstItem->slot->slot_number;
             if ($firstItem->box->has_subslots) {
-                $subPerSlot = $firstItem->box->subslots_per_slot ?: 1;
-                $sNum = ceil($firstItem->slot->slot_number / $subPerSlot);
-                $subNum = (($firstItem->slot->slot_number - 1) % $subPerSlot) + 1;
+                if ($firstItem->slot->slot_group !== null && $firstItem->slot->subslot_number !== null) {
+                    $sNum = $firstItem->slot->slot_group;
+                    $subNum = $firstItem->slot->subslot_number;
+                } else {
+                    $subPerSlot = $firstItem->box->subslots_per_slot ?: 1;
+                    $sNum = ceil($firstItem->slot->slot_number / $subPerSlot);
+                    $subNum = (($firstItem->slot->slot_number - 1) % $subPerSlot) + 1;
+                }
                 $slotStr = sprintf('%d-%d', $sNum, $subNum);
             }
             $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotStr}";
@@ -378,9 +388,14 @@ class PrintController extends Controller
                 $drawerLetter = $item->box->box_number;
                 $slotStr = $item->slot->slot_number;
                 if ($item->box->has_subslots) {
-                    $subPerSlot = $item->box->subslots_per_slot ?: 1;
-                    $sNum = ceil($item->slot->slot_number / $subPerSlot);
-                    $subNum = (($item->slot->slot_number - 1) % $subPerSlot) + 1;
+                    if ($item->slot->slot_group !== null && $item->slot->subslot_number !== null) {
+                        $sNum = $item->slot->slot_group;
+                        $subNum = $item->slot->subslot_number;
+                    } else {
+                        $subPerSlot = $item->box->subslots_per_slot ?: 1;
+                        $sNum = ceil($item->slot->slot_number / $subPerSlot);
+                        $subNum = (($item->slot->slot_number - 1) % $subPerSlot) + 1;
+                    }
                     $slotStr = sprintf('%d-%d', $sNum, $subNum);
                 }
                 $storageLocation = "{$lockerLetter}-{$drawerLetter}{$slotStr}";
