@@ -679,6 +679,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 function () {
                 Route::get('/config', [WhatsAppController::class , 'config']);
                 Route::get('/templates', [WhatsAppController::class , 'templates']);
+                Route::put('/templates/reorder', [WhatsAppController::class , 'updateOrder']);
                 Route::get('/logs', [WhatsAppController::class , 'logs']);
                 Route::get('/reminders/preview', [WhatsAppReminderController::class, 'preview']);
                 Route::get('/reminders/logs', [WhatsAppReminderController::class, 'logs']);

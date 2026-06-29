@@ -129,10 +129,51 @@ class WhatsAppController extends Controller
         $templates = WhatsAppTemplate::where(function ($q) use ($branchId) {
             $q->where('branch_id', $branchId)->orWhereNull('branch_id');
         })
+            ->orderBy('sort_order')
             ->orderBy('template_key')
             ->get();
 
         return $this->success($templates);
+    }
+
+    /**
+     * Update template order
+     */
+    public function updateOrder(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        
+        $validated = $request->validate([
+            'updates' => 'required|array',
+            'updates.*.id' => 'required|string', // template_key
+            'updates.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        foreach ($validated['updates'] as $update) {
+            $template = WhatsAppTemplate::where('template_key', $update['id'])
+                ->where(function ($q) use ($branchId) {
+                    $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+                })
+                ->first();
+
+            if ($template) {
+                // If it's a global template, create a branch override
+                if (!$template->branch_id) {
+                    WhatsAppTemplate::create(
+                        array_merge(
+                            collect($template->toArray())
+                                ->except(['id', 'created_at', 'updated_at'])
+                                ->toArray(),
+                            ['branch_id' => $branchId, 'sort_order' => $update['sort_order']]
+                        )
+                    );
+                } else {
+                    $template->update(['sort_order' => $update['sort_order']]);
+                }
+            }
+        }
+
+        return $this->success(null, 'Templates order updated');
     }
 
     /**
