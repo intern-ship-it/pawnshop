@@ -152,7 +152,7 @@ class PledgeController extends Controller
     {
         return [
             'id', 'pledge_id', 'redemption_id', 'item_no', 'barcode',
-            'category_id', 'purity_id',
+            'category_id', 'quantity', 'purity_id',
             'gross_weight', 'stone_deduction_type', 'stone_deduction_value',
             'net_weight', 'price_per_gram', 'gross_value', 'deduction_amount', 'net_value',
             'description', 'remarks',
@@ -369,6 +369,7 @@ class PledgeController extends Controller
             'customer_id' => 'required|exists:customers,id',
             'items' => 'required|array|min:1',
             'items.*.category_id' => 'required|exists:categories,id',
+            'items.*.quantity' => 'nullable|integer|min:1',
             'items.*.purity_id' => 'required|exists:purities,id',
             'items.*.gross_weight' => 'required|numeric|min:0.001',
             'items.*.stone_deduction_type' => 'required|in:percentage,amount,grams',
@@ -389,6 +390,11 @@ class PledgeController extends Controller
             'payment.bank_id' => 'required_if:payment.method,transfer,partial|exists:banks,id',
             'payment.account_number' => 'nullable|string|max:30',
             'payment.reference_no' => 'nullable|string|max:50',
+            // Multi-bank transfer split (max 3). When present, each row becomes a PledgePayment.
+            'payment.transfer_splits' => 'nullable|array|max:3',
+            'payment.transfer_splits.*.bank_id' => 'required_with:payment.transfer_splits|exists:banks,id',
+            'payment.transfer_splits.*.account_number' => 'nullable|string|max:30',
+            'payment.transfer_splits.*.amount' => 'required_with:payment.transfer_splits|numeric|min:0',
             'customer_signature' => 'nullable|string',
             'terms_accepted' => 'required|boolean|accepted',
             'gold_prices' => 'nullable|array',
@@ -643,6 +649,7 @@ class PledgeController extends Controller
                     'item_no' => sprintf('%s-%02d', $pledge->pledge_no, $itemNumber),
                     'barcode' => PledgeItem::generateBarcode($pledge->id, $itemNumber),
                     'category_id' => $item['category_id'],
+                    'quantity' => $item['quantity'] ?? 1,
                     'purity_id' => $item['purity_id'],
                     'gross_weight' => $gw,
                     'stone_deduction_type' => $item['stone_deduction_type'],
@@ -729,20 +736,43 @@ class PledgeController extends Controller
                 $itemNumber++;
             }
 
-            // Create payment
+            // Create payment(s)
             $payment = $validated['payment'];
-            PledgePayment::create([
-                'pledge_id' => $pledge->id,
-                'total_amount' => $loanAmount,
-                'cash_amount' => $payment['cash_amount'],
-                'transfer_amount' => $payment['transfer_amount'],
-                'bank_id' => $payment['bank_id'] ?? null,
-                'account_number' => $payment['account_number'] ?? null,
-                'reference_no' => $payment['reference_no'] ?? null,
-                'payment_method' => $paymentMethod,
-                'payment_date' => Carbon::today(),
-                'created_by' => $userId,
-            ]);
+            $splits = $payment['transfer_splits'] ?? [];
+
+            if (\count($splits) > 0) {
+                // One PledgePayment row per bank split. The first row carries the
+                // cash portion + total_amount so report sums (which aggregate across
+                // all rows) are not double-counted; later rows carry only their
+                // own transfer amount.
+                foreach (\array_values($splits) as $i => $split) {
+                    PledgePayment::create([
+                        'pledge_id' => $pledge->id,
+                        'total_amount' => $i === 0 ? $loanAmount : 0,
+                        'cash_amount' => $i === 0 ? $payment['cash_amount'] : 0,
+                        'transfer_amount' => (float) ($split['amount'] ?? 0),
+                        'bank_id' => $split['bank_id'] ?? null,
+                        'account_number' => $split['account_number'] ?? null,
+                        'reference_no' => $i === 0 ? ($payment['reference_no'] ?? null) : null,
+                        'payment_method' => $paymentMethod,
+                        'payment_date' => Carbon::today(),
+                        'created_by' => $userId,
+                    ]);
+                }
+            } else {
+                PledgePayment::create([
+                    'pledge_id' => $pledge->id,
+                    'total_amount' => $loanAmount,
+                    'cash_amount' => $payment['cash_amount'],
+                    'transfer_amount' => $payment['transfer_amount'],
+                    'bank_id' => $payment['bank_id'] ?? null,
+                    'account_number' => $payment['account_number'] ?? null,
+                    'reference_no' => $payment['reference_no'] ?? null,
+                    'payment_method' => $paymentMethod,
+                    'payment_date' => Carbon::today(),
+                    'created_by' => $userId,
+                ]);
+            }
 
             // Update customer stats
             $customer->updateStats();
@@ -830,6 +860,7 @@ class PledgeController extends Controller
             'items.box',
             'items.slot',
             'payments.bank',
+            'payments.createdBy:id,name',
             'renewals',
             'interestPayments',
             'receipts',

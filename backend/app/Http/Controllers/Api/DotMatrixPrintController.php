@@ -2173,11 +2173,12 @@ HTML;
         $usedDescriptions = [];
         foreach ($pledge->items as $item) {
             $category = $item->category->name_ms ?? $item->category->name_en ?? 'Item';
+            $qty = $item->quantity ?? 1;
             $purity = $item->purity->code ?? '';
             $weight = $this->formatNumber($item->net_weight ?? $item->gross_weight ?? 0, 2);
             $desc = trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
             $displayDesc = $desc ? " -- {$desc}" : "";
-            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$category} {$purity} - {$weight}g{$displayDesc}</div>";
+            $itemsText .= "<div class=\"ppo-item\">{$itemNumber}. {$qty} × {$category} {$purity} - {$weight}g{$displayDesc}</div>";
             $itemNumber++;
         }
 
@@ -2279,7 +2280,7 @@ HTML;
     position: absolute;
     top: 92.7mm;
     left: 21mm;
-    width: 183mm;
+    width: 124mm;
     font-size: 11px;
 }
 
@@ -3219,6 +3220,9 @@ HTML;
             if ($payment) {
                 $lines = [];
                 if (\in_array($payment->payment_method, ['transfer', 'partial'], true)) {
+                    // Partial = cash + transfer; label it so staff don't read it as a full transfer.
+                    $methodLabel = $payment->payment_method === 'partial' ? 'SEBAHAGIAN' : 'PINDAHAN';
+                    $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$methodLabel}</strong></div>";
                     $bankName = $payment->bank->name ?? '';
                     $accountNo = $payment->account_number ?? '';
                     if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
@@ -3375,6 +3379,9 @@ HTML;
             if ($payment) {
                 $lines = [];
                 if (\in_array($payment->payment_method, ['transfer', 'partial'], true)) {
+                    // Partial = cash + transfer; label it so staff don't read it as a full transfer.
+                    $methodLabel = $payment->payment_method === 'partial' ? 'SEBAHAGIAN' : 'PINDAHAN';
+                    $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$methodLabel}</strong></div>";
                     $bankName = $payment->bank->name ?? '';
                     $accountNo = $payment->account_number ?? '';
                     if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";

@@ -1,26 +1,73 @@
 // Validate Malaysian IC Number
 export const validateIC = (ic) => {
-  const cleaned = ic.replace(/\D/g, '')
+  // Strip only formatting characters (dashes/spaces). Letters or any other
+  // non-digit must be rejected, not silently discarded — a MyKad is digits only.
+  const cleaned = (ic || '').replace(/[-\s]/g, '')
+
+  if (!/^\d+$/.test(cleaned)) {
+    return { valid: false, error: 'IC number must contain digits only' }
+  }
 
   if (cleaned.length !== 12) {
     return { valid: false, error: 'IC number must be 12 digits' }
   }
 
-  // Extract date components
-  // const year = parseInt(cleaned.substring(0, 2)) // Unused
-  const month = parseInt(cleaned.substring(2, 4))
-  const day = parseInt(cleaned.substring(4, 6))
+  // Extract date components from the first 6 digits (YYMMDD)
+  const month = parseInt(cleaned.substring(2, 4), 10)
+  const day = parseInt(cleaned.substring(4, 6), 10)
 
-  // Validate month
   if (month < 1 || month > 12) {
     return { valid: false, error: 'Invalid month in IC number' }
   }
 
-  // Validate day
   if (day < 1 || day > 31) {
     return { valid: false, error: 'Invalid day in IC number' }
   }
 
+  // Reject impossible calendar dates (e.g. Feb 30, Apr 31). Century doesn't
+  // affect day-of-month validity except for the Feb 29 leap-year case; treat
+  // YY <= current-year-prefix as 2000s, otherwise 1900s, matching the form's
+  // DOB-extraction logic.
+  const yy = parseInt(cleaned.substring(0, 2), 10)
+  const fullYear = yy <= 30 ? 2000 + yy : 1900 + yy
+  const date = new Date(fullYear, month - 1, day)
+  if (
+    date.getFullYear() !== fullYear ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return { valid: false, error: 'Invalid date of birth in IC number' }
+  }
+
+  return { valid: true, error: null }
+}
+
+// Validate a passport number (international): 5-15 alphanumeric characters
+export const validatePassport = (passport) => {
+  const cleaned = (passport || '').trim()
+
+  if (!/^[A-Za-z0-9]{5,15}$/.test(cleaned)) {
+    return { valid: false, error: 'Passport must be 5-15 alphanumeric characters' }
+  }
+
+  return { valid: true, error: null }
+}
+
+// Unified identification validator — dispatches to the IC or passport rule
+// based on type. Single source of truth shared by the customer create/edit forms.
+// type: 'mykad' (default) validates a Malaysian IC; 'passport' validates a passport;
+// any other type only checks that a value is present.
+export const validateICOrPassport = (value, type = 'mykad') => {
+  if (type === 'passport') {
+    return validatePassport(value)
+  }
+  if (type === 'mykad') {
+    return validateIC(value)
+  }
+  // 'other' — no format we can enforce; just require a non-empty value
+  if (!value || !value.trim()) {
+    return { valid: false, error: 'Identification number is required' }
+  }
   return { valid: true, error: null }
 }
 

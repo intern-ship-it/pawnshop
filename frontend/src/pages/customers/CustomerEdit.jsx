@@ -8,7 +8,7 @@ import {
 import { addToast, openCamera } from "@/features/ui/uiSlice";
 import { customerService } from "@/services";
 import { getStorageUrl, compressImage } from "@/utils/helpers";
-import { validateIC, validatePhone, validateEmail } from "@/utils/validators";
+import { validateIC, validatePassport, validateEmail } from "@/utils/validators";
 import { formatIC } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -238,16 +238,38 @@ export default function CustomerEdit() {
   // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // IC field: keep digits only and auto-format with dashes (XXXXXX-XX-XXXX).
+    // Letters are dropped at the keystroke level so a MyKad stays digits-only.
+    if (name === "icNumber") {
+      const cleaned = value.replace(/\D/g, "").slice(0, 12);
+      let formatted = cleaned;
+      if (cleaned.length > 6 && cleaned.length <= 8) {
+        formatted = `${cleaned.slice(0, 6)}-${cleaned.slice(6)}`;
+      } else if (cleaned.length > 8) {
+        formatted = `${cleaned.slice(0, 6)}-${cleaned.slice(6, 8)}-${cleaned.slice(8)}`;
+      }
+      setFormData((prev) => ({ ...prev, [name]: formatted }));
+      setTouched((prev) => ({ ...prev, [name]: true }));
+      setTimeout(() => validateField(name, formatted), 0);
+      return;
+    }
+
+    // Passport field: keep alphanumeric only, uppercase, and cap at 15 chars
+    // so it can't exceed the allowed length at the keystroke level.
+    if (name === "passportNumber") {
+      const cleaned = value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 15);
+      setFormData((prev) => ({ ...prev, [name]: cleaned }));
+      setTouched((prev) => ({ ...prev, [name]: true }));
+      setTimeout(() => validateField(name, cleaned), 0);
+      return;
+    }
+
     // Auto-uppercase all fields except email
     const finalValue = noUppercaseFields.includes(name) ? value : value.toUpperCase();
     setFormData((prev) => ({ ...prev, [name]: finalValue }));
 
-    // Validate IC/Passport immediately on change (not just on blur)
-    if (name === "passportNumber" || name === "icNumber") {
-      setTouched((prev) => ({ ...prev, [name]: true }));
-      // Use setTimeout to validate after state update
-      setTimeout(() => validateField(name, finalValue), 0);
-    } else if (errors[name]) {
+    if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
   };
@@ -282,8 +304,12 @@ export default function CustomerEdit() {
       case "passportNumber":
         const cleanPassport = (value || "").trim();
         if (!cleanPassport) error = "Passport number is required";
-        else if (!/^[A-Z0-9]{5,15}$/i.test(cleanPassport))
-          error = "Passport must be 5-15 alphanumeric characters";
+        else {
+          const passportResult = validatePassport(cleanPassport);
+          if (!passportResult.valid) {
+            error = passportResult.error;
+          }
+        }
         break;
       case "phone":
         if (!value || !value.trim()) error = "Phone number is required";

@@ -21,6 +21,7 @@ class WhatsAppTemplate extends Model
         'is_enabled',
         'aisensy_campaign',
         'aisensy_params',
+        'sort_order',
     ];
 
     protected $casts = [

@@ -11,11 +11,13 @@ class GenericReportExport implements FromArray, WithStyles, ShouldAutoSize
 {
     protected $rows;
     protected $headerRowCount;
+    protected $bannerSpec;
 
-    public function __construct(array $rows, int $headerRowCount = 4)
+    public function __construct(array $rows, int $headerRowCount = 4, ?array $bannerSpec = null)
     {
         $this->rows = $rows;
         $this->headerRowCount = $headerRowCount; // The row where the column titles are
+        $this->bannerSpec = $bannerSpec; // Optional merged banner above a group of columns (e.g. "Payment Mode")
     }
 
     public function array(): array
@@ -52,6 +54,29 @@ class GenericReportExport implements FromArray, WithStyles, ShouldAutoSize
                 'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
             ],
         ]);
+
+        // Optional merged banner above a group of columns (e.g. "Payment Mode" over Transfer/Cash)
+        if ($this->bannerSpec) {
+            $row = $this->bannerSpec['row'];
+            $start = $this->bannerSpec['startCol'];
+            $end = $this->bannerSpec['endCol'];
+
+            $sheet->mergeCells("{$start}{$row}:{$end}{$row}");
+            $sheet->getStyle("{$start}{$row}:{$end}{$row}")->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'color' => ['rgb' => 'FFFFFF'],
+                ],
+                'fill' => [
+                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                    'color' => ['rgb' => '4A5568'],
+                ],
+                'alignment' => [
+                    'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                    'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+                ],
+            ]);
+        }
 
         return [];
     }

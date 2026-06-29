@@ -88,6 +88,21 @@ const whatsappService = {
     },
 
     /**
+     * Update templates order in bulk
+     * PUT /api/whatsapp/templates/reorder
+     * @param {Array} updates - Array of template updates {id, sort_order}
+     */
+    updateTemplateOrder: async (updates) => {
+        try {
+            const response = await api.put('/whatsapp/templates/reorder', { updates })
+            return response
+        } catch (error) {
+            console.error('Update WhatsApp templates order failed:', error)
+            throw error
+        }
+    },
+
+    /**
      * Send WhatsApp message
      * POST /api/whatsapp/send
      * @param {Object} data - Message data

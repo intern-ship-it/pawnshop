@@ -4,7 +4,7 @@ import { useAppDispatch } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { getStorageItem, setStorageItem } from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { Card, Button, Input, Badge, Modal } from "@/components/common";
 import whatsappService from "@/services/whatsappService";
 import settingsService from "@/services/settingsService";
@@ -37,6 +37,7 @@ import {
   ChevronUp,
   ChevronDown,
   Maximize2,
+  GripVertical,
 } from "lucide-react";
 
 // Default message templates
@@ -46,6 +47,7 @@ const defaultTemplates = [
     name: "Pledge Created",
     event: "New Pledge",
     enabled: true,
+    sort_order: 1,
     template: `Salam {customer_name},
 
 Terima kasih kerana memilih {company_name}.
@@ -67,6 +69,7 @@ Terima kasih.
     name: "Renewal Confirmation",
     event: "After Renewal",
     enabled: true,
+    sort_order: 2,
     template: `Salam {customer_name},
 
 Pembaharuan pajak gadai anda telah berjaya.
@@ -84,6 +87,7 @@ Terima kasih.
     name: "Redemption Confirmation",
     event: "After Redemption",
     enabled: true,
+    sort_order: 3,
     template: `Salam {customer_name},
 
 Pajak gadai anda telah ditebus dengan jayanya.
@@ -101,6 +105,7 @@ Terima kasih kerana berurusan dengan kami. Kami mengalu-alukan anda kembali.
     name: "7 Days Reminder",
     event: "7 Days Before Due",
     enabled: true,
+    sort_order: 4,
     template: `Salam {customer_name},
 
 ⏰ *Peringatan: 7 Hari Lagi*
@@ -121,6 +126,7 @@ Sila hubungi kami untuk tebusan atau pembaharuan.
     name: "3 Days Reminder",
     event: "3 Days Before Due",
     enabled: true,
+    sort_order: 5,
     template: `Salam {customer_name},
 
 ⚠️ *Peringatan Segera: 3 Hari Lagi*
@@ -140,6 +146,7 @@ Sila ambil tindakan segera untuk mengelakkan pelucuthakan.
     name: "1 Day Reminder",
     event: "1 Day Before Due",
     enabled: true,
+    sort_order: 6,
     template: `Salam {customer_name},
 
 🚨 *Peringatan Akhir: ESOK*
@@ -159,6 +166,7 @@ Sila hubungi kami dengan segera.
     name: "Overdue Notice",
     event: "After Due Date",
     enabled: true,
+    sort_order: 7,
     template: `Salam {customer_name},
 
 ❌ *Notis: Pajak Gadai Tamat Tempoh*
@@ -179,6 +187,7 @@ Sila hubungi kami dalam masa 14 hari untuk mengelakkan pelucuthakan.
     name: "Auction Notice",
     event: "Before Auction",
     enabled: false,
+    sort_order: 8,
     template: `Salam {customer_name},
 
 📢 *Notis Lelongan*
@@ -217,6 +226,11 @@ export default function WhatsAppSettings() {
   const [activeTab, setActiveTab] = useState("config"); // config, templates, history, test
   const [isSaving, setIsSaving] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("disconnected"); // connected, disconnected, checking
+
+  // Reorder State
+  const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const [originalOrder, setOriginalOrder] = useState([]);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   // Edit template modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -316,19 +330,27 @@ export default function WhatsAppSettings() {
         templatesRes.data &&
         templatesRes.data.length > 0
       ) {
-        setTemplates(
-          templatesRes.data.map((t) => ({
-            id: t.template_key,
-            name: t.name,
-            event: t.template_key,
-            enabled: t.is_enabled,
-            template: t.content,
-            aisensy_campaign: t.aisensy_campaign || "",
-            aisensy_params: Array.isArray(t.aisensy_params)
-              ? t.aisensy_params
-              : [],
-          })),
-        );
+        const loadedTemplates = templatesRes.data.map((t, idx) => ({
+          id: t.template_key,
+          name: t.name,
+          event: t.template_key,
+          enabled: t.is_enabled,
+          sort_order: t.sort_order ?? (idx + 1),
+          template: t.content,
+          aisensy_campaign: t.aisensy_campaign || "",
+          aisensy_params: Array.isArray(t.aisensy_params)
+            ? t.aisensy_params
+            : [],
+        }));
+        // Ensure they are sorted
+        loadedTemplates.sort((a, b) => a.sort_order - b.sort_order);
+        
+        setTemplates(loadedTemplates);
+        setOriginalOrder(loadedTemplates.map((t) => t.id));
+        setHasOrderChanges(false);
+      } else {
+        setTemplates(defaultTemplates);
+        setOriginalOrder(defaultTemplates.map((t) => t.id));
       }
 
       // Load history
@@ -389,6 +411,43 @@ export default function WhatsAppSettings() {
     }
   };
 
+
+  // Reordering Handlers
+  const handleReorder = (newOrder) => {
+    // Assign new sort_order
+    const reordered = newOrder.map((template, index) => ({
+      ...template,
+      sort_order: index + 1,
+    }));
+    
+    setTemplates(reordered);
+    const currentOrder = newOrder.map((t) => t.id);
+    setHasOrderChanges(JSON.stringify(currentOrder) !== JSON.stringify(originalOrder));
+  };
+
+  const saveOrderChanges = async () => {
+    setIsSavingOrder(true);
+    try {
+      const updates = templates.map((template, index) => ({
+        id: template.id,
+        sort_order: index + 1,
+      }));
+
+      await whatsappService.updateTemplateOrder(updates);
+      
+      dispatch(addToast({ type: "success", title: "Saved", message: "Templates order updated" }));
+      setOriginalOrder(templates.map((t) => t.id));
+      setHasOrderChanges(false);
+    } catch (error) {
+      dispatch(addToast({ type: "error", title: "Error", message: "Failed to save order" }));
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
+  const resetOrderChanges = () => {
+    loadFromApi();
+  };
 
   // FIX: Toggle message expansion inline
   const toggleMessageExpansion = (msgId) => {
@@ -637,6 +696,16 @@ export default function WhatsAppSettings() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {activeTab === "templates" && hasOrderChanges && (
+            <>
+              <Button variant="outline" size="sm" onClick={resetOrderChanges} leftIcon={RotateCcw}>
+                Reset
+              </Button>
+              <Button variant="accent" size="sm" onClick={saveOrderChanges} leftIcon={Save} loading={isSavingOrder}>
+                Save Order
+              </Button>
+            </>
+          )}
           <RouterLink
             to="/settings/whatsapp/reminders"
             className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 text-sm font-semibold border border-amber-200 transition-colors"
@@ -942,7 +1011,7 @@ export default function WhatsAppSettings() {
             exit={{ opacity: 0, y: -10 }}
           >
             <Card className="overflow-hidden">
-              <div className="p-4 border-b border-zinc-200 bg-zinc-50">
+              <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
                 <p className="text-sm text-zinc-600">
                   Configure automatic WhatsApp messages for different events.
                   Use variables like{" "}
@@ -951,60 +1020,76 @@ export default function WhatsAppSettings() {
                   </code>{" "}
                   to personalize messages.
                 </p>
+                <p className="text-xs text-zinc-500 shrink-0">
+                  Drag and drop to reorder
+                </p>
               </div>
 
-              <div className="divide-y divide-zinc-100">
+              <Reorder.Group
+                axis="y"
+                values={templates}
+                onReorder={handleReorder}
+                className="divide-y divide-zinc-100"
+              >
                 {templates.map((template) => (
-                  <div
+                  <Reorder.Item
                     key={template.id}
-                    className="p-4 hover:bg-zinc-50 transition-colors"
+                    value={template}
+                    className="p-4 hover:bg-zinc-50 transition-colors bg-white cursor-grab active:cursor-grabbing flex gap-3"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => toggleTemplate(template.id)}
-                          className={cn(
-                            "w-10 h-6 rounded-full transition-colors relative",
-                            template.enabled ? "bg-green-500" : "bg-zinc-300",
-                          )}
-                        >
-                          <div
+                    {/* Drag Handle */}
+                    <div className="pt-2">
+                      <GripVertical className="w-5 h-5 text-zinc-400" />
+                    </div>
+                    
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => toggleTemplate(template.id)}
                             className={cn(
-                              "w-4 h-4 rounded-full bg-white absolute top-1 transition-transform",
-                              template.enabled
-                                ? "translate-x-5"
-                                : "translate-x-1",
+                              "w-10 h-6 rounded-full transition-colors relative",
+                              template.enabled ? "bg-green-500" : "bg-zinc-300",
                             )}
-                          />
-                        </button>
-                        <div>
-                          <p className="font-medium text-zinc-800">
-                            {template.name}
-                          </p>
-                          <p className="text-xs text-zinc-500">
-                            {template.event}
-                          </p>
+                          >
+                            <div
+                              className={cn(
+                                "w-4 h-4 rounded-full bg-white absolute top-1 transition-transform",
+                                template.enabled
+                                  ? "translate-x-5"
+                                  : "translate-x-1",
+                              )}
+                            />
+                          </button>
+                          <div>
+                            <p className="font-medium text-zinc-800">
+                              {template.name}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              {template.event}
+                            </p>
+                          </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={Edit}
+                          onClick={() => openEditTemplate(template)}
+                        >
+                          Edit
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={Edit}
-                        onClick={() => openEditTemplate(template)}
-                      >
-                        Edit
-                      </Button>
-                    </div>
 
-                    {/* Preview */}
-                    <div className="mt-3 ml-14">
-                      <pre className="text-xs text-zinc-500 bg-zinc-100 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-24">
-                        {template.template.slice(0, 150)}...
-                      </pre>
+                      {/* Preview */}
+                      <div className="mt-3 ml-14">
+                        <pre className="text-xs text-zinc-500 bg-zinc-100 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-24">
+                          {template.template.slice(0, 150)}...
+                        </pre>
+                      </div>
                     </div>
-                  </div>
+                  </Reorder.Item>
                 ))}
-              </div>
+              </Reorder.Group>
             </Card>
           </motion.div>
         )}
@@ -1257,6 +1342,8 @@ export default function WhatsAppSettings() {
                 }
               />
 
+              {config.provider !== "aisensy" && (
+              <>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">
                   Message Template
@@ -1315,9 +1402,16 @@ export default function WhatsAppSettings() {
                   ))}
                 </div>
               </div>
+              </>
+              )}
 
               {config.provider === "aisensy" && (
                 <>
+                <div className="p-3 bg-blue-50 rounded-lg mb-4">
+                  <p className="text-xs text-blue-700">
+                    <strong>Note:</strong> The message body is managed in your AiSensy dashboard. Only the campaign name and parameter mapping are needed here.
+                  </p>
+                </div>
                   <Input
                     label="AiSensy Campaign Name"
                     placeholder="e.g. pledge_created_v1"

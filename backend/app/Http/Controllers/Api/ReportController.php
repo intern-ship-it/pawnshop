@@ -9,6 +9,7 @@ use App\Models\Redemption;
 use App\Models\Customer;
 use App\Models\PledgeItem;
 use App\Models\PledgeReceipt;
+use App\Models\Vault;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
@@ -80,7 +81,7 @@ class ReportController extends Controller
         $branchId = $request->user()->branch_id;
 
         $query = Pledge::where('branch_id', $branchId)
-            ->with(['customer:id,name,ic_number,phone', 'items:id,pledge_id,category_id,net_weight,net_value', 'createdBy:id,name']);
+            ->with(['customer:id,name,ic_number,phone', 'items:id,pledge_id,category_id,net_weight,net_value', 'createdBy:id,name', 'payments:id,pledge_id,cash_amount,transfer_amount']);
 
         // Date filters
         if ($from = $request->get('from_date')) {
@@ -817,6 +818,59 @@ class ReportController extends Controller
     }
 
     /**
+     * Empty Slots Report
+     * Lists every empty (unoccupied) storage location across all lockers & drawers
+     * in the user's branch, so staff can see where there is free space.
+     */
+    public function emptySlots(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        $vaults = Vault::where('branch_id', $branchId)
+            ->with(['boxes' => function ($q) {
+                $q->orderBy('box_number')->with(['slots' => function ($s) {
+                    $s->where('is_occupied', false)
+                        ->orderBy('slot_group')
+                        ->orderBy('subslot_number')
+                        ->orderBy('slot_number');
+                }]);
+            }])
+            ->orderBy('name')
+            ->get();
+
+        $emptySlots = [];
+        foreach ($vaults as $vault) {
+            foreach ($vault->boxes as $box) {
+                foreach ($box->slots as $slot) {
+                    // Resolve the slot number and (optionally) subslot number for this empty location.
+                    if ($box->has_subslots) {
+                        $per = $box->subslots_per_slot ?: 1;
+                        $group = $slot->slot_group ?? (int) ceil($slot->slot_number / $per);
+                        $sub = $slot->subslot_number ?? ((($slot->slot_number - 1) % $per) + 1);
+                    } else {
+                        $group = $slot->slot_number;
+                        $sub = null; // no subslots for this drawer
+                    }
+
+                    $emptySlots[] = [
+                        'locker' => $vault->name,
+                        'drawer' => $box->name,
+                        'slot' => $group,
+                        'subslot' => $sub, // null when the drawer has no subslots
+                    ];
+                }
+            }
+        }
+
+        return $this->success([
+            'empty_slots' => $emptySlots,
+            'summary' => [
+                'total_empty' => count($emptySlots),
+            ],
+        ]);
+    }
+
+    /**
      * Export report data (CSV)
      */
     public function export(Request $request)
@@ -825,7 +879,7 @@ class ReportController extends Controller
         $format = $request->get('format', 'csv');
 
         // Validate report type
-        $validTypes = ['overview', 'pledges', 'renewals', 'redemptions', 'outstanding', 'payments', 'inventory', 'customers', 'transactions', 'reprints'];
+        $validTypes = ['overview', 'pledges', 'renewals', 'redemptions', 'outstanding', 'payments', 'inventory', 'customers', 'transactions', 'reprints', 'empty_slots'];
 
         if (!in_array($reportType, $validTypes)) {
             return $this->error('Invalid report type', 400);
@@ -843,6 +897,7 @@ class ReportController extends Controller
                 'customers' => $this->customers($request)->getData()->data,
                 'transactions' => $this->transactions($request)->getData()->data,
                 'reprints' => $this->reprints($request)->getData()->data,
+                'empty_slots' => $this->emptySlots($request)->getData()->data,
                 default => null,
             };
 
@@ -850,13 +905,18 @@ class ReportController extends Controller
                 return $this->error('Failed to fetch report data', 500);
             }
 
-            // Generate rows
-            $rows = $this->generateReportArray($reportType, $data, $request);
+            // Generate rows ($bannerSpec is populated for reports that need a merged banner header, e.g. overview)
+            $bannerSpec = null;
+            $rows = $this->generateReportArray($reportType, $data, $request, $bannerSpec);
 
             if ($format === 'xlsx') {
                 $filename = $reportType . '_report_' . date('Y-m-d_His') . '.xlsx';
                 $headerRowCount = ($request->get('from_date') && $request->get('to_date')) ? 4 : 1;
-                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\GenericReportExport($rows, $headerRowCount), $filename);
+                // A banner row sits directly above the column titles, so the titles shift down by one.
+                if ($bannerSpec) {
+                    $headerRowCount++;
+                }
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\GenericReportExport($rows, $headerRowCount, $bannerSpec), $filename);
             } else {
                 $output = fopen('php://temp', 'r+');
                 foreach ($rows as $row) {
@@ -885,7 +945,7 @@ class ReportController extends Controller
      * Generate CSV content from report data
      * Note: $data comes from getData() so all collections are arrays/objects, not Laravel Collections
      */
-    private function generateReportArray(string $reportType, $data, Request $request): array
+    private function generateReportArray(string $reportType, $data, Request $request, ?array &$bannerSpec = null): array
     {
         $rows = [];
 
@@ -900,10 +960,28 @@ class ReportController extends Controller
 
         switch ($reportType) {
             case 'overview':
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
+                // "Payment Mode" banner row above the Transfer/Cash columns (cols L & M, after Status).
+                // Empty cells elsewhere; the export merges L:M and styles it.
+                $bannerRowNumber = count($rows) + 1; // 1-based row index of the banner we are about to add
+                $rows[] = ['', '', '', '', '', '', '', '', '', '', '', 'Payment Mode', ''];
+                $bannerSpec = [
+                    'row' => $bannerRowNumber,
+                    'startCol' => 'L',
+                    'endCol' => 'M',
+                ];
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status', 'Transfer', 'Cash', 'Handled By'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
                         $items = $pledge->items ?? [];
+                        $payments = $pledge->payments ?? [];
+                        $transferPaid = 0;
+                        $cashPaid = 0;
+                        if (is_countable($payments)) {
+                            foreach ($payments as $payment) {
+                                $transferPaid += $payment->transfer_amount ?? 0;
+                                $cashPaid += $payment->cash_amount ?? 0;
+                            }
+                        }
                         $rows[] = [
                             date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
                             $pledge->receipt_no ?? '',
@@ -916,13 +994,26 @@ class ReportController extends Controller
                             ($pledge->interest_rate ?? 0) . '%',
                             date('d/m/Y', strtotime($pledge->due_date ?? '')),
                             ucfirst($pledge->status ?? ''),
+                            $transferPaid > 0 ? number_format($transferPaid, 2) : '',
+                            $cashPaid > 0 ? number_format($cashPaid, 2) : '',
+                            // After getData() the loaded relation serializes under the snake_case key "created_by"
+                            (is_object($pledge->created_by ?? null) ? ($pledge->created_by->name ?? '') : ($pledge->created_by_name ?? '')),
                         ];
                     }
                 }
                 break;
 
             case 'pledges':
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status'];
+                // "Payment Mode" banner row above the Transfer/Cash columns (cols L & M, after Status).
+                // Mirrors the Overview report layout.
+                $bannerRowNumber = count($rows) + 1; // 1-based row index of the banner we are about to add
+                $rows[] = ['', '', '', '', '', '', '', '', '', '', '', 'Payment Mode', ''];
+                $bannerSpec = [
+                    'row' => $bannerRowNumber,
+                    'startCol' => 'L',
+                    'endCol' => 'M',
+                ];
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status', 'Transfer', 'Cash', 'Handled By'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
                         // Only export active pledges for Pledge Reports
@@ -930,6 +1021,15 @@ class ReportController extends Controller
                             continue;
                         }
                         $items = $pledge->items ?? [];
+                        $payments = $pledge->payments ?? [];
+                        $transferPaid = 0;
+                        $cashPaid = 0;
+                        if (is_countable($payments)) {
+                            foreach ($payments as $payment) {
+                                $transferPaid += $payment->transfer_amount ?? 0;
+                                $cashPaid += $payment->cash_amount ?? 0;
+                            }
+                        }
                         $rows[] = [
                             date('d/m/Y', strtotime($pledge->pledge_date ?? '')),
                             $pledge->receipt_no ?? '',
@@ -942,15 +1042,30 @@ class ReportController extends Controller
                             ($pledge->interest_rate ?? 0) . '%',
                             date('d/m/Y', strtotime($pledge->due_date ?? '')),
                             ucfirst($pledge->status ?? ''),
+                            $transferPaid > 0 ? number_format($transferPaid, 2) : '',
+                            $cashPaid > 0 ? number_format($cashPaid, 2) : '',
+                            // After getData() the loaded relation serializes under the snake_case key "created_by"
+                            (is_object($pledge->created_by ?? null) ? ($pledge->created_by->name ?? '') : ($pledge->created_by_name ?? '')),
                         ];
                     }
                 }
                 break;
 
             case 'renewals':
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Interest Amount', 'New Due Date', 'Payment Method', 'Status'];
+                // "Payment Mode" banner row above the Transfer/Cash columns (cols I & J, after Status).
+                // Mirrors the Overview report layout.
+                $bannerRowNumber = count($rows) + 1; // 1-based row index of the banner we are about to add
+                $rows[] = ['', '', '', '', '', '', '', '', 'Payment Mode', ''];
+                $bannerSpec = [
+                    'row' => $bannerRowNumber,
+                    'startCol' => 'I',
+                    'endCol' => 'J',
+                ];
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Interest Amount', 'New Due Date', 'Payment Method', 'Status', 'Transfer', 'Cash', 'Handled By'];
                 if (isset($data->renewals) && is_countable($data->renewals)) {
                     foreach ($data->renewals as $renewal) {
+                        $transferPaid = $renewal->transfer_amount ?? 0;
+                        $cashPaid = $renewal->cash_amount ?? 0;
                         $rows[] = [
                             date('d/m/Y H:i', strtotime($renewal->created_at ?? '')),
                             $renewal->receipt_no ?? ($renewal->payment_no ?? ''),
@@ -960,15 +1075,29 @@ class ReportController extends Controller
                             !empty($renewal->new_due_date) ? date('d/m/Y', strtotime($renewal->new_due_date)) : 'N/A (Interest Only)',
                             $renewal->payment_method ?? '',
                             'Completed',
+                            $transferPaid > 0 ? number_format($transferPaid, 2) : '',
+                            $cashPaid > 0 ? number_format($cashPaid, 2) : '',
+                            (is_object($renewal->created_by ?? null) ? ($renewal->created_by->name ?? '') : ($renewal->created_by_name ?? '')),
                         ];
                     }
                 }
                 break;
 
             case 'redemptions':
-                $rows[] = ['Date', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method'];
+                // "Payment Mode" banner row above the Transfer/Cash columns (cols H & I, after Payment Method).
+                // Mirrors the Overview report layout.
+                $bannerRowNumber = count($rows) + 1; // 1-based row index of the banner we are about to add
+                $rows[] = ['', '', '', '', '', '', '', 'Payment Mode', ''];
+                $bannerSpec = [
+                    'row' => $bannerRowNumber,
+                    'startCol' => 'H',
+                    'endCol' => 'I',
+                ];
+                $rows[] = ['Date', 'Pledge No', 'Customer', 'Principal', 'Interest', 'Total Collected', 'Payment Method', 'Transfer', 'Cash', 'Handled By'];
                 if (isset($data->redemptions) && is_countable($data->redemptions)) {
                     foreach ($data->redemptions as $redemption) {
+                        $transferPaid = $redemption->transfer_amount ?? 0;
+                        $cashPaid = $redemption->cash_amount ?? 0;
                         $rows[] = [
                             date('d/m/Y H:i', strtotime($redemption->created_at ?? '')),
                             $redemption->pledge->pledge_no ?? '',
@@ -977,6 +1106,9 @@ class ReportController extends Controller
                             number_format($redemption->interest_amount ?? 0, 2),
                             number_format($redemption->total_payable ?? 0, 2),
                             $redemption->payment_method ?? '',
+                            $transferPaid > 0 ? number_format($transferPaid, 2) : '',
+                            $cashPaid > 0 ? number_format($cashPaid, 2) : '',
+                            (is_object($redemption->created_by ?? null) ? ($redemption->created_by->name ?? '') : ($redemption->created_by_name ?? '')),
                         ];
                     }
                 }
@@ -1074,7 +1206,7 @@ class ReportController extends Controller
                         $pledge->pledge_no ?? '',
                         $pledge->customer->name ?? '',
                         number_format($pledge->loan_amount ?? 0, 2),
-                        $pledge->createdBy->name ?? ($pledge->created_by_name ?? ''),
+                        (is_object($pledge->created_by ?? null) ? ($pledge->created_by->name ?? '') : ($pledge->created_by_name ?? '')),
                     ];
                 }
 
@@ -1088,7 +1220,7 @@ class ReportController extends Controller
                         $renewal->pledge->pledge_no ?? '',
                         $renewal->pledge->customer->name ?? '',
                         number_format($renewal->total_payable ?? 0, 2),
-                        $renewal->createdBy->name ?? ($renewal->created_by_name ?? ''),
+                        (is_object($renewal->created_by ?? null) ? ($renewal->created_by->name ?? '') : ($renewal->created_by_name ?? '')),
                     ];
                 }
 
@@ -1102,7 +1234,7 @@ class ReportController extends Controller
                         $redemption->pledge->pledge_no ?? '',
                         $redemption->pledge->customer->name ?? '',
                         number_format($redemption->total_payable ?? 0, 2),
-                        $redemption->createdBy->name ?? ($redemption->created_by_name ?? ''),
+                        (is_object($redemption->created_by ?? null) ? ($redemption->created_by->name ?? '') : ($redemption->created_by_name ?? '')),
                     ];
                 }
                 break;
@@ -1118,6 +1250,21 @@ class ReportController extends Controller
                             number_format($reprint->charge_amount ?? 0, 2),
                             ($reprint->charge_paid ?? false) ? 'Yes' : 'No',
                             $reprint->printedBy->name ?? ($reprint->printed_by_name ?? ''),
+                        ];
+                    }
+                }
+                break;
+
+            case 'empty_slots':
+                $rows[] = ['Locker', 'Drawer', 'Slot', 'Subslot'];
+                if (isset($data->empty_slots) && is_countable($data->empty_slots)) {
+                    foreach ($data->empty_slots as $slot) {
+                        $rows[] = [
+                            $slot->locker ?? '',
+                            $slot->drawer ?? '',
+                            $slot->slot ?? '',
+                            // Blank for drawers without subslots, otherwise the subslot number
+                            ($slot->subslot ?? null) !== null ? $slot->subslot : '',
                         ];
                     }
                 }
