@@ -606,6 +606,12 @@ class PledgeController extends Controller
 
             // Create items
             $itemNumber = 1;
+            // Slots already claimed by an earlier item IN THIS SAME pledge.
+            // The guard below marks a slot occupied on the first item that uses
+            // it; a later item pointing at the same slot must NOT be treated as
+            // "taken by another user" — it is this very pledge re-using its own
+            // slot. We skip the guard + assignment for slots already handled.
+            $slotsClaimedThisPledge = [];
             foreach ($validated['items'] as $item) {
                 $purity = \App\Models\Purity::find($item['purity_id']);
                 // Use frontend-provided price if available, otherwise fall back to DB gold price
@@ -659,7 +665,7 @@ class PledgeController extends Controller
                 // another pledge already occupies it or another user is holding
                 // it. This is a check placed in front of the assignment logic;
                 // the assignment block itself is unchanged.
-                if (isset($item['slot_id'])) {
+                if (isset($item['slot_id']) && !in_array($item['slot_id'], $slotsClaimedThisPledge, true)) {
                     $lockedSlot = Slot::where('id', $item['slot_id'])->lockForUpdate()->first();
 
                     $heldByOther = SlotHold::live()
@@ -668,6 +674,26 @@ class PledgeController extends Controller
                         ->exists();
 
                     if (($lockedSlot && $lockedSlot->is_occupied) || $heldByOther) {
+                        // Trace exactly why this rejected, so cross-machine
+                        // failures can be diagnosed from the server log instead
+                        // of guesswork. Captured before rollBack().
+                        $conflictHold = SlotHold::live()
+                            ->where('slot_id', $item['slot_id'])
+                            ->where('held_by', '!=', $userId)
+                            ->first();
+
+                        Log::warning('Pledge slot guard rejected', [
+                            'slot_id' => $item['slot_id'],
+                            'request_user_id' => $userId,
+                            'branch_id' => $branchId,
+                            'slot_is_occupied' => $lockedSlot ? (bool) $lockedSlot->is_occupied : null,
+                            'slot_current_item_id' => $lockedSlot->current_item_id ?? null,
+                            'held_by_other' => $heldByOther,
+                            'conflict_hold_held_by' => $conflictHold->held_by ?? null,
+                            'conflict_hold_expires_at' => $conflictHold->expires_at ?? null,
+                            'ip' => $request->ip(),
+                        ]);
+
                         DB::rollBack();
 
                         return $this->error(
@@ -677,8 +703,10 @@ class PledgeController extends Controller
                     }
                 }
 
-                // Update slot if assigned
-                if (isset($item['slot_id'])) {
+                // Update slot if assigned — only the first item in this pledge
+                // to use the slot performs the occupy + hold-release. Later
+                // items sharing the same slot skip this (already done).
+                if (isset($item['slot_id']) && !in_array($item['slot_id'], $slotsClaimedThisPledge, true)) {
                     Slot::where('id', $item['slot_id'])->update([
                         'is_occupied' => true,
                         'current_item_id' => $pledgeItem->id,
@@ -692,6 +720,10 @@ class PledgeController extends Controller
 
                     // Release the advisory hold now that the slot is permanently assigned.
                     SlotHold::where('slot_id', $item['slot_id'])->delete();
+
+                    // Mark this slot as handled so subsequent items in the same
+                    // pledge don't re-trip the guard or double-count the box.
+                    $slotsClaimedThisPledge[] = $item['slot_id'];
                 }
 
                 $itemNumber++;
