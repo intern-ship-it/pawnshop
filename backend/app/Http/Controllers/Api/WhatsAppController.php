@@ -129,9 +129,12 @@ class WhatsAppController extends Controller
         $templates = WhatsAppTemplate::where(function ($q) use ($branchId) {
             $q->where('branch_id', $branchId)->orWhereNull('branch_id');
         })
-            ->orderBy('sort_order')
-            ->orderBy('template_key')
-            ->get();
+            // Branch override (branch_id set) wins over the global row for the same key.
+            ->orderByRaw('branch_id IS NULL')
+            ->get()
+            ->unique('template_key')
+            ->sortBy([['sort_order', 'asc'], ['template_key', 'asc']])
+            ->values();
 
         return $this->success($templates);
     }
@@ -150,10 +153,13 @@ class WhatsAppController extends Controller
         ]);
 
         foreach ($validated['updates'] as $update) {
+            // Prefer an existing branch override over the global row, so reordering
+            // an already-overridden template updates it instead of creating a copy.
             $template = WhatsAppTemplate::where('template_key', $update['id'])
                 ->where(function ($q) use ($branchId) {
                     $q->where('branch_id', $branchId)->orWhereNull('branch_id');
                 })
+                ->orderByRaw('branch_id IS NULL')
                 ->first();
 
             if ($template) {
@@ -217,6 +223,28 @@ class WhatsAppController extends Controller
         }
 
         return $this->success($whatsAppTemplate, 'Template updated');
+    }
+
+    /**
+     * Delete a template row. TEMPORARY: used to clean up duplicate rows created
+     * by the earlier reorder bug. Only branch-specific rows may be deleted so the
+     * shared global defaults stay intact.
+     */
+    public function deleteTemplate(Request $request, WhatsAppTemplate $whatsAppTemplate): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        if (!$whatsAppTemplate->branch_id) {
+            return $this->error('Cannot delete a global default template', 422);
+        }
+
+        if ($whatsAppTemplate->branch_id !== $branchId) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $whatsAppTemplate->delete();
+
+        return $this->success(null, 'Template deleted');
     }
 
     /**

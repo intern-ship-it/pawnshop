@@ -695,6 +695,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::put('/config', [WhatsAppController::class , 'updateConfig']);
                 Route::post('/test-connection', [WhatsAppController::class , 'testConnection']);
                 Route::put('/templates/{whatsAppTemplate}', [WhatsAppController::class , 'updateTemplate']);
+                // TEMPORARY: delete duplicate template rows (hide the UI button later).
+                Route::delete('/templates/{whatsAppTemplate}', [WhatsAppController::class , 'deleteTemplate']);
             }
             );
 
