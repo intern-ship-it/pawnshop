@@ -1233,10 +1233,20 @@ class PledgeController extends Controller
                 ->orderBy('branch_id', 'desc')
                 ->first();
 
+            // Item list formatted the same way as the printed/text receipt.
+            $itemsList = $pledge->items->map(function ($item) {
+                return "{$item->category->name_en} ({$item->purity->code}) - {$item->net_weight}g";
+            })->join(', ');
+
             $templateData = [
                 'customer_name' => $pledge->customer->name ?? '',
                 'pledge_no'     => $pledge->pledge_no,
+                'date'          => \Carbon\Carbon::parse($pledge->pledge_date)->format('d/m/Y'),
+                'customer_ic'   => $pledge->customer->ic_number ?? '',
+                'items'         => $itemsList,
+                'total_weight'  => number_format($pledge->total_weight, 2),
                 'loan_amount'   => number_format($pledge->loan_amount, 2),
+                'interest_rate' => number_format($pledge->interest_rate, 2),
                 'due_date'      => \Carbon\Carbon::parse($pledge->due_date)->format('d/m/Y'),
             ];
 

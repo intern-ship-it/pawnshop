@@ -606,8 +606,13 @@ class RenewalController extends Controller
                 ->first();
 
             $templateData = [
-                'customer_name' => $renewal->pledge->customer->name ?? '',
+                'renewal_no'    => $renewal->renewal_no,
                 'pledge_no'     => $renewal->pledge->pledge_no,
+                'date'          => \Carbon\Carbon::parse($renewal->created_at)->format('d/m/Y'),
+                'customer_name' => $renewal->pledge->customer->name ?? '',
+                'customer_ic'   => $renewal->pledge->customer->ic_number ?? '',
+                'loan_amount'   => number_format($renewal->pledge->loan_amount, 2),
+                'extended'      => $renewal->renewal_months,
                 // total_paid matches the "Total Paid" figure on the existing receipt.
                 // interest_paid is also provided in case a template wants the interest line.
                 'total_paid'    => number_format($renewal->total_payable, 2),

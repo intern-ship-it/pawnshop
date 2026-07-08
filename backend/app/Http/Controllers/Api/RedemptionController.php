@@ -624,10 +624,28 @@ class RedemptionController extends Controller
                 ->orderBy('branch_id', 'desc')
                 ->first();
 
+            // Items released: for a partial redemption only the redeemed items,
+            // otherwise every item on the pledge. Formatted like the receipt.
+            $releasedItems = $pledge->items;
+            if ($redemption->is_partial && !empty($redemption->redeemed_item_ids)) {
+                $releasedItems = $releasedItems->whereIn('id', $redemption->redeemed_item_ids);
+            }
+            $itemsReleased = $releasedItems->map(function ($item) {
+                return "{$item->category->name_en} ({$item->purity->code}) - {$item->net_weight}g";
+            })->join(', ');
+
             $templateData = [
-                'customer_name' => $pledge->customer->name ?? '',
+                'redemption_no' => $redemption->redemption_no,
                 'pledge_no'     => $redemption->pledge->pledge_no,
+                'date'          => \Carbon\Carbon::parse($redemption->created_at)->format('d/m/Y H:i'),
+                'customer_name' => $pledge->customer->name ?? '',
+                'customer_ic'   => $pledge->customer->ic_number ?? '',
+                'items_released' => $itemsReleased,
+                'principal'     => number_format($redemption->principal_amount, 2),
+                'interest'      => number_format($redemption->interest_amount, 2),
                 'total_paid'    => number_format($redemption->total_payable, 2),
+                'payment_mode'  => strtoupper($redemption->payment_method),
+                'amount_paid'   => number_format($redemption->total_payable, 2),
             ];
 
             // Send text message via the shared WhatsApp service
