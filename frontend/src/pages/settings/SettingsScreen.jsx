@@ -515,15 +515,19 @@ export default function SettingsScreen() {
       title="Settings"
       subtitle="Configure system settings and master data"
       actions={
-        <Button
-          variant="accent"
-          leftIcon={Save}
-          onClick={handleSave}
-          loading={isSaving}
-          disabled={!hasChanges || isLoading}
-        >
-          Save Changes
-        </Button>
+        // The WhatsApp tab manages its own save buttons ("Save Order" /
+        // "Save Settings"); the page-level save does not apply there.
+        activeTab === "whatsapp" ? null : (
+          <Button
+            variant="accent"
+            leftIcon={Save}
+            onClick={handleSave}
+            loading={isSaving}
+            disabled={!hasChanges || isLoading}
+          >
+            Save Changes
+          </Button>
+        )
       }
     >
       <div className="flex flex-col lg:flex-row gap-6 relative">

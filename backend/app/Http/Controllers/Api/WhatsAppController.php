@@ -153,30 +153,15 @@ class WhatsAppController extends Controller
         ]);
 
         foreach ($validated['updates'] as $update) {
-            // Prefer an existing branch override over the global row, so reordering
-            // an already-overridden template updates it instead of creating a copy.
-            $template = WhatsAppTemplate::where('template_key', $update['id'])
+            // Update sort_order on every row matching this key within the branch
+            // scope (the branch override and/or the global row). This keeps the
+            // ordering consistent regardless of whether an override exists, and
+            // avoids creating duplicate rows — the bug that motivated this fix.
+            WhatsAppTemplate::where('template_key', $update['id'])
                 ->where(function ($q) use ($branchId) {
                     $q->where('branch_id', $branchId)->orWhereNull('branch_id');
                 })
-                ->orderByRaw('branch_id IS NULL')
-                ->first();
-
-            if ($template) {
-                // If it's a global template, create a branch override
-                if (!$template->branch_id) {
-                    WhatsAppTemplate::create(
-                        array_merge(
-                            collect($template->toArray())
-                                ->except(['id', 'created_at', 'updated_at'])
-                                ->toArray(),
-                            ['branch_id' => $branchId, 'sort_order' => $update['sort_order']]
-                        )
-                    );
-                } else {
-                    $template->update(['sort_order' => $update['sort_order']]);
-                }
-            }
+                ->update(['sort_order' => $update['sort_order']]);
         }
 
         return $this->success(null, 'Templates order updated');
