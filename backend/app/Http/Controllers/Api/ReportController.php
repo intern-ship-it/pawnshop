@@ -81,7 +81,7 @@ class ReportController extends Controller
         $branchId = $request->user()->branch_id;
 
         $query = Pledge::where('branch_id', $branchId)
-            ->with(['customer:id,name,ic_number,phone', 'items:id,pledge_id,category_id,net_weight,net_value', 'createdBy:id,name', 'payments:id,pledge_id,cash_amount,transfer_amount']);
+            ->with(['customer:id,name,ic_number,phone', 'items:id,pledge_id,category_id,quantity,net_weight,net_value', 'items.category:id,name_en', 'createdBy:id,name', 'payments:id,pledge_id,cash_amount,transfer_amount']);
 
         // Date filters
         if ($from = $request->get('from_date')) {
@@ -527,6 +527,15 @@ class ReportController extends Controller
             $this->applyInventoryFilters($query, $request);
         }
 
+        // Scope to items whose parent pledge was taken within the range. Skipped
+        // for the item_ids path, where the caller has already named the rows.
+        // pledge_date is a date column, so whereBetween is inclusive both ends.
+        if (!$request->has('item_ids') && $fromDate && $toDate) {
+            $query->whereHas('pledge', function ($q) use ($fromDate, $toDate) {
+                $q->whereBetween('pledge_date', [$fromDate, $toDate]);
+            });
+        }
+
         $items = $query->with(['pledge.customer:id,name', 'category', 'purity', 'vault', 'box', 'slot'])
             ->get()
             ->map(function ($item) {
@@ -942,6 +951,94 @@ class ReportController extends Controller
     }
 
     /**
+     * Colours for the Item Details column. The six most common categories carry
+     * 87% of all items and get their own hue; everything rarer shares the neutral
+     * fallback, because more than ~6 hues stop being tellable apart at a glance.
+     *
+     * All are >= 4.5:1 contrast on white (WCAG AA). Chain and Ring are the two
+     * most frequent and sit next to each other constantly, so they are green and
+     * orange rather than a red/green pair that deuteranopes cannot separate.
+     */
+    private const CATEGORY_COLORS = [
+        'Chain' => 'FF047857',
+        'Ring' => 'FFC2410C',
+        'Bracelet' => 'FF0F766E',
+        'Earring' => 'FF1D4ED8',
+        'Necklace' => 'FF7E22CE',
+        'Bangle' => 'FFA16207',
+    ];
+
+    private const CATEGORY_COLOR_FALLBACK = 'FF52525B';
+    private const COUNT_COLOR = 'FF6B7280';
+
+    /**
+     * A pledge's items as "1 × Ring, 4 × Anklet", one entry per category with the
+     * piece counts summed. Categories are ordered by piece count, heaviest first,
+     * so the dominant item leads.
+     *
+     * Returns RichText so each category name carries its own colour inside the
+     * single cell; the repeated "N ×" counts stay grey and recede. Laravel Excel
+     * passes RichText through FromArray untouched.
+     */
+    private function itemBreakdown($items): \PhpOffice\PhpSpreadsheet\RichText\RichText|string
+    {
+        if (!is_countable($items) || count($items) === 0) {
+            return '';
+        }
+
+        $byCategory = [];
+        foreach ($items as $item) {
+            $name = $item->category->name_en ?? 'Unknown';
+            $byCategory[$name] = ($byCategory[$name] ?? 0) + (int) ($item->quantity ?? 1);
+        }
+
+        arsort($byCategory);
+
+        $rich = new \PhpOffice\PhpSpreadsheet\RichText\RichText();
+        $first = true;
+        foreach ($byCategory as $name => $pieces) {
+            if (!$first) {
+                $this->richRun($rich, ', ', self::COUNT_COLOR);
+            }
+            $first = false;
+
+            $this->richRun($rich, "{$pieces} × ", self::COUNT_COLOR);
+            $this->richRun($rich, (string) $name, self::CATEGORY_COLORS[$name] ?? self::CATEGORY_COLOR_FALLBACK);
+        }
+
+        return $rich;
+    }
+
+    private function richRun(\PhpOffice\PhpSpreadsheet\RichText\RichText $rich, string $text, string $argb): void
+    {
+        $run = $rich->createTextRun($text);
+        $run->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($argb));
+    }
+
+    /**
+     * The 916 market price snapshotted when the pledge was created, or null for
+     * pledges created before that column existed. After getData() the JSON column
+     * arrives as a stdClass, but it may also be an array or a raw JSON string
+     * depending on the caller, so accept all three.
+     */
+    private function marketPrice916($pledge): ?float
+    {
+        $market = $pledge->market_gold_prices ?? null;
+
+        if (is_string($market)) {
+            $market = json_decode($market);
+        }
+        if (is_array($market)) {
+            $market = (object) $market;
+        }
+        if (!is_object($market) || !isset($market->price_916)) {
+            return null;
+        }
+
+        return (float) $market->price_916;
+    }
+
+    /**
      * Generate CSV content from report data
      * Note: $data comes from getData() so all collections are arrays/objects, not Laravel Collections
      */
@@ -960,16 +1057,23 @@ class ReportController extends Controller
 
         switch ($reportType) {
             case 'overview':
-                // "Payment Mode" banner row above the Transfer/Cash columns (cols L & M, after Status).
-                // Empty cells elsewhere; the export merges L:M and styles it.
+                // Two merged banners on one row: "Payment Mode" over Transfer/Cash (L:M)
+                // and "api / manual" over the gold price pair (O:P). The export merges
+                // and styles each range.
+                // Column layout, 1-based: A Date .. F Items, G Item Details, then
+                // M:N Transfer/Cash and P/Q/R the gold price + loan percentage block.
                 $bannerRowNumber = count($rows) + 1; // 1-based row index of the banner we are about to add
-                $rows[] = ['', '', '', '', '', '', '', '', '', '', '', 'Payment Mode', ''];
+                $rows[] = ['', '', '', '', '', '', '', '', '', '', '', '', 'Payment Mode', '', '', 'api / manual', '', ''];
                 $bannerSpec = [
-                    'row' => $bannerRowNumber,
-                    'startCol' => 'L',
-                    'endCol' => 'M',
+                    'banners' => [
+                        ['row' => $bannerRowNumber, 'startCol' => 'M', 'endCol' => 'N'],
+                        // Describes the source of the actual price only, so it spans P alone.
+                        ['row' => $bannerRowNumber, 'startCol' => 'P', 'endCol' => 'P'],
+                    ],
+                    // Gold price columns: keep numeric, show 2 decimals.
+                    'numberFormat' => ['cols' => ['P', 'Q'], 'format' => '0.00'],
                 ];
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status', 'Transfer', 'Cash', 'Handled By'];
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'IC Number', 'Items', 'Item Details', 'Weight (g)', 'Loan Amount', 'Interest Rate', 'Due Date', 'Status', 'Transfer', 'Cash', 'Handled By', 'actual gold price', 'given gold price', 'loan percentage'];
                 if (isset($data->pledges) && is_countable($data->pledges)) {
                     foreach ($data->pledges as $pledge) {
                         $items = $pledge->items ?? [];
@@ -989,6 +1093,7 @@ class ReportController extends Controller
                             $pledge->customer->name ?? '',
                             "\t" . ($pledge->customer->ic_number ?? ''),
                             is_countable($items) ? count($items) : 0,
+                            $this->itemBreakdown($items),
                             number_format($pledge->total_weight ?? 0, 3),
                             number_format($pledge->loan_amount ?? 0, 2),
                             ($pledge->interest_rate ?? 0) . '%',
@@ -998,6 +1103,14 @@ class ReportController extends Controller
                             $cashPaid > 0 ? number_format($cashPaid, 2) : '',
                             // After getData() the loaded relation serializes under the snake_case key "created_by"
                             (is_object($pledge->created_by ?? null) ? ($pledge->created_by->name ?? '') : ($pledge->created_by_name ?? '')),
+                            // Market 916 price on offer. Blank on pledges predating the
+                            // snapshot column, rather than guessed from a later price row.
+                            // Left numeric (not number_format'd) so Excel keeps it a number
+                            // and the sheet's 2-decimal format renders the trailing zeros.
+                            $this->marketPrice916($pledge),
+                            // The 916 price actually used — staff may have overridden it.
+                            (float) ($pledge->gold_price_916 ?? 0),
+                            ($pledge->loan_percentage ?? 0) . '%',
                         ];
                     }
                 }

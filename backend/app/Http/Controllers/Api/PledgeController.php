@@ -580,6 +580,28 @@ class PledgeController extends Controller
                 $rateOverdue = $validated['override_interest_rate_overdue'];
             }
 
+            // Resolve the market prices actually on offer. Settings ("manual" source)
+            // takes precedence over the gold_prices table, which only the API fetch
+            // writes and can be weeks stale when a branch prices manually.
+            $manual = \App\Models\Setting::goldPriceSettings($branchId);
+            if ($manual) {
+                $marketPrices = [
+                    'price_999' => $manual['prices']['999'] ?? null,
+                    'price_916' => $manual['prices']['916'] ?? null,
+                    'price_875' => $manual['prices']['875'] ?? null,
+                    'price_750' => $manual['prices']['750'] ?? null,
+                ];
+                $marketSource = $manual['source'];
+            } else {
+                $marketPrices = [
+                    'price_999' => (float) $goldPrices->price_999,
+                    'price_916' => (float) $goldPrices->price_916,
+                    'price_875' => (float) $goldPrices->price_875,
+                    'price_750' => (float) $goldPrices->price_750,
+                ];
+                $marketSource = $goldPrices->source ?? $goldPrices->price_source ?? null;
+            }
+
             // Create pledge
             $pledge = Pledge::create([
                 'branch_id' => $branchId,
@@ -600,10 +622,15 @@ class PledgeController extends Controller
                 'pledge_date' => Carbon::today(),
                 'due_date' => $dueDate,
                 'grace_end_date' => $dueDate->copy()->addDays(7),
+                // Prices actually used to value the pledge — staff may override these.
                 'gold_price_999' => $validated['gold_prices']['price_999'] ?? $goldPrices->price_999,
                 'gold_price_916' => $validated['gold_prices']['price_916'] ?? $goldPrices->price_916,
                 'gold_price_875' => $validated['gold_prices']['price_875'] ?? $goldPrices->price_875,
                 'gold_price_750' => $validated['gold_prices']['price_750'] ?? $goldPrices->price_750,
+                // Market prices on offer at that moment, read server-side so a client
+                // cannot pass off an override as the market rate.
+                'market_gold_prices' => $marketPrices,
+                'market_price_source' => $marketSource,
                 'customer_signature' => $validated['customer_signature'] ?? null,
                 'terms_accepted' => true,
                 'terms_accepted_at' => now(),

@@ -268,8 +268,10 @@ export default function ReportsScreen() {
               reportService
                 .getOverdueReport(params)
                 .catch(() => ({ success: false, data: null })),
+              // Vault contents are a right-now figure, not a period total, so the
+              // "Live Inventory" tile deliberately opts out of the date range.
               reportService
-                .getInventoryReport(params)
+                .getInventoryReport({ search: searchQuery })
                 .catch(() => ({ success: false, data: null })),
             ]);
 
