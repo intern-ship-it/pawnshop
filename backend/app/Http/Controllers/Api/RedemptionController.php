@@ -136,6 +136,9 @@ class RedemptionController extends Controller
             $calculation['total_net_value'] = round($totalNetValue, 2);
             $calculation['pro_rata_ratio'] = round($proRataRatio, 4);
 
+            // Credit only the share of paid interest belonging to these items.
+            $this->creditInterestAlreadyPaid($calculation, $pledge, $proRataRatio);
+
             // Add location_string to each item for display
             $itemsWithLocation = $selectedItems->map(function ($item) {
                 $item->location_string = $this->buildLocationString($item);
@@ -174,6 +177,7 @@ class RedemptionController extends Controller
         );
 
         $calculation['is_partial'] = false;
+        $this->creditInterestAlreadyPaid($calculation, $pledge, 1.0);
 
         // Add location_string to each item
         $itemsWithLocation = $allItems->map(function ($item) {
@@ -196,6 +200,31 @@ class RedemptionController extends Controller
             'all_items' => $itemsWithLocation,
             'calculation' => $calculation,
         ]);
+    }
+
+    /**
+     * Subtract interest the customer has already paid from what redemption asks for.
+     *
+     * Interest accrues across the whole pledge; standalone interest payments settle
+     * part of it as the customer goes. Without this the accrued total is charged in
+     * full at redemption and those payments are collected twice.
+     *
+     * $proRataRatio scales the credit for partial redemptions, so releasing half the
+     * items credits half the interest paid and leaves the rest against the remainder.
+     * The credit never exceeds the interest owed — overpaid interest does not
+     * discount the principal.
+     */
+    private function creditInterestAlreadyPaid(array &$calculation, Pledge $pledge, float $proRataRatio): void
+    {
+        $alreadyPaid = round($pledge->total_interest_paid * $proRataRatio, 2);
+        $grossInterest = (float) $calculation['total_interest'];
+        $credit = min($alreadyPaid, $grossInterest);
+
+        $calculation['gross_interest'] = $grossInterest;
+        $calculation['interest_already_paid'] = $alreadyPaid;
+        $calculation['interest_credited'] = $credit;
+        $calculation['total_interest'] = round($grossInterest - $credit, 2);
+        $calculation['total_payable'] = round((float) $calculation['principal'] + $calculation['total_interest'], 2);
     }
 
     /**

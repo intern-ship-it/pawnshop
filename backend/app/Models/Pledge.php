@@ -187,9 +187,30 @@ class Pledge extends Model
         return $this->loan_amount * ($this->current_interest_rate / 100) * $months;
     }
 
+    /**
+     * Interest the customer has actually handed over.
+     *
+     * Interest payments are the normal channel; cancelled ones must not count.
+     * Renewals no longer collect anything (they only extend the due date), but
+     * historical renewals did, so credit the cash/transfer actually received
+     * rather than their `interest_amount` — that column is now only a reference
+     * figure for the receipt and would otherwise become a phantom credit at
+     * redemption for money nobody paid.
+     *
+     * Previously summed renewals' interest_amount alone, so interest paid at the
+     * counter was invisible and got charged a second time at redemption.
+     */
     public function getTotalInterestPaidAttribute(): float
     {
-        return $this->renewals()->sum('interest_amount');
+        $fromPayments = (float) $this->interestPayments()
+            ->where('status', 'completed')
+            ->sum('interest_amount');
+
+        $fromRenewals = (float) $this->renewals()
+            ->selectRaw('COALESCE(SUM(cash_amount + transfer_amount), 0) AS received')
+            ->value('received');
+
+        return $fromPayments + $fromRenewals;
     }
 
     public static function generatePledgeNo(int $branchId): string

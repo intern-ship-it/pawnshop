@@ -249,9 +249,14 @@ class InterestCalculationService
         $interestBreakdown = [];
         $totalInterest = 0;
 
-        // Determine scenario based on status
-        if ($status === 'overdue' || $daysOverdue > 0 || $monthsElapsed > 6) {
-            // OVERDUE: Recalculate ALL months at overdue rate
+        // A pledge is "not maintained" only when it has passed its due date —
+        // being more than 6 months old is NOT the same thing, because a renewal
+        // legitimately carries a pledge past month 6 while moving the due date.
+        // Settings states the rule: "Extended rate applies after 6 months if
+        // maintained. Overdue rate applies if pledge is not maintained."
+        if ($status === 'overdue' || $daysOverdue > 0) {
+            // NOT MAINTAINED: recalculate ALL months at the overdue rate,
+            // plus the daily penalty for days beyond complete months.
             $scenario = 'overdue';
             $overdueCalc = $this->calculateOverdueInterest(
                 $principal,
@@ -261,32 +266,16 @@ class InterestCalculationService
             );
             $totalInterest = $overdueCalc['total_interest'];
             $interestBreakdown = $overdueCalc;
-        } elseif ($status === 'renewed') {
-            // RENEWED: Standard for 1-6, renewed for 7+
-            $scenario = 'renewed';
-            $totalInterest = $this->calculateInterest(
-                $principal,
-                $monthsElapsed,
-                'renewed',
-                $standardRate,
-                $renewedRate,
-                $overdueRate
-            );
-            $interestBreakdown = $this->calculateMonthlyBreakdown(
-                $principal,
-                $monthsElapsed,
-                'renewed',
-                $standardRate,
-                $renewedRate,
-                $overdueRate
-            );
         } else {
-            // ACTIVE/STANDARD: All at standard rate (redeemed within 6 months)
-            $scenario = 'standard';
+            // MAINTAINED: standard rate for months 1-6, extended rate from 7 on.
+            // 'renewed' is the scenario that applies the extended rate per month;
+            // it is correct for any maintained pledge, renewed or not, because a
+            // pledge only reaches month 7 by being renewed.
+            $scenario = $monthsElapsed > 6 ? 'renewed' : 'standard';
             $totalInterest = $this->calculateInterest(
                 $principal,
                 $monthsElapsed,
-                'standard',
+                $scenario,
                 $standardRate,
                 $renewedRate,
                 $overdueRate
@@ -294,7 +283,7 @@ class InterestCalculationService
             $interestBreakdown = $this->calculateMonthlyBreakdown(
                 $principal,
                 $monthsElapsed,
-                'standard',
+                $scenario,
                 $standardRate,
                 $renewedRate,
                 $overdueRate
