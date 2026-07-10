@@ -191,12 +191,21 @@ export default function NewPledge() {
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
 
+  // The loan term runs to the END of the standard bucket, not to the end of its
+  // first tier. Taking the first rule's to_month gave a 3-month pledge whenever
+  // months 1-3 and 4-6 were configured as separate tiers. Mirrors the backend's
+  // PledgeController, which must agree with this or the preview lies.
+  const getPledgeTermMonths = () => {
+    const custom = interestRatesList.filter(r => r.rate_type === 'custom');
+    const tiers = custom.length > 0 ? custom : interestRatesList.filter(r => r.rate_type === 'standard');
+    const end = tiers.reduce((max, r) => Math.max(max, parseInt(r.to_month) || 0), 0);
+    return end || 6;
+  };
+
   // Helper to calculate due date (dynamic months from interest rate settings)
   const calculateDueDate = () => {
-    const primaryRate = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard');
-    const months = primaryRate ? (parseInt(primaryRate.to_month) || 6) : 6;
     const d = new Date();
-    d.setMonth(d.getMonth() + months);
+    d.setMonth(d.getMonth() + getPledgeTermMonths());
     d.setDate(d.getDate() - 1);
     return d;
   };
@@ -3247,7 +3256,7 @@ export default function NewPledge() {
               <div className="mt-4 p-4 bg-zinc-100 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Clock className="w-5 h-5 text-zinc-500" />
-                  <div><p className="text-sm font-medium text-zinc-700">Loan Period</p><p className="text-xs text-zinc-500">{(() => { const pr = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard'); return pr ? `${pr.to_month || 6} months tenure` : 'Standard 6 months tenure'; })()}</p></div>
+                  <div><p className="text-sm font-medium text-zinc-700">Loan Period</p><p className="text-xs text-zinc-500">{`${getPledgeTermMonths()} months tenure`}</p></div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-zinc-500">Due Date</p>
@@ -3791,7 +3800,24 @@ export default function NewPledge() {
                   <AlertCircle className="w-5 h-5 text-amber-600" />
                   <div className="text-sm flex-1">
                     <p className="font-medium text-amber-800">Due Date: {calculateDueDate().toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" })}</p>
-                    <p className="text-amber-600">{(() => { const pr = interestRatesList.find(r => r.rate_type === 'custom' || r.rate_type === 'standard'); const months = pr ? (parseInt(pr.to_month) || 6) : 6; const prType = pr ? (pr.rate_type === 'custom' ? 'standard' : pr.rate_type) : 'standard'; const rate = rateOverrides[prType] != null ? rateOverrides[prType] : (pr ? (parseFloat(pr.rate_percentage) || 0.5) : 0.5); return `${months} months from today. Interest at ${rate.toFixed ? rate.toFixed(2) : rate}% per month.`; })()}</p>
+                    <p className="text-amber-600">{(() => {
+                      const months = getPledgeTermMonths();
+                      const custom = interestRatesList.filter(r => r.rate_type === 'custom');
+                      const tiers = (custom.length > 0 ? custom : interestRatesList.filter(r => r.rate_type === 'standard'))
+                        .slice().sort((a, b) => (parseInt(a.from_month) || 1) - (parseInt(b.from_month) || 1));
+                      const override = rateOverrides['standard'];
+                      // A flat override replaces the whole ladder, so quote one rate.
+                      // Otherwise spell the tiers out — "0.50% per month" would hide
+                      // that months 4-6 cost double.
+                      if (override != null || tiers.length <= 1) {
+                        const rate = override != null ? override : (tiers[0] ? parseFloat(tiers[0].rate_percentage) || 0.5 : 0.5);
+                        return `${months} months from today. Interest at ${Number(rate).toFixed(2)}% per month.`;
+                      }
+                      const ladder = tiers
+                        .map(t => `${Number(parseFloat(t.rate_percentage) || 0).toFixed(2)}% for months ${t.from_month}-${t.to_month}`)
+                        .join(', ');
+                      return `${months} months from today. Interest at ${ladder}.`;
+                    })()}</p>
                   </div>
                   {rateSource !== 'global' && (
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${rateSource === 'customer' ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-700'}`}>

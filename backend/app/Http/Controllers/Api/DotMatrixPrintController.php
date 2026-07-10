@@ -705,19 +705,60 @@ HTML;
             $settings['interest_rate_overdue'] = number_format((float) $pledge->interest_rate_overdue, 2);
         }
 
-        // Dynamically calculate redemption period from pledge dates
-        if ($pledge->pledge_date && $pledge->due_date) {
+        // The standard bucket may be split into tiers (e.g. 0.50% months 1-3 then
+        // 1.00% months 4-6). Read the ladder FROZEN ON THE PLEDGE, never from
+        // Settings, so a reprint after a rate change still shows what the customer
+        // signed for. Pledges created before tiering carry none and keep printing
+        // the single flat rate they have always shown.
+        //
+        // loadMissing here rather than in each of the seven callers' load() lists.
+        $pledge->loadMissing('interestTiers');
+
+        $settings['standard_tiers'] = $pledge->interestTiers
+            ->where('rate_type', 'standard')
+            ->sortBy('from_month')
+            ->map(fn($t) => [
+                'from_month' => (int) $t->from_month,
+                'to_month' => (int) $t->to_month,
+                'rate' => number_format((float) $t->rate_percentage, 2),
+            ])
+            ->values()
+            ->all();
+
+        // The redemption period is the term the customer ORIGINALLY signed for.
+        //
+        // It used to be measured pledge_date -> due_date, but a renewal pushes
+        // due_date forward, so a 6-month pledge renewed by 2 months printed
+        // "UNTUK TEMPOH 8 BULAN PERTAMA" — describing a term that never existed.
+        //
+        // The frozen tier ladder is the authoritative source: its last standard tier
+        // ends where the standard bucket ends, and it cannot drift. Pledges created
+        // before tiering fall back to the due date as it stood before the first
+        // renewal, and finally to the current due date for a pledge never renewed.
+        $months = 0;
+
+        $lastTier = end($settings['standard_tiers']) ?: null;
+        if ($lastTier && $lastTier['to_month'] > 0) {
+            $months = (int) $lastTier['to_month'];
+        }
+
+        if ($months === 0 && $pledge->pledge_date) {
             $pledgeDate = $pledge->pledge_date instanceof Carbon
                 ? $pledge->pledge_date
                 : Carbon::parse($pledge->pledge_date);
-            $dueDate = $pledge->due_date instanceof Carbon
-                ? $pledge->due_date
-                : Carbon::parse($pledge->due_date);
-            // due_date is typically pledge_date + N months - 1 day, so add 1 day to get exact month count
-            $months = (int) $pledgeDate->diffInMonths($dueDate->copy()->addDay());
-            if ($months > 0) {
-                $settings['redemption_period'] = $months . ' BULAN';
+
+            $firstRenewal = $pledge->renewals()->orderBy('id')->first();
+            $originalDue = $firstRenewal ? $firstRenewal->previous_due_date : $pledge->due_date;
+
+            if ($originalDue) {
+                $originalDue = $originalDue instanceof Carbon ? $originalDue : Carbon::parse($originalDue);
+                // due_date is pledge_date + N months - 1 day, so add the day back.
+                $months = (int) $pledgeDate->diffInMonths($originalDue->copy()->addDay());
             }
+        }
+
+        if ($months > 0) {
+            $settings['redemption_period'] = $months . ' BULAN';
         }
 
         return $settings;
@@ -2672,6 +2713,61 @@ HTML;
      * FRONT PAGE Ã¢â‚¬â€ Pre-Printed Blank Form (A5 Landscape)
      * UPDATED: 3-column customer layout matching physical form
      */
+    /**
+     * The KADAR KEUNTUNGAN BULANAN block, and the ticket spacer that pays for it.
+     *
+     * When the pledge carries a tiered standard rate, each tier gets its own numbered
+     * line describing how long it LASTS — matching the wording of the lines below —
+     * and the later lines renumber. An untiered pledge prints the single line it
+     * always has, so nothing shifts for pledges created before tiering.
+     *
+     * The right column, not the 26mm barcode beside it, sets the mid-section height,
+     * and the data overlay positions itself against the form with absolute mm offsets.
+     * So the block must not change height, or every field below slides off the
+     * pre-printed stationery. Measured in the browser, not derived: every entry wraps
+     * to two visual lines in the 45mm column and renders at 5.03mm whatever its
+     * wording, so a fourth entry costs exactly one entry's height and the ticket-number
+     * spacer gives it back. Do not estimate this from character counts.
+     *
+     * @return array{0: string, 1: float} [kadar lines HTML, ticket spacer in mm]
+     */
+    private function buildKadarBlock(array $settings, string $redemptionPeriod): array
+    {
+        $num = 0;
+        $line = function (string $body) use (&$num): string {
+            $num++;
+            return '<div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> '
+                . $num . '.</span> ' . $body . '</div>';
+        };
+
+        $standardTiers = $settings['standard_tiers'] ?? [];
+        $html = '';
+
+        if (count($standardTiers) > 1) {
+            foreach ($standardTiers as $i => $tier) {
+                $span = $tier['to_month'] - $tier['from_month'] + 1;
+                $when = $i === 0 ? 'PERTAMA' : 'SETERUSNYA';
+                $html .= $line(
+                    htmlspecialchars($tier['rate'], ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                    . "% SEBULAN : UNTUK TEMPOH {$span} BULAN {$when}"
+                );
+            }
+        } else {
+            $normal = htmlspecialchars($settings['interest_rate_normal'] ?? '0.5', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $html .= $line("{$normal}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA");
+        }
+
+        $extended = htmlspecialchars($settings['interest_rate_extended'] ?? '1.0', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $overdue = htmlspecialchars($settings['interest_rate_overdue'] ?? '2.0', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $html .= $line("{$extended}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}");
+        $html .= $line("{$overdue}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}");
+
+        // Three entries -> 10mm (unchanged); each extra entry gives back 5.03mm.
+        $spacer = round(10 - max(0, $num - 3) * 5.03, 2);
+
+        return [$html, $spacer];
+    }
+
     private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false, $customer = null): string
     {
         // Dynamic ID label: "No. Pasport" for foreign customers (passport), else "No. Kad Pengenalan"
@@ -2699,6 +2795,9 @@ HTML;
         } else {
             $rateRowCells = '<div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">' . $redemptionPeriod . '</div></div>';
         }
+
+        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod);
+
         $phoneHtml = $phone1;
         if ($phone2) {
             $phoneHtml .= '<br>' . $phone2;
@@ -2892,15 +2991,13 @@ HTMLSTART
             </div>
         </div>
         <div class="pp-rcol">
-            <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
+            <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space" style="min-height: {$ticketSpacer}mm;"></div></div>
             <div class="pp-rate-row">
                 {$rateRowCells}
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}</span></div>
+                {$kadarLines}
             </div>
         </div>
     </div>
@@ -5619,6 +5716,8 @@ HTML;
         $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $logoUrl = $settings['logo_url'] ?? null;
 
+        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod);
+
         $phoneHtml = $phone1;
         if ($phone2) {
             $phoneHtml .= '<br>' . $phone2;
@@ -5813,15 +5912,13 @@ HTMLSTART
             </div>
         </div>
         <div class="pp-rcol">
-            <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space"></div></div>
+            <div class="pp-tkt-box"><div class="pp-tkt-lbl">NO. TIKET:</div><div class="pp-tkt-space" style="min-height: {$ticketSpacer}mm;"></div></div>
             <div class="pp-rate-row">
                 <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
             </div>
             <div class="pp-kadar">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}</span></div>
-                <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 3.</span> {$settings['interest_rate_overdue']}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}</span></div>
+                {$kadarLines}
             </div>
         </div>
     </div>
@@ -6024,7 +6121,7 @@ HTML;
     background: #1a7a3a;
     font-family: Arial, Helvetica, sans-serif;
     letter-spacing: 1px;
-    padding: 1.5mm 2mm;
+    /*padding: 1.5mm 2mm;*/
     border-radius: 2px;
     height: 7mm;
     display: flex;

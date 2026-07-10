@@ -748,6 +748,16 @@ export default function RenewalScreen() {
   const interestBreakdown = calculation?.calculation?.interest_breakdown || [];
   const newDueDate = calculation?.renewal?.new_due_date;
 
+  // A renewal may only proceed once the accrued interest is settled in full and the
+  // pledge has renewals left. The backend enforces both; the screen mirrors them so
+  // the operator can see why. Absent a calculation this is blocked, so the button is
+  // never enabled for a pledge that has not been checked.
+  const eligibility = calculation?.eligibility;
+  const canRenew = eligibility?.allowed === true;
+  const blockedReason = eligibility?.reason || "";
+  const renewalsUsed = eligibility?.renewals_used ?? 0;
+  const renewalsAllowed = eligibility?.renewals_allowed ?? 0;
+
   // Days until due
   const getDaysUntilDue = () => {
     if (!pledge?.dueDate) return 0;
@@ -2060,8 +2070,8 @@ export default function RenewalScreen() {
                     </span>
                   </div>
                   <p className="text-xs text-zinc-500 pt-1">
-                    Payable on the Interest Payments screen, or at redemption. Not
-                    collected here.
+                    Must be settled in full on the Interest Payments screen before
+                    this pledge can be extended. Not collected here.
                   </p>
                 </div>
               </Card>
@@ -2073,17 +2083,29 @@ export default function RenewalScreen() {
                   Confirm Renewal
                 </h4>
 
-                {/* A renewal extends the due date only. Interest keeps accruing and is
-                    settled on the Interest Payments screen, or at redemption. */}
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm text-amber-800">
-                    <span className="font-semibold">No payment is collected here.</span>{" "}
-                    Renewing only extends the due date. The outstanding interest of{" "}
-                    <span className="font-semibold">{formatCurrency(interestAmount)}</span>{" "}
-                    can be settled on the Interest Payments screen, or when the pledge
-                    is redeemed.
-                  </p>
-                </div>
+                {/* A renewal extends the due date only, and may proceed only once the
+                    accrued interest is paid in full and renewals remain. */}
+                {!canRenew && blockedReason ? (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">
+                      <span className="font-semibold">
+                        This pledge cannot be extended.
+                      </span>{" "}
+                      {blockedReason}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <span className="font-semibold">
+                        No payment is collected here.
+                      </span>{" "}
+                      Renewing only extends the due date. The interest accrued so far
+                      has been settled, and this pledge has used {renewalsUsed} of{" "}
+                      {renewalsAllowed} renewals.
+                    </p>
+                  </div>
+                )}
 
                 {/* New Due Date Preview */}
                 <div className="mb-6 p-4 bg-green-50 rounded-lg">
@@ -2117,7 +2139,7 @@ export default function RenewalScreen() {
                   leftIcon={CheckCircle}
                   onClick={handleProcessRenewal}
                   loading={isProcessing}
-                  disabled={!termsAgreed || isCalculating}
+                  disabled={!termsAgreed || isCalculating || !canRenew}
                 >
                   Extend Pledge
                 </Button>

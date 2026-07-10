@@ -315,10 +315,10 @@ export default function PledgeList() {
 
     switch (type) {
       case 'print':
-        handlePrint(payload.id);
+        handlePrint(payload.pledge);
         break;
       case 'reprint':
-        handleReprint(payload.id);
+        handleReprint(payload.pledge);
         break;
       case 'barcode':
         // Show reprint reason modal instead of printing directly
@@ -333,9 +333,25 @@ export default function PledgeList() {
     setPendingAction(null);
   };
 
+  // The pre-printed form to print depends on the last thing that happened to
+  // the pledge: a redemption closes it, otherwise the newest renewal, otherwise
+  // it is still the original pledge. `renewals` and `redemption` are eager
+  // loaded newest-first and capped at one row, so [0] is the latest.
+  const resolvePrintTarget = (pledge) => {
+    if (pledge.status === "redeemed" && pledge.latestRedemptionId) {
+      return { kind: "redemption", id: pledge.latestRedemptionId, label: "Redemption" };
+    }
+    if (pledge.renewalCount > 0 && pledge.latestRenewalId) {
+      return { kind: "renewal", id: pledge.latestRenewalId, label: "Renewal" };
+    }
+    return { kind: "pledge", id: pledge.id, label: "Pledge" };
+  };
+
   // Handle print pre-printed form with data
-  const handlePrint = async (pledgeId, e) => {
+  const handlePrint = async (pledge, e) => {
     if (e) e.stopPropagation();
+    const pledgeId = pledge.id;
+    const target = resolvePrintTarget(pledge);
 
     // Get token using the helper function
     const token = getToken();
@@ -356,7 +372,7 @@ export default function PledgeList() {
       const apiUrl =
         import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledgeId}`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/${target.kind}/${target.id}`,
         {
           method: "POST",
           headers: {
@@ -370,7 +386,9 @@ export default function PledgeList() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || "Failed to generate pre-printed form");
+        throw new Error(
+          data.message || `Failed to generate ${target.label} pre-printed form`,
+        );
       }
 
       const frontHtml = data.data.front_html || "";
@@ -531,8 +549,10 @@ export default function PledgeList() {
   };
 
   // Handle print pre-printed form with data (REPRINT)
-  const handleReprint = async (pledgeId, e) => {
+  const handleReprint = async (pledge, e) => {
     if (e) e.stopPropagation();
+    const pledgeId = pledge.id;
+    const target = resolvePrintTarget(pledge);
 
     // Get token using the helper function
     const token = getToken();
@@ -553,7 +573,7 @@ export default function PledgeList() {
       const apiUrl =
         import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
       const response = await fetch(
-        `${apiUrl}/print/dot-matrix/pre-printed-with-form/pledge/${pledgeId}/reprint`,
+        `${apiUrl}/print/dot-matrix/pre-printed-with-form/${target.kind}/${target.id}/reprint`,
         {
           method: "POST",
           headers: {
@@ -567,7 +587,10 @@ export default function PledgeList() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || "Failed to generate pre-printed reprint form");
+        throw new Error(
+          data.message ||
+            `Failed to generate ${target.label} pre-printed reprint form`,
+        );
       }
 
       const frontHtml = data.data.front_html || "";
@@ -1737,7 +1760,7 @@ export default function PledgeList() {
                               variant="ghost"
                               size="icon-sm"
                               disabled={printingId === pledge.id}
-                              onClick={(e) => handleActionWithPasskey('print', { id: pledge.id }, e)}
+                              onClick={(e) => handleActionWithPasskey('print', { pledge }, e)}
                               title="A5 Landscape - Pre-Printed Form with Data"
                             >
                               {printingId === pledge.id ? (
@@ -1754,7 +1777,7 @@ export default function PledgeList() {
                               variant="ghost"
                               size="icon-sm"
                               disabled={reprintingId === pledge.id}
-                              onClick={(e) => handleActionWithPasskey('reprint', { id: pledge.id }, e)}
+                              onClick={(e) => handleActionWithPasskey('reprint', { pledge }, e)}
                               title="A5 Landscape - Pre-Printed Form Reprint"
                               className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                             >

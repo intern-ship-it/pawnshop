@@ -14,6 +14,7 @@ import {
 import { getStorageUrl } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import PasskeyModal from "@/components/common/PasskeyModal";
+import HistoryWaveTimeline from "./HistoryWaveTimeline";
 import { motion, AnimatePresence } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { Card, Button, Badge, Modal, Input } from "@/components/common";
@@ -129,6 +130,17 @@ export default function PledgeDetail() {
           interestRate: parseFloat(data.interest_rate) || 0.5,
           interestRateExtended: parseFloat(data.interest_rate_extended) || 1.5,
           interestRateOverdue: parseFloat(data.interest_rate_overdue) || 2.0,
+          // The standard rate may be split into tiers, frozen onto the pledge at
+          // creation. Empty for pledges created before tiering, which carry a single
+          // flat standard rate in interest_rate.
+          standardTiers: (data.interest_tiers || [])
+            .filter((t) => t.rate_type === "standard")
+            .sort((a, b) => a.from_month - b.from_month)
+            .map((t) => ({
+              fromMonth: t.from_month,
+              toMonth: t.to_month,
+              rate: parseFloat(t.rate_percentage) || 0,
+            })),
           pledgeDate: data.pledge_date,
           dueDate: data.due_date,
           graceEndDate: data.grace_end_date,
@@ -199,12 +211,16 @@ export default function PledgeDetail() {
             referenceNo: payment.reference_no,
             paymentMethod: payment.payment_method,
             paymentDate: payment.payment_date,
+            occurredAt: payment.created_at,
             createdBy: payment.created_by_user?.name || payment.created_by?.name || "",
           })),
           renewals: (data.renewals || []).map((renewal) => ({
             id: renewal.id,
             renewalNo: renewal.renewal_no,
+            // There is no renewal_date column; created_at is the only timestamp,
+            // and it carries seconds, so it is also the timeline's sort key.
             renewalDate: renewal.created_at,
+            occurredAt: renewal.created_at,
             previousDueDate: renewal.previous_due_date,
             newDueDate: renewal.new_due_date,
             interestAmount: parseFloat(renewal.interest_amount) || 0,
@@ -215,7 +231,9 @@ export default function PledgeDetail() {
           interestPayments: (data.interest_payments || []).map((payment) => ({
             id: payment.id,
             paymentNo: payment.payment_no,
+            // No payment_date column; created_at is the only timestamp.
             paymentDate: payment.created_at,
+            occurredAt: payment.created_at,
             interestAmount: parseFloat(payment.interest_amount) || 0,
             totalPayable: parseFloat(payment.total_payable) || 0,
             interestRate: parseFloat(payment.interest_rate) || 0,
@@ -227,7 +245,9 @@ export default function PledgeDetail() {
           redemptions: (data.redemption || []).map((r) => ({
             id: r.id,
             redemptionNo: r.redemption_no,
+            // No redemption_date column exists; created_at is the only timestamp.
             redemptionDate: r.created_at,
+            occurredAt: r.created_at,
             principalAmount: parseFloat(r.principal_amount) || 0,
             interestMonths: r.interest_months,
             interestRate: parseFloat(r.interest_rate) || 0,
@@ -950,20 +970,45 @@ export default function PledgeDetail() {
                 </div>
               </div>
 
-              {/* Interest Rates - All 3 tiers */}
+              {/* Interest Rates - one box per standard tier, then extended and overdue */}
               <div className="mt-4">
                 <p className="text-sm font-medium text-zinc-500 mb-2">Interest Rates (applied to this pledge)</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-blue-600 font-medium">Standard Rate</p>
-                      <span className="text-xs text-blue-400">Per month</span>
+                <div
+                  className={`grid grid-cols-1 gap-3 ${
+                    pledge.standardTiers.length > 1 ? "md:grid-cols-4" : "md:grid-cols-3"
+                  }`}
+                >
+                  {pledge.standardTiers.length > 1 ? (
+                    pledge.standardTiers.map((tier) => (
+                      <div
+                        key={tier.fromMonth}
+                        className="p-3 bg-blue-50 rounded-lg border border-blue-100"
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-blue-600 font-medium">
+                            Standard Rate
+                          </p>
+                          <span className="text-xs text-blue-400">Per month</span>
+                        </div>
+                        <p className="text-2xl font-bold text-blue-700 mt-1">{tier.rate}%</p>
+                        <p className="text-xs text-blue-500 mt-1">
+                          Months {tier.fromMonth}&ndash;{tier.toMonth} &middot;{" "}
+                          {formatCurrency(pledge.loanAmount * (tier.rate / 100))}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-blue-600 font-medium">Standard Rate</p>
+                        <span className="text-xs text-blue-400">Per month</span>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-700 mt-1">{pledge.interestRate}%</p>
+                      <p className="text-xs text-blue-500 mt-1">
+                        Monthly: {formatCurrency(pledge.loanAmount * (pledge.interestRate / 100))}
+                      </p>
                     </div>
-                    <p className="text-2xl font-bold text-blue-700 mt-1">{pledge.interestRate}%</p>
-                    <p className="text-xs text-blue-500 mt-1">
-                      Monthly: {formatCurrency(pledge.loanAmount * (pledge.interestRate / 100))}
-                    </p>
-                  </div>
+                  )}
                   <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-amber-600 font-medium">Extended Rate</p>
@@ -1486,223 +1531,7 @@ export default function PledgeDetail() {
             exit={{ opacity: 0 }}
           >
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-zinc-800 mb-4">
-                Transaction History
-              </h3>
-
-              {/* Timeline */}
-              <div className="space-y-4">
-                {/* Pledge Created */}
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div className="w-px h-full bg-zinc-200" />
-                  </div>
-                  <div className="pb-6">
-                    <p className="font-semibold text-zinc-800">
-                      Pledge Created
-                    </p>
-                    <p className="text-sm font-semibold text-blue-600">
-                      {formatDate(pledge.pledgeDate || pledge.createdAt)}
-                    </p>
-                    <p className="text-sm font-semibold text-emerald-600 mt-1">
-                      Loan amount: {formatCurrency(pledge.loanAmount)} (
-                      {pledge.items?.length || 0} items)
-                    </p>
-                    {pledge.createdBy && (
-                      <p className="text-xs font-semibold text-amber-600 mt-1">
-                        By: {pledge.createdBy}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Payment Info - payments may be split across banks; show as one entry */}
-                {pledge.payments?.length > 0 &&
-                  (() => {
-                    const rows = pledge.payments;
-                    const primary = rows[0];
-                    const totalCash = rows.reduce((s, p) => s + (p.cashAmount || 0), 0);
-                    const banks = rows.filter((p) => p.bankName);
-                    const paymentDate = rows.find((p) => p.paymentDate)?.paymentDate;
-                    const createdBy = primary.createdBy || pledge.createdBy;
-                    return (
-                      <div className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                            <CreditCard className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div className="w-px h-full bg-zinc-200" />
-                        </div>
-                        <div className="pb-6">
-                          <p className="font-semibold text-zinc-800">
-                            Payout - {primary.paymentMethod}
-                          </p>
-                          <p className="text-sm font-semibold text-blue-600">
-                            {formatDate(paymentDate)}
-                          </p>
-                          <div className="text-sm font-semibold text-emerald-600 mt-1 space-y-0.5">
-                            {totalCash > 0 && (
-                              <p>Cash: {formatCurrency(totalCash)}</p>
-                            )}
-                            {banks.map((b, i) => (
-                              <p key={i}>
-                                Transfer: {formatCurrency(b.transferAmount)} ({b.bankName})
-                              </p>
-                            ))}
-                          </div>
-                          {createdBy && (
-                            <p className="text-xs font-semibold text-amber-600 mt-1">
-                              By: {createdBy}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                {/* Renewals - show each renewal with date */}
-                {pledge.renewals?.length > 0
-                  ? pledge.renewals.map((renewal, idx) => (
-                    <div key={renewal.id || idx} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                          <RefreshCw className="w-5 h-5 text-amber-600" />
-                        </div>
-                        <div className="w-px h-full bg-zinc-200" />
-                      </div>
-                      <div className="pb-6">
-                        <p className="font-semibold text-zinc-800">
-                          Renewal #{idx + 1}
-                          {renewal.renewalNo && (
-                            <span className="ml-2 text-xs font-mono text-zinc-400">
-                              ({renewal.renewalNo})
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-sm text-zinc-500">
-                          {formatDate(renewal.renewalDate)}
-                        </p>
-                        <div className="text-sm text-zinc-600 mt-1">
-                          <p>Extended for {renewal.renewalMonths} month(s)</p>
-                          <p>
-                            Interest paid:{" "}
-                            {formatCurrency(renewal.interestAmount)}
-                          </p>
-                          <p className="text-amber-600">
-                            New due date: {formatDate(renewal.newDueDate)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                  : pledge.renewalCount > 0 && (
-                    <div className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                          <RefreshCw className="w-5 h-5 text-amber-600" />
-                        </div>
-                        <div className="w-px h-full bg-zinc-200" />
-                      </div>
-                      <div className="pb-6">
-                        <p className="font-semibold text-zinc-800">
-                          Renewals ({pledge.renewalCount})
-                        </p>
-                        <p className="text-sm text-zinc-500">
-                          Legacy data
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Interest Payments */}
-                {pledge.interestPayments?.length > 0 && pledge.interestPayments.map((payment, idx) => (
-                  <div key={payment.id || idx} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white shadow-sm">
-                        <Banknote className="w-5 h-5" />
-                      </div>
-                      <div className="w-px h-full bg-zinc-200" />
-                    </div>
-                    <div className="pb-6 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-zinc-800">Interest Payment</p>
-                        {payment.paymentNo && (
-                          <span className="text-xs font-mono text-zinc-400">
-                            ({payment.paymentNo})
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
-                          {payment.interestMonths} mo paid
-                        </span>
-                      </div>
-                      <p className="text-sm text-zinc-500 mt-0.5">
-                        {formatDate(payment.paymentDate)}
-                      </p>
-                      <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="bg-zinc-50 rounded-lg p-2.5 border border-zinc-100">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Period</p>
-                          <p className="text-xs font-medium text-zinc-700 mt-0.5">{payment.interestMonths} month(s)</p>
-                          <p className="text-[10px] text-zinc-500">at {payment.interestRate}%</p>
-                        </div>
-                        <div className="bg-zinc-50 rounded-lg p-2.5 border border-zinc-100">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Coverage</p>
-                          <p className="text-xs font-medium text-zinc-700 mt-0.5">{formatDate(payment.periodFrom)}</p>
-                          <p className="text-[10px] text-zinc-500">to {formatDate(payment.periodTo)}</p>
-                        </div>
-                        <div className="bg-emerald-50 rounded-lg p-2.5 border border-emerald-100">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-700">Amount Paid</p>
-                          <p className="text-sm font-bold text-emerald-700 mt-0.5">{formatCurrency(payment.totalPayable)}</p>
-                        </div>
-                        <div className="bg-amber-50 rounded-lg p-2.5 border border-amber-100">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-amber-700">Per Month</p>
-                          <p className="text-sm font-bold text-amber-700 mt-0.5">{formatCurrency(payment.totalPayable / payment.interestMonths)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Redemptions */}
-                {pledge.redemptions?.length > 0 && pledge.redemptions.map((r, idx) => (
-                  <div key={r.id || idx} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <DollarSign className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="w-px h-full bg-zinc-200" />
-                    </div>
-                    <div className="pb-6">
-                      <p className="font-semibold text-zinc-800">
-                        {r.isPartial ? "Partial Redemption" : "Redemption"}
-                        {r.redemptionNo && (
-                          <span className="ml-2 text-xs font-mono text-zinc-400">
-                            ({r.redemptionNo})
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-sm text-zinc-500">
-                        {formatDate(r.redemptionDate)}
-                      </p>
-                      <div className="text-sm text-zinc-600 mt-1">
-                        <p>Principal: {formatCurrency(r.principalAmount)}</p>
-                        <p>Interest ({r.interestMonths} mo @ {r.interestRate}%): {formatCurrency(r.interestAmount)}</p>
-                        {r.handlingFee > 0 && <p>Handling fee: {formatCurrency(r.handlingFee)}</p>}
-                        <p className="mt-1 font-medium">
-                          Total paid: {formatCurrency(r.totalPayable)} ({r.paymentMethod}
-                          {r.bankName && ` - ${r.bankName}`}
-                          {r.referenceNo && ` · ${r.referenceNo}`})
-                        </p>
-                        {r.createdBy && (
-                          <p className="text-xs text-zinc-400">By: {r.createdBy}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <HistoryWaveTimeline pledge={pledge} />
             </Card>
           </motion.div>
         )}

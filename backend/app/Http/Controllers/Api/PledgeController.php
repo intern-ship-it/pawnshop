@@ -547,9 +547,18 @@ class PledgeController extends Controller
                 $q->where('branch_id', $branchId)->orWhereNull('branch_id');
             })->where('is_active', true)->orderBy('sort_order')->get();
 
-            // Determine pledge duration from the primary rate (custom > standard)
-            $primaryRate = $interestRates->whereIn('rate_type', ['custom', 'standard'])->first();
-            $pledgeMonths = $primaryRate ? ($primaryRate->to_month ?? 6) : 6;
+            // The standard bucket may be split into tiers (e.g. 0.5% months 1-3 then
+            // 1.0% months 4-6), lowest month first. A 'custom' rule still overrides
+            // the standard ones outright, as it always has.
+            $customTiers = $interestRates->where('rate_type', 'custom');
+            $standardTiers = ($customTiers->isNotEmpty() ? $customTiers : $interestRates->where('rate_type', 'standard'))
+                ->sortBy(fn($r) => $r->from_month ?? 1)
+                ->values();
+
+            // The term runs to the END of the standard bucket, not to the end of its
+            // first tier. Taking ->first()->to_month gave a 3-month pledge whenever
+            // months 1-3 and 4-6 were configured separately.
+            $pledgeMonths = (int) ($standardTiers->max(fn($r) => $r->to_month ?? 0) ?: 6);
             $dueDate = Carbon::today()->addMonths($pledgeMonths)->subDay();
 
             // Set rates: Priority order:
@@ -557,10 +566,14 @@ class PledgeController extends Controller
             // 2. Customer custom rates (per-person defaults from customer profile)
             // 3. Global InterestRate settings (from Settings page)
             // 4. Config fallback
+            //
+            // interest_rate holds the rate for month 1 — the FIRST standard tier.
+            // keyBy('rate_type') collapsed the tiers and silently kept the last row,
+            // so a pledge configured for 0.5% months 1-3 was created at 1.0%.
             $ratesByType = $interestRates->keyBy('rate_type');
-            $globalStandard = isset($ratesByType['custom']) ? $ratesByType['custom']->rate_percentage
-                : (isset($ratesByType['standard']) ? $ratesByType['standard']->rate_percentage
-                : config('pawnsys.interest.standard', 0.5));
+            $globalStandard = $standardTiers->isNotEmpty()
+                ? $standardTiers->first()->rate_percentage
+                : config('pawnsys.interest.standard', 0.5);
             $globalExtended = isset($ratesByType['extended']) ? $ratesByType['extended']->rate_percentage : config('pawnsys.interest.extended', 1.5);
             $globalOverdue = isset($ratesByType['overdue']) ? $ratesByType['overdue']->rate_percentage : config('pawnsys.interest.overdue', 2.0);
 
@@ -636,6 +649,40 @@ class PledgeController extends Controller
                 'terms_accepted_at' => now(),
                 'created_by' => $userId,
             ]);
+
+            // Freeze the rate ladder onto the pledge, so a later Settings edit cannot
+            // reprice a loan the customer has already signed for.
+            //
+            // Skipped when the standard rate was overridden (per-customer or by the
+            // operator), because that override replaces the whole ladder with one
+            // flat rate. Skipped too when there is only one standard tier: a pledge
+            // with no tiers falls back to exactly that flat behaviour, so storing a
+            // single row would be noise.
+            //
+            // The overdue rate is never a tier — it is chosen by the pledge's state,
+            // not by which month it is in.
+            $standardOverridden = $customer->custom_interest_rate !== null
+                || isset($validated['override_interest_rate']);
+
+            if (!$standardOverridden && $standardTiers->count() > 1) {
+                foreach ($standardTiers as $tier) {
+                    $pledge->interestTiers()->create([
+                        'from_month' => $tier->from_month ?? 1,
+                        'to_month' => $tier->to_month,
+                        'rate_percentage' => $tier->rate_percentage,
+                        'rate_type' => 'standard',
+                    ]);
+                }
+
+                // The extended tier runs from the end of the standard bucket onwards.
+                // Month 13 is not a cliff: to_month is left null so the rate continues.
+                $pledge->interestTiers()->create([
+                    'from_month' => $pledgeMonths + 1,
+                    'to_month' => null,
+                    'rate_percentage' => $rateExtended,
+                    'rate_type' => 'extended',
+                ]);
+            }
 
             // Create items
             $itemNumber = 1;
@@ -894,15 +941,24 @@ class PledgeController extends Controller
             'createdBy:id,name',
             'redemption.createdBy:id,name',
             'redemption.bank:id,name',
+            'interestTiers',
         ]);
 
-        // Add interest breakdown
-        $interestBreakdown = $this->interestService->calculateMonthlyBreakdown(
-            $pledge->loan_amount,
-            12,
-            $pledge->interest_rate,
-            $pledge->interest_rate_extended
-        );
+        // The 3rd parameter is the scenario, not a rate. Passing $pledge->interest_rate
+        // fell through to the default branch, so this panel reported a flat rate for
+        // all 12 months — and the rate it reported was interest_rate_extended, which
+        // had landed in $standardRate. 'renewed' is the maintained scenario: standard
+        // months 1-6, extended from 7 on, honouring the pledge's frozen tier ladder.
+        $interestBreakdown = $this->interestService
+            ->forPledge($pledge)
+            ->calculateMonthlyBreakdown(
+                $pledge->loan_amount,
+                12,
+                'renewed',
+                $pledge->interest_rate,
+                $pledge->interest_rate_extended,
+                $pledge->interest_rate_overdue
+            );
 
         return $this->success([
             'pledge' => $pledge,

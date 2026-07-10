@@ -26,6 +26,19 @@ class RedemptionController extends Controller
     }
 
     /**
+     * The calculator to use for a pledge: tier-aware, unless the operator supplied a
+     * flat rate override, which replaces the whole ladder.
+     */
+    private function calculatorFor(Pledge $pledge, $rateOverride): InterestCalculationService
+    {
+        if ($rateOverride !== null && $rateOverride !== '') {
+            return $this->interestService;
+        }
+
+        return $this->interestService->forPledge($pledge);
+    }
+
+    /**
      * List all redemptions
      */
     public function index(Request $request): JsonResponse
@@ -118,7 +131,7 @@ class RedemptionController extends Controller
             $proRataLoanAmount = $pledge->loan_amount * $proRataRatio;
 
             // Calculate interest on pro-rata loan amount
-            $calculation = $this->interestService->calculateRedemption(
+            $calculation = $this->calculatorFor($pledge, $validated['interest_rate'] ?? null)->calculateRedemption(
                 $proRataLoanAmount,
                 $monthsElapsed,
                 $daysOverdue,
@@ -166,7 +179,7 @@ class RedemptionController extends Controller
         }
 
         // Full redemption (original behavior)
-        $calculation = $this->interestService->calculateRedemption(
+        $calculation = $this->calculatorFor($pledge, $validated['interest_rate'] ?? null)->calculateRedemption(
             $pledge->loan_amount,
             $monthsElapsed,
             $daysOverdue,
@@ -333,7 +346,7 @@ class RedemptionController extends Controller
                 $loanAmountToRedeem = $pledge->loan_amount * $proRataRatio;
             }
 
-            $calculation = $this->interestService->calculateRedemption(
+            $calculation = $this->calculatorFor($pledge, $validated['interest_rate'] ?? null)->calculateRedemption(
                 $loanAmountToRedeem,
                 $monthsElapsed,
                 $daysOverdue,

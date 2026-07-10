@@ -127,6 +127,17 @@ class Pledge extends Model
         return $this->hasMany(InterestPayment::class);
     }
 
+    /**
+     * The month-based rate ladder frozen onto this pledge at creation.
+     *
+     * Empty for pledges created before tiering existed; those fall back to the flat
+     * standard/extended rates held in this table's own columns.
+     */
+    public function interestTiers(): HasMany
+    {
+        return $this->hasMany(PledgeInterestTier::class)->orderBy('from_month');
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -153,7 +164,10 @@ class Pledge extends Model
         if (!$this->isOverdue()) {
             return 0;
         }
-        return Carbon::today()->diffInDays($this->due_date);
+        // due_date first: diffInDays counts from the receiver to the argument, so
+        // today->diffInDays(due_date) is negative once the due date has passed.
+        // That made `$daysOverdue > 0` always false and the overdue rate never applied.
+        return (int) $this->due_date->diffInDays(Carbon::today());
     }
 
     public function getMonthsElapsedAttribute(): int

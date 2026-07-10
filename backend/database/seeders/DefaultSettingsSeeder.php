@@ -27,6 +27,10 @@ class DefaultSettingsSeeder extends Seeder
             ['category' => 'pledge', 'key_name' => 'prefix', 'value' => 'PLG', 'value_type' => 'string'],
             ['category' => 'pledge', 'key_name' => 'default_loan_percentage', 'value' => '70', 'value_type' => 'number'],
             ['category' => 'pledge', 'key_name' => 'max_renewal_months', 'value' => '6', 'value_type' => 'number'],
+            // Renewals allowed per pledge. Nothing else ends a pledge's life: a
+            // renewal resets status to 'active', so without this an overdue
+            // customer could renew forever and never reach auction.
+            ['category' => 'pledge', 'key_name' => 'max_renewals', 'value' => '3', 'value_type' => 'number'],
             ['category' => 'pledge', 'key_name' => 'grace_period_days', 'value' => '7', 'value_type' => 'number'],
             ['category' => 'pledge', 'key_name' => 'handling_fee', 'value' => '0.50', 'value_type' => 'number'],
             ['category' => 'pledge', 'key_name' => 'handling_fee_min_loan', 'value' => '10', 'value_type' => 'number'],
