@@ -153,6 +153,15 @@ class User extends Authenticatable
         return $this->role?->slug === 'super-admin';
     }
 
+    /**
+     * Hidden developer identity. Deliberately NOT implied by isSuperAdmin() —
+     * developer tooling is gated on being the developer, not on being powerful.
+     */
+    public function isDeveloper(): bool
+    {
+        return $this->role?->slug === 'developer';
+    }
+
     public function isAdmin(): bool
     {
         return in_array($this->role?->slug, ['super-admin', 'admin']);
