@@ -30,6 +30,7 @@ import {
   Settings,
   Shield,
   AlertTriangle,
+  Image as ImageIcon,
   CheckCircle,
   XCircle,
   Info,
@@ -63,6 +64,14 @@ const actionConfig = {
     label: "Update Pledge",
     icon: Edit,
     color: "amber",
+    category: "transaction",
+  },
+  // Developer backfills of missing item photos. Stored as update+pledge like an
+  // ordinary pledge edit, so the API separates them on record_type=PledgeItem.
+  photo_backfill: {
+    label: "Item Photo Backfill",
+    icon: ImageIcon,
+    color: "purple",
     category: "transaction",
   },
   renewal: {

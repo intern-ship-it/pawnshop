@@ -30,27 +30,7 @@ class AuditController extends Controller
             $query->where('module', $module);
         }
 
-        // Filter by action
-        // Transaction-type actions (redemption, renewal, etc.) are stored as
-        // action='create' + module='redemption', so map them correctly
-        if ($action = $request->get('action')) {
-            $moduleActions = [
-                'redemption' => ['action' => 'create', 'module' => 'redemption'],
-                'renewal' => ['action' => 'create', 'module' => 'renewal'],
-                'pledge_create' => ['action' => 'create', 'module' => 'pledge'],
-                'pledge_update' => ['action' => 'update', 'module' => 'pledge'],
-                'forfeit' => ['action' => 'create', 'module' => 'auction'],
-                'auction' => ['action' => 'create', 'module' => 'auction'],
-            ];
-
-            if (isset($moduleActions[$action])) {
-                $mapping = $moduleActions[$action];
-                $query->where('action', $mapping['action'])
-                      ->where('module', $mapping['module']);
-            } else {
-                $query->where('action', $action);
-            }
-        }
+        $this->applyActionFilter($query, $request->get('action'));
 
         // Date range filter
         if ($dateRange = $request->get('date_range')) {
@@ -126,27 +106,7 @@ class AuditController extends Controller
             $query->where('user_id', $userId);
         }
 
-        // Filter by action
-        // Transaction-type actions (redemption, renewal, etc.) are stored as
-        // action='create' + module='redemption', so map them correctly
-        if ($action = $request->get('action')) {
-            $moduleActions = [
-                'redemption' => ['action' => 'create', 'module' => 'redemption'],
-                'renewal' => ['action' => 'create', 'module' => 'renewal'],
-                'pledge_create' => ['action' => 'create', 'module' => 'pledge'],
-                'pledge_update' => ['action' => 'update', 'module' => 'pledge'],
-                'forfeit' => ['action' => 'create', 'module' => 'auction'],
-                'auction' => ['action' => 'create', 'module' => 'auction'],
-            ];
-
-            if (isset($moduleActions[$action])) {
-                $mapping = $moduleActions[$action];
-                $query->where('action', $mapping['action'])
-                      ->where('module', $mapping['module']);
-            } else {
-                $query->where('action', $action);
-            }
-        }
+        $this->applyActionFilter($query, $request->get('action'));
 
         // Filter by module
         if ($module = $request->get('module')) {
@@ -239,10 +199,77 @@ class AuditController extends Controller
             ->orderBy('name')
             ->get();
 
+        // `photo_backfill` is a synthetic filter, not a value stored in the
+        // `action` column, so the distinct query above can never surface it.
+        // Offer it only when such rows actually exist.
+        $hasBackfills = (clone $query)
+            ->where('action', 'update')
+            ->where('module', 'pledge')
+            ->where('record_type', 'PledgeItem')
+            ->exists();
+
+        if ($hasBackfills) {
+            $actions = $actions->push('photo_backfill')->values();
+        }
+
         return $this->success([
             'modules' => $modules,
             'actions' => $actions,
             'users' => $users,
         ]);
+    }
+
+    /**
+     * Apply the action filter to an audit-log query.
+     *
+     * Shared by auditLogs() and the export so the two can never drift apart.
+     *
+     * Transaction-type actions (redemption, renewal, …) are stored as
+     * action='create' + module='redemption', so they need mapping.
+     */
+    private function applyActionFilter($query, ?string $action): void
+    {
+        if (!$action) {
+            return;
+        }
+
+        // Developer photo backfills are ALSO action=update + module=pledge, so
+        // action+module cannot separate them from an ordinary pledge edit. What
+        // distinguishes them is that they target a PledgeItem, not the Pledge.
+        if ($action === 'photo_backfill') {
+            $query->where('action', 'update')
+                  ->where('module', 'pledge')
+                  ->where('record_type', 'PledgeItem');
+
+            return;
+        }
+
+        $moduleActions = [
+            'redemption' => ['action' => 'create', 'module' => 'redemption'],
+            'renewal' => ['action' => 'create', 'module' => 'renewal'],
+            'pledge_create' => ['action' => 'create', 'module' => 'pledge'],
+            'pledge_update' => ['action' => 'update', 'module' => 'pledge'],
+            'forfeit' => ['action' => 'create', 'module' => 'auction'],
+            'auction' => ['action' => 'create', 'module' => 'auction'],
+        ];
+
+        if (isset($moduleActions[$action])) {
+            $query->where('action', $moduleActions[$action]['action'])
+                  ->where('module', $moduleActions[$action]['module']);
+
+            // A photo backfill is also update+pledge. Keep the two filters disjoint:
+            // "Pledge Update" should mean an edit to the pledge itself, not a
+            // developer attaching a missing item photo.
+            if ($action === 'pledge_update') {
+                $query->where(function ($q) {
+                    $q->where('record_type', '!=', 'PledgeItem')
+                      ->orWhereNull('record_type');
+                });
+            }
+
+            return;
+        }
+
+        $query->where('action', $action);
     }
 }
