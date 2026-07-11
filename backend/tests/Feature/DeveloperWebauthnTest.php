@@ -100,6 +100,23 @@ class DeveloperWebauthnTest extends TestCase
         $this->assertNotNull($svc->pullChallenge($user->id, 'register'));
     }
 
+    public function test_register_options_do_not_pin_to_the_built_in_sensor(): void
+    {
+        $svc = new WebauthnService();
+        $user = $this->developer();
+
+        $options = $svc->registerOptions($user, 'dsaraassetventures.com');
+
+        // Pinning attachment to 'platform' would hide the QR flow, restricting
+        // enrolment to the sensor on the machine running the browser. Null is the
+        // spec's "no preference", which keeps a phone or a security key enrollable.
+        $this->assertNull($options['authenticatorSelection']['authenticatorAttachment']);
+
+        // A phone's cross-device passkey is discoverable; without a resident key the
+        // browser will not offer it.
+        $this->assertSame('required', $options['authenticatorSelection']['residentKey']);
+    }
+
     public function test_login_options_are_scoped_to_this_rp_id(): void
     {
         $svc = new WebauthnService();

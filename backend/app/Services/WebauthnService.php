@@ -99,8 +99,13 @@ class WebauthnService
     }
 
     /**
-     * Options for enrolling this device. `userVerification: required` is what makes
-     * the authenticator actually demand the fingerprint rather than mere presence.
+     * Options for enrolling an authenticator. `userVerification: required` is what
+     * makes it actually demand the fingerprint rather than mere presence.
+     *
+     * No authenticatorAttachment is set, deliberately: pinning it to `platform`
+     * would restrict enrolment to the sensor built into the machine running the
+     * browser, and silently hide the QR flow for a phone or a security key. Leaving
+     * it unset lets the browser offer whatever the user actually has.
      */
     public function registerOptions(User $user, string $host): array
     {
@@ -120,9 +125,10 @@ class WebauthnService
                 PublicKeyCredentialParameters::create('public-key', RS256::ID),
             ],
             authenticatorSelection: AuthenticatorSelectionCriteria::create(
-                authenticatorAttachment: AuthenticatorSelectionCriteria::AUTHENTICATOR_ATTACHMENT_PLATFORM,
                 userVerification: AuthenticatorSelectionCriteria::USER_VERIFICATION_REQUIREMENT_REQUIRED,
-                residentKey: AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_DISCOURAGED,
+                // A phone stores a cross-device passkey as a discoverable credential,
+                // so a resident key is not optional for that flow to be offered.
+                residentKey: AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_REQUIRED,
             ),
             attestation: PublicKeyCredentialCreationOptions::ATTESTATION_CONVEYANCE_PREFERENCE_NONE,
             excludeCredentials: $this->descriptorsFor($user, $rpId),
