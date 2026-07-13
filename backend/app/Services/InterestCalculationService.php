@@ -163,6 +163,25 @@ class InterestCalculationService
     }
 
     /**
+     * The rate and label for a single maintained month, for callers that bill month
+     * by month rather than from month 1 (the interest-payment screen pays months
+     * 4-6 on their own, so it cannot use calculateMonthlyBreakdown's 1..n loop).
+     *
+     * $flatRate is the rate to fall back on when the pledge has no tier covering
+     * this month — an untiered pledge, or a manual override that deliberately
+     * flattens the ladder.
+     */
+    public function rateForMaintainedMonth(int $month, float $flatRate): array
+    {
+        $tier = $this->tierForMonth($month);
+
+        return [
+            'rate' => $tier !== null ? (float) $tier['rate_percentage'] : $flatRate,
+            'rate_type' => $tier !== null ? $tier['rate_type'] : ($month <= 6 ? 'standard' : 'renewed'),
+        ];
+    }
+
+    /**
      * The label for a maintained month: the tier's own rate_type, or the flat split.
      */
     private function maintainedTypeForMonth(int $month): string

@@ -191,10 +191,14 @@ class InterestPaymentController extends Controller
         // Determine interest rate (priority: request param > customer custom > pledge stored rate)
         $rate = $request->input('interest_rate');
         $rateSource = 'global';
+        $isManualOverride = false;
 
         if ($rate !== null && $rate !== '') {
             $rate = (float) $rate;
             $rateSource = 'manual';
+            // A rate typed by the operator replaces the ladder outright: every month
+            // bills at it. Only an untouched box lets the pledge's frozen tiers apply.
+            $isManualOverride = true;
         } elseif ($pledge->customer && $pledge->customer->custom_interest_rate !== null) {
             $rate = (float) $pledge->customer->custom_interest_rate;
             $rateSource = 'customer';
@@ -239,20 +243,28 @@ class InterestPaymentController extends Controller
 
         $periodTo = $periodFrom->copy()->addMonths($monthsRemaining);
 
-        // Calculate interest
+        // Calculate interest, month by month down the pledge's frozen rate ladder.
+        // Paying months 4-6 of a 0.5%/1.0% ladder must bill 1.0%, not the flat
+        // pledges.interest_rate this screen used to apply to every month — that
+        // undercharged every tiered pledge whose payment reached month 4.
         $principal = (float) $pledge->loan_amount;
+        $calculator = $this->interestService->forPledge($pledge);
         $breakdown = [];
         $totalInterest = 0;
         $cumulative = 0;
 
         for ($i = 0; $i < $monthsRemaining; $i++) {
             $monthNumber = $monthsPaid + $i + 1;
-            $monthlyInterest = $principal * ($rate / 100);
+            $monthRate = $isManualOverride
+                ? $rate
+                : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate'];
+
+            $monthlyInterest = $principal * ($monthRate / 100);
             $cumulative += $monthlyInterest;
 
             $breakdown[] = [
                 'month' => $monthNumber,
-                'rate' => $rate,
+                'rate' => $monthRate,
                 'interest' => round($monthlyInterest, 2),
                 'cumulative' => round($cumulative, 2),
             ];
@@ -286,6 +298,9 @@ class InterestPaymentController extends Controller
             'calculation' => [
                 'interest_rate' => $rate,
                 'rate_source' => $rateSource,
+                // True when the months being paid do not all bill at one rate, so the
+                // UI knows the single interest_rate above does not describe the bill.
+                'is_tiered' => count(array_unique(array_column($breakdown, 'rate'))) > 1,
                 'interest_breakdown' => $breakdown,
                 'interest_amount' => $totalInterest,
                 'handling_fee' => round($handlingFee, 2),
@@ -355,8 +370,12 @@ class InterestPaymentController extends Controller
         DB::beginTransaction();
 
         try {
-            // Determine interest rate
+            // Determine interest rate. A rate posted by the operator is a deliberate
+            // override and flattens the ladder; otherwise the pledge's frozen tiers
+            // decide each month. Kept in step with calculate() so the amount charged
+            // is the amount the screen previewed.
             $rate = isset($validated['interest_rate']) ? (float) $validated['interest_rate'] : null;
+            $isManualOverride = $rate !== null;
 
             if ($rate === null) {
                 if ($pledge->customer && $pledge->customer->custom_interest_rate !== null) {
@@ -392,20 +411,27 @@ class InterestPaymentController extends Controller
 
             $periodTo = $periodFrom->copy()->addMonths($monthsRemaining);
 
-            // Calculate interest
+            // Calculate interest down the pledge's frozen ladder, exactly as
+            // calculate() previews it. Each breakdown row records the rate that month
+            // actually billed at, so the receipt and the audit trail agree.
             $principal = (float) $pledge->loan_amount;
+            $calculator = $this->interestService->forPledge($pledge);
             $totalInterest = 0;
             $breakdownData = [];
             $cumulative = 0;
 
             for ($i = 0; $i < $monthsRemaining; $i++) {
                 $monthNumber = $monthsPaid + $i + 1;
-                $monthlyInterest = $principal * ($rate / 100);
+                $monthRate = $isManualOverride
+                    ? $rate
+                    : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate'];
+
+                $monthlyInterest = $principal * ($monthRate / 100);
                 $cumulative += $monthlyInterest;
 
                 $breakdownData[] = [
                     'month_number' => $monthNumber,
-                    'interest_rate' => $rate,
+                    'interest_rate' => $monthRate,
                     'interest_amount' => round($monthlyInterest, 2),
                     'cumulative_amount' => round($cumulative, 2),
                 ];

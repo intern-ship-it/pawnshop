@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { interestPaymentService, settingsService, pledgeService } from "@/services";
@@ -16,6 +17,8 @@ import {
 export default function InterestPaymentScreen() {
   const dispatch = useAppDispatch();
   const debounceRef = useRef(null);
+  const [searchParams] = useSearchParams();
+  const autoLoadedRef = useRef(false);
 
   // Search & pledge state
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,6 +35,11 @@ export default function InterestPaymentScreen() {
   const [interestRate, setInterestRate] = useState("");
   const [globalRate, setGlobalRate] = useState(null);
   const [rateSource, setRateSource] = useState("");
+  // The box is pre-filled with the pledge's rate for the operator to see, so a value
+  // in it does not mean an override. Only send a rate once someone actually edits it —
+  // otherwise the server reads the pre-fill as "flatten the ladder" and every tiered
+  // pledge silently bills its first month's rate for all months.
+  const [rateEdited, setRateEdited] = useState(false);
   const [monthsToPay, setMonthsToPay] = useState("");
 
   // Payment
@@ -85,6 +93,18 @@ export default function InterestPaymentScreen() {
   };
 
   useEffect(() => { loadToday(); }, []);
+
+  // Arrive from the Renewal screen's "cannot be extended" notice with the pledge
+  // already chosen, e.g. /interest-payments?pledge=PLG-HQ-2026-0324. Routed through
+  // the normal search so the same eligibility rules apply — a pledge that is not
+  // payable must not load here just because it was linked to.
+  useEffect(() => {
+    const pledgeNo = searchParams.get("pledge");
+    if (!pledgeNo || autoLoadedRef.current) return;
+    autoLoadedRef.current = true; // once only; don't re-search when the operator resets
+    setSearchQuery(pledgeNo);
+    handleSearch(pledgeNo);
+  }, [searchParams]);
 
   // Auto-fill amount when calculation changes
   useEffect(() => {
@@ -140,15 +160,18 @@ export default function InterestPaymentScreen() {
     }
     setInterestRate(rate);
     setRateSource(source);
+    setRateEdited(false); // fresh pledge: the box is a pre-fill, not an override
     setMonthsToPay(""); // Reset months
-    await fetchCalculation(p.id, rate, null);
+    await fetchCalculation(p.id, rate, null, false);
   };
 
-  const fetchCalculation = async (pledgeId, rate, overrideMonths = null) => {
+  const fetchCalculation = async (pledgeId, rate, overrideMonths = null, isOverride = false) => {
     setIsCalculating(true);
     try {
       const params = { pledge_id: pledgeId };
-      if (rate !== "" && !isNaN(parseFloat(rate))) params.interest_rate = parseFloat(rate);
+      // Send the rate only as a deliberate override; otherwise let the server walk
+      // the pledge's frozen tier ladder (months 1-3 @ 0.5%, months 4-6 @ 1.0%, ...).
+      if (isOverride && rate !== "" && !isNaN(parseFloat(rate))) params.interest_rate = parseFloat(rate);
       if (overrideMonths !== null && overrideMonths !== "") params.months_to_pay = parseInt(overrideMonths);
 
       const res = await interestPaymentService.calculate(params);
@@ -190,7 +213,10 @@ export default function InterestPaymentScreen() {
         transfer_amount: paymentMethod === "transfer" ? totalReceived : paymentMethod === "partial" ? parseFloat(transferAmount) || 0 : 0,
         notes: notes || undefined,
       };
-      if (interestRate !== "" && !isNaN(parseFloat(interestRate))) payload.interest_rate = parseFloat(interestRate);
+      // Same rule as the preview: only a rate the operator actually typed is an
+      // override. Sending the pre-fill here would charge the flat rate the screen
+      // never showed them.
+      if (rateEdited && interestRate !== "" && !isNaN(parseFloat(interestRate))) payload.interest_rate = parseFloat(interestRate);
       if (monthsToPay !== "" && !isNaN(parseInt(monthsToPay))) payload.months_to_pay = parseInt(monthsToPay);
       if ((paymentMethod === "transfer" || paymentMethod === "partial") && bankId) payload.bank_id = parseInt(bankId);
       if (referenceNo) payload.reference_no = referenceNo;
@@ -209,7 +235,7 @@ export default function InterestPaymentScreen() {
 
   const resetForm = () => {
     setPledge(null); setCalculation(null); setPeriod(null); setSearchQuery("");
-    setInterestRate(""); setRateSource(""); setMonthsToPay(""); setPaymentMethod("cash");
+    setInterestRate(""); setRateSource(""); setRateEdited(false); setMonthsToPay(""); setPaymentMethod("cash");
     setCashAmount(""); setTransferAmount(""); setBankId(""); setReferenceNo("");
     setNotes(""); setShowSuccess(false); setResult(null); setPledgeList([]);
   };
@@ -380,7 +406,9 @@ export default function InterestPaymentScreen() {
                         <label className="text-sm text-zinc-600">
                           Interest Rate (%) <span className="text-xs text-zinc-400 font-normal">(Leave empty for default)</span>
                         </label>
-                        {rateSource && (
+                        {calculation?.is_tiered && !rateEdited ? (
+                          <Badge variant="success" size="sm">📊 Tiered Rate</Badge>
+                        ) : rateSource && (
                           <Badge variant={rateSource === 'customer' ? 'warning' : rateSource === 'manual' ? 'info' : 'success'} size="sm">
                             {rateSource === 'customer' && '👤 Customer Rate'}
                             {rateSource === 'global' && '🌐 Global Rate'}
@@ -389,14 +417,19 @@ export default function InterestPaymentScreen() {
                         )}
                       </div>
                       <Input
-                        type="number" step="0.01" placeholder="e.g. 0.5"
-                        value={interestRate}
+                        type="number" step="0.01"
+                        placeholder={calculation?.is_tiered && !rateEdited ? "Tiered — see breakdown below" : "e.g. 0.5"}
+                        // A tiered pledge has no single rate. Showing month 1's rate in
+                        // the box would read as the rate for every month, which is the
+                        // bug this screen had. Leave it empty; type here to override.
+                        value={calculation?.is_tiered && !rateEdited ? "" : interestRate}
                         onChange={(e) => {
                           setInterestRate(e.target.value);
                           setRateSource("manual");
+                          setRateEdited(true);
                           if (pledge?.id) {
                             clearTimeout(window._intPayRateTimer);
-                            window._intPayRateTimer = setTimeout(() => fetchCalculation(pledge.id, e.target.value, monthsToPay), 400);
+                            window._intPayRateTimer = setTimeout(() => fetchCalculation(pledge.id, e.target.value, monthsToPay, true), 400);
                           }
                         }}
                         leftIcon={TrendingUp}
@@ -416,7 +449,7 @@ export default function InterestPaymentScreen() {
                               setMonthsToPay(String(months));
                               if (pledge?.id) {
                                 clearTimeout(window._intPayMonthTimer);
-                                fetchCalculation(pledge.id, interestRate, String(months));
+                                fetchCalculation(pledge.id, interestRate, String(months), rateEdited);
                               }
                             }}
                             className={cn(
