@@ -129,9 +129,12 @@ class WhatsAppController extends Controller
         $templates = WhatsAppTemplate::where(function ($q) use ($branchId) {
             $q->where('branch_id', $branchId)->orWhereNull('branch_id');
         })
-            ->orderBy('sort_order')
-            ->orderBy('template_key')
-            ->get();
+            // Branch override (branch_id set) wins over the global row for the same key.
+            ->orderByRaw('branch_id IS NULL')
+            ->get()
+            ->unique('template_key')
+            ->sortBy([['sort_order', 'asc'], ['template_key', 'asc']])
+            ->values();
 
         return $this->success($templates);
     }
@@ -150,27 +153,15 @@ class WhatsAppController extends Controller
         ]);
 
         foreach ($validated['updates'] as $update) {
-            $template = WhatsAppTemplate::where('template_key', $update['id'])
+            // Update sort_order on every row matching this key within the branch
+            // scope (the branch override and/or the global row). This keeps the
+            // ordering consistent regardless of whether an override exists, and
+            // avoids creating duplicate rows — the bug that motivated this fix.
+            WhatsAppTemplate::where('template_key', $update['id'])
                 ->where(function ($q) use ($branchId) {
                     $q->where('branch_id', $branchId)->orWhereNull('branch_id');
                 })
-                ->first();
-
-            if ($template) {
-                // If it's a global template, create a branch override
-                if (!$template->branch_id) {
-                    WhatsAppTemplate::create(
-                        array_merge(
-                            collect($template->toArray())
-                                ->except(['id', 'created_at', 'updated_at'])
-                                ->toArray(),
-                            ['branch_id' => $branchId, 'sort_order' => $update['sort_order']]
-                        )
-                    );
-                } else {
-                    $template->update(['sort_order' => $update['sort_order']]);
-                }
-            }
+                ->update(['sort_order' => $update['sort_order']]);
         }
 
         return $this->success(null, 'Templates order updated');
@@ -217,6 +208,28 @@ class WhatsAppController extends Controller
         }
 
         return $this->success($whatsAppTemplate, 'Template updated');
+    }
+
+    /**
+     * Delete a template row. TEMPORARY: used to clean up duplicate rows created
+     * by the earlier reorder bug. Only branch-specific rows may be deleted so the
+     * shared global defaults stay intact.
+     */
+    public function deleteTemplate(Request $request, WhatsAppTemplate $whatsAppTemplate): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+
+        if (!$whatsAppTemplate->branch_id) {
+            return $this->error('Cannot delete a global default template', 422);
+        }
+
+        if ($whatsAppTemplate->branch_id !== $branchId) {
+            return $this->error('Unauthorized', 403);
+        }
+
+        $whatsAppTemplate->delete();
+
+        return $this->success(null, 'Template deleted');
     }
 
     /**

@@ -10,6 +10,54 @@ class InterestCalculationService
     const OVERDUE_RATE = 2.0;    // Overdue rate (replaces standard if overdue)
 
     /**
+     * The pledge's frozen month-based rate ladder, if it has one.
+     *
+     * Rows of ['from_month' => int, 'to_month' => ?int, 'rate_percentage' => float],
+     * lowest month first. Empty means "no tiers" — fall back to the flat split.
+     */
+    private array $tiers = [];
+
+    /**
+     * A copy of this service that reads the given ladder.
+     *
+     * Returns a clone rather than mutating, because the container shares one
+     * instance across a request: a pledge's tiers must never leak into the next
+     * pledge's calculation.
+     */
+    /**
+     * A copy of this service that reads the given pledge's frozen ladder.
+     * Pledges created before tiering have none, and keep the flat behaviour.
+     */
+    public function forPledge(\App\Models\Pledge $pledge): self
+    {
+        return $this->withTiers($pledge->interestTiers);
+    }
+
+    public function withTiers(iterable $tiers): self
+    {
+        $rows = [];
+        foreach ($tiers as $tier) {
+            // Accept models, arrays, or anything array-accessible.
+            $get = fn(string $key) => is_array($tier) ? ($tier[$key] ?? null) : $tier->$key;
+
+            $to = $get('to_month');
+            $rows[] = [
+                'from_month' => (int) $get('from_month'),
+                'to_month' => $to === null ? null : (int) $to,
+                'rate_percentage' => (float) $get('rate_percentage'),
+                'rate_type' => (string) $get('rate_type'),
+            ];
+        }
+
+        usort($rows, fn($a, $b) => $a['from_month'] <=> $b['from_month']);
+
+        $clone = clone $this;
+        $clone->tiers = $rows;
+
+        return $clone;
+    }
+
+    /**
      * Calculate monthly interest breakdown based on scenario
      * 
      * Scenarios:
@@ -23,7 +71,8 @@ class InterestCalculationService
         string $scenario = 'standard',
         ?float $standardRate = null,
         ?float $renewedRate = null,
-        ?float $overdueRate = null
+        ?float $overdueRate = null,
+        int $maintainedMonths = 0
     ): array {
         // Use provided rates or defaults
         $standardRate = $standardRate ?? self::STANDARD_RATE;
@@ -35,7 +84,7 @@ class InterestCalculationService
 
         for ($month = 1; $month <= $months; $month++) {
             // Determine rate based on scenario and month
-            $rate = $this->getRateForMonth($month, $scenario, $standardRate, $renewedRate, $overdueRate);
+            $rate = $this->getRateForMonth($month, $scenario, $standardRate, $renewedRate, $overdueRate, $maintainedMonths);
 
             $monthlyInterest = $principal * ($rate / 100);
             $cumulative += $monthlyInterest;
@@ -43,7 +92,7 @@ class InterestCalculationService
             $breakdown[] = [
                 'month' => $month,
                 'rate' => $rate,
-                'rate_type' => $this->getRateType($month, $scenario),
+                'rate_type' => $this->getRateType($month, $scenario, $maintainedMonths),
                 'interest' => round($monthlyInterest, 2),
                 'cumulative' => round($cumulative, 2),
                 'total_payable' => round($principal + $cumulative, 2),
@@ -55,53 +104,107 @@ class InterestCalculationService
 
     /**
      * Get interest rate for a specific month based on scenario
-     * 
+     *
      * BUSINESS RULES:
-     * - Standard (redeem within 6 months): 0.5% for all months
-     * - Renewed (renew before due): 0.5% months 1-6, 1.5% months 7-12
-     * - Overdue (no payment after 6 months): 2.0% for ALL months (including first 6 - recalculated)
+     * - Standard (redeem within 6 months): standard rate for all months
+     * - Renewed (maintained past month 6): standard months 1-6, extended months 7+
+     * - Overdue (past due date): months up to the due date keep the rate they
+     *   accrued at; only the months past the due date take the overdue rate.
+     *
+     * Interest already accrued is NOT rebilled. A pledge one day late is charged
+     * the overdue rate on that month alone, not retroactively on months 1-6.
      */
     private function getRateForMonth(
         int $month,
         string $scenario,
         float $standardRate,
         float $renewedRate,
-        float $overdueRate
+        float $overdueRate,
+        int $maintainedMonths = 0
     ): float {
         switch ($scenario) {
             case 'standard':
-                // Redeemed within 6 months - standard rate throughout
-                return $standardRate;
+                return $this->maintainedRateForMonth($month, $standardRate, $renewedRate);
 
             case 'renewed':
-                // Renewed before due date
-                // First 6 months: standard rate (already paid at 0.5%)
-                // Months 7+: renewed rate (1.5%)
-                return $month <= 6 ? $standardRate : $renewedRate;
+                return $this->maintainedRateForMonth($month, $standardRate, $renewedRate);
 
             case 'overdue':
-                // CRITICAL: No payment after 6 months
-                // ALL months (including first 6) are at overdue rate (2.0%)
-                // First 6 months are RECALCULATED at 2.0%
-                return $overdueRate;
+                // Months on or before the due date accrued while the pledge was
+                // maintained, so they keep the rate they accrued at. Only months
+                // past the due date take the overdue rate.
+                return $month <= $maintainedMonths
+                    ? $this->maintainedRateForMonth($month, $standardRate, $renewedRate)
+                    : $overdueRate;
 
             default:
+                // Callers that pass a non-scenario here (e.g. a rate) must keep
+                // their existing flat-rate behaviour.
                 return $standardRate;
         }
     }
 
     /**
+     * The rate a maintained (not overdue) pledge pays in a given month.
+     *
+     * Consults the pledge's frozen tier ladder when one has been supplied via
+     * withTiers(). Pledges created before tiering have none, and fall back to the
+     * flat "standard for months 1-6, extended thereafter" split they have always
+     * used — which is why no existing bill moves.
+     */
+    private function maintainedRateForMonth(int $month, float $standardRate, float $renewedRate): float
+    {
+        $tier = $this->tierForMonth($month);
+        if ($tier !== null) {
+            return (float) $tier['rate_percentage'];
+        }
+
+        return $month <= 6 ? $standardRate : $renewedRate;
+    }
+
+    /**
+     * The label for a maintained month: the tier's own rate_type, or the flat split.
+     */
+    private function maintainedTypeForMonth(int $month): string
+    {
+        $tier = $this->tierForMonth($month);
+        if ($tier !== null) {
+            return $tier['rate_type'];
+        }
+
+        return $month <= 6 ? 'standard' : 'renewed';
+    }
+
+    /**
+     * The frozen tier covering this month, or null when the pledge has no ladder.
+     * A null to_month means the tier runs onwards with no upper bound.
+     */
+    private function tierForMonth(int $month): ?array
+    {
+        foreach ($this->tiers as $tier) {
+            if ($month >= $tier['from_month']
+                && ($tier['to_month'] === null || $month <= $tier['to_month'])) {
+                return $tier;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Get rate type label for display
      */
-    private function getRateType(int $month, string $scenario): string
+    private function getRateType(int $month, string $scenario, int $maintainedMonths = 0): string
     {
         switch ($scenario) {
             case 'standard':
-                return 'standard';
+                return $this->maintainedTypeForMonth($month);
             case 'renewed':
-                return $month <= 6 ? 'standard' : 'renewed';
+                return $this->maintainedTypeForMonth($month);
             case 'overdue':
-                return 'overdue';
+                return $month <= $maintainedMonths
+                    ? $this->maintainedTypeForMonth($month)
+                    : 'overdue';
             default:
                 return 'standard';
         }
@@ -116,7 +219,8 @@ class InterestCalculationService
         string $scenario = 'standard',
         ?float $standardRate = null,
         ?float $renewedRate = null,
-        ?float $overdueRate = null
+        ?float $overdueRate = null,
+        int $maintainedMonths = 0
     ): float {
         $standardRate = $standardRate ?? self::STANDARD_RATE;
         $renewedRate = $renewedRate ?? self::RENEWED_RATE;
@@ -125,7 +229,7 @@ class InterestCalculationService
         $totalInterest = 0;
 
         for ($month = 1; $month <= $months; $month++) {
-            $rate = $this->getRateForMonth($month, $scenario, $standardRate, $renewedRate, $overdueRate);
+            $rate = $this->getRateForMonth($month, $scenario, $standardRate, $renewedRate, $overdueRate, $maintainedMonths);
             $totalInterest += $principal * ($rate / 100);
         }
 
@@ -133,11 +237,14 @@ class InterestCalculationService
     }
 
     /**
-     * Calculate renewal interest (for extending a pledge)
-     * 
-     * When customer renews BEFORE due date:
-     * - They've already paid interest for months 1-6 at standard rate
-     * - New period (months 7-12) is at renewed rate (1.5%)
+     * Interest accrued over a run of months, used by the renewal screen to show what
+     * has built up so far (months 1..elapsed).
+     *
+     * Honours the pledge's frozen tier ladder when one has been supplied. Without it
+     * the flat $renewedRate applies to every month, as before — which is correct for
+     * an untiered pledge and was wrong for a tiered one: months 4-6 of a 0.5/1.0
+     * ladder were billed at 0.5%, understating what redemption would charge and
+     * letting a renewal through on interest that was not really settled.
      */
     public function calculateRenewalInterest(
         float $principal,
@@ -152,15 +259,16 @@ class InterestCalculationService
 
         for ($i = 0; $i < $renewalMonths; $i++) {
             $month = $currentMonth + $i;
-            // Renewal always uses renewed rate (1.5%)
-            $rate = $renewedRate;
+            // A tier for this month wins; otherwise the flat rate, as before.
+            $tier = $this->tierForMonth($month);
+            $rate = $tier !== null ? (float) $tier['rate_percentage'] : $renewedRate;
             $monthlyInterest = $principal * ($rate / 100);
             $totalInterest += $monthlyInterest;
 
             $breakdown[] = [
                 'month' => $month,
                 'rate' => $rate,
-                'rate_type' => 'renewed',
+                'rate_type' => $tier !== null ? $tier['rate_type'] : 'renewed',
                 'interest' => round($monthlyInterest, 2),
             ];
         }
@@ -188,10 +296,10 @@ class InterestCalculationService
     }
 
     /**
-     * Calculate full overdue interest (recalculated first 6 months + additional months)
-     * 
-     * BUSINESS RULE: When overdue, first 6 months are RECALCULATED at 2.0%
-     * This replaces any previous 0.5% calculation
+     * @deprecated Rebills every month at the overdue rate, including months that
+     * accrued while the pledge was still maintained. The branch's rule is that
+     * only months past the due date take the overdue rate, so calculateRedemption()
+     * no longer calls this. Retained for callers outside this codebase.
      */
     public function calculateOverdueInterest(
         float $principal,
@@ -249,44 +357,50 @@ class InterestCalculationService
         $interestBreakdown = [];
         $totalInterest = 0;
 
-        // Determine scenario based on status
-        if ($status === 'overdue' || $daysOverdue > 0 || $monthsElapsed > 6) {
-            // OVERDUE: Recalculate ALL months at overdue rate
+        // A pledge is "not maintained" only when it has passed its due date —
+        // being more than 6 months old is NOT the same thing, because a renewal
+        // legitimately carries a pledge past month 6 while moving the due date.
+        // Settings states the rule: "Extended rate applies after 6 months if
+        // maintained. Overdue rate applies if pledge is not maintained."
+        if ($status === 'overdue' || $daysOverdue > 0) {
+            // NOT MAINTAINED: only the months past the due date take the overdue
+            // rate. Interest that accrued while the pledge was still maintained is
+            // never rebilled — a pledge one day late owes the overdue rate on that
+            // month alone, not retroactively on months 1-6.
             $scenario = 'overdue';
-            $overdueCalc = $this->calculateOverdueInterest(
-                $principal,
-                $monthsElapsed,
-                $daysOverdue,
-                $overdueRate
-            );
-            $totalInterest = $overdueCalc['total_interest'];
-            $interestBreakdown = $overdueCalc;
-        } elseif ($status === 'renewed') {
-            // RENEWED: Standard for 1-6, renewed for 7+
-            $scenario = 'renewed';
+
+            // Started months of lateness, matching how months_elapsed rounds up.
+            $overdueMonths = (int) ceil($daysOverdue / 30);
+            $maintainedMonths = max(0, $monthsElapsed - $overdueMonths);
+
             $totalInterest = $this->calculateInterest(
                 $principal,
                 $monthsElapsed,
-                'renewed',
+                $scenario,
                 $standardRate,
                 $renewedRate,
-                $overdueRate
+                $overdueRate,
+                $maintainedMonths
             );
             $interestBreakdown = $this->calculateMonthlyBreakdown(
                 $principal,
                 $monthsElapsed,
-                'renewed',
+                $scenario,
                 $standardRate,
                 $renewedRate,
-                $overdueRate
+                $overdueRate,
+                $maintainedMonths
             );
         } else {
-            // ACTIVE/STANDARD: All at standard rate (redeemed within 6 months)
-            $scenario = 'standard';
+            // MAINTAINED: standard rate for months 1-6, extended rate from 7 on.
+            // 'renewed' is the scenario that applies the extended rate per month;
+            // it is correct for any maintained pledge, renewed or not, because a
+            // pledge only reaches month 7 by being renewed.
+            $scenario = $monthsElapsed > 6 ? 'renewed' : 'standard';
             $totalInterest = $this->calculateInterest(
                 $principal,
                 $monthsElapsed,
-                'standard',
+                $scenario,
                 $standardRate,
                 $renewedRate,
                 $overdueRate
@@ -294,7 +408,7 @@ class InterestCalculationService
             $interestBreakdown = $this->calculateMonthlyBreakdown(
                 $principal,
                 $monthsElapsed,
-                'standard',
+                $scenario,
                 $standardRate,
                 $renewedRate,
                 $overdueRate

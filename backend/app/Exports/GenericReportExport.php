@@ -13,11 +13,32 @@ class GenericReportExport implements FromArray, WithStyles, ShouldAutoSize
     protected $headerRowCount;
     protected $bannerSpec;
 
+    protected $numberFormat;
+
+    /**
+     * $bannerSpec accepts, in order of increasing structure:
+     *   a single banner  ['row'=>..,'startCol'=>..,'endCol'=>..]
+     *   a list of banners [ [...], [...] ]
+     *   a full spec      ['banners'=>[...], 'numberFormat'=>['cols'=>[..],'format'=>'0.00']]
+     */
     public function __construct(array $rows, int $headerRowCount = 4, ?array $bannerSpec = null)
     {
         $this->rows = $rows;
         $this->headerRowCount = $headerRowCount; // The row where the column titles are
-        $this->bannerSpec = $bannerSpec; // Optional merged banner above a group of columns (e.g. "Payment Mode")
+        $this->bannerSpec = $this->normalizeBanners($bannerSpec);
+        $this->numberFormat = $bannerSpec['numberFormat'] ?? null;
+    }
+
+    private function normalizeBanners(?array $spec): array
+    {
+        if (!$spec) {
+            return [];
+        }
+        if (isset($spec['banners'])) {
+            return array_values($spec['banners']);
+        }
+
+        return isset($spec['row']) ? [$spec] : array_values($spec);
     }
 
     public function array(): array
@@ -55,13 +76,15 @@ class GenericReportExport implements FromArray, WithStyles, ShouldAutoSize
             ],
         ]);
 
-        // Optional merged banner above a group of columns (e.g. "Payment Mode" over Transfer/Cash)
-        if ($this->bannerSpec) {
-            $row = $this->bannerSpec['row'];
-            $start = $this->bannerSpec['startCol'];
-            $end = $this->bannerSpec['endCol'];
+        // Merged banners above groups of columns (e.g. "Payment Mode" over Transfer/Cash)
+        foreach ($this->bannerSpec as $banner) {
+            $row = $banner['row'];
+            $start = $banner['startCol'];
+            $end = $banner['endCol'];
 
-            $sheet->mergeCells("{$start}{$row}:{$end}{$row}");
+            if ($start !== $end) {
+                $sheet->mergeCells("{$start}{$row}:{$end}{$row}");
+            }
             $sheet->getStyle("{$start}{$row}:{$end}{$row}")->applyFromArray([
                 'font' => [
                     'bold' => true,
@@ -76,6 +99,18 @@ class GenericReportExport implements FromArray, WithStyles, ShouldAutoSize
                     'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
                 ],
             ]);
+        }
+
+        // Numeric columns keep their true value; Excel renders the fixed decimals.
+        if ($this->numberFormat) {
+            $firstDataRow = $this->headerRowCount + 1;
+            $lastRow = max($firstDataRow, $sheet->getHighestRow());
+
+            foreach ($this->numberFormat['cols'] as $col) {
+                $sheet->getStyle("{$col}{$firstDataRow}:{$col}{$lastRow}")
+                    ->getNumberFormat()
+                    ->setFormatCode($this->numberFormat['format']);
+            }
         }
 
         return [];

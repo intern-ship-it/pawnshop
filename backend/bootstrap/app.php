@@ -29,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.permission' => \App\Http\Middleware\CheckPermission::class,
             'audit.log' => \App\Http\Middleware\AuditLogMiddleware::class,
             'token.query' => \App\Http\Middleware\TokenFromQuery::class,
+            'developer.only' => \App\Http\Middleware\DeveloperOnly::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

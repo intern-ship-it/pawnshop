@@ -88,6 +88,21 @@ const whatsappService = {
     },
 
     /**
+     * Delete a template row (TEMPORARY - cleanup of duplicate rows)
+     * DELETE /api/whatsapp/templates/:id
+     * @param {number} templateId - Template DB row id
+     */
+    deleteTemplate: async (templateId) => {
+        try {
+            const response = await api.delete(`/whatsapp/templates/${templateId}`)
+            return response
+        } catch (error) {
+            console.error('Delete WhatsApp template failed:', error)
+            throw error
+        }
+    },
+
+    /**
      * Update templates order in bulk
      * PUT /api/whatsapp/templates/reorder
      * @param {Array} updates - Array of template updates {id, sort_order}

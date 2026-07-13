@@ -86,14 +86,7 @@ export default function RenewalScreen() {
   const [wasScanned, setWasScanned] = useState(false); // Track if input was from barcode
 
   // Payment state
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [amountReceived, setAmountReceived] = useState("");
-  const [cashAmount, setCashAmount] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [referenceNo, setReferenceNo] = useState("");
-  const [bankId, setBankId] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [banks, setBanks] = useState([]);
+  // Payment state removed: a renewal extends the due date and collects nothing.
 
   // Extension state
   const [extensionMonths, setExtensionMonths] = useState(1);
@@ -213,19 +206,8 @@ export default function RenewalScreen() {
     [],
   );
 
-  // Fetch banks on mount
-  useEffect(() => {
-    const fetchBanks = async () => {
-      try {
-        const response = await settingsService.getBanks();
-        const banksData = response.data?.data || response.data || [];
-        setBanks(banksData);
-      } catch (error) {
-        console.error("Failed to fetch banks:", error);
-      }
-    };
-    fetchBanks();
-  }, []);
+  // Banks are no longer fetched here — renewal takes no payment, so there is no
+  // bank/account to select.
 
   // Fetch interest rate rules on mount
   useEffect(() => {
@@ -303,6 +285,14 @@ export default function RenewalScreen() {
       if (response.data?.success !== false) {
         const data = response.data?.data || response.data;
         setCalculation(data);
+
+        // Show the rate the backend actually applied, and where it came from.
+        // Only pre-fill when the operator has not typed a rate, so their input is
+        // never overwritten mid-edit.
+        setRateSource(data?.calculation?.rate_source || "");
+        if ((rate === "" || rate === null) && data?.calculation?.interest_rate != null) {
+          setInterestRate(String(data.calculation.interest_rate));
+        }
       }
     } catch (error) {
       console.error("Failed to calculate renewal:", error);
@@ -510,35 +500,13 @@ export default function RenewalScreen() {
     // Auto-apply rate from interest rate rules based on pledge status
     const isOverdue = new Date(enrichedPledge.dueDate) < new Date();
     let customRate = "";
-    if (interestRateRules.length > 0) {
-      if (enrichedPledge.status === "overdue" || isOverdue) {
-        const overdueRule = interestRateRules.find(r => r.rate_type === 'overdue' && r.is_active);
-        customRate = overdueRule ? String(overdueRule.rate_percentage) : "2.0";
-      } else {
-        const extendedRule = interestRateRules.find(r => r.rate_type === 'extended' && r.is_active);
-        customRate = extendedRule ? String(extendedRule.rate_percentage) : "";
-      }
-    } else {
-      // Fallback if rules not loaded yet
-      customRate = (enrichedPledge.status === "overdue" || isOverdue) ? "2.0" : "";
-    }
+    // Leave the rate box empty: the backend resolves the applicable rate (operator
+    // override > customer rate > pledge rate) and returns it with rate_source, so
+    // fetchCalculation below fills both in. Pre-filling from the extended rule here
+    // raced the rules fetch — if it had not resolved yet the box stayed blank while
+    // the breakdown used a different rate entirely.
+    customRate = "";
     setInterestRate(customRate);
-
-    // Determine rate source badge
-    if (customRate && enrichedPledge.interestRate) {
-      // Compare pledge rate with the global rule rate
-      const pledgeRate = enrichedPledge.interestRate;
-      const globalRule = interestRateRules.find(r => r.rate_type === 'standard' && r.is_active)
-        || interestRateRules.find(r => r.rate_type === 'normal' && r.is_active);
-      const globalRateVal = globalRule ? parseFloat(globalRule.rate_percentage) : 0.5;
-      if (Math.abs(pledgeRate - globalRateVal) > 0.001) {
-        setRateSource("customer");
-      } else {
-        setRateSource("global");
-      }
-    } else {
-      setRateSource("global");
-    }
 
     // Pre-fill extension months based on the applicable rate's month range
     let prefillMonths = 6; // fallback
@@ -564,57 +532,20 @@ export default function RenewalScreen() {
     fetchCalculation(data.id, prefillMonths, customRate);
   };
 
-  // Process renewal via API
+  // Process renewal via API. A renewal collects no money — it extends the due
+  // date. Interest is settled on the Interest Payments screen or at redemption,
+  // so there is no amount to validate here.
   const handleProcessRenewal = async () => {
     if (!pledge || !calculation) return;
-
-    const totalPayableAmount = calculation?.calculation?.total_payable || 0;
-
-    // Calculate received based on payment method
-    let totalReceived = 0;
-    if (paymentMethod === "partial") {
-      totalReceived =
-        (parseFloat(cashAmount) || 0) + (parseFloat(transferAmount) || 0);
-    } else {
-      totalReceived = parseFloat(amountReceived) || 0;
-    }
-
-    if (totalReceived < totalPayableAmount) {
-      dispatch(
-        addToast({
-          type: "error",
-          title: "Insufficient",
-          message: `Amount must be at least ${formatCurrency(
-            totalPayableAmount,
-          )}`,
-        }),
-      );
-      return;
-    }
 
     setIsProcessing(true);
 
     try {
-      // Prepare renewal data
+      // Extension only — no payment fields. The backend ignores them anyway, and
+      // sending them would imply money changed hands when none did.
       const renewalData = {
         pledge_id: pledge.id,
         renewal_months: extensionMonths,
-        payment_method: paymentMethod,
-        cash_amount:
-          paymentMethod === "cash"
-            ? totalReceived
-            : paymentMethod === "partial"
-              ? parseFloat(cashAmount) || 0
-              : 0,
-        transfer_amount:
-          paymentMethod === "transfer"
-            ? totalReceived
-            : paymentMethod === "partial"
-              ? parseFloat(transferAmount) || 0
-              : 0,
-        bank_id: paymentMethod !== "cash" && bankId ? parseInt(bankId) : null,
-        account_number: paymentMethod !== "cash" ? (accountNumber || null) : null,
-        reference_no: referenceNo || null,
         terms_accepted: true,
       };
 
@@ -637,11 +568,10 @@ export default function RenewalScreen() {
           pledgeId: pledge.pledgeNo,
           customerName: pledge.customerName,
           customerPhone: pledge.customerPhone,
-          amountPaid: totalPayableAmount,
-          change:
-            paymentMethod !== "partial"
-              ? totalReceived - totalPayableAmount
-              : 0,
+          // Nothing is collected at renewal; the accrued interest stays outstanding.
+          amountPaid: 0,
+          change: 0,
+          interestOutstanding: interestAmount,
           newDueDate: data.new_due_date || calculation?.renewal?.new_due_date,
           extensionMonths,
           interestBreakdown:
@@ -809,18 +739,24 @@ export default function RenewalScreen() {
   };
 
   // Get values from calculation
+  // interest_amount is what remains outstanding: accrued to date, less anything
+  // already settled at the counter. total_payable is 0 — nothing is due here.
   const interestAmount = calculation?.calculation?.interest_amount || 0;
+  const grossInterest = calculation?.calculation?.gross_interest || 0;
+  const interestAlreadyPaid = calculation?.calculation?.interest_already_paid || 0;
   const handlingFee = calculation?.calculation?.handling_fee || 0;
-  const totalPayable = calculation?.calculation?.total_payable || 0;
   const interestBreakdown = calculation?.calculation?.interest_breakdown || [];
   const newDueDate = calculation?.renewal?.new_due_date;
 
-  // Auto-fill amountReceived when payment method is cash or transfer
-  useEffect(() => {
-    if ((paymentMethod === "cash" || paymentMethod === "transfer") && totalPayable > 0) {
-      setAmountReceived(totalPayable.toFixed(2));
-    }
-  }, [paymentMethod, totalPayable]);
+  // A renewal may only proceed once the accrued interest is settled in full and the
+  // pledge has renewals left. The backend enforces both; the screen mirrors them so
+  // the operator can see why. Absent a calculation this is blocked, so the button is
+  // never enabled for a pledge that has not been checked.
+  const eligibility = calculation?.eligibility;
+  const canRenew = eligibility?.allowed === true;
+  const blockedReason = eligibility?.reason || "";
+  const renewalsUsed = eligibility?.renewals_used ?? 0;
+  const renewalsAllowed = eligibility?.renewals_allowed ?? 0;
 
   // Days until due
   const getDaysUntilDue = () => {
@@ -2074,11 +2010,16 @@ export default function RenewalScreen() {
                   />
                 </div>
 
-                {/* Interest Breakdown */}
+                {/* Interest accrued so far. Independent of the extension period —
+                    extending the due date neither adds nor prepays interest. */}
                 {interestBreakdown.length > 0 && (
                   <div className="mb-4 p-4 bg-zinc-50 rounded-lg">
-                    <p className="text-sm font-medium text-zinc-700 mb-2">
-                      Interest Breakdown
+                    <p className="text-sm font-medium text-zinc-700 mb-1">
+                      Interest Accrued So Far
+                    </p>
+                    <p className="text-xs text-zinc-500 mb-2">
+                      Months already elapsed on this pledge — not the {extensionMonths}{" "}
+                      month{extensionMonths === 1 ? "" : "s"} being added.
                     </p>
                     <div className="space-y-1">
                       {interestBreakdown.map((item, idx) => (
@@ -2095,14 +2036,25 @@ export default function RenewalScreen() {
                   </div>
                 )}
 
-                {/* Summary */}
+                {/* Summary. Nothing is collected at renewal, so this is what the
+                    customer still owes — not a bill for today. */}
                 <div className="space-y-2 border-t border-zinc-200 pt-4">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Interest Amount</span>
-                    <span className="font-medium">
-                      {formatCurrency(interestAmount)}
-                    </span>
-                  </div>
+                  {interestAlreadyPaid > 0 && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Interest accrued</span>
+                        <span className="font-medium">
+                          {formatCurrency(grossInterest)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Already paid</span>
+                        <span className="font-medium text-green-600">
+                          -{formatCurrency(interestAlreadyPaid)}
+                        </span>
+                      </div>
+                    </>
+                  )}
                   {handlingFee > 0 && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Handling Fee</span>
@@ -2111,176 +2063,49 @@ export default function RenewalScreen() {
                       </span>
                     </div>
                   )}
-                  {/* Handling fee is now visible above */}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-zinc-200">
-                    <span className="text-zinc-800">Total Payable</span>
+                    <span className="text-zinc-800">Interest Outstanding</span>
                     <span className="text-amber-600">
-                      {formatCurrency(totalPayable)}
+                      {formatCurrency(interestAmount)}
                     </span>
                   </div>
+                  <p className="text-xs text-zinc-500 pt-1">
+                    Must be settled in full on the Interest Payments screen before
+                    this pledge can be extended. Not collected here.
+                  </p>
                 </div>
               </Card>
 
-              {/* Payment Card */}
+              {/* Confirm Card */}
               <Card className="p-6">
                 <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-amber-500" />
-                  Payment Details
+                  <Calendar className="w-5 h-5 text-amber-500" />
+                  Confirm Renewal
                 </h4>
 
-                {/* Payment Method */}
-                <div className="mb-4">
-                  <label className="text-sm text-zinc-600 mb-2 block">
-                    Payment Method
-                  </label>
-                  <div className="flex gap-2">
-                    {[
-                      { id: "cash", label: "Cash", icon: Wallet },
-                      { id: "transfer", label: "Transfer", icon: Building2 },
-                      { id: "partial", label: "Partial", icon: CreditCard },
-                    ].map((method) => (
-                      <button
-                        key={method.id}
-                        onClick={() => setPaymentMethod(method.id)}
-                        className={cn(
-                          "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border font-medium transition-all",
-                          paymentMethod === method.id
-                            ? "bg-amber-500 text-white border-amber-500"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-amber-300",
-                        )}
-                      >
-                        <method.icon className="w-4 h-4" />
-                        {method.label}
-                      </button>
-                    ))}
+                {/* A renewal extends the due date only, and may proceed only once the
+                    accrued interest is paid in full and renewals remain. */}
+                {!canRenew && blockedReason ? (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">
+                      <span className="font-semibold">
+                        This pledge cannot be extended.
+                      </span>{" "}
+                      {blockedReason}
+                    </p>
                   </div>
-                </div>
-
-                {/* Amount Received - Different UI for partial vs single method */}
-                {paymentMethod === "partial" ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="text-sm text-zinc-600 mb-2 block">
-                          Cash Amount (RM)
-                        </label>
-                        <Input
-                          type="number"
-                          placeholder="0.00"
-                          value={cashAmount}
-                          onChange={(e) => setCashAmount(e.target.value)}
-                          leftIcon={Wallet}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm text-zinc-600 mb-2 block">
-                          Transfer Amount (RM)
-                        </label>
-                        <Input
-                          type="number"
-                          placeholder="0.00"
-                          value={transferAmount}
-                          onChange={(e) => setTransferAmount(e.target.value)}
-                          leftIcon={Building2}
-                        />
-                      </div>
-                    </div>
-                    {/* Partial Payment Validation */}
-                    <div
-                      className={cn(
-                        "mb-4 p-3 rounded-lg flex justify-between items-center",
-                        (parseFloat(cashAmount) || 0) +
-                          (parseFloat(transferAmount) || 0) >=
-                          totalPayable
-                          ? "bg-amber-50 text-amber-700"
-                          : "bg-red-50 text-red-700",
-                      )}
-                    >
-                      <span>Cash + Transfer</span>
-                      <span className="font-bold">
-                        {formatCurrency(
-                          (parseFloat(cashAmount) || 0) +
-                          (parseFloat(transferAmount) || 0),
-                        )}
-                        {(parseFloat(cashAmount) || 0) +
-                          (parseFloat(transferAmount) || 0) >=
-                          totalPayable
-                          ? " OK"
-                          : ` (need ${formatCurrency(totalPayable)})`}
-                      </span>
-                    </div>
-                  </>
                 ) : (
-                  <div className="mb-4">
-                    <label className="text-sm text-zinc-600 mb-2 block">
-                      Amount Received (RM)
-                    </label>
-                    <Input
-                      type="number"
-                      placeholder="0.00"
-                      value={amountReceived}
-                      onChange={(e) => setAmountReceived(e.target.value)}
-                      leftIcon={DollarSign}
-                    />
+                  <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <span className="font-semibold">
+                        No payment is collected here.
+                      </span>{" "}
+                      Renewing only extends the due date. The interest accrued so far
+                      has been settled, and this pledge has used {renewalsUsed} of{" "}
+                      {renewalsAllowed} renewals.
+                    </p>
                   </div>
                 )}
-
-                {/* Bank Selection & Reference No (for transfer, or partial with transfer amount) */}
-                {(paymentMethod === "transfer" ||
-                  (paymentMethod === "partial" &&
-                    parseFloat(transferAmount) > 0)) && (
-                    <>
-                      <div className="mb-4">
-                        <label className="text-sm text-zinc-600 mb-2 block">
-                          Bank
-                        </label>
-                        <Select
-                          value={bankId}
-                          onChange={(e) => setBankId(e.target.value)}
-                          options={[
-                            { value: "", label: "Select Bank..." },
-                            ...banks.map((bank) => ({
-                              value: String(bank.id),
-                              label: bank.name,
-                            })),
-                          ]}
-                        />
-                      </div>
-                      <div className="mb-4">
-                        <label className="text-sm text-zinc-600 mb-2 block">
-                          Account Number
-                        </label>
-                        <Input
-                          placeholder="Enter account number"
-                          value={accountNumber}
-                          onChange={(e) => setAccountNumber(e.target.value)}
-                        />
-                      </div>
-                      <div className="mb-4">
-                        <label className="text-sm text-zinc-600 mb-2 block">
-                          Reference No
-                        </label>
-                        <Input
-                          placeholder="Transfer reference number"
-                          value={referenceNo}
-                          onChange={(e) => setReferenceNo(e.target.value)}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                {/* Change - only for non-partial payments */}
-                {paymentMethod !== "partial" &&
-                  parseFloat(amountReceived) > totalPayable && (
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg flex justify-between items-center">
-                      <span className="text-blue-700">Change</span>
-                      <span className="font-bold text-blue-700">
-                        {formatCurrency(
-                          parseFloat(amountReceived) - totalPayable,
-                        )}
-                      </span>
-                    </div>
-                  )}
 
                 {/* New Due Date Preview */}
                 <div className="mb-6 p-4 bg-green-50 rounded-lg">
@@ -2314,18 +2139,9 @@ export default function RenewalScreen() {
                   leftIcon={CheckCircle}
                   onClick={handleProcessRenewal}
                   loading={isProcessing}
-                  disabled={
-                    !termsAgreed ||
-                    isCalculating ||
-                    (paymentMethod === "partial"
-                      ? (parseFloat(cashAmount) || 0) +
-                      (parseFloat(transferAmount) || 0) <
-                      totalPayable
-                      : !amountReceived ||
-                      parseFloat(amountReceived) < totalPayable)
-                  }
+                  disabled={!termsAgreed || isCalculating || !canRenew}
                 >
-                  Process Renewal - {formatCurrency(totalPayable)}
+                  Extend Pledge
                 </Button>
               </Card>
             </motion.div>
@@ -2357,11 +2173,6 @@ export default function RenewalScreen() {
           setRenewalResult(null);
           setSearchQuery("");
           setPledge(null);
-          setAmountReceived("");
-          setCashAmount("");
-          setTransferAmount("");
-          setBankId("");
-          setReferenceNo("");
           setExtensionMonths(1);
           setInterestRate("");
           setCalculation(null);
@@ -2494,12 +2305,7 @@ export default function RenewalScreen() {
                 setRenewalResult(null);
                 setSearchQuery("");
                 setPledge(null);
-                setAmountReceived("");
-                setCashAmount("");
-                setTransferAmount("");
-                setBankId("");
-                setReferenceNo("");
-                setExtensionMonths(1);
+                      setExtensionMonths(1);
                 setInterestRate("");
                 setCalculation(null);
                 setSearchResult(null);

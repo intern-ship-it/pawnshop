@@ -73,6 +73,9 @@ const HardwareIntegration = lazy(
 );
 const PrintTestPage = lazy(() => import("@/pages/settings/PrintTestPage"));
 
+// Hidden developer tooling — deliberately absent from Sidebar.jsx
+const MissingImages = lazy(() => import("@/pages/developer/MissingImages"));
+
 // Wrap component with Suspense
 const withSuspense = (Component) => (
   <Suspense fallback={<PageLoader />}>
@@ -161,6 +164,12 @@ export const router = createBrowserRouter([
       { path: "settings/whatsapp/bulk-send", element: withPermission(WhatsAppBulkSend, "whatsapp.send") },
       { path: "settings/hardware", element: withPermission(HardwareIntegration, "settings.view") },
       { path: "settings/print-test", element: withPermission(PrintTestPage, "settings.view") },
+
+      // HIDDEN DEVELOPER TOOLING — intentionally absent from Sidebar.jsx.
+      // Uses withSuspense, not withPermission: ProtectedRoute grants super-admin
+      // everything, and this tool must be developer-only. The real gate is the
+      // role check inside the page plus the API's 404.
+      { path: "dev/missing-images", element: withSuspense(MissingImages) },
     ],
   },
 

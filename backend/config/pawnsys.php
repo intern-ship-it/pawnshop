@@ -13,6 +13,9 @@ return [
         'prefix' => 'PLG',
         'default_loan_percentages' => [80, 70, 60],
         'max_renewal_months' => 12,
+        // Renewals allowed per pledge, not per customer. Override with the
+        // 'max_renewals' setting.
+        'max_renewals' => 3,
         'grace_period_days' => 7,
     ],
 

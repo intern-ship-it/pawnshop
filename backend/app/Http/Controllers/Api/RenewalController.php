@@ -191,6 +191,109 @@ class RenewalController extends Controller
     }
 
     /**
+     * The interest rate to apply, and where it came from, in priority order:
+     * an explicit override typed by the operator, then the customer's own rate,
+     * then the rate frozen on the pledge.
+     *
+     * The pledge's rate only counts as "global" when it still matches a standard
+     * rule configured for its branch; otherwise it was an operator override at
+     * pledge creation. All active standard/custom rules are checked, because a
+     * branch may define more than one (e.g. months 1-3 and 4-6).
+     *
+     * Mirrors InterestPaymentController so the two screens cannot disagree.
+     *
+     * @return array{0: float, 1: string} [rate, 'manual'|'customer'|'global']
+     */
+    private function resolveRate($requested, Pledge $pledge): array
+    {
+        if ($requested !== null && $requested !== '') {
+            return [(float) $requested, 'manual'];
+        }
+
+        if ($pledge->customer && $pledge->customer->custom_interest_rate !== null) {
+            return [(float) $pledge->customer->custom_interest_rate, 'customer'];
+        }
+
+        $rate = (float) $pledge->interest_rate;
+
+        $configured = \App\Models\InterestRate::where(function ($q) use ($pledge) {
+            $q->where('branch_id', $pledge->branch_id)->orWhereNull('branch_id');
+        })
+            ->where('is_active', true)
+            ->whereIn('rate_type', ['standard', 'custom'])
+            ->pluck('rate_percentage');
+
+        foreach ($configured as $ruleRate) {
+            if (abs($rate - (float) $ruleRate) < 0.001) {
+                return [$rate, 'global'];
+            }
+        }
+
+        return [$rate, 'manual'];
+    }
+
+    /**
+     * The calculator to use for a pledge: tier-aware, unless the rate was overridden
+     * by hand, which replaces the whole ladder with one flat rate.
+     */
+    private function calculatorFor(Pledge $pledge, string $rateSource): InterestCalculationService
+    {
+        if ($rateSource === 'manual' || $rateSource === 'customer') {
+            return $this->interestService;
+        }
+
+        return $this->interestService->forPledge($pledge);
+    }
+
+    /**
+     * The most renewals a single pledge may have. Per pledge, not per customer.
+     * This is the only thing that ever ends a pledge's life: a renewal resets the
+     * status to 'active', so without a cap an overdue customer could renew forever
+     * and the pledge would never reach auction.
+     */
+    private function maxRenewals(): int
+    {
+        return (int) (\App\Models\Setting::where('key_name', 'max_renewals')->value('value')
+            ?? config('pawnsys.pledge.max_renewals', 3));
+    }
+
+    /**
+     * Whether a pledge may be renewed, and why not.
+     *
+     * A renewal extends the due date and collects nothing, so it may only proceed
+     * once the interest accrued so far has actually been paid — in full. A partial
+     * payment does not unlock it. Payment happens on the Interest Payments screen.
+     *
+     * Called by both calculate() and store() so the screen's warning and the API's
+     * rejection can never disagree.
+     *
+     * @return array{allowed: bool, reason: ?string, outstanding: float, renewals_used: int, renewals_allowed: int}
+     */
+    private function renewalEligibility(Pledge $pledge, float $grossInterest): array
+    {
+        $outstanding = round(max(0.0, $grossInterest - (float) $pledge->total_interest_paid), 2);
+        $used = (int) $pledge->renewal_count;
+        $allowed = $this->maxRenewals();
+
+        $reason = null;
+        // Renewal limit first: it is terminal, whereas unpaid interest can be settled.
+        if ($used >= $allowed) {
+            $reason = "This pledge has used all {$allowed} renewals and cannot be renewed again. It must be redeemed.";
+        } elseif ($outstanding > 0.005) {
+            $reason = 'Interest of RM ' . number_format($outstanding, 2)
+                . ' is unpaid. The customer must settle it in full on the Interest Payments screen before this pledge can be extended.';
+        }
+
+        return [
+            'allowed' => $reason === null,
+            'reason' => $reason,
+            'outstanding' => $outstanding,
+            'renewals_used' => $used,
+            'renewals_allowed' => $allowed,
+        ];
+    }
+
+    /**
      * Calculate renewal
      */
     public function calculate(Request $request): JsonResponse
@@ -219,24 +322,37 @@ class RenewalController extends Controller
             return $this->error('Active pledge not found', 404);
         }
 
-        // Calculate current month based on pledge date
-        $pledgeDate = Carbon::parse($pledge->pledge_date);
-        $now = Carbon::now();
-        $monthsElapsed = $pledgeDate->diffInMonths($now);
-        $currentMonth = max(1, $monthsElapsed);
+        // A renewal collects nothing, so the figure shown is interest ACCRUED TO
+        // DATE — months 1..months_elapsed — not interest for the months being
+        // added. Billing $renewalMonths from $currentMonth charged for months
+        // that have not happened yet, and disagreed with the redemption and
+        // interest-payment screens for the same pledge.
+        // diffInMonths() returns a float; months_elapsed is the ceil'd integer.
+        $monthsAccrued = max(1, $pledge->months_elapsed);
 
-        // Get custom rate or default to pledge standard rate
-        $defaultRate = $pledge->interest_rate;
-        // User explicitly wants 1.0% when they renew after 6 months? Or use standard.
-        $customRate = $request->input('interest_rate', (float) $defaultRate);
+        // Resolve the rate the same way the interest-payment screen does, and say
+        // where it came from. The screen previously guessed the source by comparing
+        // the pledge rate against the global rule, so every operator override was
+        // mislabelled "Customer Rate" even when the customer had none.
+        [$customRate, $rateSource] = $this->resolveRate($request->input('interest_rate'), $pledge);
 
-        // Calculate renewal interest
-        $calculation = $this->interestService->calculateRenewalInterest(
+        // Interest accrued so far, month 1 onward.
+        $calculation = $this->calculatorFor($pledge, $rateSource)->calculateRenewalInterest(
             (float) $pledge->loan_amount,
-            $currentMonth,
-            $renewalMonths,
+            1,
+            $monthsAccrued,
             (float) $customRate
         );
+
+        // Net off anything the customer has already settled at the counter.
+        $alreadyPaid = (float) $pledge->total_interest_paid;
+        $calculation['interest_already_paid'] = round($alreadyPaid, 2);
+        $calculation['gross_interest'] = round($calculation['total_interest'], 2);
+        $calculation['total_interest'] = round(max(0, $calculation['total_interest'] - $alreadyPaid), 2);
+
+        // Whether this renewal may proceed. Returned rather than thrown, because the
+        // screen still needs the figures to explain why the button is disabled.
+        $eligibility = $this->renewalEligibility($pledge, $calculation['gross_interest']);
 
         // Fetch handling fee settings
         $settings = \App\Models\Setting::whereIn('key_name', [
@@ -275,13 +391,22 @@ class RenewalController extends Controller
                 'current_due_date' => $pledge->due_date->toDateString(),
                 'renewal_count' => (int) $pledge->renewal_count,
             ],
+            'eligibility' => $eligibility,
             'renewal' => [
                 'months' => $renewalMonths,
                 'new_due_date' => $pledge->due_date->copy()->addMonths($renewalMonths)->toDateString(),
             ],
             'calculation' => [
                 'interest_breakdown' => $calculation['breakdown'],
+                // Interest accrued to date, net of anything settled at the counter.
                 'interest_amount' => round($calculation['total_interest'], 2),
+                'gross_interest' => $calculation['gross_interest'],
+                'interest_already_paid' => $calculation['interest_already_paid'],
+                'months_accrued' => $monthsAccrued,
+                // The rate actually applied, and its true origin, so the screen can
+                // show them instead of inferring both.
+                'interest_rate' => round((float) $customRate, 2),
+                'rate_source' => $rateSource,
                 'handling_fee' => round($handlingFee, 2),
                 'total_payable' => round($totalPayable, 2),
             ],
@@ -296,10 +421,14 @@ class RenewalController extends Controller
         $maxMonths = (int) (\App\Models\Setting::where('key_name', 'max_renewal_months')->value('value')
             ?? config('pawnsys.pledge.max_renewal_months', 12));
 
+        // A renewal extends the due date and collects nothing. Interest keeps
+        // accruing on the pledge and is settled either at the counter (interest
+        // payments) or at redemption. payment_method is therefore optional and
+        // retained only so legacy clients that still post it do not break.
         $validated = $request->validate([
             'pledge_id' => 'required|exists:pledges,id',
             'renewal_months' => "required|integer|min:1|max:{$maxMonths}",
-            'payment_method' => 'required|in:cash,transfer,partial',
+            'payment_method' => 'nullable|in:cash,transfer,partial',
             'cash_amount' => 'nullable|numeric|min:0',
             'transfer_amount' => 'nullable|numeric|min:0',
             'bank_id' => 'nullable|exists:banks,id',
@@ -329,21 +458,33 @@ class RenewalController extends Controller
         DB::beginTransaction();
 
         try {
-            // Calculate current month
-            $pledgeDate = Carbon::parse($pledge->pledge_date);
-            $now = Carbon::now();
-            $monthsElapsed = $pledgeDate->diffInMonths($now);
-            $currentMonth = max(1, $monthsElapsed);
+            // Same month count the rest of the system uses (started month rounds up).
+            $monthsAccrued = max(1, $pledge->months_elapsed);
 
-            $customRate = isset($validated['interest_rate']) ? $validated['interest_rate'] : (float) $pledge->interest_rate;
+            // Same resolution as calculate(), so the stored rate matches the preview.
+            // This previously skipped the customer's custom rate entirely.
+            [$customRate, $rateSource] = $this->resolveRate($validated['interest_rate'] ?? null, $pledge);
 
-            // Calculate interest
-            $calculation = $this->interestService->calculateRenewalInterest(
+            // Interest accrued to date (months 1..elapsed), net of anything already
+            // paid at the counter. See calculate() — this is a receipt figure only;
+            // no money is collected here.
+            $calculation = $this->calculatorFor($pledge, $rateSource)->calculateRenewalInterest(
                 (float) $pledge->loan_amount,
-                $currentMonth,
-                $renewalMonths,
+                1,
+                $monthsAccrued,
                 (float) $customRate
             );
+
+            // Enforce the same gates the screen previews. Checked here too, because a
+            // disabled button is a courtesy, not a control — this endpoint is callable
+            // directly. Must run before total_interest is netted down to the balance.
+            $eligibility = $this->renewalEligibility($pledge, (float) $calculation['total_interest']);
+            if (!$eligibility['allowed']) {
+                DB::rollBack();
+                return $this->error($eligibility['reason'], 422);
+            }
+
+            $calculation['total_interest'] = max(0, $calculation['total_interest'] - (float) $pledge->total_interest_paid);
 
             // Fetch handling fee settings
             $settings = \App\Models\Setting::whereIn('key_name', [
@@ -372,7 +513,9 @@ class RenewalController extends Controller
             $handlingFee = round($handlingFee, 2);
             */
 
-            $totalPayable = $calculation['total_interest'] + $handlingFee;
+            // Extension only — nothing is collected here. The accrued interest is
+            // still recorded on the renewal for the receipt, but nothing is due now.
+            $totalPayable = 0.0;
 
             // Generate renewal number
             $renewalNo = sprintf(
@@ -395,12 +538,15 @@ class RenewalController extends Controller
                 'previous_due_date' => $pledge->due_date,
                 'new_due_date' => $newDueDate,
                 'interest_rate' => $customRate,
+                // Interest accrued to date, shown on the receipt. NOT collected here —
+                // cash_amount/transfer_amount stay zero, and total_interest_paid credits
+                // only money actually received, so this never becomes a phantom credit.
                 'interest_amount' => $calculation['total_interest'],
                 'handling_fee' => $handlingFee,
                 'total_payable' => $totalPayable,
-                'payment_method' => $validated['payment_method'],
-                'cash_amount' => (float) ($validated['cash_amount'] ?? 0),
-                'transfer_amount' => (float) ($validated['transfer_amount'] ?? 0),
+                'payment_method' => $validated['payment_method'] ?? null,
+                'cash_amount' => 0,
+                'transfer_amount' => 0,
                 'bank_id' => $validated['bank_id'] ?? null,
                 'account_number' => $validated['account_number'] ?? null,
                 'reference_no' => $validated['reference_no'] ?? null,
@@ -606,8 +752,13 @@ class RenewalController extends Controller
                 ->first();
 
             $templateData = [
-                'customer_name' => $renewal->pledge->customer->name ?? '',
+                'renewal_no'    => $renewal->renewal_no,
                 'pledge_no'     => $renewal->pledge->pledge_no,
+                'date'          => \Carbon\Carbon::parse($renewal->created_at)->format('d/m/Y'),
+                'customer_name' => $renewal->pledge->customer->name ?? '',
+                'customer_ic'   => $renewal->pledge->customer->ic_number ?? '',
+                'loan_amount'   => number_format($renewal->pledge->loan_amount, 2),
+                'extended'      => $renewal->renewal_months,
                 // total_paid matches the "Total Paid" figure on the existing receipt.
                 // interest_paid is also provided in case a template wants the interest line.
                 'total_paid'    => number_format($renewal->total_payable, 2),

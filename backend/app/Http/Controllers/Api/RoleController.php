@@ -16,7 +16,11 @@ class RoleController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // The `developer` role is hidden internal tooling. This endpoint feeds both
+        // the Roles & Permissions page and the user-edit role dropdown, so excluding
+        // it here keeps it unlistable and ungrantable through the UI.
         $roles = Role::withCount('users')
+            ->where('slug', '!=', 'developer')
             ->orderBy('name')
             ->get();
 

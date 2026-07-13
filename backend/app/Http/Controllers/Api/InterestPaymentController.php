@@ -199,14 +199,20 @@ class InterestPaymentController extends Controller
             $rate = (float) $pledge->customer->custom_interest_rate;
             $rateSource = 'customer';
         } else {
+            // The pledge's own frozen rate. It only deserves the "global" label when
+            // it still matches the branch's standard rule — staff can override the
+            // rate at pledge creation, and calling that override "global" told the
+            // operator a rate came from Settings when it never did.
             $rate = (float) $pledge->interest_rate;
-            $rateSource = 'global';
+            $rateSource = $this->rateMatchesGlobalStandard($rate, $pledge->branch_id) ? 'global' : 'manual';
         }
 
-        // Calculate months elapsed from pledge date
+        // Use the pledge's own month count (a started month rounds up), the same
+        // figure every other screen uses. diffInMonths() returns a float, which
+        // both leaked to the UI as "1.96044779..." and made the breakdown loop
+        // (`$i < 1.96` runs twice) disagree with addMonths(1.96) (adds one month).
         $pledgeDate = Carbon::parse($pledge->pledge_date);
-        $now = Carbon::now();
-        $monthsElapsed = max(1, $pledgeDate->diffInMonths($now));
+        $monthsElapsed = max(1, $pledge->months_elapsed);
 
         // Determine the interest period
         // Check if there were previous interest payments
@@ -217,17 +223,14 @@ class InterestPaymentController extends Controller
 
         if ($lastPayment) {
             $periodFrom = $lastPayment->period_to->copy()->addDay();
-            $monthsPaid = $pledgeDate->diffInMonths($lastPayment->period_to);
+            $monthsPaid = (int) ceil($pledgeDate->diffInMonths($lastPayment->period_to));
         } else {
             $periodFrom = $pledgeDate->copy();
             $monthsPaid = 0;
         }
 
         // Months remaining to pay
-        $monthsRemaining = $monthsElapsed - $monthsPaid;
-        if ($monthsRemaining < 1) {
-            $monthsRemaining = 1; // Minimum 1 month
-        }
+        $monthsRemaining = max(1, $monthsElapsed - $monthsPaid);
 
         // Allow user to override months to pay (e.g. for prepayment)
         if ($request->has('months_to_pay')) {
@@ -292,6 +295,32 @@ class InterestPaymentController extends Controller
     }
 
     /**
+     * Whether a pledge's frozen rate still matches a configured standard rule for
+     * its branch, i.e. it came from Settings rather than an operator override.
+     *
+     * Checks every active standard/custom rule, not just the first: a branch may
+     * define more than one standard row (e.g. months 1-3 and 4-6), and a pledge
+     * created under either is still on the global rate.
+     */
+    private function rateMatchesGlobalStandard(float $rate, ?int $branchId): bool
+    {
+        $rules = \App\Models\InterestRate::where(function ($q) use ($branchId) {
+            $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+        })
+            ->where('is_active', true)
+            ->whereIn('rate_type', ['standard', 'custom'])
+            ->pluck('rate_percentage');
+
+        foreach ($rules as $configured) {
+            if (abs($rate - (float) $configured) < 0.001) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Process interest payment
      * CRITICAL: Does NOT modify pledge due_date, status, or renewal_count
      */
@@ -337,10 +366,9 @@ class InterestPaymentController extends Controller
                 }
             }
 
-            // Calculate period
+            // Calculate period. Integer months throughout — see calculate().
             $pledgeDate = Carbon::parse($pledge->pledge_date);
-            $now = Carbon::now();
-            $monthsElapsed = max(1, $pledgeDate->diffInMonths($now));
+            $monthsElapsed = max(1, $pledge->months_elapsed);
 
             $lastPayment = InterestPayment::where('pledge_id', $pledge->id)
                 ->where('status', 'completed')
@@ -349,7 +377,7 @@ class InterestPaymentController extends Controller
 
             if ($lastPayment) {
                 $periodFrom = $lastPayment->period_to->copy()->addDay();
-                $monthsPaid = $pledgeDate->diffInMonths($lastPayment->period_to);
+                $monthsPaid = (int) ceil($pledgeDate->diffInMonths($lastPayment->period_to));
             } else {
                 $periodFrom = $pledgeDate->copy();
                 $monthsPaid = 0;

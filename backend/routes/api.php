@@ -695,6 +695,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::put('/config', [WhatsAppController::class , 'updateConfig']);
                 Route::post('/test-connection', [WhatsAppController::class , 'testConnection']);
                 Route::put('/templates/{whatsAppTemplate}', [WhatsAppController::class , 'updateTemplate']);
+                // TEMPORARY: delete duplicate template rows (hide the UI button later).
+                Route::delete('/templates/{whatsAppTemplate}', [WhatsAppController::class , 'deleteTemplate']);
             }
             );
 
@@ -851,4 +853,25 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/activity-summary', [AuditController::class , 'activitySummary']);
         }
         );
+
+        // ── Hidden developer tooling. `developer.only` 404s for everyone else,
+        //    including super-admins, so the page never reveals it exists. ──
+        Route::prefix('dev')->middleware('developer.only')->group(function () {
+            Route::post('verify', [\App\Http\Controllers\Api\DeveloperController::class, 'verify']);
+            Route::post('credentials', [\App\Http\Controllers\Api\DeveloperController::class, 'changeCredentials']);
+
+            // Fingerprint (WebAuthn) — a second factor on top of the passkey, enforced
+            // only on devices where one is registered, so lockout is impossible.
+            Route::prefix('webauthn')->group(function () {
+                Route::post('register/options', [\App\Http\Controllers\Api\DeveloperWebauthnController::class, 'registerOptions']);
+                Route::post('register', [\App\Http\Controllers\Api\DeveloperWebauthnController::class, 'register']);
+                Route::post('login/options', [\App\Http\Controllers\Api\DeveloperWebauthnController::class, 'loginOptions']);
+                Route::post('login', [\App\Http\Controllers\Api\DeveloperWebauthnController::class, 'login']);
+                Route::get('devices', [\App\Http\Controllers\Api\DeveloperWebauthnController::class, 'devices']);
+                Route::delete('devices/{credential}', [\App\Http\Controllers\Api\DeveloperWebauthnController::class, 'deleteDevice']);
+            });
+            Route::get('missing-images', [\App\Http\Controllers\Api\DeveloperController::class, 'missingImages']);
+            Route::get('pledges/{pledge}/items', [\App\Http\Controllers\Api\DeveloperController::class, 'pledgeItems']);
+            Route::post('missing-images/{item}/photo', [\App\Http\Controllers\Api\DeveloperController::class, 'uploadPhoto']);
+        });
     });

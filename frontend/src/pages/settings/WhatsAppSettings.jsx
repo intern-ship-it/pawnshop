@@ -38,6 +38,7 @@ import {
   ChevronDown,
   Maximize2,
   GripVertical,
+  Trash2,
 } from "lucide-react";
 
 // Default message templates
@@ -332,6 +333,7 @@ export default function WhatsAppSettings() {
       ) {
         const loadedTemplates = templatesRes.data.map((t, idx) => ({
           id: t.template_key,
+          db_id: t.id,
           name: t.name,
           event: t.template_key,
           enabled: t.is_enabled,
@@ -527,6 +529,44 @@ export default function WhatsAppSettings() {
   const openEditTemplate = (template) => {
     setEditingTemplate({ ...template });
     setShowEditModal(true);
+  };
+
+  // TEMPORARY: delete a duplicate template row (hide this button later).
+  const handleDeleteTemplate = async (template) => {
+    if (!template.db_id) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Cannot delete",
+          message: "This is a default template (no branch row to remove).",
+        }),
+      );
+      return;
+    }
+    if (!window.confirm(`Delete template "${template.name}" (${template.event})?`)) {
+      return;
+    }
+    try {
+      const response = await whatsappService.deleteTemplate(template.db_id);
+      if (response.success) {
+        setTemplates((prev) => prev.filter((t) => t.db_id !== template.db_id));
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Template Deleted",
+            message: template.name,
+          }),
+        );
+      }
+    } catch (error) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Delete Failed",
+          message: error?.response?.data?.message || "Could not delete template.",
+        }),
+      );
+    }
   };
   // Save template to API
   const saveTemplate = async () => {
@@ -1070,14 +1110,26 @@ export default function WhatsAppSettings() {
                             </p>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          leftIcon={Edit}
-                          onClick={() => openEditTemplate(template)}
-                        >
-                          Edit
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={Edit}
+                            onClick={() => openEditTemplate(template)}
+                          >
+                            Edit
+                          </Button>
+                          {/* TEMPORARY: delete duplicate rows. Hide this later. */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={Trash2}
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleDeleteTemplate(template)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Preview */}

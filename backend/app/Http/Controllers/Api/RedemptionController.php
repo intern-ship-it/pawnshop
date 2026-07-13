@@ -26,6 +26,19 @@ class RedemptionController extends Controller
     }
 
     /**
+     * The calculator to use for a pledge: tier-aware, unless the operator supplied a
+     * flat rate override, which replaces the whole ladder.
+     */
+    private function calculatorFor(Pledge $pledge, $rateOverride): InterestCalculationService
+    {
+        if ($rateOverride !== null && $rateOverride !== '') {
+            return $this->interestService;
+        }
+
+        return $this->interestService->forPledge($pledge);
+    }
+
+    /**
      * List all redemptions
      */
     public function index(Request $request): JsonResponse
@@ -118,7 +131,7 @@ class RedemptionController extends Controller
             $proRataLoanAmount = $pledge->loan_amount * $proRataRatio;
 
             // Calculate interest on pro-rata loan amount
-            $calculation = $this->interestService->calculateRedemption(
+            $calculation = $this->calculatorFor($pledge, $validated['interest_rate'] ?? null)->calculateRedemption(
                 $proRataLoanAmount,
                 $monthsElapsed,
                 $daysOverdue,
@@ -135,6 +148,9 @@ class RedemptionController extends Controller
             $calculation['selected_net_value'] = round($selectedNetValue, 2);
             $calculation['total_net_value'] = round($totalNetValue, 2);
             $calculation['pro_rata_ratio'] = round($proRataRatio, 4);
+
+            // Credit only the share of paid interest belonging to these items.
+            $this->creditInterestAlreadyPaid($calculation, $pledge, $proRataRatio);
 
             // Add location_string to each item for display
             $itemsWithLocation = $selectedItems->map(function ($item) {
@@ -163,7 +179,7 @@ class RedemptionController extends Controller
         }
 
         // Full redemption (original behavior)
-        $calculation = $this->interestService->calculateRedemption(
+        $calculation = $this->calculatorFor($pledge, $validated['interest_rate'] ?? null)->calculateRedemption(
             $pledge->loan_amount,
             $monthsElapsed,
             $daysOverdue,
@@ -174,6 +190,7 @@ class RedemptionController extends Controller
         );
 
         $calculation['is_partial'] = false;
+        $this->creditInterestAlreadyPaid($calculation, $pledge, 1.0);
 
         // Add location_string to each item
         $itemsWithLocation = $allItems->map(function ($item) {
@@ -196,6 +213,31 @@ class RedemptionController extends Controller
             'all_items' => $itemsWithLocation,
             'calculation' => $calculation,
         ]);
+    }
+
+    /**
+     * Subtract interest the customer has already paid from what redemption asks for.
+     *
+     * Interest accrues across the whole pledge; standalone interest payments settle
+     * part of it as the customer goes. Without this the accrued total is charged in
+     * full at redemption and those payments are collected twice.
+     *
+     * $proRataRatio scales the credit for partial redemptions, so releasing half the
+     * items credits half the interest paid and leaves the rest against the remainder.
+     * The credit never exceeds the interest owed — overpaid interest does not
+     * discount the principal.
+     */
+    private function creditInterestAlreadyPaid(array &$calculation, Pledge $pledge, float $proRataRatio): void
+    {
+        $alreadyPaid = round($pledge->total_interest_paid * $proRataRatio, 2);
+        $grossInterest = (float) $calculation['total_interest'];
+        $credit = min($alreadyPaid, $grossInterest);
+
+        $calculation['gross_interest'] = $grossInterest;
+        $calculation['interest_already_paid'] = $alreadyPaid;
+        $calculation['interest_credited'] = $credit;
+        $calculation['total_interest'] = round($grossInterest - $credit, 2);
+        $calculation['total_payable'] = round((float) $calculation['principal'] + $calculation['total_interest'], 2);
     }
 
     /**
@@ -304,7 +346,7 @@ class RedemptionController extends Controller
                 $loanAmountToRedeem = $pledge->loan_amount * $proRataRatio;
             }
 
-            $calculation = $this->interestService->calculateRedemption(
+            $calculation = $this->calculatorFor($pledge, $validated['interest_rate'] ?? null)->calculateRedemption(
                 $loanAmountToRedeem,
                 $monthsElapsed,
                 $daysOverdue,
@@ -624,10 +666,28 @@ class RedemptionController extends Controller
                 ->orderBy('branch_id', 'desc')
                 ->first();
 
+            // Items released: for a partial redemption only the redeemed items,
+            // otherwise every item on the pledge. Formatted like the receipt.
+            $releasedItems = $pledge->items;
+            if ($redemption->is_partial && !empty($redemption->redeemed_item_ids)) {
+                $releasedItems = $releasedItems->whereIn('id', $redemption->redeemed_item_ids);
+            }
+            $itemsReleased = $releasedItems->map(function ($item) {
+                return "{$item->category->name_en} ({$item->purity->code}) - {$item->net_weight}g";
+            })->join(', ');
+
             $templateData = [
-                'customer_name' => $pledge->customer->name ?? '',
+                'redemption_no' => $redemption->redemption_no,
                 'pledge_no'     => $redemption->pledge->pledge_no,
+                'date'          => \Carbon\Carbon::parse($redemption->created_at)->format('d/m/Y H:i'),
+                'customer_name' => $pledge->customer->name ?? '',
+                'customer_ic'   => $pledge->customer->ic_number ?? '',
+                'items_released' => $itemsReleased,
+                'principal'     => number_format($redemption->principal_amount, 2),
+                'interest'      => number_format($redemption->interest_amount, 2),
                 'total_paid'    => number_format($redemption->total_payable, 2),
+                'payment_mode'  => strtoupper($redemption->payment_method),
+                'amount_paid'   => number_format($redemption->total_payable, 2),
             ];
 
             // Send text message via the shared WhatsApp service

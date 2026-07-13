@@ -37,6 +37,8 @@ class Pledge extends Model
         'gold_price_916',
         'gold_price_875',
         'gold_price_750',
+        'market_gold_prices',
+        'market_price_source',
         'status',
         'renewal_count',
         'customer_signature',
@@ -74,6 +76,7 @@ class Pledge extends Model
         'gold_price_916' => 'decimal:2',
         'gold_price_875' => 'decimal:2',
         'gold_price_750' => 'decimal:2',
+        'market_gold_prices' => 'array',
         'terms_accepted' => 'boolean',
         'terms_accepted_at' => 'datetime',
         'receipt_printed' => 'boolean',
@@ -124,6 +127,17 @@ class Pledge extends Model
         return $this->hasMany(InterestPayment::class);
     }
 
+    /**
+     * The month-based rate ladder frozen onto this pledge at creation.
+     *
+     * Empty for pledges created before tiering existed; those fall back to the flat
+     * standard/extended rates held in this table's own columns.
+     */
+    public function interestTiers(): HasMany
+    {
+        return $this->hasMany(PledgeInterestTier::class)->orderBy('from_month');
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -150,7 +164,10 @@ class Pledge extends Model
         if (!$this->isOverdue()) {
             return 0;
         }
-        return Carbon::today()->diffInDays($this->due_date);
+        // due_date first: diffInDays counts from the receiver to the argument, so
+        // today->diffInDays(due_date) is negative once the due date has passed.
+        // That made `$daysOverdue > 0` always false and the overdue rate never applied.
+        return (int) $this->due_date->diffInDays(Carbon::today());
     }
 
     public function getMonthsElapsedAttribute(): int
@@ -184,9 +201,30 @@ class Pledge extends Model
         return $this->loan_amount * ($this->current_interest_rate / 100) * $months;
     }
 
+    /**
+     * Interest the customer has actually handed over.
+     *
+     * Interest payments are the normal channel; cancelled ones must not count.
+     * Renewals no longer collect anything (they only extend the due date), but
+     * historical renewals did, so credit the cash/transfer actually received
+     * rather than their `interest_amount` — that column is now only a reference
+     * figure for the receipt and would otherwise become a phantom credit at
+     * redemption for money nobody paid.
+     *
+     * Previously summed renewals' interest_amount alone, so interest paid at the
+     * counter was invisible and got charged a second time at redemption.
+     */
     public function getTotalInterestPaidAttribute(): float
     {
-        return $this->renewals()->sum('interest_amount');
+        $fromPayments = (float) $this->interestPayments()
+            ->where('status', 'completed')
+            ->sum('interest_amount');
+
+        $fromRenewals = (float) $this->renewals()
+            ->selectRaw('COALESCE(SUM(cash_amount + transfer_amount), 0) AS received')
+            ->value('received');
+
+        return $fromPayments + $fromRenewals;
     }
 
     public static function generatePledgeNo(int $branchId): string
