@@ -841,7 +841,7 @@ HTML;
                 <span class="customer-label">Tahun Lahir:</span><span class="customer-value">{$birthYear} ({$age})</span>
                 <span class="customer-label">Jantina:</span><span class="customer-value">{$gender}</span>
             </div>
-            <div class="customer-row"><span class="customer-label">Alamat:</span><span class="customer-value" style="flex:1;">{$address}</span></div>
+            <div class="customer-row"><span class="customer-label">Alamat:</span><span class="customer-value addr" style="flex:1;">{$address}</span></div>
         </div>
         <div class="right-section">
             <div class="ticket-box"><div class="ticket-label">NO. TIKET:</div><div class="ticket-number">{$pledge->pledge_no}</div></div>
@@ -898,6 +898,10 @@ HTML;
 .customer-row{display:flex;gap:3mm;margin-bottom:1.5mm;font-size:10px;flex-wrap:wrap}
 .customer-label{font-weight:bold;min-width:22mm}
 .customer-value{border-bottom:1px dotted #1a4a7a;min-width:30mm}
+/* Address only: clip to 2 lines. The other customer fields are single-line and
+   must keep their natural height, so this is a separate class rather than a
+   change to .customer-value. */
+.customer-value.addr{line-height:1.25;max-height:2.5em;overflow:hidden}
 .catatan-box{border:1px solid #1a4a7a;padding:1.5mm;min-height:8mm;margin-bottom:1.5mm}
 .catatan-label{font-size:9px;font-weight:bold}
 .keuntungan-box{background:#fffde8;border:1px solid #d4a800;padding:1.5mm;font-size:10px;font-weight:bold;text-align:center}
@@ -2324,6 +2328,11 @@ HTML;
     left: 21mm;
     width: 124mm;
     font-size: 11px;
+    /* The form beneath is pre-printed, so this box cannot grow: a 3rd line would
+       print on top of the row below it. Cap at exactly 2 lines and clip the rest. */
+    line-height: 1.25;
+    max-height: 2.5em; /* 2 lines x 1.25 */
+    overflow: hidden;
 }
 
 /* ROW 4: Catatan */
@@ -2596,6 +2605,10 @@ HTML;
     left: 31mm;
     width: 150mm;
     font-size: 10px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ROW 4: Catatan */
@@ -3795,6 +3808,10 @@ HTML;
     left: 21mm;
     width: 183mm;
     font-size: 11px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ROW 4: Catatan */
@@ -5079,6 +5096,10 @@ HTML;
     left: 31mm;
     width: 150mm;
     font-size: 10px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 .ppoa-catatan_new {
@@ -5382,7 +5403,7 @@ HTML;
 .ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan { position: absolute; top: 91.5mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -5477,7 +5498,7 @@ HTML;
 .ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear_new { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender_new { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan_new { position: absolute; top: 89mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words_new { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount_new { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -5568,7 +5589,7 @@ HTML;
 .ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan { position: absolute; top: 91.5mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -5659,7 +5680,7 @@ HTML;
 .ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear_new { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender_new { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan_new { position: absolute; top: 89mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words_new { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount_new { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -6195,8 +6216,14 @@ HTML;
     position: absolute;
     top: 92.7mm;
     left: 21mm;
-    width: 183mm;
+    /* Narrower than the renewal form's 183mm: the redemption form's Alamat box ends
+       sooner, so a wider run would print past it. */
+    width: 124mm;
     font-size: 11px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ═══ FINANCIAL BREAKDOWN ═══ */
@@ -6987,8 +7014,14 @@ HTML;
     position: absolute;
     top: 92.7mm;
     left: 21mm;
-    width: 183mm;
+    /* Narrower than the renewal form's 183mm: the redemption form's Alamat box ends
+       sooner, so a wider run would print past it. */
+    width: 124mm;
     font-size: 11px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ═══ FINANCIAL BREAKDOWN ═══ */
