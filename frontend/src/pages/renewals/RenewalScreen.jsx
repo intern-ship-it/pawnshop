@@ -757,6 +757,10 @@ export default function RenewalScreen() {
   const blockedReason = eligibility?.reason || "";
   const renewalsUsed = eligibility?.renewals_used ?? 0;
   const renewalsAllowed = eligibility?.renewals_allowed ?? 0;
+  // Blocked purely by money owed, not by the renewal limit — the limit is terminal
+  // and the backend reports it first, so a maxed-out pledge never lands here.
+  const blockedByUnpaidInterest =
+    !canRenew && renewalsUsed < renewalsAllowed && (eligibility?.outstanding ?? 0) > 0.005;
 
   // Days until due
   const getDaysUntilDue = () => {
@@ -2093,6 +2097,25 @@ export default function RenewalScreen() {
                       </span>{" "}
                       {blockedReason}
                     </p>
+                    {/* Only unpaid interest is actionable — send the operator straight
+                        there with the pledge loaded. A pledge blocked by the renewal
+                        limit is terminal (it must be redeemed), so paying interest
+                        would not unblock it and no shortcut is offered. */}
+                    {blockedByUnpaidInterest && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() =>
+                          navigate(
+                            `/interest-payments?pledge=${encodeURIComponent(pledge.pledgeNo)}`,
+                          )
+                        }
+                        rightIcon={ArrowRight}
+                      >
+                        Settle Interest Now
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
