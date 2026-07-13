@@ -101,7 +101,11 @@ class ReportController extends Controller
             $this->applyGlobalSearch($query, $search, true);
         }
 
-        $pledges = $query->orderBy('pledge_date', 'desc')->get();
+        // pledge_date is a date, so same-day pledges tie; pledge_no is zero-padded
+        // and unique, which makes the order deterministic.
+        $pledges = $query->orderBy('pledge_date', 'desc')
+            ->orderBy('pledge_no', 'desc')
+            ->get();
 
         // Summary
         $summary = [
@@ -233,7 +237,7 @@ class ReportController extends Controller
             $this->applyGlobalSearch($query, $search, true);
         }
 
-        $pledges = $query->orderBy('due_date')->get();
+        $pledges = $query->orderBy('due_date')->orderBy('pledge_no')->get();
 
         // Calculate current interest for each and categorize by due status
         $activePledges = [];
@@ -396,7 +400,7 @@ class ReportController extends Controller
             $this->applyGlobalSearch($query, $search, true);
         }
 
-        $pledges = $query->orderBy('due_date')->get();
+        $pledges = $query->orderBy('due_date')->orderBy('pledge_no')->get();
 
         // Add days overdue
         $pledges->each(function ($pledge) use ($today) {
