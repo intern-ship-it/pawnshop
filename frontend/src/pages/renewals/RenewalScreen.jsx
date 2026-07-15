@@ -759,9 +759,8 @@ export default function RenewalScreen() {
   // interest_amount is what remains outstanding: accrued to date, less anything
   // already settled at the counter. total_payable is 0 — nothing is due here.
   const interestAmount = calculation?.calculation?.interest_amount || 0;
-  const grossInterest = calculation?.calculation?.gross_interest || 0;
-  const interestAlreadyPaid = calculation?.calculation?.interest_already_paid || 0;
-  const handlingFee = calculation?.calculation?.handling_fee || 0;
+  // grossInterest / interestAlreadyPaid / handlingFee were only shown in the
+  // accrued/outstanding box, which is now hidden — dropped to avoid dead reads.
   const interestBreakdown = calculation?.calculation?.interest_breakdown || [];
   const newDueDate = calculation?.renewal?.new_due_date;
 
@@ -2031,70 +2030,12 @@ export default function RenewalScreen() {
                   />
                 </div>
 
-                {/* Interest accrued so far. Independent of the extension period —
-                    extending the due date neither adds nor prepays interest. */}
-                {interestBreakdown.length > 0 && (
-                  <div className="mb-4 p-4 bg-zinc-50 rounded-lg">
-                    <p className="text-sm font-medium text-zinc-700 mb-1">
-                      Interest Accrued So Far
-                    </p>
-                    <p className="text-xs text-zinc-500 mb-2">
-                      Months already elapsed on this pledge — not the {extensionMonths}{" "}
-                      month{extensionMonths === 1 ? "" : "s"} being added.
-                    </p>
-                    <div className="space-y-1">
-                      {interestBreakdown.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-zinc-500">
-                            Month {item.month} ({item.rate}%)
-                          </span>
-                          <span className="font-medium">
-                            {formatCurrency(item.interest)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Summary. Nothing is collected at renewal, so this is what the
-                    customer still owes — not a bill for today. */}
-                <div className="space-y-2 border-t border-zinc-200 pt-4">
-                  {interestAlreadyPaid > 0 && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-zinc-500">Interest accrued</span>
-                        <span className="font-medium">
-                          {formatCurrency(grossInterest)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-zinc-500">Already paid</span>
-                        <span className="font-medium text-green-600">
-                          -{formatCurrency(interestAlreadyPaid)}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                  {handlingFee > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Handling Fee</span>
-                      <span className="font-medium">
-                        {formatCurrency(handlingFee)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t border-zinc-200">
-                    <span className="text-zinc-800">Interest Outstanding</span>
-                    <span className="text-amber-600">
-                      {formatCurrency(interestAmount)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-500 pt-1">
-                    Must be settled in full on the Interest Payments screen before
-                    this pledge can be extended. Not collected here.
-                  </p>
-                </div>
+                {/* Interest accrued/outstanding is hidden here per client request:
+                    a renewal collects no money, so this card only sets the extension
+                    period. The amount owed is still surfaced in the "cannot be
+                    extended" notice below (it reads the same eligibility figure), and
+                    is settled on the Interest Payments screen. Kept, not deleted, so
+                    it can be restored if they change their mind. */}
               </Card>
 
               {/* Confirm Card */}
