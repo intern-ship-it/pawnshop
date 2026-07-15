@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
@@ -71,6 +71,8 @@ import {
 
 export default function RenewalScreen() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const autoLoadedRef = useRef(false);
   const dispatch = useAppDispatch();
   const { selectedPledge } = useAppSelector((state) => state.pledges);
 
@@ -380,6 +382,21 @@ export default function RenewalScreen() {
       setIsSearching(false);
     }
   };
+
+  // Arrive from the interest-payment success screen with the pledge already chosen,
+  // e.g. /renewals?pledge=PLG-HQ-2026-0324. Seed the search box and run the normal
+  // search so the same due-list / eligibility path applies -- a pledge that cannot
+  // be renewed must not load here just because it was linked to. Defined after
+  // handleSearch so the effect can call it. Runs once; the mount effect above that
+  // clears a stale pledge does not interfere, because this drives a fresh search.
+  useEffect(() => {
+    const pledgeNo = searchParams.get("pledge");
+    if (!pledgeNo || autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    setSearchQuery(pledgeNo);
+    // Next tick, so searchQuery is set before handleSearch reads it.
+    setTimeout(() => handleSearch(), 0);
+  }, [searchParams]);
 
   // Debounced search - auto-triggers 500ms after user stops typing
   const debouncedSearch = useCallback((query) => {

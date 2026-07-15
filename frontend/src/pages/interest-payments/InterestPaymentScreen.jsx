@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "react-router";
+import { useSearchParams, useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { interestPaymentService, settingsService, pledgeService } from "@/services";
@@ -18,6 +18,7 @@ export default function InterestPaymentScreen() {
   const dispatch = useAppDispatch();
   const debounceRef = useRef(null);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const autoLoadedRef = useRef(false);
 
   // Search & pledge state
@@ -582,6 +583,18 @@ export default function InterestPaymentScreen() {
             <p className="text-sm text-amber-600 mt-3 font-medium">Due date remains unchanged.</p>
             <div className="mt-6 flex gap-3 justify-center">
               <Button variant="ghost" onClick={() => { setShowSuccess(false); resetForm(); }}>New Payment</Button>
+              {/* Interest is what a renewal was waiting on — once it's settled, send
+                  the operator straight to Renewals with this pledge loaded so they
+                  don't have to search it out again. */}
+              {(pledge?.pledge_no || result?.pledge?.pledge_no) && (
+                <Button
+                  variant="accent"
+                  rightIcon={ArrowRight}
+                  onClick={() => navigate(`/renewals?pledge=${encodeURIComponent(pledge?.pledge_no || result.pledge.pledge_no)}`)}
+                >
+                  Renew This Pledge
+                </Button>
+              )}
             </div>
           </div>
         </Modal>
