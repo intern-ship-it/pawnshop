@@ -2233,7 +2233,23 @@ HTML;
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
         $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
         $monthlyInterest = $loanAmount * (floatval($rate) / 100);
-        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+        // The standard bucket is tiered (e.g. 0.50% months 1-3 then 1.00% months
+        // 4-6), so one "RM x sebulan" line understates what months 4-6 cost. Print
+        // one line per frozen tier. Pledges predating tiering carry no ladder and
+        // keep the single flat line they have always shown.
+        $tierLines = [];
+        foreach ($settings['standard_tiers'] ?? [] as $tier) {
+            $tierMonthly = $loanAmount * (floatval($tier['rate']) / 100);
+            $tierLines[] = '<div class="ppo-tier">- ' . $tier['from_month'] . '-' . $tier['to_month']
+                . ' Months : RM ' . $this->formatNumber($tierMonthly, 2) . '</div>';
+        }
+
+        if (empty($tierLines)) {
+            $tierLines[] = '<div class="ppo-tier">- RM ' . $this->formatNumber($monthlyInterest, 2) . ' sebulan</div>';
+        }
+
+        $interestNote = '<div>Keuntungan Dikenakan</div>' . implode('', $tierLines);
 
         return <<<HTML
 <style>
@@ -2373,9 +2389,18 @@ HTML;
     top: 109.7mm;
     left: 86mm;
     width: 58mm;
-    font-size: 12px;
-    font-weight: bold; 
+    /* Three lines now (heading + two tiers) where there used to be two. The form
+       beneath is pre-printed, so this box cannot grow past the red rule below it:
+       shrink the type and tighten the leading to keep the same overall height. */
+    font-size: 9px;
+    line-height: 1.15;
+    font-weight: bold;
 }
+/* Tier rows sit indented under the heading, each led by a "- " marker. A plain
+   hyphen rather than a bullet glyph: it is one monospace cell and the dot-matrix
+   printer renders it reliably, where a bullet can fall back to a box. The hanging
+   indent keeps a wrapped row aligned under the text instead of under the marker. */
+.ppo-interest-note .ppo-tier { padding-left: 2ch; text-indent: -2ch; }
  .ppo-due-date {
     position: absolute;
     top: 113mm;
@@ -2383,7 +2408,7 @@ HTML;
     width: 28mm;
     font-size: 12px;
     text-align: center;
-} 
+}
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
@@ -2742,9 +2767,15 @@ HTML;
      * wording, so a fourth entry costs exactly one entry's height and the ticket-number
      * spacer gives it back. Do not estimate this from character counts.
      *
+     * On a RENEWAL the standard-rate entries are omitted: they describe the original
+     * pledge term, which no longer applies once the pledge is renewed. Only the
+     * renewal and overdue rates remain. The entries are dropped from the printed
+     * list but still counted for the spacer, so the block keeps its height and the
+     * fields below stay on their pre-printed boxes.
+     *
      * @return array{0: string, 1: float} [kadar lines HTML, ticket spacer in mm]
      */
-    private function buildKadarBlock(array $settings, string $redemptionPeriod): array
+    private function buildKadarBlock(array $settings, string $redemptionPeriod, bool $hideStandardRates = false): array
     {
         $num = 0;
         $line = function (string $body) use (&$num): string {
@@ -2754,20 +2785,30 @@ HTML;
         };
 
         $standardTiers = $settings['standard_tiers'] ?? [];
-        $html = '';
+        $standardHtml = '';
 
         if (count($standardTiers) > 1) {
             foreach ($standardTiers as $i => $tier) {
                 $span = $tier['to_month'] - $tier['from_month'] + 1;
                 $when = $i === 0 ? 'PERTAMA' : 'SETERUSNYA';
-                $html .= $line(
+                $standardHtml .= $line(
                     htmlspecialchars($tier['rate'], ENT_QUOTES | ENT_HTML5, 'UTF-8')
                     . "% SEBULAN : UNTUK TEMPOH {$span} BULAN {$when}"
                 );
             }
         } else {
             $normal = htmlspecialchars($settings['interest_rate_normal'] ?? '0.5', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $html .= $line("{$normal}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA");
+            $standardHtml .= $line("{$normal}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA");
+        }
+
+        // Build the standard entries either way so $num — and therefore the height
+        // this block occupies — is identical on a renewal; only the printing differs.
+        $standardCount = $num;
+        $html = $hideStandardRates ? '' : $standardHtml;
+
+        // The surviving entries renumber from 1 when the standard ones are dropped.
+        if ($hideStandardRates) {
+            $num = 0;
         }
 
         $extended = htmlspecialchars($settings['interest_rate_extended'] ?? '1.0', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -2776,12 +2817,19 @@ HTML;
         $html .= $line("{$overdue}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}");
 
         // Three entries -> 10mm (unchanged); each extra entry gives back 5.03mm.
-        $spacer = round(10 - max(0, $num - 3) * 5.03, 2);
+        // Hidden entries still count: the spacer must absorb the height they would
+        // have taken, or every field below rides up off the pre-printed stationery.
+        $entries = $hideStandardRates ? $num + $standardCount : $num;
+        $spacer = round(10 - max(0, $entries - 3) * 5.03, 2);
+
+        if ($hideStandardRates) {
+            $spacer = round($spacer + $standardCount * 5.03, 2);
+        }
 
         return [$html, $spacer];
     }
 
-    private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false, $customer = null): string
+    private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false, $customer = null, bool $hideStandardRates = false): string
     {
         // Dynamic ID label: "No. Pasport" for foreign customers (passport), else "No. Kad Pengenalan"
         $isPassport = $customer && (($customer->ic_type ?? 'mykad') === 'passport');
@@ -2809,7 +2857,7 @@ HTML;
             $rateRowCells = '<div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">' . $redemptionPeriod . '</div></div>';
         }
 
-        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod);
+        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod, $hideStandardRates);
 
         $phoneHtml = $phone1;
         if ($phone2) {
@@ -3753,6 +3801,21 @@ HTML;
 }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
+.ppo-origin-ticket {
+    position: absolute;
+    top: 40mm;
+    right: 7mm;
+    width: 40mm;
+    height: 7mm;
+    text-align: center;
+    font-size: 11px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .ppo-items {
     position: absolute;
     top: 32mm;
@@ -3920,6 +3983,7 @@ HTML;
 <div class="ppo-watermark">SAMBUNGAN</div>
     <!-- TICKET NUMBER -->
    <div class="ppo-ticket">{$renewal->renewal_no}</div>
+   <div class="ppo-origin-ticket">{$pledge->pledge_no}</div>
     
     <!-- ITEMS LIST -->
       <div class="ppo-items">{$itemsText}</div>
@@ -4389,7 +4453,9 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
+            // Renewal: drop the standard-rate entries, which describe the original
+            // pledge term and no longer apply once the pledge has been renewed.
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer, true);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
 
             // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
@@ -4533,7 +4599,9 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
+            // Renewal: drop the standard-rate entries, which describe the original
+            // pledge term and no longer apply once the pledge has been renewed.
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer, true);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
 
             // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
