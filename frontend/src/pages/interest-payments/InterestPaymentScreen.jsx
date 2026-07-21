@@ -26,6 +26,9 @@ export default function InterestPaymentScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [pledgeList, setPledgeList] = useState([]);
   const [pledge, setPledge] = useState(null);
+  // The server's view of the pledge from calculate(), which carries can_renew. The
+  // pledge above comes from the eligible-list and does not know the renewal limit.
+  const [pledgeMeta, setPledgeMeta] = useState(null);
 
   // Calculation
   const [calculation, setCalculation] = useState(null);
@@ -179,7 +182,21 @@ export default function InterestPaymentScreen() {
       const data = res.data?.data || res.data;
       setCalculation(data.calculation);
       setPeriod(data.period);
-      
+
+      // Show the rate the months are actually billing at, not the pledge's opening
+      // rate. A renewed pledge paying months 7-12 is on the extended tier, so the
+      // frozen 0.50 this box was pre-filled with contradicted every row of the
+      // breakdown. Skipped when the operator typed their own rate, and when the
+      // months span several rates (the box then reads "Tiered — see breakdown").
+      if (!isOverride && !data.calculation?.is_tiered && data.calculation?.interest_rate != null) {
+        setInterestRate(String(data.calculation.interest_rate));
+      }
+
+      // Keep the server's view of the pledge — it carries can_renew, which the
+      // success modal uses to offer Renew or Redeem. The pledge held in state comes
+      // from the eligible-list and does not know the renewal limit.
+      if (data.pledge) setPledgeMeta(data.pledge);
+
       // Auto-set the months input on initial load
       if (overrideMonths === null && data.period?.months_remaining) {
         setMonthsToPay(String(data.period.months_remaining));
@@ -235,7 +252,7 @@ export default function InterestPaymentScreen() {
   };
 
   const resetForm = () => {
-    setPledge(null); setCalculation(null); setPeriod(null); setSearchQuery("");
+    setPledge(null); setPledgeMeta(null); setCalculation(null); setPeriod(null); setSearchQuery("");
     setInterestRate(""); setRateSource(""); setRateEdited(false); setMonthsToPay(""); setPaymentMethod("cash");
     setCashAmount(""); setTransferAmount(""); setBankId(""); setReferenceNo("");
     setNotes(""); setShowSuccess(false); setResult(null); setPledgeList([]);
@@ -395,6 +412,47 @@ export default function InterestPaymentScreen() {
                     </div>
                   </Card>
 
+                  {/* Nothing left to pay on this term. Shown instead of the calculation
+                      and payment cards, which would otherwise offer a month that is not
+                      owed and a RM 0.00 payment. */}
+                  {period?.term_settled ? (
+                    <Card className="p-6">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                        <div>
+                          <h4 className="font-semibold text-zinc-800 mb-1">
+                            Interest fully settled
+                          </h4>
+                          <p className="text-sm text-zinc-600">
+                            All {period?.term_months ?? 6} months of this term have been
+                            paid. Nothing further is payable
+                            {pledgeMeta?.can_renew === false
+                              ? "; this pledge must now be redeemed."
+                              : " until the pledge is renewed."}
+                          </p>
+                          {(pledge?.pledge_no || pledgeMeta?.pledge_no) && (
+                            <Button
+                              variant="accent"
+                              size="sm"
+                              className="mt-4"
+                              rightIcon={ArrowRight}
+                              onClick={() => {
+                                const no = pledge?.pledge_no || pledgeMeta.pledge_no;
+                                navigate(
+                                  `${pledgeMeta?.can_renew === false ? "/redemptions" : "/renewals"}?pledge=${encodeURIComponent(no)}`,
+                                );
+                              }}
+                            >
+                              {pledgeMeta?.can_renew === false
+                                ? "Redeem This Pledge"
+                                : "Renew This Pledge"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  ) : (
+                  <>
                   {/* Interest Calculation */}
                   <Card className="p-6">
                     <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
@@ -556,10 +614,12 @@ export default function InterestPaymentScreen() {
                     </div>
 
                     <Button variant="success" className="w-full" size="lg" onClick={handleProcess} loading={isProcessing}
-                      disabled={!calculation || isProcessing}>
+                      disabled={!calculation || isProcessing || (calculation?.total_payable || 0) <= 0}>
                       <Banknote className="w-5 h-5 mr-2" /> Process Interest Payment — {formatCurrency(calculation?.total_payable || 0)}
                     </Button>
                   </Card>
+                  </>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -586,15 +646,26 @@ export default function InterestPaymentScreen() {
               {/* Interest is what a renewal was waiting on — once it's settled, send
                   the operator straight to Renewals with this pledge loaded so they
                   don't have to search it out again. */}
-              {(pledge?.pledge_no || result?.pledge?.pledge_no) && (
-                <Button
-                  variant="accent"
-                  rightIcon={ArrowRight}
-                  onClick={() => navigate(`/renewals?pledge=${encodeURIComponent(pledge?.pledge_no || result.pledge.pledge_no)}`)}
-                >
-                  Renew This Pledge
-                </Button>
-              )}
+              {/* A pledge that has used all its renewals can only be redeemed, so
+                  sending it to Renewals would land the operator on a refusal. Offer
+                  the step that can actually be completed. */}
+              {(pledge?.pledge_no || result?.pledge?.pledge_no) && (() => {
+                const pledgeNo = pledge?.pledge_no || result.pledge.pledge_no;
+                const canRenew = pledgeMeta?.can_renew !== false;
+                return (
+                  <Button
+                    variant="accent"
+                    rightIcon={ArrowRight}
+                    onClick={() =>
+                      navigate(
+                        `${canRenew ? "/renewals" : "/redemptions"}?pledge=${encodeURIComponent(pledgeNo)}`,
+                      )
+                    }
+                  >
+                    {canRenew ? "Renew This Pledge" : "Redeem This Pledge"}
+                  </Button>
+                );
+              })()}
             </div>
           </div>
         </Modal>
