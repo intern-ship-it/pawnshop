@@ -32,6 +32,7 @@ class Pledge extends Model
         'interest_rate_overdue',
         'pledge_date',
         'due_date',
+        'current_term_start',
         'grace_end_date',
         'gold_price_999',
         'gold_price_916',
@@ -71,6 +72,8 @@ class Pledge extends Model
         'interest_rate_overdue' => 'decimal:2',
         'pledge_date' => 'date:Y-m-d',
         'due_date' => 'date:Y-m-d',
+        // datetime, not date: renew-then-pay on the same day is only separable by time.
+        'current_term_start' => 'datetime',
         'grace_end_date' => 'date:Y-m-d',
         'gold_price_999' => 'decimal:2',
         'gold_price_916' => 'decimal:2',
@@ -225,6 +228,68 @@ class Pledge extends Model
             ->value('received');
 
         return $fromPayments + $fromRenewals;
+    }
+
+    /**
+     * Interest paid toward the CURRENT term only — payments made on or after
+     * current_term_start. This is what the renewal gate measures: a pledge in its
+     * second term must not be credited for interest paid on the first.
+     *
+     * current_term_start is backfilled for every pledge, but guard against null so
+     * an un-migrated row falls back to counting everything rather than crashing.
+     */
+    public function interestPaidThisTerm(): float
+    {
+        // Matched on the term the payment was stamped with, not on time. Timestamps
+        // cannot separate a payment from a renewal made in the same second: `>=`
+        // credited the closing term's money to the new term (making the next renewal
+        // free) and `>` discarded it (billing the customer twice for one term).
+        return (float) $this->interestPayments()
+            ->where('status', 'completed')
+            ->where('term_number', (int) $this->renewal_count)
+            ->sum('interest_amount');
+    }
+
+    /**
+     * The ladder month this pledge's CURRENT term begins at.
+     *
+     * Months keep climbing across renewals: term 1 is months 1-6, term 2 is 7-12,
+     * and so on. That is what pushes a renewed pledge onto the extended tier — the
+     * ladder's "from month 7 onwards" rule. Restarting each term at month 1 would
+     * mean the extended rate never applied to a renewed pledge at all.
+     */
+    public function termStartMonth(int $termMonths = 6): int
+    {
+        return ((int) $this->renewal_count * $termMonths) + 1;
+    }
+
+    /**
+     * The full interest for the CURRENT term, down the pledge's frozen tier ladder,
+     * counted from the term's real ladder position. Term 1 of a 0.5/1.0 ladder costs
+     * 3 months at 0.5% plus 3 at 1.0%; term 2 sits at months 7-12 and so takes the
+     * extended rate throughout.
+     *
+     * This is the amount that must be settled before a renewal may proceed — not
+     * merely the interest accrued so far.
+     *
+     * Untiered legacy pledges fall back to the flat rate their own column holds, via
+     * the same service every screen uses, so no existing pledge changes.
+     */
+    public function fullTermInterest(int $termMonths = 6): float
+    {
+        $service = app(\App\Services\InterestCalculationService::class)->forPledge($this);
+        $principal = (float) $this->loan_amount;
+        $flatRate = (float) $this->interest_rate;
+
+        $firstMonth = $this->termStartMonth($termMonths);
+        $total = 0.0;
+
+        for ($offset = 0; $offset < $termMonths; $offset++) {
+            $rate = $service->rateForMaintainedMonth($firstMonth + $offset, $flatRate)['rate'];
+            $total += $principal * ($rate / 100);
+        }
+
+        return round($total, 2);
     }
 
     public static function generatePledgeNo(int $branchId): string

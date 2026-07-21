@@ -14,6 +14,10 @@ class InterestPayment extends Model
     protected $fillable = [
         'branch_id',
         'pledge_id',
+        // Which renewal term this payment belongs to (the pledge's renewal_count when
+        // it was taken). Set explicitly rather than inferred from timestamps, which
+        // cannot separate a payment from a renewal made in the same second.
+        'term_number',
         'payment_no',
         'interest_months',
         'period_from',

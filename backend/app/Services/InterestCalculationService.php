@@ -182,6 +182,43 @@ class InterestCalculationService
     }
 
     /**
+     * How many whole months a sum of money covers when charged down the ladder from
+     * month 1. The interest-payment screen used to derive "months already paid" from
+     * payment dates, which miscounted (2 months of money read as 3) and then billed
+     * the wrong tier. Counting the money itself is exact and cannot drift.
+     *
+     * Only whole covered months count: a part-paid month is not "paid". Stops at
+     * $maxMonths (the term length) so overpayment cannot report more than a full term.
+     */
+    public function monthsCoveredBy(float $amountPaid, float $principal, float $flatRate, int $maxMonths = 6, int $firstMonth = 1): int
+    {
+        if ($principal <= 0) {
+            return 0;
+        }
+
+        $remaining = $amountPaid;
+        $covered = 0;
+
+        // Count from the term's real ladder position: a renewed pledge's second term
+        // starts at month 7, where the extended rate applies. Counting from month 1
+        // would price its months at the cheaper opening tiers.
+        for ($offset = 0; $offset < $maxMonths; $offset++) {
+            $month = $firstMonth + $offset;
+            $monthCost = $principal * ($this->rateForMaintainedMonth($month, $flatRate)['rate'] / 100);
+            // A free month (0% rate) is trivially covered; otherwise it must be
+            // fully funded. Allow a cent of rounding slack.
+            if ($monthCost <= 0 || $remaining + 0.005 >= $monthCost) {
+                $remaining -= $monthCost;
+                $covered++;
+            } else {
+                break;
+            }
+        }
+
+        return $covered;
+    }
+
+    /**
      * The label for a maintained month: the tier's own rate_type, or the flat split.
      */
     private function maintainedTypeForMonth(int $month): string

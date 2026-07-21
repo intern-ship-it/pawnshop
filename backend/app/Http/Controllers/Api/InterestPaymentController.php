@@ -211,37 +211,44 @@ class InterestPaymentController extends Controller
             $rateSource = $this->rateMatchesGlobalStandard($rate, $pledge->branch_id) ? 'global' : 'manual';
         }
 
-        // Use the pledge's own month count (a started month rounds up), the same
-        // figure every other screen uses. diffInMonths() returns a float, which
-        // both leaked to the UI as "1.96044779..." and made the breakdown loop
-        // (`$i < 1.96` runs twice) disagree with addMonths(1.96) (adds one month).
         $pledgeDate = Carbon::parse($pledge->pledge_date);
-        $monthsElapsed = max(1, $pledge->months_elapsed);
+        $termMonths = $this->termMonths($pledge);
 
-        // Determine the interest period
-        // Check if there were previous interest payments
-        $lastPayment = InterestPayment::where('pledge_id', $pledge->id)
-            ->where('status', 'completed')
-            ->orderBy('period_to', 'desc')
-            ->first();
+        // Months already paid THIS TERM, counted by the money actually received down
+        // the ladder — not by payment dates, which miscounted (2 months of money read
+        // as 3) and then billed the wrong tier. This is the same figure the renewal
+        // gate uses, so the two screens agree.
+        $paidThisTerm = $pledge->interestPaidThisTerm();
+        $monthsPaid = $this->interestService
+            ->forPledge($pledge)
+            ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths);
 
-        if ($lastPayment) {
-            $periodFrom = $lastPayment->period_to->copy()->addDay();
-            $monthsPaid = (int) ceil($pledgeDate->diffInMonths($lastPayment->period_to));
-        } else {
-            $periodFrom = $pledgeDate->copy();
-            $monthsPaid = 0;
-        }
+        // The current term began at current_term_start; each unpaid month is billed
+        // from there. months_paid full months have been settled, so the next unpaid
+        // month is month_paid + 1.
+        $termStart = $pledge->current_term_start
+            ? Carbon::parse($pledge->current_term_start)
+            : $pledgeDate->copy();
+        $periodFrom = $termStart->copy()->addMonths($monthsPaid);
 
-        // Months remaining to pay
-        $monthsRemaining = max(1, $monthsElapsed - $monthsPaid);
+        // By default, offer to settle the rest of the term. The customer may pay any
+        // number of remaining months up to the term (prepayment is allowed so a young
+        // pledge can settle all 6 and renew), but never past it.
+        //
+        // Zero, not one, when the term is fully paid: max(1, ...) used to invent a
+        // month that was not owed, so a settled pledge kept offering the month after
+        // its own term — month 25 of a 24-month pledge.
+        $monthsOwed = max(0, $termMonths - $monthsPaid);
+        $monthsRemaining = $monthsOwed;
 
-        // Allow user to override months to pay (e.g. for prepayment)
         if ($request->has('months_to_pay')) {
-            $monthsRemaining = (int) $request->input('months_to_pay');
+            $requested = (int) $request->input('months_to_pay');
+            // Clamp to what is actually still owed on the term.
+            $monthsRemaining = max(0, min($requested, $monthsOwed));
         }
 
         $periodTo = $periodFrom->copy()->addMonths($monthsRemaining);
+        $monthsElapsed = max(1, $pledge->months_elapsed);
 
         // Calculate interest, month by month down the pledge's frozen rate ladder.
         // Paying months 4-6 of a 0.5%/1.0% ladder must bill 1.0%, not the flat
@@ -254,7 +261,9 @@ class InterestPaymentController extends Controller
         $cumulative = 0;
 
         for ($i = 0; $i < $monthsRemaining; $i++) {
-            $monthNumber = $monthsPaid + $i + 1;
+            // Ladder position, not position within the term: term 2 starts at month 7,
+            // where the extended rate applies.
+            $monthNumber = $pledge->termStartMonth($termMonths) + $monthsPaid + $i;
             $monthRate = $isManualOverride
                 ? $rate
                 : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate'];
@@ -276,6 +285,13 @@ class InterestPaymentController extends Controller
         $handlingFee = 0; // Disabled per user preference
         $totalPayable = $totalInterest + $handlingFee;
 
+        // What the rate box should say. Read it off the months actually being billed
+        // so it can never contradict the breakdown: one distinct rate means that rate
+        // is the whole story, several means the UI should show the ladder instead.
+        $ratesBilled = array_unique(array_column($breakdown, 'rate'));
+        $distinctRates = count($ratesBilled);
+        $displayRate = $distinctRates === 1 ? (float) reset($ratesBilled) : $rate;
+
         return $this->success([
             'pledge' => [
                 'id' => $pledge->id,
@@ -286,6 +302,13 @@ class InterestPaymentController extends Controller
                 'due_date' => $pledge->due_date->toDateString(),
                 'status' => $pledge->status,
                 'renewal_count' => (int) $pledge->renewal_count,
+                // Whether a renewal is still possible, so the screen can offer the
+                // right next step after a payment: a pledge that has used all its
+                // renewals must be redeemed, and pointing it at Renewals would only
+                // lead to a refusal. Resolved here rather than in the UI so both
+                // screens read the same limit.
+                'renewals_allowed' => $this->maxRenewals(),
+                'can_renew' => (int) $pledge->renewal_count < $this->maxRenewals(),
                 'customer' => $pledge->customer,
             ],
             'period' => [
@@ -294,19 +317,55 @@ class InterestPaymentController extends Controller
                 'months_elapsed' => $monthsElapsed,
                 'months_paid' => $monthsPaid,
                 'months_remaining' => $monthsRemaining,
+                'term_months' => $termMonths,
+                // Nothing left to pay on this term. The screen shows a settled notice
+                // instead of a breakdown, rather than offering a month that is not owed.
+                'term_settled' => $monthsOwed === 0,
             ],
             'calculation' => [
-                'interest_rate' => $rate,
+                // The rate the months being paid actually bill at — not the pledge's
+                // opening rate. A renewed pledge paying months 7-12 is on the extended
+                // tier, so quoting its frozen 0.5% here contradicted every row of the
+                // breakdown below. Falls back to the resolved rate when there are no
+                // rows to read.
+                'interest_rate' => $displayRate,
                 'rate_source' => $rateSource,
                 // True when the months being paid do not all bill at one rate, so the
                 // UI knows the single interest_rate above does not describe the bill.
-                'is_tiered' => count(array_unique(array_column($breakdown, 'rate'))) > 1,
+                'is_tiered' => $distinctRates > 1,
                 'interest_breakdown' => $breakdown,
                 'interest_amount' => $totalInterest,
                 'handling_fee' => round($handlingFee, 2),
                 'total_payable' => round($totalPayable, 2),
             ],
         ]);
+    }
+
+    /**
+     * Renewals allowed per pledge. Reads the same setting RenewalController uses, so
+     * the two screens cannot disagree about whether a pledge can still be renewed.
+     */
+    private function maxRenewals(): int
+    {
+        return (int) (\App\Models\Setting::where('key_name', 'max_renewals')->value('value')
+            ?? config('pawnsys.pledge.max_renewals', 2));
+    }
+
+    /**
+     * The pledge's term length in months — the span the tier ladder covers (max
+     * standard/custom to_month), defaulting to 6 when there is no ladder. Kept in
+     * step with RenewalController::termMonths so both screens agree on the term.
+     */
+    private function termMonths(Pledge $pledge): int
+    {
+        $end = (int) \App\Models\InterestRate::where('is_active', true)
+            ->whereIn('rate_type', ['standard', 'custom'])
+            ->where(function ($q) use ($pledge) {
+                $q->where('branch_id', $pledge->branch_id)->orWhereNull('branch_id');
+            })
+            ->max('to_month');
+
+        return $end > 0 ? $end : 6;
     }
 
     /**
@@ -385,28 +444,42 @@ class InterestPaymentController extends Controller
                 }
             }
 
-            // Calculate period. Integer months throughout — see calculate().
+            // Period, counted by money against the ladder — identical to calculate(),
+            // so the amount charged is exactly what the screen previewed.
             $pledgeDate = Carbon::parse($pledge->pledge_date);
-            $monthsElapsed = max(1, $pledge->months_elapsed);
+            $termMonths = $this->termMonths($pledge);
 
-            $lastPayment = InterestPayment::where('pledge_id', $pledge->id)
-                ->where('status', 'completed')
-                ->orderBy('period_to', 'desc')
-                ->first();
+            $paidThisTerm = $pledge->interestPaidThisTerm();
+            $monthsPaid = $this->interestService
+                ->forPledge($pledge)
+                ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths, $pledge->termStartMonth($termMonths));
 
-            if ($lastPayment) {
-                $periodFrom = $lastPayment->period_to->copy()->addDay();
-                $monthsPaid = (int) ceil($pledgeDate->diffInMonths($lastPayment->period_to));
-            } else {
-                $periodFrom = $pledgeDate->copy();
-                $monthsPaid = 0;
+            $termStart = $pledge->current_term_start
+                ? Carbon::parse($pledge->current_term_start)
+                : $pledgeDate->copy();
+            $periodFrom = $termStart->copy()->addMonths($monthsPaid);
+
+            $monthsOwed = max(0, $termMonths - $monthsPaid);
+
+            // Nothing owed on this term: refuse rather than invent a month. A
+            // disabled button is a courtesy; this endpoint is callable directly, and
+            // max(1, ...) here would have charged for a month past the pledge's term.
+            if ($monthsOwed === 0) {
+                DB::rollBack();
+                return $this->error(
+                    'This term\'s interest is already settled in full. Nothing further is payable'
+                        . ($pledge->renewal_count < $this->maxRenewals()
+                            ? ' until the pledge is renewed.'
+                            : '; this pledge must now be redeemed.'),
+                    422
+                );
             }
 
-            $monthsRemaining = max(1, $monthsElapsed - $monthsPaid);
-            
-            // Allow override for prepayment
+            $monthsRemaining = $monthsOwed;
+
+            // Prepayment allowed, but never past the term.
             if (isset($validated['months_to_pay'])) {
-                $monthsRemaining = (int) $validated['months_to_pay'];
+                $monthsRemaining = max(1, min((int) $validated['months_to_pay'], $monthsOwed));
             }
 
             $periodTo = $periodFrom->copy()->addMonths($monthsRemaining);
@@ -421,7 +494,9 @@ class InterestPaymentController extends Controller
             $cumulative = 0;
 
             for ($i = 0; $i < $monthsRemaining; $i++) {
-                $monthNumber = $monthsPaid + $i + 1;
+                // Ladder position, not position within the term: term 2 starts at month 7,
+            // where the extended rate applies.
+            $monthNumber = $pledge->termStartMonth($termMonths) + $monthsPaid + $i;
                 $monthRate = $isManualOverride
                     ? $rate
                     : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate'];
@@ -450,6 +525,10 @@ class InterestPaymentController extends Controller
             $payment = InterestPayment::create([
                 'branch_id' => $branchId,
                 'pledge_id' => $pledge->id,
+                // The term this money is for. Stamped from the pledge's current
+                // renewal_count so the renewal gate can credit it exactly, even when
+                // the payment and a renewal land in the same second.
+                'term_number' => (int) $pledge->renewal_count,
                 'payment_no' => $paymentNo,
                 'interest_months' => $monthsRemaining,
                 'period_from' => $periodFrom,
