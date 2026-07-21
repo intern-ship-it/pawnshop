@@ -15,7 +15,7 @@ return [
         'max_renewal_months' => 12,
         // Renewals allowed per pledge, not per customer. Override with the
         // 'max_renewals' setting.
-        'max_renewals' => 3,
+        'max_renewals' => 2,
         'grace_period_days' => 7,
     ],
 
