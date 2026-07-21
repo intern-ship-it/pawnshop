@@ -5805,7 +5805,25 @@ HTML;
         $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $logoUrl = $settings['logo_url'] ?? null;
 
-        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod);
+        // The rate ladder is spent once the pledge is redeemed — nothing further can
+        // accrue — so the KADAR block prints nothing on this receipt.
+        //
+        // It is hidden with visibility only, and still rendered with real entry lines:
+        // the block must keep the exact height it has always had, because the data
+        // overlay pins itself to the form with absolute mm offsets and any change to
+        // the right column's height slides every field off the pre-printed stationery.
+        // Setting an explicit height here is what broke the alignment before — the
+        // figure ignored the block's title and padding. Let it size itself.
+        //
+        // The ladder is forced to the untiered 3-entry form rather than passed through:
+        // buildKadarBlock() shrinks the ticket spacer to pay for a 4th entry when the
+        // pledge has tiered rates, which lifted the whole column ~5mm on a redemption
+        // and left the DITEBUS badge beside TEMPOH TAMAT instead of over it. Nothing
+        // here is visible, so the entry count must not move the layout.
+        $kadarSettings = $settings;
+        unset($kadarSettings['standard_tiers']);
+        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($kadarSettings, $redemptionPeriod);
+        $kadarHiddenStyle = ' style="visibility: hidden;"';
 
         $phoneHtml = $phone1;
         if ($phone2) {
@@ -6005,7 +6023,7 @@ HTMLSTART
             <div class="pp-rate-row">
                 <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
             </div>
-            <div class="pp-kadar">
+            <div class="pp-kadar"{$kadarHiddenStyle}>
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                 {$kadarLines}
             </div>
@@ -6141,9 +6159,10 @@ HTML;
         $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
         $principalFormatted = $this->formatNumber($principal, 2);
         $interestFormatted = $this->formatNumber($interestAmount, 2);
-        $rate = $pledge->interest_rate ?? 0.5;
-        $monthlyInterest = $principal * (floatval($rate) / 100);
-        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+        // No monthly-interest note on a redemption: the pledge is settled, so quoting
+        // a rate per month describes a charge that can no longer be incurred.
+        $interestNote = '';
 
         return <<<HTML
 <style>
@@ -6513,6 +6532,30 @@ HTML;
             $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
 
+            // How the customer settled, matching the block already on the pledge and
+            // renewal receipts. A redemption carries its payment fields on the record
+            // itself rather than through a payments relation. Hidden entirely when no
+            // method is recorded, so nothing prints over the blank form.
+            $paymentInfoBlockHtml = '';
+            $redemption->loadMissing('bank');
+            $lines = [];
+            if (\in_array($redemption->payment_method, ['transfer', 'partial'], true)) {
+                // Partial = cash + transfer; label it so staff don't read it as a full transfer.
+                $methodLabel = $redemption->payment_method === 'partial' ? 'SEBAHAGIAN' : 'PINDAHAN';
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$methodLabel}</strong></div>";
+                // Escaped: both land in raw interpolated HTML below.
+                $bankName = htmlspecialchars($redemption->bank->name ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $accountNo = htmlspecialchars($redemption->account_number ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+            } elseif ($redemption->payment_method === 'cash') {
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+            }
+            if (!empty($lines)) {
+                $innerHtml = implode('', $lines);
+                $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+            }
+
             // Combine them - data overlay on top of blank form
             $combinedHtml = <<<HTML
 <style>
@@ -6559,6 +6602,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
 </div>
 HTML;
 
@@ -6801,7 +6845,11 @@ HTMLSTART
             <div class="pp-rate-row">
                 <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
             </div>
-            <div class="pp-kadar">
+            <!-- Rates are spent once the pledge is redeemed, so this block prints
+                 nothing. Hidden with visibility and left fully rendered: the overlay
+                 pins itself with absolute mm offsets, so the block must keep its
+                 exact height or every field below slides off the pre-printed form. -->
+            <div class="pp-kadar" style="visibility: hidden;">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                 <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA</span></div>
                 <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}</span></div>
@@ -6939,9 +6987,10 @@ HTML;
         $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
         $principalFormatted = $this->formatNumber($principal, 2);
         $interestFormatted = $this->formatNumber($interestAmount, 2);
-        $rate = $pledge->interest_rate ?? 0.5;
-        $monthlyInterest = $principal * (floatval($rate) / 100);
-        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+        // No monthly-interest note on a redemption: the pledge is settled, so quoting
+        // a rate per month describes a charge that can no longer be incurred.
+        $interestNote = '';
 
         return <<<HTML
 <style>
@@ -7311,6 +7360,30 @@ HTML;
             $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPageReprint($settings);
             $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlayReprint($redemption, $pledge, $settings);
 
+            // How the customer settled — same block as the original print, so a reprint
+            // is a faithful copy. A redemption carries its payment fields on the record
+            // itself rather than through a payments relation. Hidden entirely when no
+            // method is recorded, so nothing prints over the blank form.
+            $paymentInfoBlockHtml = '';
+            $redemption->loadMissing('bank');
+            $lines = [];
+            if (\in_array($redemption->payment_method, ['transfer', 'partial'], true)) {
+                // Partial = cash + transfer; label it so staff don't read it as a full transfer.
+                $methodLabel = $redemption->payment_method === 'partial' ? 'SEBAHAGIAN' : 'PINDAHAN';
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$methodLabel}</strong></div>";
+                // Escaped: both land in raw interpolated HTML below.
+                $bankName = htmlspecialchars($redemption->bank->name ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $accountNo = htmlspecialchars($redemption->account_number ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+            } elseif ($redemption->payment_method === 'cash') {
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+            }
+            if (!empty($lines)) {
+                $innerHtml = implode('', $lines);
+                $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+            }
+
             // Combine them - data overlay on top of blank form
             $combinedHtml = <<<HTML
 <style>
@@ -7357,6 +7430,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
 </div>
 HTML;
 

@@ -149,6 +149,10 @@ class RedemptionController extends Controller
             $calculation['total_net_value'] = round($totalNetValue, 2);
             $calculation['pro_rata_ratio'] = round($proRataRatio, 4);
 
+            // Re-base onto the current term before crediting, so the months and rates
+            // charged match the term the pledge is actually in.
+            $this->applyCurrentTermInterest($calculation, $pledge, $proRataRatio);
+
             // Credit only the share of paid interest belonging to these items.
             $this->creditInterestAlreadyPaid($calculation, $pledge, $proRataRatio);
 
@@ -190,6 +194,7 @@ class RedemptionController extends Controller
         );
 
         $calculation['is_partial'] = false;
+        $this->applyCurrentTermInterest($calculation, $pledge, 1.0);
         $this->creditInterestAlreadyPaid($calculation, $pledge, 1.0);
 
         // Add location_string to each item
@@ -229,7 +234,7 @@ class RedemptionController extends Controller
      */
     private function creditInterestAlreadyPaid(array &$calculation, Pledge $pledge, float $proRataRatio): void
     {
-        $alreadyPaid = round($pledge->total_interest_paid * $proRataRatio, 2);
+        $alreadyPaid = round($pledge->interestPaidThisTerm() * $proRataRatio, 2);
         $grossInterest = (float) $calculation['total_interest'];
         $credit = min($alreadyPaid, $grossInterest);
 
@@ -238,6 +243,89 @@ class RedemptionController extends Controller
         $calculation['interest_credited'] = $credit;
         $calculation['total_interest'] = round($grossInterest - $credit, 2);
         $calculation['total_payable'] = round((float) $calculation['principal'] + $calculation['total_interest'], 2);
+    }
+
+    /**
+     * Replaces the whole-life interest figures with the CURRENT term's.
+     *
+     * calculateRedemption() counts months from 1, which is right for a pledge that
+     * has never been renewed but wrong for one that has: a pledge in its fourth term
+     * was quoted "Month 1 at 0.5%" when it actually sits at months 19-24 on the
+     * extended tier. Earlier terms are settled business — the renewal gate does not
+     * let a pledge advance until its term is paid in full — so redemption charges
+     * only what is unpaid on the term now running.
+     *
+     * A pledge past its due date keeps calculateRedemption()'s overdue treatment:
+     * that is a penalty on months genuinely in arrears, not a term-ladder question.
+     */
+    private function applyCurrentTermInterest(array &$calculation, Pledge $pledge, float $proRataRatio): void
+    {
+        if ($pledge->isOverdue() || $pledge->days_overdue > 0) {
+            return; // overdue pricing already handled; do not re-base it
+        }
+
+        $termMonths = $this->termMonths($pledge);
+        $firstMonth = $pledge->termStartMonth($termMonths);
+        $principal = (float) $calculation['principal'];
+        $service = $this->interestService->forPledge($pledge);
+        $flatRate = (float) $pledge->interest_rate;
+
+        // Only months of this term that have actually begun are chargeable — a
+        // customer redeeming in month 2 of a term does not owe all six.
+        $monthsIntoTerm = $this->monthsIntoCurrentTerm($pledge, $termMonths);
+
+        $breakdown = [];
+        $total = 0.0;
+
+        for ($offset = 0; $offset < $monthsIntoTerm; $offset++) {
+            $month = $firstMonth + $offset;
+            $rate = $service->rateForMaintainedMonth($month, $flatRate)['rate'];
+            $interest = $principal * ($rate / 100);
+            $total += $interest;
+
+            $breakdown[] = [
+                'month' => $month,
+                'rate' => $rate,
+                'interest' => round($interest, 2),
+                'cumulative' => round($total, 2),
+            ];
+        }
+
+        $calculation['interest_breakdown'] = $breakdown;
+        $calculation['total_interest'] = round($total, 2);
+        $calculation['months_elapsed'] = $monthsIntoTerm;
+        $calculation['term_start_month'] = $firstMonth;
+    }
+
+    /**
+     * How many months of the current term have begun, capped at the term length.
+     * Counted from current_term_start, so a renewal restarts the count.
+     */
+    private function monthsIntoCurrentTerm(Pledge $pledge, int $termMonths): int
+    {
+        $start = $pledge->current_term_start
+            ? Carbon::parse($pledge->current_term_start)
+            : Carbon::parse($pledge->pledge_date);
+
+        // A started month counts in full, matching months_elapsed elsewhere.
+        $months = (int) ceil($start->floatDiffInMonths(Carbon::now()));
+
+        return max(1, min($months, $termMonths));
+    }
+
+    /**
+     * Renewals allowed per pledge — the same setting RenewalController reads.
+     */
+    private function termMonths(Pledge $pledge): int
+    {
+        $end = (int) \App\Models\InterestRate::where('is_active', true)
+            ->whereIn('rate_type', ['standard', 'custom'])
+            ->where(function ($q) use ($pledge) {
+                $q->where('branch_id', $pledge->branch_id)->orWhereNull('branch_id');
+            })
+            ->max('to_month');
+
+        return $end > 0 ? $end : 6;
     }
 
     /**
@@ -333,6 +421,7 @@ class RedemptionController extends Controller
             $loanAmountToRedeem = $pledge->loan_amount;
             $selectedItems = $allItems;
             $remainingItems = collect([]);
+            $proRataRatio = 1.0; // full redemption unless a subset is chosen below
 
             if ($isPartialRedemption) {
                 $selectedItems = $allItems->whereIn('id', $selectedItemIds);
@@ -355,6 +444,13 @@ class RedemptionController extends Controller
                 $validated['interest_rate'] ?? $pledge->interest_rate_extended,
                 $validated['interest_rate'] ?? $pledge->interest_rate_overdue
             );
+
+            // Charge the same figure the screen previewed: the current term's interest,
+            // less what has already been paid toward it. Without these two steps store()
+            // billed whole-life interest and credited nothing, so a customer who had
+            // settled every term was charged for all of it again at redemption.
+            $this->applyCurrentTermInterest($calculation, $pledge, $proRataRatio);
+            $this->creditInterestAlreadyPaid($calculation, $pledge, $proRataRatio);
 
             // Verify payment amount
             $totalPaid = ($validated['cash_amount'] ?? 0) + ($validated['transfer_amount'] ?? 0);
