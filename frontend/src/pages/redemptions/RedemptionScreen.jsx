@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
@@ -74,8 +74,6 @@ export default function RedemptionScreen() {
   // Search input ref for barcode scanner
   const searchInputRef = useRef(null);
   const debounceTimerRef = useRef(null);
-  const [searchParams] = useSearchParams();
-  const autoLoadedRef = useRef(false);
 
   // State
   const [searchQuery, setSearchQuery] = useState("");
@@ -538,19 +536,6 @@ export default function RedemptionScreen() {
       setIsSearching(false);
     }
   };
-
-  // Arrive from the interest-payment success screen with the pledge already chosen,
-  // e.g. /redemptions?pledge=PLG-HQ-2026-0325. A pledge that has used all its
-  // renewals can only be redeemed, so that screen sends the operator here rather
-  // than to Renewals, which would just refuse. handleSearchWithQuery takes the term
-  // explicitly, so there is no dependence on searchQuery having been committed.
-  useEffect(() => {
-    const pledgeNo = searchParams.get("pledge");
-    if (!pledgeNo || autoLoadedRef.current) return;
-    autoLoadedRef.current = true;
-    setSearchQuery(pledgeNo);
-    handleSearchWithQuery(pledgeNo);
-  }, [searchParams]);
 
   // Search for pledge (Issue 1 FIX: Now supports IC number search)
   const handleSearch = async () => {
@@ -1266,11 +1251,6 @@ export default function RedemptionScreen() {
   const regularInterest = calculation?.regular_interest || 0;
   const overdueInterest = calculation?.overdue_interest || 0;
   const totalInterest = calculation?.total_interest || 0;
-  // Interest that accrued this term vs. what has already been paid toward it. Showing
-  // the gross figure with an explicit credit line explains why the amount due can be
-  // RM 0.00 while the breakdown still lists a month's interest.
-  const grossInterest = calculation?.gross_interest ?? totalInterest;
-  const interestCredited = calculation?.interest_credited || 0;
   const handlingFee = calculation?.handling_fee || 0;
   const totalPayable = calculation?.total_payable || 0;
   const monthsElapsed = calculation?.months_elapsed || 0;
@@ -1796,12 +1776,6 @@ export default function RedemptionScreen() {
                             </div>
                           </div>
                           <div className="text-right">
-                            {/* The item's appraised value, not an amount owed. Labelled
-                                so it is not mistaken for the redemption figure, which is
-                                the loan (a margin of the value), shown below. */}
-                            <p className="text-[10px] uppercase tracking-wide text-zinc-400">
-                              Est. value
-                            </p>
                             <p className="font-bold text-zinc-800">
                               {formatCurrency(
                                 item.net_value || item.netValue || 0,
@@ -1881,12 +1855,12 @@ export default function RedemptionScreen() {
                 )}
 
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between">
                     <span className="text-zinc-500">
                       Principal{" "}
                       {isPartialRedemption ? "(Pro-rata)" : "(Loan Amount)"}
                     </span>
-                    <span className="text-xl font-bold text-zinc-800">
+                    <span className="font-medium">
                       {formatCurrency(principal)}
                     </span>
                   </div>
@@ -1972,27 +1946,10 @@ export default function RedemptionScreen() {
                     </div>
                   )}
 
-                  {/* Interest accrued this term, then the credit for what was already
-                      paid toward it, so the net amount due is not a bare RM 0.00 with
-                      no explanation. The credit line only appears when there is one. */}
                   <div className="flex justify-between">
                     <span className="text-zinc-500">
-                      Interest accrued ({monthsElapsed} month{monthsElapsed === 1 ? "" : "s"})
+                      Interest Amount ({monthsElapsed} months)
                     </span>
-                    <span className="font-medium">
-                      {formatCurrency(grossInterest)}
-                    </span>
-                  </div>
-                  {interestCredited > 0 && (
-                    <div className="flex justify-between text-emerald-600">
-                      <span>Interest already paid this term</span>
-                      <span className="font-medium">
-                        -{formatCurrency(interestCredited)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Interest due</span>
                     <span className="font-medium">
                       {formatCurrency(totalInterest)}
                     </span>
