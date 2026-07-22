@@ -95,6 +95,12 @@ export default function RedemptionScreen() {
 
   // Custom interest rate override (like Renewal screen)
   const [interestRate, setInterestRate] = useState("");
+  // The rate box is pre-filled with the pledge's frozen opening rate so the operator
+  // can see it, which does NOT mean an override was requested. Sending that pre-fill
+  // made the server treat it as one and flatten the whole tier ladder — a pledge
+  // redeemed in month 4 was billed 0.5% instead of 1.0%. Only send a rate once
+  // somebody actually edits the box.
+  const [rateEdited, setRateEdited] = useState(false);
   const [globalRate, setGlobalRate] = useState(null); // Global default rate from settings
   const [rateSource, setRateSource] = useState(""); // 'global' | 'customer' | 'manual'
 
@@ -220,7 +226,12 @@ export default function RedemptionScreen() {
 
   // Fetch redemption calculation from API
   // Issue 2: Now supports item_ids for partial redemption
-  const fetchCalculation = async (pledgeId, itemIds = null, rate = interestRate) => {
+  const fetchCalculation = async (
+    pledgeId,
+    itemIds = null,
+    rate = interestRate,
+    isOverride = rateEdited,
+  ) => {
     setIsCalculating(true);
     try {
       const params = { pledge_id: pledgeId };
@@ -230,8 +241,10 @@ export default function RedemptionScreen() {
         params.item_ids = itemIds;
       }
 
-      // Pass custom interest rate if provided
-      if (rate !== "" && rate !== null && !isNaN(parseFloat(rate))) {
+      // Only a rate the operator actually typed. Any rate sent here replaces the
+      // pledge's frozen ladder with one flat figure for every month, so passing the
+      // pre-filled value silently undercharged months 4-6 (and 7+ on a renewal).
+      if (isOverride && rate !== "" && rate !== null && !isNaN(parseFloat(rate))) {
         params.interest_rate = parseFloat(rate);
       }
 
@@ -376,6 +389,7 @@ export default function RedemptionScreen() {
     setItems([]);
     setPledgeList([]); // Clear previous list
     setInterestRate(""); // Clear custom rate
+    setRateEdited(false);
 
     try {
       // Try direct search first
@@ -483,6 +497,7 @@ export default function RedemptionScreen() {
           setPledge(pledgeData);
           setSearchResult("found");
           // Auto-fill custom interest rate from pledge's stored rate
+          setRateEdited(false); // a fresh pledge: this is a pre-fill, not an override
           if (pledgeData.interestRate && pledgeData.interestRate > 0) {
             setInterestRate(String(pledgeData.interestRate));
             // Determine rate source
@@ -499,7 +514,7 @@ export default function RedemptionScreen() {
               message: `Pledge ${pledgeData.pledgeNo} loaded`,
             }),
           );
-          fetchCalculation(pledgeData.id, null, String(pledgeData.interestRate || ""));
+          fetchCalculation(pledgeData.id, null, String(pledgeData.interestRate || ""), false);
         } else {
           setSearchResult("invalid");
           dispatch(
@@ -661,8 +676,9 @@ export default function RedemptionScreen() {
         terms_accepted: true,
       };
 
-      // Include custom interest rate if provided
-      if (interestRate !== "" && interestRate !== null && !isNaN(parseFloat(interestRate))) {
+      // Same rule as the preview: only a rate the operator actually typed. Sending
+      // the pre-fill here would charge the flat rate the screen never showed them.
+      if (rateEdited && interestRate !== "" && interestRate !== null && !isNaN(parseFloat(interestRate))) {
         redemptionData.interest_rate = parseFloat(interestRate);
       }
 
@@ -1399,6 +1415,7 @@ export default function RedemptionScreen() {
                     setPledge(p);
                     setSearchResult("found");
                     // Auto-fill custom interest rate from pledge's stored rate
+                    setRateEdited(false); // pre-fill, not an override
                     if (p.interestRate && p.interestRate > 0) {
                       setInterestRate(String(p.interestRate));
                       // Determine rate source
@@ -1408,7 +1425,7 @@ export default function RedemptionScreen() {
                         setRateSource("global");
                       }
                     }
-                    fetchCalculation(p.id, null, String(p.interestRate || ""));
+                    fetchCalculation(p.id, null, String(p.interestRate || ""), false);
                   }}
                 >
                   <div className="flex justify-between items-start">
@@ -1890,11 +1907,12 @@ export default function RedemptionScreen() {
                       onChange={(e) => {
                         setInterestRate(e.target.value);
                         setRateSource("manual"); // Mark as manually overridden
+                        setRateEdited(true); // a real override: send it from now on
                         // Debounced recalculation
                         if (pledge?.id) {
                           clearTimeout(window._redemptionRateTimer);
                           window._redemptionRateTimer = setTimeout(() => {
-                            fetchCalculation(pledge.id, isPartialRedemption ? selectedItemIds : null, e.target.value);
+                            fetchCalculation(pledge.id, isPartialRedemption ? selectedItemIds : null, e.target.value, true);
                           }, 400);
                         }
                       }}
