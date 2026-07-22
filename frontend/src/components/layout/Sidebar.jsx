@@ -6,11 +6,12 @@
 import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { toggleSidebarCollapse } from "@/features/ui/uiSlice";
+import { toggleSidebarCollapse, setSidebarOpen } from "@/features/ui/uiSlice";
 import { logout } from "@/features/auth/authSlice";
 import { getStorageItem, STORAGE_KEYS } from "@/utils/localStorage";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/services";
+import useIsDesktop from "@/hooks/useIsDesktop";
 import {
   LayoutDashboard,
   Users,
@@ -24,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  X,
   ClipboardCheck,
   ScrollText,
   Grid3X3,
@@ -187,8 +189,13 @@ export default function Sidebar() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { sidebarCollapsed } = useAppSelector((state) => state.ui);
+  const { sidebarCollapsed, sidebarOpen } = useAppSelector((state) => state.ui);
   const { user, role, permissions } = useAppSelector((state) => state.auth);
+  const isDesktop = useIsDesktop();
+
+  // Collapsing is a desktop-only affordance - below `lg` the sidebar is a
+  // slide-over drawer that is always full width when open.
+  const collapsed = sidebarCollapsed && isDesktop;
 
   // Logo state
   const [companyLogo, setCompanyLogo] = useState(null);
@@ -257,6 +264,31 @@ export default function Sidebar() {
     };
   }, []);
 
+  const closeDrawer = () => dispatch(setSidebarOpen(false));
+
+  // Close the mobile drawer on navigation and whenever we cross into desktop,
+  // so it can never be left open behind the desktop layout.
+  useEffect(() => {
+    dispatch(setSidebarOpen(false));
+  }, [location.pathname, isDesktop, dispatch]);
+
+  // Escape closes the drawer; lock body scroll while it covers the page.
+  useEffect(() => {
+    if (isDesktop || !sidebarOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") dispatch(setSidebarOpen(false));
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isDesktop, sidebarOpen, dispatch]);
+
   /**
    * Check if user has permission
    */
@@ -296,19 +328,39 @@ export default function Sidebar() {
   };
 
   return (
-    <aside
-      className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-zinc-900 text-white",
-        "flex flex-col transition-all duration-300 ease-in-out",
-        sidebarCollapsed ? "w-20" : "w-64",
-      )}
-    >
+    <>
+      {/* Mobile backdrop */}
+      <div
+        onClick={closeDrawer}
+        aria-hidden="true"
+        className={cn(
+          "fixed inset-0 z-40 bg-zinc-900/50 backdrop-blur-sm lg:hidden",
+          "transition-opacity duration-300",
+          sidebarOpen
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none",
+        )}
+      />
+
+      <aside
+        className={cn(
+          // `inset-y-0` rather than `h-screen` - 100vh disagrees with the real
+          // viewport in mobile browsers, which clipped the footer off-screen.
+          "fixed inset-y-0 left-0 z-50 bg-zinc-900 text-white",
+          "flex flex-col transition-all duration-300 ease-in-out",
+          // Below `lg` the sidebar is a full-width drawer that slides in.
+          "w-64",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:translate-x-0",
+          sidebarCollapsed && "lg:w-20",
+        )}
+      >
       {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-zinc-800">
+      <div className="flex flex-shrink-0 items-center h-16 px-4 border-b border-zinc-800">
         <div
           className={cn(
             "flex items-center gap-3 transition-all duration-300",
-            sidebarCollapsed && "justify-center w-full",
+            collapsed && "justify-center w-full",
           )}
         >
           {/* Logo Image or Fallback */}
@@ -324,12 +376,12 @@ export default function Sidebar() {
           ) : (
             <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500 flex-shrink-0">
               <span className="text-lg font-bold text-zinc-900">
-                {sidebarCollapsed ? companyShort[0] : companyShort}
+                {collapsed ? companyShort[0] : companyShort}
               </span>
             </div>
           )}
 
-          {!sidebarCollapsed && (
+          {!collapsed && (
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-semibold text-white truncate">
                 {companyName.length > 20
@@ -342,13 +394,22 @@ export default function Sidebar() {
             </div>
           )}
         </div>
+
+        {/* Close drawer (mobile only) */}
+        <button
+          onClick={closeDrawer}
+          aria-label="Close menu"
+          className="lg:hidden ml-auto p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700/50 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 scrollbar-thin">
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 px-3 scrollbar-thin">
         {filteredMenu.map((section, sectionIndex) => (
           <div key={sectionIndex} className="mb-6">
-            {!sidebarCollapsed && (
+            {!collapsed && (
               <h3 className="px-3 mb-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
                 {section.title}
               </h3>
@@ -363,13 +424,14 @@ export default function Sidebar() {
                   <li key={item.path}>
                     <NavLink
                       to={item.path}
+                      onClick={closeDrawer}
                       className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
                         "group relative",
                         isActive
                           ? "bg-amber-500/10 text-amber-500"
                           : "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
-                        sidebarCollapsed && "justify-center px-2",
+                        collapsed && "justify-center px-2",
                       )}
                     >
                       {isActive && (
@@ -385,11 +447,11 @@ export default function Sidebar() {
                         )}
                       />
 
-                      {!sidebarCollapsed && (
+                      {!collapsed && (
                         <span className="text-sm font-medium">{item.name}</span>
                       )}
 
-                      {sidebarCollapsed && (
+                      {collapsed && (
                         <div className="absolute left-full ml-2 px-2 py-1 bg-zinc-800 text-white text-sm rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 border border-zinc-700">
                           {item.name}
                         </div>
@@ -403,19 +465,19 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User & Actions */}
-      <div className="border-t border-zinc-700/50 p-3">
+      {/* User & Actions - pinned; pb clears the iOS/Android home indicator */}
+      <div className="flex-shrink-0 border-t border-zinc-700/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div
           className={cn(
             "flex items-center gap-3 p-2 rounded-lg bg-zinc-800/50 mb-3",
-            sidebarCollapsed && "justify-center",
+            collapsed && "justify-center",
           )}
         >
           <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-zinc-900 font-semibold text-sm flex-shrink-0">
             {user?.name?.charAt(0) || "U"}
           </div>
 
-          {!sidebarCollapsed && (
+          {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">
                 {user?.name || "Guest User"}
@@ -433,24 +495,23 @@ export default function Sidebar() {
             "flex items-center gap-3 w-full px-3 py-2 rounded-lg",
             "text-zinc-400 hover:text-red-400 hover:bg-red-500/10",
             "transition-all duration-200",
-            sidebarCollapsed && "justify-center px-2",
+            collapsed && "justify-center px-2",
           )}
         >
           <LogOut className="w-5 h-5" />
-          {!sidebarCollapsed && (
-            <span className="text-sm font-medium">Logout</span>
-          )}
+          {!collapsed && <span className="text-sm font-medium">Logout</span>}
         </button>
 
+        {/* Collapse is desktop-only - on mobile the drawer closes instead */}
         <button
           onClick={handleToggleCollapse}
           className={cn(
-            "flex items-center justify-center w-full py-2 mt-2 rounded-lg",
+            "hidden lg:flex items-center justify-center w-full py-2 mt-2 rounded-lg",
             "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
             "transition-all duration-200",
           )}
         >
-          {sidebarCollapsed ? (
+          {collapsed ? (
             <ChevronRight className="w-5 h-5" />
           ) : (
             <>
@@ -460,6 +521,7 @@ export default function Sidebar() {
           )}
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

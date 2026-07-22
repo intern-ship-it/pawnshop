@@ -376,8 +376,8 @@ export default function Header() {
       className={cn(
         "fixed top-0 right-0 z-30 h-16",
         "bg-white/80 backdrop-blur-md border-b border-zinc-200",
-        "transition-all duration-300",
-        sidebarCollapsed ? "left-20" : "left-64",
+        "transition-all duration-300 left-0",
+        sidebarCollapsed ? "lg:left-20" : "lg:left-64",
       )}
     >
       <div className="flex items-center justify-between h-full px-4 lg:px-6">

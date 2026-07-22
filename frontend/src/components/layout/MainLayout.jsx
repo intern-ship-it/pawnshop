@@ -181,8 +181,9 @@ export default function MainLayout() {
 
       <div
         className={cn(
-          "min-h-screen transition-all duration-300",
-          sidebarCollapsed ? "ml-20" : "ml-64",
+          // No margin below `lg` - the sidebar is an overlay drawer there.
+          "min-h-screen transition-all duration-300 ml-0",
+          sidebarCollapsed ? "lg:ml-20" : "lg:ml-64",
         )}
       >
         <Header />
