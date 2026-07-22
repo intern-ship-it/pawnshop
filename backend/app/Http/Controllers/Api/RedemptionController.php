@@ -333,6 +333,7 @@ class RedemptionController extends Controller
             $loanAmountToRedeem = $pledge->loan_amount;
             $selectedItems = $allItems;
             $remainingItems = collect([]);
+            $proRataRatio = 1.0; // full redemption unless a subset is chosen below
 
             if ($isPartialRedemption) {
                 $selectedItems = $allItems->whereIn('id', $selectedItemIds);
@@ -355,6 +356,13 @@ class RedemptionController extends Controller
                 $validated['interest_rate'] ?? $pledge->interest_rate_extended,
                 $validated['interest_rate'] ?? $pledge->interest_rate_overdue
             );
+
+            // Credit interest the customer has already paid, exactly as calculate()
+            // does for the preview. Without this, store() re-charged interest that was
+            // settled earlier: the screen quoted one figure and this endpoint demanded
+            // a higher one, rejecting the quoted amount as insufficient and blocking
+            // the redemption outright.
+            $this->creditInterestAlreadyPaid($calculation, $pledge, $proRataRatio);
 
             // Verify payment amount
             $totalPaid = ($validated['cash_amount'] ?? 0) + ($validated['transfer_amount'] ?? 0);
