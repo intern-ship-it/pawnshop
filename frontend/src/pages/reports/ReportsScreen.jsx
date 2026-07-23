@@ -1190,6 +1190,12 @@ function RenewalsReport({ data }) {
           <p className="text-2xl font-bold text-zinc-800">
             {summary.total_renewals || 0}
           </p>
+          {/* Interest payments used to be counted here as renewals; shown
+              separately so the renewal figure above is the real one. */}
+          <p className="text-xs text-zinc-400 mt-0.5">
+            + {summary.total_interest_payments || 0} interest payment
+            {(summary.total_interest_payments || 0) === 1 ? "" : "s"}
+          </p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-zinc-500">Interest Collected</p>
@@ -1224,6 +1230,9 @@ function RenewalsReport({ data }) {
                   Pledge No
                 </th>
                 <th className="text-left p-3 text-xs font-semibold text-zinc-500 uppercase">
+                  Type
+                </th>
+                <th className="text-left p-3 text-xs font-semibold text-zinc-500 uppercase">
                   Customer
                 </th>
                 <th className="text-right p-3 text-xs font-semibold text-zinc-500 uppercase">
@@ -1240,15 +1249,31 @@ function RenewalsReport({ data }) {
             <tbody className="divide-y divide-zinc-100">
               {renewals.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-zinc-500">
+                  <td colSpan={6} className="p-8 text-center text-zinc-500">
                     No renewals found for selected date range
                   </td>
                 </tr>
               ) : (
-                renewals.map((renewal) => (
-                  <tr key={renewal.id} className="hover:bg-zinc-50">
+                renewals.map((renewal) => {
+                  const isRenewal = renewal.record_type === "renewal";
+                  return (
+                  // Renewal and InterestPayment ids can collide, so key on both the
+                  // type and the id — otherwise React sees duplicate keys.
+                  <tr key={`${renewal.record_type}-${renewal.id}`} className="hover:bg-zinc-50">
                     <td className="p-3 font-medium">
                       {renewal.pledge?.pledge_no || "-"}
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={cn(
+                          "inline-block px-2 py-0.5 rounded-full text-xs font-medium",
+                          isRenewal
+                            ? "bg-violet-100 text-violet-700"
+                            : "bg-emerald-100 text-emerald-700",
+                        )}
+                      >
+                        {isRenewal ? "Renewal" : "Interest Payment"}
+                      </span>
                     </td>
                     <td className="p-3">
                       {renewal.pledge?.customer?.name || "Unknown"}
@@ -1263,7 +1288,8 @@ function RenewalsReport({ data }) {
                       {formatDate(renewal.created_at)}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
