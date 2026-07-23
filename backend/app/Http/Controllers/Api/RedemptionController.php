@@ -270,9 +270,19 @@ class RedemptionController extends Controller
         $lockerName = strtoupper($item->vault->name ?? $item->vault->code ?? 'Locker');
         $drawerName = $item->box->box_number ?? $item->box->name ?? 'Drawer';
         if ($item->box->has_subslots && $item->slot->slot_number) {
-            $subPerSlot = $item->box->subslots_per_slot ?: 5;
-            $sNum = (int) ceil($item->slot->slot_number / $subPerSlot);
-            $subNum = (($item->slot->slot_number - 1) % $subPerSlot) + 1;
+            // Prefer the slot's stored group/subslot — the rack-map's own layout.
+            // Recomputing from slot_number and subslots_per_slot gave the wrong slot
+            // (e.g. "SLOT 13" for a drawer that only has 9 slots), because the flat
+            // slot_number does not map to the group by simple division: the grouping
+            // is non-contiguous and subslots_per_slot has drifted from the layout.
+            if ($item->slot->slot_group !== null && $item->slot->subslot_number !== null) {
+                $sNum = (int) $item->slot->slot_group;
+                $subNum = (int) $item->slot->subslot_number;
+            } else {
+                $subPerSlot = $item->box->subslots_per_slot ?: 5;
+                $sNum = (int) ceil($item->slot->slot_number / $subPerSlot);
+                $subNum = (($item->slot->slot_number - 1) % $subPerSlot) + 1;
+            }
             return sprintf('%s > DRAWER %s > SLOT %d > SUBSLOT %d', $lockerName, $drawerName, $sNum, $subNum);
         }
         return sprintf('%s > DRAWER %s > SLOT %s', $lockerName, $drawerName, $item->slot->slot_number);

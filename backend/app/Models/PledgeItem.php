@@ -128,10 +128,17 @@ class PledgeItem extends Model
         }
         $slotStr = $this->slot->slot_number;
         if ($this->box->has_subslots) {
-            $subslotsPerSlot = $this->box->subslots_per_slot ?: 1;
-            $slotNum = ceil($this->slot->slot_number / $subslotsPerSlot);
-            $subslotNum = (($this->slot->slot_number - 1) % $subslotsPerSlot) + 1;
-            $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            // Prefer the slot's stored group/subslot (the rack-map layout). Recomputing
+            // from slot_number gave the wrong slot, because the grouping is not a simple
+            // division of the flat slot_number.
+            if ($this->slot->slot_group !== null && $this->slot->subslot_number !== null) {
+                $slotStr = sprintf('%d-%d', $this->slot->slot_group, $this->slot->subslot_number);
+            } else {
+                $subslotsPerSlot = $this->box->subslots_per_slot ?: 1;
+                $slotNum = ceil($this->slot->slot_number / $subslotsPerSlot);
+                $subslotNum = (($this->slot->slot_number - 1) % $subslotsPerSlot) + 1;
+                $slotStr = sprintf('%d-%d', $slotNum, $subslotNum);
+            }
         }
 
         return sprintf('%s → %s%s',
