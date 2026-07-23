@@ -841,7 +841,7 @@ HTML;
                 <span class="customer-label">Tahun Lahir:</span><span class="customer-value">{$birthYear} ({$age})</span>
                 <span class="customer-label">Jantina:</span><span class="customer-value">{$gender}</span>
             </div>
-            <div class="customer-row"><span class="customer-label">Alamat:</span><span class="customer-value" style="flex:1;">{$address}</span></div>
+            <div class="customer-row"><span class="customer-label">Alamat:</span><span class="customer-value addr" style="flex:1;">{$address}</span></div>
         </div>
         <div class="right-section">
             <div class="ticket-box"><div class="ticket-label">NO. TIKET:</div><div class="ticket-number">{$pledge->pledge_no}</div></div>
@@ -898,6 +898,10 @@ HTML;
 .customer-row{display:flex;gap:3mm;margin-bottom:1.5mm;font-size:10px;flex-wrap:wrap}
 .customer-label{font-weight:bold;min-width:22mm}
 .customer-value{border-bottom:1px dotted #1a4a7a;min-width:30mm}
+/* Address only: clip to 2 lines. The other customer fields are single-line and
+   must keep their natural height, so this is a separate class rather than a
+   change to .customer-value. */
+.customer-value.addr{line-height:1.25;max-height:2.5em;overflow:hidden}
 .catatan-box{border:1px solid #1a4a7a;padding:1.5mm;min-height:8mm;margin-bottom:1.5mm}
 .catatan-label{font-size:9px;font-weight:bold}
 .keuntungan-box{background:#fffde8;border:1px solid #d4a800;padding:1.5mm;font-size:10px;font-weight:bold;text-align:center}
@@ -2229,7 +2233,23 @@ HTML;
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
         $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
         $monthlyInterest = $loanAmount * (floatval($rate) / 100);
-        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+        // The standard bucket is tiered (e.g. 0.50% months 1-3 then 1.00% months
+        // 4-6), so one "RM x sebulan" line understates what months 4-6 cost. Print
+        // one line per frozen tier. Pledges predating tiering carry no ladder and
+        // keep the single flat line they have always shown.
+        $tierLines = [];
+        foreach ($settings['standard_tiers'] ?? [] as $tier) {
+            $tierMonthly = $loanAmount * (floatval($tier['rate']) / 100);
+            $tierLines[] = '<div class="ppo-tier">- ' . $tier['from_month'] . '-' . $tier['to_month']
+                . ' Months : RM ' . $this->formatNumber($tierMonthly, 2) . '</div>';
+        }
+
+        if (empty($tierLines)) {
+            $tierLines[] = '<div class="ppo-tier">- RM ' . $this->formatNumber($monthlyInterest, 2) . ' sebulan</div>';
+        }
+
+        $interestNote = '<div>Keuntungan Dikenakan</div>' . implode('', $tierLines);
 
         return <<<HTML
 <style>
@@ -2324,6 +2344,11 @@ HTML;
     left: 21mm;
     width: 124mm;
     font-size: 11px;
+    /* The form beneath is pre-printed, so this box cannot grow: a 3rd line would
+       print on top of the row below it. Cap at exactly 2 lines and clip the rest. */
+    line-height: 1.25;
+    max-height: 2.5em; /* 2 lines x 1.25 */
+    overflow: hidden;
 }
 
 /* ROW 4: Catatan */
@@ -2364,9 +2389,18 @@ HTML;
     top: 109.7mm;
     left: 86mm;
     width: 58mm;
-    font-size: 12px;
-    font-weight: bold; 
+    /* Three lines now (heading + two tiers) where there used to be two. The form
+       beneath is pre-printed, so this box cannot grow past the red rule below it:
+       shrink the type and tighten the leading to keep the same overall height. */
+    font-size: 9px;
+    line-height: 1.15;
+    font-weight: bold;
 }
+/* Tier rows sit indented under the heading, each led by a "- " marker. A plain
+   hyphen rather than a bullet glyph: it is one monospace cell and the dot-matrix
+   printer renders it reliably, where a bullet can fall back to a box. The hanging
+   indent keeps a wrapped row aligned under the text instead of under the marker. */
+.ppo-interest-note .ppo-tier { padding-left: 2ch; text-indent: -2ch; }
  .ppo-due-date {
     position: absolute;
     top: 113mm;
@@ -2374,7 +2408,7 @@ HTML;
     width: 28mm;
     font-size: 12px;
     text-align: center;
-} 
+}
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â WEIGHT Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
 .ppo-weight {
@@ -2596,6 +2630,10 @@ HTML;
     left: 31mm;
     width: 150mm;
     font-size: 10px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ROW 4: Catatan */
@@ -2729,9 +2767,15 @@ HTML;
      * wording, so a fourth entry costs exactly one entry's height and the ticket-number
      * spacer gives it back. Do not estimate this from character counts.
      *
+     * On a RENEWAL the standard-rate entries are omitted: they describe the original
+     * pledge term, which no longer applies once the pledge is renewed. Only the
+     * renewal and overdue rates remain. The entries are dropped from the printed
+     * list but still counted for the spacer, so the block keeps its height and the
+     * fields below stay on their pre-printed boxes.
+     *
      * @return array{0: string, 1: float} [kadar lines HTML, ticket spacer in mm]
      */
-    private function buildKadarBlock(array $settings, string $redemptionPeriod): array
+    private function buildKadarBlock(array $settings, string $redemptionPeriod, bool $hideStandardRates = false): array
     {
         $num = 0;
         $line = function (string $body) use (&$num): string {
@@ -2741,20 +2785,30 @@ HTML;
         };
 
         $standardTiers = $settings['standard_tiers'] ?? [];
-        $html = '';
+        $standardHtml = '';
 
         if (count($standardTiers) > 1) {
             foreach ($standardTiers as $i => $tier) {
                 $span = $tier['to_month'] - $tier['from_month'] + 1;
                 $when = $i === 0 ? 'PERTAMA' : 'SETERUSNYA';
-                $html .= $line(
+                $standardHtml .= $line(
                     htmlspecialchars($tier['rate'], ENT_QUOTES | ENT_HTML5, 'UTF-8')
                     . "% SEBULAN : UNTUK TEMPOH {$span} BULAN {$when}"
                 );
             }
         } else {
             $normal = htmlspecialchars($settings['interest_rate_normal'] ?? '0.5', ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $html .= $line("{$normal}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA");
+            $standardHtml .= $line("{$normal}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA");
+        }
+
+        // Build the standard entries either way so $num — and therefore the height
+        // this block occupies — is identical on a renewal; only the printing differs.
+        $standardCount = $num;
+        $html = $hideStandardRates ? '' : $standardHtml;
+
+        // The surviving entries renumber from 1 when the standard ones are dropped.
+        if ($hideStandardRates) {
+            $num = 0;
         }
 
         $extended = htmlspecialchars($settings['interest_rate_extended'] ?? '1.0', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -2763,12 +2817,19 @@ HTML;
         $html .= $line("{$overdue}% SEBULAN : LEPAS MATANG TEMPOH {$redemptionPeriod}");
 
         // Three entries -> 10mm (unchanged); each extra entry gives back 5.03mm.
-        $spacer = round(10 - max(0, $num - 3) * 5.03, 2);
+        // Hidden entries still count: the spacer must absorb the height they would
+        // have taken, or every field below rides up off the pre-printed stationery.
+        $entries = $hideStandardRates ? $num + $standardCount : $num;
+        $spacer = round(10 - max(0, $entries - 3) * 5.03, 2);
+
+        if ($hideStandardRates) {
+            $spacer = round($spacer + $standardCount * 5.03, 2);
+        }
 
         return [$html, $spacer];
     }
 
-    private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false, $customer = null): string
+    private function generatePrePrintedFrontPage(array $settings, bool $showHandlingFee = false, $customer = null, bool $hideStandardRates = false): string
     {
         // Dynamic ID label: "No. Pasport" for foreign customers (passport), else "No. Kad Pengenalan"
         $isPassport = $customer && (($customer->ic_type ?? 'mykad') === 'passport');
@@ -2796,7 +2857,7 @@ HTML;
             $rateRowCells = '<div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">' . $redemptionPeriod . '</div></div>';
         }
 
-        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod);
+        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod, $hideStandardRates);
 
         $phoneHtml = $phone1;
         if ($phone2) {
@@ -3698,7 +3759,10 @@ HTML;
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
-        $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
+        // A renewal moves the pledge into the extended ("pembaharuan seterusnya")
+        // bucket, so the go-forward monthly interest uses the pledge's extended rate
+        // — matching KADAR line 2 — not the standard tier-1 rate.
+        $rate = $pledge->interest_rate_extended ?? $renewal->interest_rate ?? $pledge->interest_rate ?? 0.5;
         $monthlyInterest = $loanAmount * (floatval($rate) / 100);
         $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
@@ -3740,6 +3804,21 @@ HTML;
 }
 
 /* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â ITEMS LIST - Left box area Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */
+.ppo-origin-ticket {
+    position: absolute;
+    top: 40mm;
+    right: 7mm;
+    width: 40mm;
+    height: 7mm;
+    text-align: center;
+    font-size: 11px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .ppo-items {
     position: absolute;
     top: 32mm;
@@ -3795,6 +3874,10 @@ HTML;
     left: 21mm;
     width: 183mm;
     font-size: 11px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ROW 4: Catatan */
@@ -3903,6 +3986,7 @@ HTML;
 <div class="ppo-watermark">SAMBUNGAN</div>
     <!-- TICKET NUMBER -->
    <div class="ppo-ticket">{$renewal->renewal_no}</div>
+   <div class="ppo-origin-ticket">{$pledge->pledge_no}</div>
     
     <!-- ITEMS LIST -->
       <div class="ppo-items">{$itemsText}</div>
@@ -4372,7 +4456,9 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
+            // Renewal: drop the standard-rate entries, which describe the original
+            // pledge term and no longer apply once the pledge has been renewed.
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer, true);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
 
             // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
@@ -4516,7 +4602,9 @@ HTML;
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
             // Generate BOTH blank form template AND renewal data overlay
-            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer);
+            // Renewal: drop the standard-rate entries, which describe the original
+            // pledge term and no longer apply once the pledge has been renewed.
+            $blankFrontHtml = $this->generatePrePrintedFrontPage($settings, false, $pledge->customer, true);
             $dataOverlayHtml = $this->generatePrePrintedRenewalOverlay($renewal, $pledge, $settings);
 
             // Build payment-info block (ORIGINAL copy only, transfer/partial payments only)
@@ -5079,6 +5167,10 @@ HTML;
     left: 31mm;
     width: 150mm;
     font-size: 10px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 .ppoa-catatan_new {
@@ -5382,7 +5474,7 @@ HTML;
 .ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan { position: absolute; top: 91.5mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -5477,7 +5569,7 @@ HTML;
 .ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear_new { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender_new { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan_new { position: absolute; top: 89mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words_new { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount_new { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -5568,7 +5660,7 @@ HTML;
 .ppoa-nationality { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan { position: absolute; top: 91.5mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -5659,7 +5751,7 @@ HTML;
 .ppoa-nationality_new { position: absolute; top: 69.5mm; left: 150mm; font-size: 10px; }
 .ppoa-birthyear_new { position: absolute; top: 76mm; left: 31mm; font-size: 11px; }
 .ppoa-gender_new { position: absolute; top: 76mm; left: 85mm; font-size: 11px; }
-.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; }
+.ppoa-address_new { position: absolute; top: 83mm; left: 31mm; width: 150mm; font-size: 10px; line-height: 1.25; max-height: 2.5em; overflow: hidden; }
 .ppoa-catatan_new { position: absolute; top: 89mm; left: 31mm; width: 165mm; font-size: 9px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppoa-amount-words_new { position: absolute; top: 96.5mm; left: 31mm; width: 150mm; font-size: 9px; }
 .ppoa-loan-amount_new { position: absolute; top: 103mm; left: 52mm; font-size: 18px; font-family: 'Courier New', monospace; }
@@ -5716,7 +5808,25 @@ HTML;
         $redemptionPeriod = htmlspecialchars($settings['redemption_period'] ?? '6 BULAN', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $logoUrl = $settings['logo_url'] ?? null;
 
-        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($settings, $redemptionPeriod);
+        // The rate ladder is spent once the pledge is redeemed — nothing further can
+        // accrue — so the KADAR block prints nothing on this receipt.
+        //
+        // It is hidden with visibility only, and still rendered with real entry lines:
+        // the block must keep the exact height it has always had, because the data
+        // overlay pins itself to the form with absolute mm offsets and any change to
+        // the right column's height slides every field off the pre-printed stationery.
+        // Setting an explicit height here is what broke the alignment before — the
+        // figure ignored the block's title and padding. Let it size itself.
+        //
+        // The ladder is forced to the untiered 3-entry form rather than passed through:
+        // buildKadarBlock() shrinks the ticket spacer to pay for a 4th entry when the
+        // pledge has tiered rates, which lifted the whole column ~5mm on a redemption
+        // and left the DITEBUS badge beside TEMPOH TAMAT instead of over it. Nothing
+        // here is visible, so the entry count must not move the layout.
+        $kadarSettings = $settings;
+        unset($kadarSettings['standard_tiers']);
+        [$kadarLines, $ticketSpacer] = $this->buildKadarBlock($kadarSettings, $redemptionPeriod);
+        $kadarHiddenStyle = ' style="visibility: hidden;"';
 
         $phoneHtml = $phone1;
         if ($phone2) {
@@ -5916,7 +6026,7 @@ HTMLSTART
             <div class="pp-rate-row">
                 <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
             </div>
-            <div class="pp-kadar">
+            <div class="pp-kadar"{$kadarHiddenStyle}>
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                 {$kadarLines}
             </div>
@@ -6052,9 +6162,10 @@ HTML;
         $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
         $principalFormatted = $this->formatNumber($principal, 2);
         $interestFormatted = $this->formatNumber($interestAmount, 2);
-        $rate = $pledge->interest_rate ?? 0.5;
-        $monthlyInterest = $principal * (floatval($rate) / 100);
-        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+        // No monthly-interest note on a redemption: the pledge is settled, so quoting
+        // a rate per month describes a charge that can no longer be incurred.
+        $interestNote = '';
 
         return <<<HTML
 <style>
@@ -6195,8 +6306,14 @@ HTML;
     position: absolute;
     top: 92.7mm;
     left: 21mm;
-    width: 183mm;
+    /* Narrower than the renewal form's 183mm: the redemption form's Alamat box ends
+       sooner, so a wider run would print past it. */
+    width: 124mm;
     font-size: 11px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ═══ FINANCIAL BREAKDOWN ═══ */
@@ -6418,6 +6535,30 @@ HTML;
             $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPage($settings, $pledge->customer);
             $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlay($redemption, $pledge, $settings);
 
+            // How the customer settled, matching the block already on the pledge and
+            // renewal receipts. A redemption carries its payment fields on the record
+            // itself rather than through a payments relation. Hidden entirely when no
+            // method is recorded, so nothing prints over the blank form.
+            $paymentInfoBlockHtml = '';
+            $redemption->loadMissing('bank');
+            $lines = [];
+            if (\in_array($redemption->payment_method, ['transfer', 'partial'], true)) {
+                // Partial = cash + transfer; label it so staff don't read it as a full transfer.
+                $methodLabel = $redemption->payment_method === 'partial' ? 'SEBAHAGIAN' : 'PINDAHAN';
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$methodLabel}</strong></div>";
+                // Escaped: both land in raw interpolated HTML below.
+                $bankName = htmlspecialchars($redemption->bank->name ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $accountNo = htmlspecialchars($redemption->account_number ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+            } elseif ($redemption->payment_method === 'cash') {
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+            }
+            if (!empty($lines)) {
+                $innerHtml = implode('', $lines);
+                $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+            }
+
             // Combine them - data overlay on top of blank form
             $combinedHtml = <<<HTML
 <style>
@@ -6464,6 +6605,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
 </div>
 HTML;
 
@@ -6706,7 +6848,11 @@ HTMLSTART
             <div class="pp-rate-row">
                 <div class="pp-rate-cell" style="flex: 1;"><div class="pp-rate-lbl">TEMPOH TAMAT</div><div class="pp-rate-val pp-rate-big">{$redemptionPeriod}</div></div>
             </div>
-            <div class="pp-kadar">
+            <!-- Rates are spent once the pledge is redeemed, so this block prints
+                 nothing. Hidden with visibility and left fully rendered: the overlay
+                 pins itself with absolute mm offsets, so the block must keep its
+                 exact height or every field below slides off the pre-printed form. -->
+            <div class="pp-kadar" style="visibility: hidden;">
                 <div class="pp-kadar-title">KADAR KEUNTUNGAN BULANAN</div>
                 <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 1.</span> {$settings['interest_rate_normal']}% SEBULAN : UNTUK TEMPOH {$redemptionPeriod} PERTAMA</span></div>
                 <div class="pp-kadar-ln"> <span style="font-weight: bold;color:black;"> 2.</span> {$settings['interest_rate_extended']}% SEBULAN : PEMBAHARUAN SETERUSNYA TEMPOH {$redemptionPeriod}</span></div>
@@ -6844,9 +6990,10 @@ HTML;
         $totalPaidFormatted = $this->formatNumber($totalPaid, 2);
         $principalFormatted = $this->formatNumber($principal, 2);
         $interestFormatted = $this->formatNumber($interestAmount, 2);
-        $rate = $pledge->interest_rate ?? 0.5;
-        $monthlyInterest = $principal * (floatval($rate) / 100);
-        $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
+
+        // No monthly-interest note on a redemption: the pledge is settled, so quoting
+        // a rate per month describes a charge that can no longer be incurred.
+        $interestNote = '';
 
         return <<<HTML
 <style>
@@ -6987,8 +7134,14 @@ HTML;
     position: absolute;
     top: 92.7mm;
     left: 21mm;
-    width: 183mm;
+    /* Narrower than the renewal form's 183mm: the redemption form's Alamat box ends
+       sooner, so a wider run would print past it. */
+    width: 124mm;
     font-size: 11px;
+    /* Pre-printed form: a 3rd line would overprint the row below. Clip to 2. */
+    line-height: 1.25;
+    max-height: 2.5em;
+    overflow: hidden;
 }
 
 /* ═══ FINANCIAL BREAKDOWN ═══ */
@@ -7210,6 +7363,30 @@ HTML;
             $blankFrontHtml = $this->generatePrePrintedRedmeptionA5FrontPageReprint($settings);
             $dataOverlayHtml = $this->generatePrePrintedRedemptionOverlayReprint($redemption, $pledge, $settings);
 
+            // How the customer settled — same block as the original print, so a reprint
+            // is a faithful copy. A redemption carries its payment fields on the record
+            // itself rather than through a payments relation. Hidden entirely when no
+            // method is recorded, so nothing prints over the blank form.
+            $paymentInfoBlockHtml = '';
+            $redemption->loadMissing('bank');
+            $lines = [];
+            if (\in_array($redemption->payment_method, ['transfer', 'partial'], true)) {
+                // Partial = cash + transfer; label it so staff don't read it as a full transfer.
+                $methodLabel = $redemption->payment_method === 'partial' ? 'SEBAHAGIAN' : 'PINDAHAN';
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$methodLabel}</strong></div>";
+                // Escaped: both land in raw interpolated HTML below.
+                $bankName = htmlspecialchars($redemption->bank->name ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $accountNo = htmlspecialchars($redemption->account_number ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if ($bankName) $lines[] = "<div>Bank: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$bankName}</strong></div>";
+                if ($accountNo) $lines[] = "<div>A/C: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">{$accountNo}</strong></div>";
+            } elseif ($redemption->payment_method === 'cash') {
+                $lines[] = "<div>Bayaran: <strong style=\"color:#000;font-family:'Courier New',Courier,monospace;\">TUNAI</strong></div>";
+            }
+            if (!empty($lines)) {
+                $innerHtml = implode('', $lines);
+                $paymentInfoBlockHtml = '<div style="position:absolute;top:85mm;right:-2.5mm;width:75mm;z-index:3;font-size:12px;font-family:Arial,sans-serif;color:#1a4a7a;pointer-events:none;user-select:none;line-height:1.8;">' . $innerHtml . '</div>';
+            }
+
             // Combine them - data overlay on top of blank form
             $combinedHtml = <<<HTML
 <style>
@@ -7256,6 +7433,7 @@ HTML;
     <div class="pp-data-layer">
         {$dataOverlayHtml}
     </div>
+    {$paymentInfoBlockHtml}
 </div>
 HTML;
 

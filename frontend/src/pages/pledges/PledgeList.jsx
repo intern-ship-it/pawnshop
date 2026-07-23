@@ -318,7 +318,7 @@ export default function PledgeList() {
         handlePrint(payload.pledge);
         break;
       case 'reprint':
-        handleReprint(payload.pledge);
+        handleReprint(payload.pledge, null, payload.forceTarget ?? null);
         break;
       case 'barcode':
         // Show reprint reason modal instead of printing directly
@@ -549,10 +549,14 @@ export default function PledgeList() {
   };
 
   // Handle print pre-printed form with data (REPRINT)
-  const handleReprint = async (pledge, e) => {
+  // forceTarget overrides the status-based routing. Once a pledge is redeemed or
+  // renewed, resolvePrintTarget sends every print to the redemption/renewal receipt,
+  // leaving no way to re-issue the original pledge receipt — that is what the
+  // "Original Pledge Receipt" action passes in.
+  const handleReprint = async (pledge, e, forceTarget = null) => {
     if (e) e.stopPropagation();
     const pledgeId = pledge.id;
-    const target = resolvePrintTarget(pledge);
+    const target = forceTarget ?? resolvePrintTarget(pledge);
 
     // Get token using the helper function
     const token = getToken();
@@ -1785,6 +1789,38 @@ export default function PledgeList() {
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
                                 <Copy className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
+
+                          {/* Original pledge receipt. Only offered once the pledge has
+                              been redeemed or renewed: from then on the print and
+                              reprint buttons above resolve to the redemption/renewal
+                              receipt, so this is the only route back to the pledge
+                              receipt. Redundant on an active pledge, where the buttons
+                              above already produce it. */}
+                          {canPrint && resolvePrintTarget(pledge).kind !== "pledge" && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={reprintingId === pledge.id}
+                              onClick={(e) =>
+                                handleActionWithPasskey(
+                                  'reprint',
+                                  {
+                                    pledge,
+                                    forceTarget: { kind: "pledge", id: pledge.id, label: "Pledge" },
+                                  },
+                                  e,
+                                )
+                              }
+                              title="A5 Landscape - Original Pledge Receipt (Reprint)"
+                              className="text-sky-600 hover:text-sky-700 hover:bg-sky-50"
+                            >
+                              {reprintingId === pledge.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Printer className="w-4 h-4" />
                               )}
                             </Button>
                           )}

@@ -2191,29 +2191,67 @@ export default function NewPledge() {
   // Build the loan summary shown in the Step 3 confirmation modal. Uses the
   // same standard/first-period rate logic as the Interest Breakdown table.
   const getLoanSummary = () => {
-    const selectedRate =
-      interestRatesList.find((r) => r.id === interestScenario) ||
-      interestRatesList.find((r) => r.rate_type === "custom" || r.rate_type === "standard") ||
-      interestRatesList[0];
-    const rateType = selectedRate
-      ? selectedRate.rate_type === "custom" ? "standard" : selectedRate.rate_type
-      : "standard";
-    const ratePercent = selectedRate
-      ? (rateOverrides[rateType] != null ? rateOverrides[rateType] : parseFloat(selectedRate.rate_percentage) || 0)
-      : 0;
-    const fromMonth = selectedRate ? parseInt(selectedRate.from_month) || 1 : 1;
-    const toMonth = selectedRate ? parseInt(selectedRate.to_month) || (fromMonth + 5) : 6;
-    const months = toMonth >= fromMonth ? toMonth - fromMonth + 1 : 6;
-    const monthlyInterest = loanAmount * (ratePercent / 100);
+    // The loan runs for its full term (e.g. 6 months), not for the span of whichever
+    // rate tab happens to be selected. Quoting the selected tier's own months here
+    // told the operator a 6-month loan cost 3 months of interest — half the real bill.
+    const months = getPledgeTermMonths();
+
+    const custom = interestRatesList.filter((r) => r.rate_type === "custom");
+    const tiers = (custom.length > 0 ? custom : interestRatesList.filter((r) => r.rate_type === "standard"))
+      .slice()
+      .sort((a, b) => (parseInt(a.from_month) || 1) - (parseInt(b.from_month) || 1));
+
+    // A manual/customer override replaces the whole ladder with one flat rate.
+    const override = rateOverrides["standard"];
+
+    // Interest month by month down the ladder, so months 4-6 cost what they really
+    // cost. Same walk the Step 3 summary already does.
+    const rateForMonth = (month) => {
+      if (override != null) return Number(override) || 0;
+      const tier = tiers.find((t) => {
+        const from = parseInt(t.from_month) || 1;
+        const to = parseInt(t.to_month) || Infinity;
+        return month >= from && month <= to;
+      });
+      const fallback = tiers[0] ? parseFloat(tiers[0].rate_percentage) || 0 : 0;
+      return tier ? parseFloat(tier.rate_percentage) || 0 : fallback;
+    };
+
+    const schedule = [];
+    let totalInterest = 0;
+    for (let month = 1; month <= months; month++) {
+      const rate = rateForMonth(month);
+      const interest = loanAmount * (rate / 100);
+      totalInterest += interest;
+      schedule.push({ month, rate, interest });
+    }
+
+    // Collapse consecutive equal-rate months into bands: "Months 1-3 (0.50%)".
+    const bands = [];
+    schedule.forEach((row) => {
+      const last = bands[bands.length - 1];
+      if (last && last.rate === row.rate) {
+        last.toMonth = row.month;
+        last.interest += row.interest;
+      } else {
+        bands.push({ fromMonth: row.month, toMonth: row.month, rate: row.rate, interest: row.interest });
+      }
+    });
+
+    const isTiered = bands.length > 1;
+
     return {
       percentage: effectivePercentage,
       netValue: totals.netValue,
       loanAmount,
-      ratePercent,
       months,
-      monthlyInterest,
-      totalInterest: monthlyInterest * months,
-      rateLabel: selectedRate?.name || selectedRate?.rate_type || "Standard",
+      bands,
+      isTiered,
+      // First month's rate — meaningful only when the ladder is flat, which is why
+      // the modal shows the bands instead whenever isTiered.
+      ratePercent: bands[0]?.rate ?? 0,
+      monthlyInterest: loanAmount * ((bands[0]?.rate ?? 0) / 100),
+      totalInterest,
       dueDate: calculateDueDate(),
     };
   };
@@ -3987,10 +4025,30 @@ export default function NewPledge() {
                   <span className="text-sm font-medium text-amber-700">Loan Amount</span>
                   <span className="text-base font-bold text-amber-700">{formatCurrency(s.loanAmount)}</span>
                 </div>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-zinc-500">Monthly Interest ({s.ratePercent.toFixed(2)}%)</span>
-                  <span className="text-sm font-semibold text-blue-600">{formatCurrency(s.monthlyInterest)}</span>
-                </div>
+                {/* A tiered loan has no single "monthly interest" — spell out each
+                    band so the operator sees months 4-6 cost double before they
+                    commit the customer to it. */}
+                {s.isTiered ? (
+                  s.bands.map((b) => (
+                    <div key={b.fromMonth} className="flex items-center justify-between px-4 py-3">
+                      <span className="text-sm text-zinc-500">
+                        {b.fromMonth === b.toMonth
+                          ? `Month ${b.fromMonth}`
+                          : `Months ${b.fromMonth}-${b.toMonth}`}{" "}
+                        ({b.rate.toFixed(2)}%)
+                        <span className="text-xs text-zinc-400">
+                          {" "}&middot; {formatCurrency(s.loanAmount * (b.rate / 100))}/mo
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold text-blue-600">{formatCurrency(b.interest)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-zinc-500">Monthly Interest ({s.ratePercent.toFixed(2)}%)</span>
+                    <span className="text-sm font-semibold text-blue-600">{formatCurrency(s.monthlyInterest)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between px-4 py-3">
                   <span className="text-sm text-zinc-500">Total Interest ({s.months} months)</span>
                   <span className="text-sm font-bold text-blue-600">{formatCurrency(s.totalInterest)}</span>

@@ -261,17 +261,26 @@ class RenewalController extends Controller
      * Whether a pledge may be renewed, and why not.
      *
      * A renewal extends the due date and collects nothing, so it may only proceed
-     * once the interest accrued so far has actually been paid — in full. A partial
-     * payment does not unlock it. Payment happens on the Interest Payments screen.
+     * once the FULL term's interest has been paid — every month of the term, not
+     * merely the months elapsed so far. A pledge one month old must still prepay all
+     * six months before it can extend. A partial payment does not unlock it. Payment
+     * happens on the Interest Payments screen.
+     *
+     * Measured against the current term: interest paid on a previous term (before
+     * the last renewal) does not count, so a renewed pledge starts its next term
+     * owing the full amount again.
      *
      * Called by both calculate() and store() so the screen's warning and the API's
      * rejection can never disagree.
      *
-     * @return array{allowed: bool, reason: ?string, outstanding: float, renewals_used: int, renewals_allowed: int}
+     * @return array{allowed: bool, reason: ?string, outstanding: float, term_interest: float, term_paid: float, renewals_used: int, renewals_allowed: int}
      */
-    private function renewalEligibility(Pledge $pledge, float $grossInterest): array
+    private function renewalEligibility(Pledge $pledge): array
     {
-        $outstanding = round(max(0.0, $grossInterest - (float) $pledge->total_interest_paid), 2);
+        $termInterest = $pledge->fullTermInterest($this->termMonths($pledge));
+        $termPaid = $pledge->interestPaidThisTerm();
+        $outstanding = round(max(0.0, $termInterest - $termPaid), 2);
+
         $used = (int) $pledge->renewal_count;
         $allowed = $this->maxRenewals();
 
@@ -279,18 +288,44 @@ class RenewalController extends Controller
         // Renewal limit first: it is terminal, whereas unpaid interest can be settled.
         if ($used >= $allowed) {
             $reason = "This pledge has used all {$allowed} renewals and cannot be renewed again. It must be redeemed.";
+
+            // A maxed-out pledge can still owe interest for its current term, and
+            // that money is still collectable. Saying only "must be redeemed" hid it
+            // from the operator, who had no indication anything was outstanding.
+            if ($outstanding > 0.005) {
+                $reason .= ' Interest of RM ' . number_format($outstanding, 2)
+                    . ' is still unpaid and can be settled on the Interest Payments screen.';
+            }
         } elseif ($outstanding > 0.005) {
             $reason = 'Interest of RM ' . number_format($outstanding, 2)
-                . ' is unpaid. The customer must settle it in full on the Interest Payments screen before this pledge can be extended.';
+                . ' is unpaid. The full term\'s interest must be settled on the Interest Payments screen before this pledge can be extended.';
         }
 
         return [
             'allowed' => $reason === null,
             'reason' => $reason,
             'outstanding' => $outstanding,
+            'term_interest' => round($termInterest, 2),
+            'term_paid' => round($termPaid, 2),
             'renewals_used' => $used,
             'renewals_allowed' => $allowed,
         ];
+    }
+
+    /**
+     * The pledge's term length in months — the span the tier ladder covers (max
+     * standard/custom to_month), defaulting to 6 when there is no ladder.
+     */
+    private function termMonths(Pledge $pledge): int
+    {
+        $end = (int) \App\Models\InterestRate::where('is_active', true)
+            ->whereIn('rate_type', ['standard', 'custom'])
+            ->where(function ($q) use ($pledge) {
+                $q->where('branch_id', $pledge->branch_id)->orWhereNull('branch_id');
+            })
+            ->max('to_month');
+
+        return $end > 0 ? $end : 6;
     }
 
     /**
@@ -352,7 +387,7 @@ class RenewalController extends Controller
 
         // Whether this renewal may proceed. Returned rather than thrown, because the
         // screen still needs the figures to explain why the button is disabled.
-        $eligibility = $this->renewalEligibility($pledge, $calculation['gross_interest']);
+        $eligibility = $this->renewalEligibility($pledge);
 
         // Fetch handling fee settings
         $settings = \App\Models\Setting::whereIn('key_name', [
@@ -478,7 +513,7 @@ class RenewalController extends Controller
             // Enforce the same gates the screen previews. Checked here too, because a
             // disabled button is a courtesy, not a control — this endpoint is callable
             // directly. Must run before total_interest is netted down to the balance.
-            $eligibility = $this->renewalEligibility($pledge, (float) $calculation['total_interest']);
+            $eligibility = $this->renewalEligibility($pledge);
             if (!$eligibility['allowed']) {
                 DB::rollBack();
                 return $this->error($eligibility['reason'], 422);
@@ -566,9 +601,15 @@ class RenewalController extends Controller
                 ]);
             }
 
-            // Update pledge
+            // Update pledge. current_term_start marks WHEN THE RENEWAL HAPPENED, not
+            // the calendar start of the new period. It exists to split payments into
+            // terms, and the customer pays for the new term from the moment they
+            // renew — months before the new period actually begins. Storing the
+            // future due date here meant no payment could ever fall inside the
+            // window, so a renewed pledge could never be renewed again.
             $pledge->update([
                 'due_date' => $newDueDate,
+                'current_term_start' => now(),
                 'grace_end_date' => $newDueDate->copy()->addDays(7),
                 'renewal_count' => $pledge->renewal_count + 1,
                 'status' => 'active',

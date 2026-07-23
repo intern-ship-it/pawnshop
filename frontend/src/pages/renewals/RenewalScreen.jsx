@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { setSelectedPledge } from "@/features/pledges/pledgesSlice";
 import { addToast } from "@/features/ui/uiSlice";
@@ -57,7 +57,7 @@ import {
   Plus,
   ArrowRight,
   Scale,
-  TrendingUp,
+  TrendingUp, // only used by the commented-out custom-rate field; kept for restore
   Info,
   X,
   Loader2,
@@ -69,8 +69,16 @@ import {
   ChevronDown,
 } from "lucide-react";
 
+/**
+ * A renewal always extends by the standard term. The operator does not choose a
+ * period, so every place that sets the extension reads this one value.
+ */
+const STANDARD_EXTENSION_MONTHS = 6;
+
 export default function RenewalScreen() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const autoLoadedRef = useRef(false);
   const dispatch = useAppDispatch();
   const { selectedPledge } = useAppSelector((state) => state.pledges);
 
@@ -88,8 +96,10 @@ export default function RenewalScreen() {
   // Payment state
   // Payment state removed: a renewal extends the due date and collects nothing.
 
-  // Extension state
-  const [extensionMonths, setExtensionMonths] = useState(1);
+  // Extension state. A renewal always extends by the standard term — the operator
+  // no longer picks a period — so this is pinned rather than selected. Changing the
+  // constant is the single place that changes the extension everywhere.
+  const [extensionMonths, setExtensionMonths] = useState(STANDARD_EXTENSION_MONTHS);
   const [interestRate, setInterestRate] = useState("");
   const [interestRateRules, setInterestRateRules] = useState([]);
   const [rateSource, setRateSource] = useState(""); // 'global' | 'customer' | 'manual'
@@ -303,14 +313,19 @@ export default function RenewalScreen() {
 
   // Issue 1 FIX: Search now uses dueList endpoint with search parameter
   // This allows IC number search to return all active pledges for that customer
-  const handleSearch = async () => {
+  // overrideQuery lets a caller search a value that state may not hold yet -- the
+  // deep-link auto-load seeds searchQuery and calls straight through, before React
+  // has committed the new state, so it must pass the term explicitly.
+  const handleSearch = async (overrideQuery = null) => {
     // Clear any pending debounce to avoid double-firing
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
 
-    if (!searchQuery.trim()) {
+    const query = (overrideQuery ?? searchQuery).trim();
+
+    if (!query) {
       dispatch(
         addToast({
           type: "warning",
@@ -331,7 +346,7 @@ export default function RenewalScreen() {
       const response = await renewalService.getDueList({
         date_from: "2020-01-01", // Wide date range to find all pledges
         date_to: "2099-12-31",
-        search: searchQuery.trim(),
+        search: query,
       });
 
       const data = response.data?.data || response.data || [];
@@ -346,7 +361,7 @@ export default function RenewalScreen() {
           addToast({
             type: "success",
             title: "Found",
-            message: `Found ${pledges.length} pledge(s) matching "${searchQuery}"`,
+            message: `Found ${pledges.length} pledge(s) matching "${query}"`,
           }),
         );
 
@@ -380,6 +395,22 @@ export default function RenewalScreen() {
       setIsSearching(false);
     }
   };
+
+  // Arrive from the interest-payment success screen with the pledge already chosen,
+  // e.g. /renewals?pledge=PLG-HQ-2026-0324. Seed the search box and run the normal
+  // search so the same due-list / eligibility path applies -- a pledge that cannot
+  // be renewed must not load here just because it was linked to. Defined after
+  // handleSearch so the effect can call it. Runs once; the mount effect above that
+  // clears a stale pledge does not interfere, because this drives a fresh search.
+  useEffect(() => {
+    const pledgeNo = searchParams.get("pledge");
+    if (!pledgeNo || autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    setSearchQuery(pledgeNo); // fill the box for the operator to see
+    // Pass the term explicitly: setSearchQuery has not committed yet, so
+    // handleSearch would otherwise read an empty box and abort with "Required".
+    handleSearch(pledgeNo);
+  }, [searchParams]);
 
   // Debounced search - auto-triggers 500ms after user stops typing
   const debouncedSearch = useCallback((query) => {
@@ -508,25 +539,12 @@ export default function RenewalScreen() {
     customRate = "";
     setInterestRate(customRate);
 
-    // Pre-fill extension months based on the applicable rate's month range
-    let prefillMonths = 6; // fallback
-    if (interestRateRules.length > 0) {
-      if (enrichedPledge.status === "overdue" || isOverdue) {
-        const overdueRule = interestRateRules.find(r => r.rate_type === 'overdue' && r.is_active);
-        if (overdueRule) {
-          const from = parseInt(overdueRule.from_month) || 1;
-          const to = parseInt(overdueRule.to_month) || 2;
-          prefillMonths = to - from + 1;
-        }
-      } else {
-        const extendedRule = interestRateRules.find(r => r.rate_type === 'extended' && r.is_active);
-        if (extendedRule) {
-          const from = parseInt(extendedRule.from_month) || 4;
-          const to = parseInt(extendedRule.to_month) || 9;
-          prefillMonths = to - from + 1;
-        }
-      }
-    }
+    // Every renewal extends by the standard term. This used to derive a month count
+    // from the rate rules' month ranges, which could yield something other than 6
+    // (an open-ended extended tier gives NaN, an overdue rule gives 2). That was
+    // survivable while the operator could correct it with the month buttons; with
+    // the buttons gone it would silently renew for the wrong period.
+    const prefillMonths = STANDARD_EXTENSION_MONTHS;
     setExtensionMonths(prefillMonths);
 
     fetchCalculation(data.id, prefillMonths, customRate);
@@ -757,6 +775,17 @@ export default function RenewalScreen() {
   const blockedReason = eligibility?.reason || "";
   const renewalsUsed = eligibility?.renewals_used ?? 0;
   const renewalsAllowed = eligibility?.renewals_allowed ?? 0;
+  // The full term's interest — what the gate actually requires before extending,
+  // not merely the interest accrued so far.
+  const termInterest = eligibility?.term_interest ?? 0;
+  // Blocked purely by money owed, not by the renewal limit — the limit is terminal
+  // and the backend reports it first, so a maxed-out pledge never lands here.
+  // Offer the shortcut whenever interest is actually outstanding — including on a
+  // pledge that has used all its renewals. That money is still owed and still
+  // collectable; it was previously hidden because the renewal limit was treated as
+  // making payment pointless, leaving the operator no route to take it.
+  const hasOutstandingInterest = (eligibility?.outstanding ?? 0) > 0.005;
+  const blockedByUnpaidInterest = !canRenew && hasOutstandingInterest;
 
   // Days until due
   const getDaysUntilDue = () => {
@@ -1438,7 +1467,7 @@ export default function RenewalScreen() {
               </div>
               <Button
                 variant="primary"
-                onClick={handleSearch}
+                onClick={() => handleSearch()}
                 loading={isSearching}
               >
                 Search
@@ -1939,17 +1968,31 @@ export default function RenewalScreen() {
                 </div>
               </Card>
 
-              {/* Interest Calculation Card */}
+              {/* Renewal Term card. Named for what it shows: the card no longer
+                  calculates interest — the rate field and accrual breakdown moved to
+                  the Interest Payments screen, where interest is actually settled. */}
               <Card className="p-6">
                 <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-amber-500" />
-                  Interest Calculation
+                  <Calendar className="w-5 h-5 text-amber-500" />
+                  Renewal Term
                   {isCalculating && (
                     <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
                   )}
                 </h4>
 
-                {/* Extension Period Selection */}
+                {/* A renewal always extends by the standard term, so there is nothing
+                    to choose. The month buttons are kept below, commented out, in case
+                    variable extensions are wanted again. */}
+                <div className="mb-4">
+                  <label className="text-sm text-zinc-600 mb-2 block">
+                    Extension Period
+                  </label>
+                  <p className="text-sm font-medium text-zinc-800">
+                    Standard {STANDARD_EXTENSION_MONTHS} months
+                  </p>
+                </div>
+
+                {/*
                 <div className="mb-4">
                   <label className="text-sm text-zinc-600 mb-2 block">
                     Extension Period
@@ -1979,8 +2022,16 @@ export default function RenewalScreen() {
                     })()}
                   </div>
                 </div>
+                */}
 
-                {/* Custom Interest Rate */}
+                {/* Custom Interest Rate hidden per client request. A renewal collects
+                    no money, so overriding the rate here changed nothing the operator
+                    could act on, and a typed value would flatten the pledge's frozen
+                    tier ladder. interestRate stays "" (set on pledge load), so no
+                    interest_rate is sent and the backend uses the frozen ladder --
+                    the correct behaviour. Kept rather than deleted so it can be
+                    restored.
+
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm text-zinc-600">
@@ -2009,9 +2060,17 @@ export default function RenewalScreen() {
                     leftIcon={TrendingUp}
                   />
                 </div>
+                */}
 
-                {/* Interest accrued so far. Independent of the extension period —
-                    extending the due date neither adds nor prepays interest. */}
+                {/* Accrued/outstanding block hidden per client request.
+                    It showed interest accrued SO FAR, which since the renewal gate
+                    began requiring the full term's interest no longer matches what
+                    is actually owed to renew — the box read "RM 75.50" while the
+                    notice below correctly said RM 679.50 was unpaid. The authoritative
+                    figure now comes from eligibility.outstanding in the "cannot be
+                    extended" notice, and is settled on the Interest Payments screen.
+                    Kept rather than deleted so it can be restored.
+
                 {interestBreakdown.length > 0 && (
                   <div className="mb-4 p-4 bg-zinc-50 rounded-lg">
                     <p className="text-sm font-medium text-zinc-700 mb-1">
@@ -2036,8 +2095,6 @@ export default function RenewalScreen() {
                   </div>
                 )}
 
-                {/* Summary. Nothing is collected at renewal, so this is what the
-                    customer still owes — not a bill for today. */}
                 <div className="space-y-2 border-t border-zinc-200 pt-4">
                   {interestAlreadyPaid > 0 && (
                     <>
@@ -2074,6 +2131,7 @@ export default function RenewalScreen() {
                     this pledge can be extended. Not collected here.
                   </p>
                 </div>
+                */}
               </Card>
 
               {/* Confirm Card */}
@@ -2093,6 +2151,28 @@ export default function RenewalScreen() {
                       </span>{" "}
                       {blockedReason}
                     </p>
+                    {/* Outstanding interest is collectable whatever is blocking the
+                        renewal, so offer the shortcut in both cases. The label says
+                        what paying will actually achieve: on a pledge with renewals
+                        left it unblocks the extension, on a maxed-out one it only
+                        clears the debt before redemption. */}
+                    {blockedByUnpaidInterest && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() =>
+                          navigate(
+                            `/interest-payments?pledge=${encodeURIComponent(pledge.pledgeNo)}`,
+                          )
+                        }
+                        rightIcon={ArrowRight}
+                      >
+                        {renewalsUsed >= renewalsAllowed
+                          ? "Collect Outstanding Interest"
+                          : "Settle Interest Now"}
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
@@ -2100,8 +2180,9 @@ export default function RenewalScreen() {
                       <span className="font-semibold">
                         No payment is collected here.
                       </span>{" "}
-                      Renewing only extends the due date. The interest accrued so far
-                      has been settled, and this pledge has used {renewalsUsed} of{" "}
+                      Renewing only extends the due date. The full term&rsquo;s interest
+                      {termInterest > 0 ? ` (${formatCurrency(termInterest)})` : ""} has
+                      been settled, and this pledge has used {renewalsUsed} of{" "}
                       {renewalsAllowed} renewals.
                     </p>
                   </div>
@@ -2173,7 +2254,7 @@ export default function RenewalScreen() {
           setRenewalResult(null);
           setSearchQuery("");
           setPledge(null);
-          setExtensionMonths(1);
+          setExtensionMonths(STANDARD_EXTENSION_MONTHS);
           setInterestRate("");
           setCalculation(null);
           setSearchResult(null);
@@ -2305,7 +2386,7 @@ export default function RenewalScreen() {
                 setRenewalResult(null);
                 setSearchQuery("");
                 setPledge(null);
-                      setExtensionMonths(1);
+                      setExtensionMonths(STANDARD_EXTENSION_MONTHS);
                 setInterestRate("");
                 setCalculation(null);
                 setSearchResult(null);

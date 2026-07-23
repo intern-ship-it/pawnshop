@@ -1,7 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState = {
-  sidebarOpen: true,
+  // Mobile drawer only - the desktop sidebar is always visible.
+  sidebarOpen: false,
   sidebarCollapsed: false,
   activeModal: null,
   modalData: null,

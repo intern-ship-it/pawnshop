@@ -101,7 +101,11 @@ class ReportController extends Controller
             $this->applyGlobalSearch($query, $search, true);
         }
 
-        $pledges = $query->orderBy('pledge_date', 'desc')->get();
+        // pledge_date is a date, so same-day pledges tie; pledge_no is zero-padded
+        // and unique, which makes the order deterministic.
+        $pledges = $query->orderBy('pledge_date', 'desc')
+            ->orderBy('pledge_no', 'desc')
+            ->get();
 
         // Summary
         $summary = [
@@ -143,6 +147,10 @@ class ReportController extends Controller
         }
 
         $renewals = $query->orderBy('created_at', 'desc')->get();
+        // Tag each row so the report can tell a genuine renewal from an interest
+        // payment. This listing has always merged the two, which made "Total
+        // Renewals" count interest payments as renewals — 4 rows for 1 real renewal.
+        $renewals->each(fn ($r) => $r->setAttribute('record_type', 'renewal'));
 
         $interestQuery = \App\Models\InterestPayment::where('branch_id', $branchId)
             ->with(['pledge.customer:id,name,ic_number', 'createdBy:id,name']);
@@ -159,10 +167,15 @@ class ReportController extends Controller
         }
 
         $interestPayments = $interestQuery->orderBy('created_at', 'desc')->get();
+        $interestPayments->each(fn ($ip) => $ip->setAttribute('record_type', 'interest_payment'));
+
         $combinedRenewals = $renewals->concat($interestPayments)->sortByDesc('created_at')->values();
 
         $summary = [
-            'total_renewals' => $combinedRenewals->count(),
+            // Real renewals only — the count that was wrong before.
+            'total_renewals' => $renewals->count(),
+            'total_interest_payments' => $interestPayments->count(),
+            'total_records' => $combinedRenewals->count(),
             'total_interest' => $combinedRenewals->sum('interest_amount'),
             'average_interest' => $combinedRenewals->count() > 0 ? $combinedRenewals->avg('interest_amount') : 0,
             'total_payable' => $combinedRenewals->sum('total_payable'),
@@ -233,7 +246,7 @@ class ReportController extends Controller
             $this->applyGlobalSearch($query, $search, true);
         }
 
-        $pledges = $query->orderBy('due_date')->get();
+        $pledges = $query->orderBy('due_date')->orderBy('pledge_no')->get();
 
         // Calculate current interest for each and categorize by due status
         $activePledges = [];
@@ -396,7 +409,7 @@ class ReportController extends Controller
             $this->applyGlobalSearch($query, $search, true);
         }
 
-        $pledges = $query->orderBy('due_date')->get();
+        $pledges = $query->orderBy('due_date')->orderBy('pledge_no')->get();
 
         // Add days overdue
         $pledges->each(function ($pledge) use ($today) {

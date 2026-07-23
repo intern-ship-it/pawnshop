@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { addToast } from "@/features/ui/uiSlice";
 import { interestPaymentService, settingsService, pledgeService } from "@/services";
@@ -16,12 +17,18 @@ import {
 export default function InterestPaymentScreen() {
   const dispatch = useAppDispatch();
   const debounceRef = useRef(null);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const autoLoadedRef = useRef(false);
 
   // Search & pledge state
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [pledgeList, setPledgeList] = useState([]);
   const [pledge, setPledge] = useState(null);
+  // The server's view of the pledge from calculate(), which carries can_renew. The
+  // pledge above comes from the eligible-list and does not know the renewal limit.
+  const [pledgeMeta, setPledgeMeta] = useState(null);
 
   // Calculation
   const [calculation, setCalculation] = useState(null);
@@ -32,6 +39,11 @@ export default function InterestPaymentScreen() {
   const [interestRate, setInterestRate] = useState("");
   const [globalRate, setGlobalRate] = useState(null);
   const [rateSource, setRateSource] = useState("");
+  // The box is pre-filled with the pledge's rate for the operator to see, so a value
+  // in it does not mean an override. Only send a rate once someone actually edits it —
+  // otherwise the server reads the pre-fill as "flatten the ladder" and every tiered
+  // pledge silently bills its first month's rate for all months.
+  const [rateEdited, setRateEdited] = useState(false);
   const [monthsToPay, setMonthsToPay] = useState("");
 
   // Payment
@@ -85,6 +97,18 @@ export default function InterestPaymentScreen() {
   };
 
   useEffect(() => { loadToday(); }, []);
+
+  // Arrive from the Renewal screen's "cannot be extended" notice with the pledge
+  // already chosen, e.g. /interest-payments?pledge=PLG-HQ-2026-0324. Routed through
+  // the normal search so the same eligibility rules apply — a pledge that is not
+  // payable must not load here just because it was linked to.
+  useEffect(() => {
+    const pledgeNo = searchParams.get("pledge");
+    if (!pledgeNo || autoLoadedRef.current) return;
+    autoLoadedRef.current = true; // once only; don't re-search when the operator resets
+    setSearchQuery(pledgeNo);
+    handleSearch(pledgeNo);
+  }, [searchParams]);
 
   // Auto-fill amount when calculation changes
   useEffect(() => {
@@ -140,22 +164,39 @@ export default function InterestPaymentScreen() {
     }
     setInterestRate(rate);
     setRateSource(source);
+    setRateEdited(false); // fresh pledge: the box is a pre-fill, not an override
     setMonthsToPay(""); // Reset months
-    await fetchCalculation(p.id, rate, null);
+    await fetchCalculation(p.id, rate, null, false);
   };
 
-  const fetchCalculation = async (pledgeId, rate, overrideMonths = null) => {
+  const fetchCalculation = async (pledgeId, rate, overrideMonths = null, isOverride = false) => {
     setIsCalculating(true);
     try {
       const params = { pledge_id: pledgeId };
-      if (rate !== "" && !isNaN(parseFloat(rate))) params.interest_rate = parseFloat(rate);
+      // Send the rate only as a deliberate override; otherwise let the server walk
+      // the pledge's frozen tier ladder (months 1-3 @ 0.5%, months 4-6 @ 1.0%, ...).
+      if (isOverride && rate !== "" && !isNaN(parseFloat(rate))) params.interest_rate = parseFloat(rate);
       if (overrideMonths !== null && overrideMonths !== "") params.months_to_pay = parseInt(overrideMonths);
 
       const res = await interestPaymentService.calculate(params);
       const data = res.data?.data || res.data;
       setCalculation(data.calculation);
       setPeriod(data.period);
-      
+
+      // Show the rate the months are actually billing at, not the pledge's opening
+      // rate. A renewed pledge paying months 7-12 is on the extended tier, so the
+      // frozen 0.50 this box was pre-filled with contradicted every row of the
+      // breakdown. Skipped when the operator typed their own rate, and when the
+      // months span several rates (the box then reads "Tiered — see breakdown").
+      if (!isOverride && !data.calculation?.is_tiered && data.calculation?.interest_rate != null) {
+        setInterestRate(String(data.calculation.interest_rate));
+      }
+
+      // Keep the server's view of the pledge — it carries can_renew, which the
+      // success modal uses to offer Renew or Redeem. The pledge held in state comes
+      // from the eligible-list and does not know the renewal limit.
+      if (data.pledge) setPledgeMeta(data.pledge);
+
       // Auto-set the months input on initial load
       if (overrideMonths === null && data.period?.months_remaining) {
         setMonthsToPay(String(data.period.months_remaining));
@@ -190,7 +231,10 @@ export default function InterestPaymentScreen() {
         transfer_amount: paymentMethod === "transfer" ? totalReceived : paymentMethod === "partial" ? parseFloat(transferAmount) || 0 : 0,
         notes: notes || undefined,
       };
-      if (interestRate !== "" && !isNaN(parseFloat(interestRate))) payload.interest_rate = parseFloat(interestRate);
+      // Same rule as the preview: only a rate the operator actually typed is an
+      // override. Sending the pre-fill here would charge the flat rate the screen
+      // never showed them.
+      if (rateEdited && interestRate !== "" && !isNaN(parseFloat(interestRate))) payload.interest_rate = parseFloat(interestRate);
       if (monthsToPay !== "" && !isNaN(parseInt(monthsToPay))) payload.months_to_pay = parseInt(monthsToPay);
       if ((paymentMethod === "transfer" || paymentMethod === "partial") && bankId) payload.bank_id = parseInt(bankId);
       if (referenceNo) payload.reference_no = referenceNo;
@@ -208,8 +252,8 @@ export default function InterestPaymentScreen() {
   };
 
   const resetForm = () => {
-    setPledge(null); setCalculation(null); setPeriod(null); setSearchQuery("");
-    setInterestRate(""); setRateSource(""); setMonthsToPay(""); setPaymentMethod("cash");
+    setPledge(null); setPledgeMeta(null); setCalculation(null); setPeriod(null); setSearchQuery("");
+    setInterestRate(""); setRateSource(""); setRateEdited(false); setMonthsToPay(""); setPaymentMethod("cash");
     setCashAmount(""); setTransferAmount(""); setBankId(""); setReferenceNo("");
     setNotes(""); setShowSuccess(false); setResult(null); setPledgeList([]);
   };
@@ -368,6 +412,47 @@ export default function InterestPaymentScreen() {
                     </div>
                   </Card>
 
+                  {/* Nothing left to pay on this term. Shown instead of the calculation
+                      and payment cards, which would otherwise offer a month that is not
+                      owed and a RM 0.00 payment. */}
+                  {period?.term_settled ? (
+                    <Card className="p-6">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                        <div>
+                          <h4 className="font-semibold text-zinc-800 mb-1">
+                            Interest fully settled
+                          </h4>
+                          <p className="text-sm text-zinc-600">
+                            All {period?.term_months ?? 6} months of this term have been
+                            paid. Nothing further is payable
+                            {pledgeMeta?.can_renew === false
+                              ? "; this pledge must now be redeemed."
+                              : " until the pledge is renewed."}
+                          </p>
+                          {(pledge?.pledge_no || pledgeMeta?.pledge_no) && (
+                            <Button
+                              variant="accent"
+                              size="sm"
+                              className="mt-4"
+                              rightIcon={ArrowRight}
+                              onClick={() => {
+                                const no = pledge?.pledge_no || pledgeMeta.pledge_no;
+                                navigate(
+                                  `${pledgeMeta?.can_renew === false ? "/redemptions" : "/renewals"}?pledge=${encodeURIComponent(no)}`,
+                                );
+                              }}
+                            >
+                              {pledgeMeta?.can_renew === false
+                                ? "Redeem This Pledge"
+                                : "Renew This Pledge"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  ) : (
+                  <>
                   {/* Interest Calculation */}
                   <Card className="p-6">
                     <h4 className="font-semibold text-zinc-800 mb-4 flex items-center gap-2">
@@ -380,7 +465,9 @@ export default function InterestPaymentScreen() {
                         <label className="text-sm text-zinc-600">
                           Interest Rate (%) <span className="text-xs text-zinc-400 font-normal">(Leave empty for default)</span>
                         </label>
-                        {rateSource && (
+                        {calculation?.is_tiered && !rateEdited ? (
+                          <Badge variant="success" size="sm">📊 Tiered Rate</Badge>
+                        ) : rateSource && (
                           <Badge variant={rateSource === 'customer' ? 'warning' : rateSource === 'manual' ? 'info' : 'success'} size="sm">
                             {rateSource === 'customer' && '👤 Customer Rate'}
                             {rateSource === 'global' && '🌐 Global Rate'}
@@ -389,14 +476,19 @@ export default function InterestPaymentScreen() {
                         )}
                       </div>
                       <Input
-                        type="number" step="0.01" placeholder="e.g. 0.5"
-                        value={interestRate}
+                        type="number" step="0.01"
+                        placeholder={calculation?.is_tiered && !rateEdited ? "Tiered — see breakdown below" : "e.g. 0.5"}
+                        // A tiered pledge has no single rate. Showing month 1's rate in
+                        // the box would read as the rate for every month, which is the
+                        // bug this screen had. Leave it empty; type here to override.
+                        value={calculation?.is_tiered && !rateEdited ? "" : interestRate}
                         onChange={(e) => {
                           setInterestRate(e.target.value);
                           setRateSource("manual");
+                          setRateEdited(true);
                           if (pledge?.id) {
                             clearTimeout(window._intPayRateTimer);
-                            window._intPayRateTimer = setTimeout(() => fetchCalculation(pledge.id, e.target.value, monthsToPay), 400);
+                            window._intPayRateTimer = setTimeout(() => fetchCalculation(pledge.id, e.target.value, monthsToPay, true), 400);
                           }
                         }}
                         leftIcon={TrendingUp}
@@ -416,7 +508,7 @@ export default function InterestPaymentScreen() {
                               setMonthsToPay(String(months));
                               if (pledge?.id) {
                                 clearTimeout(window._intPayMonthTimer);
-                                fetchCalculation(pledge.id, interestRate, String(months));
+                                fetchCalculation(pledge.id, interestRate, String(months), rateEdited);
                               }
                             }}
                             className={cn(
@@ -522,10 +614,12 @@ export default function InterestPaymentScreen() {
                     </div>
 
                     <Button variant="success" className="w-full" size="lg" onClick={handleProcess} loading={isProcessing}
-                      disabled={!calculation || isProcessing}>
+                      disabled={!calculation || isProcessing || (calculation?.total_payable || 0) <= 0}>
                       <Banknote className="w-5 h-5 mr-2" /> Process Interest Payment — {formatCurrency(calculation?.total_payable || 0)}
                     </Button>
                   </Card>
+                  </>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -549,6 +643,29 @@ export default function InterestPaymentScreen() {
             <p className="text-sm text-amber-600 mt-3 font-medium">Due date remains unchanged.</p>
             <div className="mt-6 flex gap-3 justify-center">
               <Button variant="ghost" onClick={() => { setShowSuccess(false); resetForm(); }}>New Payment</Button>
+              {/* Interest is what a renewal was waiting on — once it's settled, send
+                  the operator straight to Renewals with this pledge loaded so they
+                  don't have to search it out again. */}
+              {/* A pledge that has used all its renewals can only be redeemed, so
+                  sending it to Renewals would land the operator on a refusal. Offer
+                  the step that can actually be completed. */}
+              {(pledge?.pledge_no || result?.pledge?.pledge_no) && (() => {
+                const pledgeNo = pledge?.pledge_no || result.pledge.pledge_no;
+                const canRenew = pledgeMeta?.can_renew !== false;
+                return (
+                  <Button
+                    variant="accent"
+                    rightIcon={ArrowRight}
+                    onClick={() =>
+                      navigate(
+                        `${canRenew ? "/renewals" : "/redemptions"}?pledge=${encodeURIComponent(pledgeNo)}`,
+                      )
+                    }
+                  >
+                    {canRenew ? "Renew This Pledge" : "Redeem This Pledge"}
+                  </Button>
+                );
+              })()}
             </div>
           </div>
         </Modal>
