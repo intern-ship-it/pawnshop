@@ -3759,7 +3759,10 @@ HTML;
         // Format amounts
         $amountWords = strtoupper($this->numberToMalayWords($loanAmount));
         $loanAmountFormatted = $this->formatNumber($loanAmount, 2);
-        $rate = isset($renewal) ? ($renewal->interest_rate ?? $pledge->interest_rate ?? 0.5) : ($pledge->interest_rate ?? 0.5);
+        // A renewal moves the pledge into the extended ("pembaharuan seterusnya")
+        // bucket, so the go-forward monthly interest uses the pledge's extended rate
+        // — matching KADAR line 2 — not the standard tier-1 rate.
+        $rate = $pledge->interest_rate_extended ?? $renewal->interest_rate ?? $pledge->interest_rate ?? 0.5;
         $monthlyInterest = $loanAmount * (floatval($rate) / 100);
         $interestNote = "Keuntungan Dikena RM " . $this->formatNumber($monthlyInterest, 2) . " sebulan";
 
