@@ -1277,9 +1277,16 @@ class ReportController extends Controller
                             $drawerName = strtoupper($item->box->box_number ?? $item->box->name ?? 'Drawer');
                             
                             if ($item->box->has_subslots) {
-                                $subslotsPerSlot = $item->box->subslots_per_slot ?: 1;
-                                $sNum = ceil($item->slot->slot_number / $subslotsPerSlot);
-                                $subNum = (($item->slot->slot_number - 1) % $subslotsPerSlot) + 1;
+                                // Prefer the slot's stored group/subslot (the rack-map
+                                // layout); recomputing from slot_number misplaces it.
+                                if ($item->slot->slot_group !== null && $item->slot->subslot_number !== null) {
+                                    $sNum = (int) $item->slot->slot_group;
+                                    $subNum = (int) $item->slot->subslot_number;
+                                } else {
+                                    $subslotsPerSlot = $item->box->subslots_per_slot ?: 1;
+                                    $sNum = ceil($item->slot->slot_number / $subslotsPerSlot);
+                                    $subNum = (($item->slot->slot_number - 1) % $subslotsPerSlot) + 1;
+                                }
                                 $locationStr = sprintf('%s > DRAWER %s > SLOT %d > SUBSLOT %d', $lockerName, $drawerName, $sNum, $subNum);
                             } else {
                                 $locationStr = sprintf('%s > DRAWER %s > SLOT %d', $lockerName, $drawerName, $item->slot->slot_number);
