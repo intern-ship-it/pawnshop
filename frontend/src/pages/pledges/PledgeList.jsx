@@ -1437,7 +1437,7 @@ export default function PledgeList() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
               type="text"
-              placeholder="Search by ticket, customer name, or IC..."
+              placeholder="Search by ticket, renewal no, customer name, or IC..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-10 pr-9 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
@@ -1708,9 +1708,14 @@ export default function PledgeList() {
                                   : "text-zinc-400",
                             )}
                           >
+                            {/* A past-due pledge has a NEGATIVE day count. It used to
+                                fall into the same branch as zero and read "Due today",
+                                so a pledge weeks late looked due this morning. */}
                             {daysUntilDue > 0
                               ? `${daysUntilDue} days left`
-                              : "Due today"}
+                              : daysUntilDue === 0
+                                ? "Due today"
+                                : `${Math.abs(daysUntilDue)} days overdue`}
                           </p>
                         )}
                       </td>

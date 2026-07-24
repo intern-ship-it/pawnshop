@@ -38,6 +38,72 @@ import {
   Download,
 } from "lucide-react";
 
+// Resolve a slot's [group, subslot] — prefer stored columns, fall back to formula.
+// Module scope: depends only on its arguments, so it is stable across renders.
+const slotPos = (slot, box) => {
+  const per = box?.subslots_per_slot || 1;
+  const group =
+    slot.slot_group != null ? slot.slot_group : Math.ceil(slot.slot_number / per);
+  const sub =
+    slot.subslot_number != null
+      ? slot.subslot_number
+      : ((slot.slot_number - 1) % per) + 1;
+  return [group, sub];
+};
+
+// Label a locate() match exactly as the grid labels that slot, so the result list
+// and the shelf agree. A subslotted drawer is "Slot 02 · 2" — its raw slot_number
+// (6) is an internal sequence nobody writes on a drawer.
+const matchSlotLabel = (match) => {
+  if (!match.box_has_subslots) {
+    return `Slot ${match.slot_number}`;
+  }
+
+  const [group, sub] = slotPos(
+    {
+      slot_number: match.slot_number,
+      slot_group: match.slot_group,
+      subslot_number: match.subslot_number,
+    },
+    { subslots_per_slot: match.subslots_per_slot },
+  );
+
+  return `Slot ${String(group).padStart(2, "0")} · ${sub}`;
+};
+
+// Every string a slot can be found by: its own position, plus the paperwork of
+// whatever is stored in it. Renewal and redemption numbers are included because a
+// customer walks in holding whichever ticket was printed last — searching the number
+// off a renewal receipt used to return nothing at all. Kept as separate terms rather
+// than one joined string so a query cannot straddle two fields.
+const slotSearchTerms = (slot, box) => {
+  const terms = [String(slot.slot_number)];
+
+  if (box?.has_subslots) {
+    const [group, sub] = slotPos(slot, box);
+    terms.push(`${group}-${sub}`);
+  }
+
+  const items = slot.current_items?.length
+    ? slot.current_items
+    : [slot.current_item || slot.pledge_item].filter(Boolean);
+
+  items.forEach((item) => {
+    const pledge = item?.pledge;
+    terms.push(
+      item?.barcode,
+      pledge?.pledge_no,
+      pledge?.receipt_no,
+      pledge?.customer?.name,
+      pledge?.customer?.ic_number,
+      ...(pledge?.renewals || []).map((r) => r.renewal_no),
+      ...(pledge?.redemption || []).map((r) => r.redemption_no),
+    );
+  });
+
+  return terms.filter(Boolean).map((term) => String(term).toLowerCase());
+};
+
 export default function RackMap({ embedded = false }) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -51,6 +117,14 @@ export default function RackMap({ embedded = false }) {
   const [boxSummaries, setBoxSummaries] = useState({});
   const [inventorySummary, setInventorySummary] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
+  // Where the search term was found across every OTHER drawer. The grid can only
+  // filter the drawer it has loaded, so without this a match one drawer away just
+  // reads as "no slots" — see the /storage/locate endpoint.
+  const [locateResults, setLocateResults] = useState([]);
+  const [locateTruncated, setLocateTruncated] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  // A slot in a drawer we are still loading; opened as soon as its slots arrive.
+  const [pendingSlotId, setPendingSlotId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingBoxes, setIsLoadingBoxes] = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
@@ -94,6 +168,76 @@ export default function RackMap({ embedded = false }) {
       fetchBoxSummary(selectedBox);
     }
   }, [selectedBox]);
+
+  // Ask the server where the term is stored, across every drawer. Debounced so a
+  // typed ticket number is one query, not one per keystroke. Short terms are left
+  // to the local slot-number filter.
+  useEffect(() => {
+    const query = searchQuery.trim();
+
+    if (query.length < 2 || /^\d{1,2}$/.test(query)) {
+      setLocateResults([]);
+      setLocateTruncated(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLocating(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await storageService.locate(query);
+        if (cancelled) return;
+        setLocateResults(response.data?.matches || []);
+        setLocateTruncated(Boolean(response.data?.truncated));
+      } catch {
+        // A failed lookup must not blank the grid; the local filter still works.
+        if (!cancelled) {
+          setLocateResults([]);
+          setLocateTruncated(false);
+        }
+      } finally {
+        if (!cancelled) setIsLocating(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  // Open the drawer a match lives in and its slot detail. When the match is already
+  // in the open drawer the slot is in hand, so open it now; otherwise switch drawers
+  // and let the pending-slot effect below open it once those slots arrive.
+  const goToMatch = (match) => {
+    const alreadyHere = match.box_id === selectedBox;
+    const loaded = alreadyHere && slots.find((slot) => slot.id === match.slot_id);
+
+    if (loaded) {
+      handleSlotClick(loaded);
+      return;
+    }
+
+    setPendingSlotId(match.slot_id);
+    if (match.vault_id && match.vault_id !== selectedVault) {
+      setSelectedVault(match.vault_id);
+    }
+    if (match.box_id && match.box_id !== selectedBox) {
+      setSelectedBox(match.box_id);
+    }
+  };
+
+  // Slots for the drawer we jumped to have arrived — open the one that was asked for.
+  useEffect(() => {
+    if (!pendingSlotId) return;
+
+    const slot = slots.find((s) => s.id === pendingSlotId);
+    if (slot) {
+      setPendingSlotId(null);
+      handleSlotClick(slot);
+    }
+  }, [slots, pendingSlotId]);
 
   // Fetch all vaults (racks)
   const fetchVaults = async () => {
@@ -147,7 +291,9 @@ export default function RackMap({ embedded = false }) {
   const fetchSlots = async (boxId) => {
     setIsLoadingSlots(true);
     try {
-      const response = await storageService.getSlots(boxId);
+      // Only this fetch feeds the on-screen search box, so it is the only one that
+      // asks for the extra ticket numbers.
+      const response = await storageService.getSlots(boxId, { with_search_terms: 1 });
       if (response.success && response.data) {
         setSlots(response.data);
       }
@@ -199,18 +345,6 @@ export default function RackMap({ embedded = false }) {
   const currentBox = boxes.find((b) => b.id === selectedBox);
   const currentBoxSummary = boxSummaries[selectedBox] || {};
 
-  // Resolve a slot's [group, subslot] — prefer stored columns, fall back to formula
-  const slotPos = (slot, box) => {
-    const per = box?.subslots_per_slot || 1;
-    const group =
-      slot.slot_group != null ? slot.slot_group : Math.ceil(slot.slot_number / per);
-    const sub =
-      slot.subslot_number != null
-        ? slot.subslot_number
-        : ((slot.slot_number - 1) % per) + 1;
-    return [group, sub];
-  };
-
   // Filter slots by search
   const filteredSlots = useMemo(() => {
     if (!searchQuery) return slots;
@@ -225,25 +359,9 @@ export default function RackMap({ embedded = false }) {
         return slotNum === paddedQuery;
       }
       // For longer queries, search across all fields
-      const items = slot.current_items || [];
-      const item = items[0] || slot.current_item || slot.pledge_item;
-      let formattedSlotObj = String(slot.slot_number);
-      if (currentBox?.has_subslots) {
-         const [g, s] = slotPos(slot, currentBox);
-         formattedSlotObj = `${g}-${s}`;
-      }
-      return (
-        formattedSlotObj.includes(query) ||
-        slot.slot_number?.toString().includes(query) ||
-        items.some(i => i.pledge?.pledge_no?.toLowerCase().includes(query)) ||
-        items.some(i => i.pledge?.customer?.name?.toLowerCase().includes(query)) ||
-        items.some(i => i.barcode?.toLowerCase().includes(query)) ||
-        item?.pledge?.pledge_no?.toLowerCase().includes(query) ||
-        item?.pledge?.customer?.name?.toLowerCase().includes(query) ||
-        item?.barcode?.toLowerCase().includes(query)
-      );
+      return slotSearchTerms(slot, currentBox).some((term) => term.includes(query));
     });
-  }, [slots, searchQuery]);
+  }, [slots, searchQuery, currentBox]);
 
   // Overall stats
   const overallStats = useMemo(
@@ -1058,7 +1176,7 @@ export default function RackMap({ embedded = false }) {
               </div>
               <div className="flex items-center gap-2">
                 <Input
-                  placeholder="Search slot or pledge..."
+                  placeholder="Search slot, pledge, renewal no, or customer..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   leftIcon={Search}
@@ -1083,6 +1201,57 @@ export default function RackMap({ embedded = false }) {
                 </Button>
               </div>
             </div>
+
+            {/* Matches found anywhere in the branch. The grid below only ever holds
+                one drawer, so without this a hit in another drawer is invisible. */}
+            {searchQuery.trim().length >= 2 && !isLocating && locateResults.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                  Found in {locateResults.length} location
+                  {locateResults.length === 1 ? "" : "s"}
+                  {locateTruncated && " (showing first 200)"}
+                </p>
+                <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto">
+                  {locateResults.map((match) => {
+                    const isCurrent = match.box_id === selectedBox;
+                    return (
+                      <button
+                        key={`${match.slot_id}-${match.pledge_no}`}
+                        type="button"
+                        onClick={() => goToMatch(match)}
+                        className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-white px-3 py-2 text-left text-sm shadow-sm ring-1 ring-amber-100 hover:ring-amber-300"
+                      >
+                        <span className="font-semibold text-zinc-800">
+                          {match.vault_name} → {match.box_name}
+                        </span>
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                          {matchSlotLabel(match)}
+                        </span>
+                        <span className="font-mono text-xs text-zinc-600">
+                          {match.pledge_no}
+                        </span>
+                        <span className="text-xs text-zinc-500">
+                          {match.customer_name}
+                          {match.item_count > 1 && ` · ${match.item_count} items`}
+                        </span>
+                        {isCurrent && (
+                          <span className="text-xs text-emerald-600">· in this drawer</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {searchQuery.trim().length >= 2 &&
+              !isLocating &&
+              locateResults.length === 0 &&
+              filteredSlots.length === 0 && (
+                <div className="mb-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-500">
+                  Nothing matching “{searchQuery.trim()}” is stored in any drawer.
+                </div>
+              )}
 
             {isLoadingSlots ? (
               <div className="text-center py-12">
