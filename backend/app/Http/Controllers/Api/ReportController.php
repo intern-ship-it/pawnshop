@@ -150,7 +150,13 @@ class ReportController extends Controller
         // Tag each row so the report can tell a genuine renewal from an interest
         // payment. This listing has always merged the two, which made "Total
         // Renewals" count interest payments as renewals — 4 rows for 1 real renewal.
-        $renewals->each(fn ($r) => $r->setAttribute('record_type', 'renewal'));
+        // interest_collected is zero for a modern renewal -- the money is taken on the
+        // interest payment screen -- so surface it alongside the accrued interest_amount
+        // rather than letting the listing pass the receipt figure off as a collection.
+        $renewals->each(function ($r) {
+            $r->setAttribute('record_type', 'renewal');
+            $r->setAttribute('interest_collected', $r->interest_collected);
+        });
 
         $interestQuery = \App\Models\InterestPayment::where('branch_id', $branchId)
             ->with(['pledge.customer:id,name,ic_number', 'createdBy:id,name']);
@@ -167,17 +173,29 @@ class ReportController extends Controller
         }
 
         $interestPayments = $interestQuery->orderBy('created_at', 'desc')->get();
-        $interestPayments->each(fn ($ip) => $ip->setAttribute('record_type', 'interest_payment'));
+        $interestPayments->each(function ($ip) {
+            $ip->setAttribute('record_type', 'interest_payment');
+            $ip->setAttribute('interest_collected', $ip->interest_collected);
+        });
 
         $combinedRenewals = $renewals->concat($interestPayments)->sortByDesc('created_at')->values();
+
+        // Records that actually took money. Renewals no longer do, so they must not
+        // drag the average down either.
+        $collecting = $combinedRenewals->filter(fn ($r) => $r->interest_collected > 0);
 
         $summary = [
             // Real renewals only — the count that was wrong before.
             'total_renewals' => $renewals->count(),
             'total_interest_payments' => $interestPayments->count(),
             'total_records' => $combinedRenewals->count(),
-            'total_interest' => $combinedRenewals->sum('interest_amount'),
-            'average_interest' => $combinedRenewals->count() > 0 ? $combinedRenewals->avg('interest_amount') : 0,
+            // Money received, not interest accrued. Summing `interest_amount` here
+            // counted the renewals' receipt figure as a collection — RM 1,702.08 of
+            // phantom "Interest Collected" in July 2026 alone.
+            'total_interest' => round($combinedRenewals->sum('interest_collected'), 2),
+            'average_interest' => $collecting->count() > 0
+                ? round($collecting->sum('interest_collected') / $collecting->count(), 2)
+                : 0,
             'total_payable' => $combinedRenewals->sum('total_payable'),
             'total_collected' => $combinedRenewals->sum('total_payable'),
             'cash_collected' => $combinedRenewals->sum('cash_amount'),
@@ -1187,7 +1205,7 @@ class ReportController extends Controller
                     'startCol' => 'I',
                     'endCol' => 'J',
                 ];
-                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Interest Amount', 'New Due Date', 'Payment Method', 'Status', 'Transfer', 'Cash', 'Handled By'];
+                $rows[] = ['Date', 'Receipt No', 'Pledge No', 'Customer', 'Interest Collected', 'New Due Date', 'Payment Method', 'Status', 'Transfer', 'Cash', 'Handled By'];
                 if (isset($data->renewals) && is_countable($data->renewals)) {
                     foreach ($data->renewals as $renewal) {
                         $transferPaid = $renewal->transfer_amount ?? 0;
@@ -1197,7 +1215,9 @@ class ReportController extends Controller
                             $renewal->receipt_no ?? ($renewal->payment_no ?? ''),
                             $renewal->pledge->pledge_no ?? '',
                             $renewal->pledge->customer->name ?? '',
-                            number_format($renewal->interest_amount ?? 0, 2),
+                            // Money received. A renewal takes none, so it must not print
+                            // its accrued receipt figure in a collections column.
+                            number_format($renewal->interest_collected ?? 0, 2),
                             !empty($renewal->new_due_date) ? date('d/m/Y', strtotime($renewal->new_due_date)) : 'N/A (Interest Only)',
                             $renewal->payment_method ?? '',
                             'Completed',

@@ -1278,8 +1278,21 @@ function RenewalsReport({ data }) {
                     <td className="p-3">
                       {renewal.pledge?.customer?.name || "Unknown"}
                     </td>
+                    {/* Interest is taken on the interest payment screen, never at
+                        renewal. A renewal's interest_amount is only the accrued figure
+                        printed on its receipt, so showing it here read as a charge the
+                        customer had paid. */}
                     <td className="p-3 text-right">
-                      {formatCurrency(renewal.interest_amount)}
+                      {Number(renewal.interest_collected) > 0 ? (
+                        formatCurrency(renewal.interest_collected)
+                      ) : (
+                        <span
+                          className="text-zinc-400"
+                          title="Nothing collected at renewal — interest is paid on the Interest Payment screen"
+                        >
+                          —
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 text-right font-medium">
                       {formatCurrency(renewal.total_payable)}
