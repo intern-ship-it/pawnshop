@@ -219,9 +219,23 @@ class InterestPaymentController extends Controller
         // as 3) and then billed the wrong tier. This is the same figure the renewal
         // gate uses, so the two screens agree.
         $paidThisTerm = $pledge->interestPaidThisTerm();
-        $monthsPaid = $this->interestService
-            ->forPledge($pledge)
-            ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths);
+
+        // A pledge that ran past its due date without settling its term reprices EVERY
+        // month to the overdue rate, term months included. Money already received is
+        // then worth fewer months, because each month now costs the penalty rate.
+        $repriceOverdue = $pledge->overdueRepricingApplies();
+        $overdueRate = $pledge->overdueRate();
+
+        if ($repriceOverdue) {
+            $monthCost = (float) $pledge->loan_amount * ($overdueRate / 100);
+            $monthsPaid = $monthCost > 0
+                ? min($termMonths, (int) floor(($paidThisTerm + 0.005) / $monthCost))
+                : 0;
+        } else {
+            $monthsPaid = $this->interestService
+                ->forPledge($pledge)
+                ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths);
+        }
 
         // The current term began at current_term_start; each unpaid month is billed
         // from there. months_paid full months have been settled, so the next unpaid
@@ -266,7 +280,9 @@ class InterestPaymentController extends Controller
             $monthNumber = $pledge->termStartMonth($termMonths) + $monthsPaid + $i;
             $monthRate = $isManualOverride
                 ? $rate
-                : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate'];
+                : ($repriceOverdue
+                    ? $overdueRate
+                    : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate']);
 
             $monthlyInterest = $principal * ($monthRate / 100);
             $cumulative += $monthlyInterest;
@@ -352,20 +368,14 @@ class InterestPaymentController extends Controller
     }
 
     /**
-     * The pledge's term length in months — the span the tier ladder covers (max
-     * standard/custom to_month), defaulting to 6 when there is no ladder. Kept in
-     * step with RenewalController::termMonths so both screens agree on the term.
+     * The pledge's current-term length in months. Delegates to the pledge itself so
+     * this screen and the renewal gate share one definition and can never disagree:
+     * legacy pledges use their own booked term (2/3/4 months), modern and renewed
+     * pledges use the standard 6.
      */
     private function termMonths(Pledge $pledge): int
     {
-        $end = (int) \App\Models\InterestRate::where('is_active', true)
-            ->whereIn('rate_type', ['standard', 'custom'])
-            ->where(function ($q) use ($pledge) {
-                $q->where('branch_id', $pledge->branch_id)->orWhereNull('branch_id');
-            })
-            ->max('to_month');
-
-        return $end > 0 ? $end : 6;
+        return $pledge->currentTermMonths();
     }
 
     /**
@@ -450,9 +460,21 @@ class InterestPaymentController extends Controller
             $termMonths = $this->termMonths($pledge);
 
             $paidThisTerm = $pledge->interestPaidThisTerm();
-            $monthsPaid = $this->interestService
-                ->forPledge($pledge)
-                ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths, $pledge->termStartMonth($termMonths));
+
+            // Same overdue repricing as calculate(), so the charge matches the preview.
+            $repriceOverdue = $pledge->overdueRepricingApplies();
+            $overdueRate = $pledge->overdueRate();
+
+            if ($repriceOverdue) {
+                $monthCost = (float) $pledge->loan_amount * ($overdueRate / 100);
+                $monthsPaid = $monthCost > 0
+                    ? min($termMonths, (int) floor(($paidThisTerm + 0.005) / $monthCost))
+                    : 0;
+            } else {
+                $monthsPaid = $this->interestService
+                    ->forPledge($pledge)
+                    ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths, $pledge->termStartMonth($termMonths));
+            }
 
             $termStart = $pledge->current_term_start
                 ? Carbon::parse($pledge->current_term_start)
@@ -499,7 +521,9 @@ class InterestPaymentController extends Controller
             $monthNumber = $pledge->termStartMonth($termMonths) + $monthsPaid + $i;
                 $monthRate = $isManualOverride
                     ? $rate
-                    : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate'];
+                    : ($repriceOverdue
+                        ? $overdueRate
+                        : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate']);
 
                 $monthlyInterest = $principal * ($monthRate / 100);
                 $cumulative += $monthlyInterest;

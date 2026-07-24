@@ -313,19 +313,14 @@ class RenewalController extends Controller
     }
 
     /**
-     * The pledge's term length in months — the span the tier ladder covers (max
-     * standard/custom to_month), defaulting to 6 when there is no ladder.
+     * The pledge's current-term length in months. Delegates to the pledge itself so
+     * this screen and the interest-payment screen share one definition and can never
+     * disagree: legacy pledges use their own booked term (2/3/4 months), modern and
+     * renewed pledges use the standard 6.
      */
     private function termMonths(Pledge $pledge): int
     {
-        $end = (int) \App\Models\InterestRate::where('is_active', true)
-            ->whereIn('rate_type', ['standard', 'custom'])
-            ->where(function ($q) use ($pledge) {
-                $q->where('branch_id', $pledge->branch_id)->orWhereNull('branch_id');
-            })
-            ->max('to_month');
-
-        return $end > 0 ? $end : 6;
+        return $pledge->currentTermMonths();
     }
 
     /**
@@ -429,7 +424,9 @@ class RenewalController extends Controller
             'eligibility' => $eligibility,
             'renewal' => [
                 'months' => $renewalMonths,
-                'new_due_date' => $pledge->due_date->copy()->addMonths($renewalMonths)->toDateString(),
+                // Same rule the store path commits, so the quote cannot promise a
+                // different expiry from the one the customer's ticket carries.
+                'new_due_date' => Renewal::dueDateForNewTerm(Carbon::today(), $renewalMonths)->toDateString(),
             ],
             'calculation' => [
                 'interest_breakdown' => $calculation['breakdown'],
@@ -560,8 +557,10 @@ class RenewalController extends Controller
                 Renewal::where('branch_id', $branchId)->whereYear('created_at', date('Y'))->count() + 1
             );
 
-            // Calculate new due date
-            $newDueDate = $pledge->due_date->copy()->addMonths($renewalMonths);
+            // The renewed term runs from the day the customer came in, not from the
+            // pledge's old due date. Extending the due date made a late renewal
+            // short of the term printed on its ticket and an early one longer.
+            $newDueDate = Renewal::dueDateForNewTerm(Carbon::today(), $renewalMonths);
 
             // Create renewal
             $renewal = Renewal::create([

@@ -139,4 +139,67 @@ class RenewalTermGateTest extends TestCase
         $monthCost = self::PRINCIPAL * 0.008;
         $this->assertSame(2, $svc->monthsCoveredBy($monthCost * 2, self::PRINCIPAL, 0.8, 6));
     }
+
+    public function test_first_term_length_comes_from_the_pledge_own_dates(): void
+    {
+        // Legacy pledges were booked for short terms; a modern pledge for the
+        // standard 6. The gate must require only the pledge's own booked term, so an
+        // old 2-month pledge can renew after paying 2 months, not be forced to 6.
+        // renewal_count 0 with real dates never touches the rate table, so this is a
+        // pure unit check.
+        $cases = [
+            ['2026-05-11', '2026-07-10', 2],  // PLG-0024 shape
+            ['2026-05-11', '2026-08-10', 3],
+            ['2026-05-11', '2026-09-10', 4],
+            ['2026-04-27', '2026-10-27', 6],  // early exact-6-month convention
+            ['2026-07-22', '2027-01-21', 6],  // modern one-day-before convention
+        ];
+
+        foreach ($cases as [$pledgeDate, $dueDate, $expected]) {
+            $pledge = new \App\Models\Pledge();
+            $pledge->renewal_count = 0;
+            $pledge->pledge_date = $pledgeDate;
+            $pledge->due_date = $dueDate;
+
+            $this->assertSame(
+                $expected,
+                $pledge->currentTermMonths(),
+                "{$pledgeDate} -> {$dueDate} must be a {$expected}-month term"
+            );
+        }
+    }
+
+    public function test_overdue_repricing_holds_until_the_day_after_the_due_date(): void
+    {
+        // An unsettled pledge reprices EVERY month to the overdue rate once it passes
+        // its due date -- but a pledge due TODAY is still on normal rates and only
+        // flips tomorrow. Getting this boundary wrong penalises a customer who is not
+        // yet late. Both cases short-circuit before any payment lookup, so no database
+        // is needed.
+        $dueToday = new \App\Models\Pledge();
+        $dueToday->renewal_count = 0;
+        $dueToday->due_date = \Carbon\Carbon::today()->toDateString();
+        $this->assertFalse(
+            $dueToday->overdueRepricingApplies(),
+            'a pledge due today must stay on its normal rates'
+        );
+
+        $notYetDue = new \App\Models\Pledge();
+        $notYetDue->renewal_count = 0;
+        $notYetDue->due_date = \Carbon\Carbon::today()->addDay()->toDateString();
+        $this->assertFalse(
+            $notYetDue->overdueRepricingApplies(),
+            'a pledge not yet due must stay on its normal rates'
+        );
+    }
+
+    public function test_overdue_rate_prefers_the_pledge_own_frozen_column(): void
+    {
+        // The frozen column wins so a later settings change cannot re-price a pledge
+        // the customer has already been quoted.
+        $pledge = new \App\Models\Pledge();
+        $pledge->interest_rate_overdue = 2.5;
+
+        $this->assertSame(2.5, $pledge->overdueRate());
+    }
 }
