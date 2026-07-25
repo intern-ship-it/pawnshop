@@ -3965,6 +3965,10 @@ HTML;
 
 /* WATERMARK */
 .ppo-watermark {
+    /* Hidden for now at the client's request (2026-07-25). The "SAMBUNGAN" wash is
+       kept here, only not shown; remove this line to bring it back. Covers both the
+       A5 renewal print and reprint, which share this overlay. */
+    display: none;
     position: absolute;
     top: 50%;
     left: 50%;
