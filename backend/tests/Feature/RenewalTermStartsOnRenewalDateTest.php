@@ -7,79 +7,67 @@ use Carbon\Carbon;
 use Tests\TestCase;
 
 /**
- * A renewed term runs from the day the customer comes in, per the client.
+ * A renewed term continues from the previous due date, per the client.
  *
- * It used to extend the OLD due date: renew 14 days late and the new term was 14
- * days short, so a ticket dated 24/07/2026 with "6 BULAN" printed on it actually
- * expired 10/01/2027 -- five and a half months. Now the ticket date and the expiry
- * describe the same period, whenever the customer turns up.
+ * The new term is measured from where the old one ended, NOT from the day the
+ * customer walks in. So a pledge due 10/07 renewed for 6 months runs to 10/01
+ * whether the customer comes on the 3rd, the 10th, or the 24th. A late renewer
+ * therefore gets fewer usable days -- the term is anchored to the due date, and the
+ * day he actually came in is kept only as a record (Renewal::created_at).
  *
- * The -1 day mirrors a new pledge (PledgeController: today + N months - 1 day), so
- * both ticket types count their term inclusively from the date they are dated.
+ * dueDateForNewTerm(previousDueDate, months) is the single rule the renewal quote
+ * and the save share, so the screen cannot promise an expiry the ticket contradicts.
  */
 class RenewalTermStartsOnRenewalDateTest extends TestCase
 {
-    public function test_the_new_term_runs_six_months_from_the_renewal_day(): void
+    public function test_the_new_term_runs_six_months_from_the_previous_due_date(): void
     {
-        // Renewed 24/07/2026 -> the ticket covers 24/07/2026 to 23/01/2027.
-        $due = Renewal::dueDateForNewTerm(Carbon::parse('2026-07-24'), 6);
+        // Due 10/07/2026, six-month renewal -> 10/01/2027.
+        $due = Renewal::dueDateForNewTerm(Carbon::parse('2026-07-10'), 6);
 
-        $this->assertSame('2027-01-23', $due->toDateString());
+        $this->assertSame('2027-01-10', $due->toDateString());
     }
 
-    public function test_a_late_renewal_still_gets_a_full_term(): void
+    public function test_the_expiry_ignores_when_the_customer_came_in(): void
     {
-        // PLG-HQ-2026-0026: due 10/07/2026, renewed 24/07/2026 -- 14 days late.
-        $due = Renewal::dueDateForNewTerm(Carbon::parse('2026-07-24'), 6);
+        // Due 10/07/2026. Whether he renews on the 3rd, 10th or 24th, the new expiry
+        // is the same, because it is measured from the due date, not the visit.
+        $due = Renewal::dueDateForNewTerm(Carbon::parse('2026-07-10'), 6);
 
-        // The old rule extended the due date instead, docking those 14 days.
-        $this->assertNotSame('2027-01-10', $due->toDateString());
-        $this->assertSame('2027-01-23', $due->toDateString());
-    }
-
-    public function test_an_early_renewal_does_not_get_extra_days(): void
-    {
-        // Due 10/07/2026 but renewed a week early: the term starts that day, so the
-        // customer no longer banks the unused week on top of the new six months.
-        $due = Renewal::dueDateForNewTerm(Carbon::parse('2026-07-03'), 6);
-
-        $this->assertSame('2027-01-02', $due->toDateString());
-        $this->assertNotSame('2027-01-10', $due->toDateString());
+        $this->assertSame('2027-01-10', $due->toDateString());
     }
 
     public function test_short_terms_follow_the_same_rule(): void
     {
-        // Legacy 2/3/4-month bookings renew on the same inclusive count.
-        $start = Carbon::parse('2026-07-24');
+        // Legacy 2/3/4-month bookings renew off the previous due date too.
+        $due = Carbon::parse('2026-07-10');
 
-        $this->assertSame('2026-09-23', Renewal::dueDateForNewTerm($start, 2)->toDateString());
-        $this->assertSame('2026-10-23', Renewal::dueDateForNewTerm($start, 3)->toDateString());
-        $this->assertSame('2026-11-23', Renewal::dueDateForNewTerm($start, 4)->toDateString());
+        $this->assertSame('2026-09-10', Renewal::dueDateForNewTerm($due, 2)->toDateString());
+        $this->assertSame('2026-10-10', Renewal::dueDateForNewTerm($due, 3)->toDateString());
+        $this->assertSame('2026-11-10', Renewal::dueDateForNewTerm($due, 4)->toDateString());
     }
 
-    public function test_the_start_date_is_not_mutated(): void
+    public function test_the_previous_due_date_is_not_mutated(): void
     {
         // Carbon is mutable; a leaked addMonths() here would silently shift the
-        // caller's "today" and re-date the ticket itself.
-        $start = Carbon::parse('2026-07-24');
-        Renewal::dueDateForNewTerm($start, 6);
+        // pledge's stored due_date that was passed in.
+        $due = Carbon::parse('2026-07-10');
+        Renewal::dueDateForNewTerm($due, 6);
 
-        $this->assertSame('2026-07-24', $start->toDateString());
+        $this->assertSame('2026-07-10', $due->toDateString());
     }
 
-    public function test_a_month_end_renewal_overflows_exactly_like_a_new_pledge(): void
+    public function test_a_month_end_due_date_overflows_rather_than_clamping(): void
     {
         // 31/08 + 6 months has no 31/02 to land on, so Carbon rolls forward into
-        // March rather than clamping to the 28th. Locked in deliberately: a new
-        // pledge booked on 31/08 lands on the same date via the identical
-        // addMonths()->subDay() in PledgeController, and the two ticket types must
-        // not disagree. Changing it is a decision for both paths together.
-        $start = Carbon::parse('2026-08-31');
+        // March. Locked in deliberately so the behaviour is a conscious choice, not
+        // an accident, if a month-end due date is ever renewed.
+        $due = Carbon::parse('2026-08-31');
 
         $this->assertSame(
-            $start->copy()->addMonths(6)->subDay()->toDateString(),
-            Renewal::dueDateForNewTerm($start, 6)->toDateString()
+            $due->copy()->addMonths(6)->toDateString(),
+            Renewal::dueDateForNewTerm($due, 6)->toDateString()
         );
-        $this->assertSame('2027-03-02', Renewal::dueDateForNewTerm($start, 6)->toDateString());
+        $this->assertSame('2027-03-03', Renewal::dueDateForNewTerm($due, 6)->toDateString());
     }
 }

@@ -425,8 +425,9 @@ class RenewalController extends Controller
             'renewal' => [
                 'months' => $renewalMonths,
                 // Same rule the store path commits, so the quote cannot promise a
-                // different expiry from the one the customer's ticket carries.
-                'new_due_date' => Renewal::dueDateForNewTerm(Carbon::today(), $renewalMonths)->toDateString(),
+                // different expiry from the one the customer's ticket carries. The
+                // new term continues from the current due date, not from today.
+                'new_due_date' => Renewal::dueDateForNewTerm($pledge->due_date, $renewalMonths)->toDateString(),
             ],
             'calculation' => [
                 'interest_breakdown' => $calculation['breakdown'],
@@ -557,10 +558,10 @@ class RenewalController extends Controller
                 Renewal::where('branch_id', $branchId)->whereYear('created_at', date('Y'))->count() + 1
             );
 
-            // The renewed term runs from the day the customer came in, not from the
-            // pledge's old due date. Extending the due date made a late renewal
-            // short of the term printed on its ticket and an early one longer.
-            $newDueDate = Renewal::dueDateForNewTerm(Carbon::today(), $renewalMonths);
+            // The renewed term continues from the current due date, not from the day
+            // the customer came in. previous_due_date below records that same date,
+            // and created_at records the actual visit for reference.
+            $newDueDate = Renewal::dueDateForNewTerm($pledge->due_date, $renewalMonths);
 
             // Create renewal
             $renewal = Renewal::create([

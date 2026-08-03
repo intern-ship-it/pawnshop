@@ -69,18 +69,21 @@ class Renewal extends Model
     /**
      * The date a renewal ticket is dated -- what prints under "Tarikh Dipajak".
      *
-     * Per the client, a renewal re-dates the ticket to the day the customer came in
-     * to renew. It is NOT the pledge's pledge_date: that records when the item was
-     * first pawned and never moves, so the A5 overlay -- which read it off the
-     * pledge -- kept printing the original pawn date on every renewal while the A4
-     * overlay printed the renewal date. Both now read this.
+     * Per the client, the renewed term continues from the PREVIOUS DUE DATE, so the
+     * ticket is dated from there. It is deliberately NOT:
+     *  - the pledge's pledge_date (the first-pawn date, which never moves), nor
+     *  - the day the customer actually came in to renew.
+     * A customer due 10/07 who renews late on 24/07 still gets a ticket dated 10/07.
      *
-     * Falls back to today so a preview rendered before the row is saved still
-     * prints a date.
+     * The day he came in is not lost -- it stays on this row as created_at, so
+     * "when did he renew?" is always answerable even though it is not what prints.
+     *
+     * Falls back to created_at, then today, so a preview rendered before the row is
+     * saved (no previous_due_date yet) still prints a date.
      */
     public function getTicketStartDateAttribute(): Carbon
     {
-        $date = $this->created_at ?? Carbon::today();
+        $date = $this->previous_due_date ?? $this->created_at ?? Carbon::today();
 
         return $date instanceof Carbon ? $date : Carbon::parse($date);
     }
@@ -111,20 +114,21 @@ class Renewal extends Model
     }
 
     /**
-     * When a renewed term ends, given the day it starts.
+     * When a renewed term ends, given the previous due date it continues from.
      *
-     * The term runs from the day the customer comes in to renew -- NOT from the
-     * pledge's old due date, which is what this used to extend. Renewing 14 days
-     * late then produced a term 14 days short of the "6 BULAN" printed on the
-     * ticket; renewing early quietly banked the unused days on top.
+     * The term is anchored to the PREVIOUS DUE DATE, not the day the customer walks
+     * in: a pledge due 10/07 renewed for 6 months runs to 10/01 whether he comes on
+     * the 3rd, the 10th or the 24th. A late renewer therefore gets fewer usable
+     * days -- that is the client's rule, and the actual visit date is kept on the
+     * row as created_at for reference.
      *
-     * The -1 day mirrors a new pledge (PledgeController: today + N months - 1 day)
-     * so both ticket types count their term inclusively from the date they carry:
-     * a ticket dated 24/07 for 6 months runs to 23/01, its last valid day.
+     * No -1 day here: the previous due date is already the term's own anchor, and
+     * "+ N months" lands on the date that reads back as exactly N BULAN (10/07 ->
+     * 10/01). Existing renewals were stored this way, so nothing needs backfilling.
      */
-    public static function dueDateForNewTerm(Carbon $startDate, int $termMonths): Carbon
+    public static function dueDateForNewTerm(Carbon $previousDueDate, int $termMonths): Carbon
     {
-        return $startDate->copy()->addMonths($termMonths)->subDay();
+        return $previousDueDate->copy()->addMonths($termMonths);
     }
 
     public static function generateRenewalNo(int $branchId): string
