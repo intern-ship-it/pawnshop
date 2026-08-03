@@ -69,23 +69,34 @@ class Renewal extends Model
     /**
      * The date a renewal ticket is dated -- what prints under "Tarikh Dipajak".
      *
-     * Per the client, the renewed term continues from the PREVIOUS DUE DATE, so the
-     * ticket is dated from there. It is deliberately NOT:
-     *  - the pledge's pledge_date (the first-pawn date, which never moves), nor
-     *  - the day the customer actually came in to renew.
-     * A customer due 10/07 who renews late on 24/07 still gets a ticket dated 10/07.
+     * The new term begins the DAY AFTER the previous due date. The stored due date
+     * is itself one day before the anniversary (a pledge's own "-1 day" convention),
+     * so the real anniversary -- and the first day of the renewed term -- is
+     * previous_due_date + 1. A pledge due 10/07 therefore prints 11/07 here, and its
+     * six-month renewal ends 10/01, exactly the way a new pledge reads (23/07 pawn
+     * -> 22/01 due).
      *
-     * The day he came in is not lost -- it stays on this row as created_at, so
-     * "when did he renew?" is always answerable even though it is not what prints.
+     * Deliberately NOT the pledge's pledge_date (the first-pawn date, which never
+     * moves) and NOT the day the customer came in. The visit date is kept on the row
+     * as created_at, so "when did he renew?" stays answerable even though it is not
+     * what prints.
      *
      * Falls back to created_at, then today, so a preview rendered before the row is
      * saved (no previous_due_date yet) still prints a date.
      */
     public function getTicketStartDateAttribute(): Carbon
     {
-        $date = $this->previous_due_date ?? $this->created_at ?? Carbon::today();
+        if ($this->previous_due_date) {
+            $due = $this->previous_due_date instanceof Carbon
+                ? $this->previous_due_date->copy()
+                : Carbon::parse($this->previous_due_date);
 
-        return $date instanceof Carbon ? $date : Carbon::parse($date);
+            return $due->addDay();
+        }
+
+        $date = $this->created_at ?? Carbon::today();
+
+        return $date instanceof Carbon ? $date->copy() : Carbon::parse($date);
     }
 
     public function branch(): BelongsTo
@@ -116,20 +127,23 @@ class Renewal extends Model
     /**
      * When a renewed term ends, given the previous due date it continues from.
      *
-     * The term is anchored to the PREVIOUS DUE DATE, not the day the customer walks
-     * in: a pledge due 10/07 renewed for 6 months runs to 09/01 whether he comes on
-     * the 3rd, the 10th or the 24th. A late renewer therefore gets fewer usable
-     * days -- that is the client's rule, and the actual visit date is kept on the
-     * row as created_at for reference.
+     * The new term starts the day AFTER the previous due date (that stored date is
+     * itself one day before the anniversary), runs `termMonths`, and ends one day
+     * before its own anniversary -- the same "-1 day" convention a new pledge uses
+     * (PledgeController: start + N months - 1 day).
      *
-     * The "-1 day" is the same convention a new pledge uses (PledgeController: start
-     * + N months - 1 day), so the ticket reads the same way: the start date on the
-     * left, its day-before-anniversary on the right -- 10/07 -> 09/01, exactly as a
-     * pawn of 23/07 gives 22/01.
+     * So a pledge due 10/07 renewed for 6 months: term starts 11/07, ends 10/01. The
+     * ticket reads 11/07 -> 10/01, exactly as a pawn of 23/07 reads 23/07 -> 22/01.
+     * The addDay/subDay are written out rather than cancelled so the reasoning -- and
+     * month-end behaviour -- stays visible.
+     *
+     * The term is anchored to the due date, not the day the customer walks in, so a
+     * late renewer gets fewer usable days; the actual visit stays on the row as
+     * created_at for reference.
      */
     public static function dueDateForNewTerm(Carbon $previousDueDate, int $termMonths): Carbon
     {
-        return $previousDueDate->copy()->addMonths($termMonths)->subDay();
+        return $previousDueDate->copy()->addDay()->addMonths($termMonths)->subDay();
     }
 
     public static function generateRenewalNo(int $branchId): string

@@ -8,12 +8,13 @@ use Carbon\Carbon;
 use Tests\TestCase;
 
 /**
- * "Tarikh Dipajak" on a renewal ticket is the PREVIOUS DUE DATE, per the client.
+ * "Tarikh Dipajak" on a renewal ticket is the day AFTER the previous due date, per
+ * the client.
  *
- * The renewed term continues from where the old one ended, so the ticket is dated
- * from the old due date -- not the day the customer happens to come in, and not the
- * pledge's original pawn date. A customer due 10/07 who renews late on 24/07 still
- * gets a ticket dated 10/07.
+ * The stored due date is itself one day before the anniversary, so the real
+ * anniversary -- and the first day of the renewed term -- is previous_due + 1. A
+ * pledge due 10/07 therefore prints 11/07, not 10/07. It is deliberately NOT the day
+ * the customer came in, and NOT the pledge's original pawn date.
  *
  * The day he actually came in is not lost: it stays on the renewal row as
  * created_at, so "when did he renew?" is always answerable even though it is not
@@ -36,12 +37,21 @@ class RenewalReceiptStartDateTest extends TestCase
         return $renewal;
     }
 
-    public function test_the_ticket_is_dated_from_the_previous_due_date(): void
+    public function test_the_ticket_is_dated_the_day_after_the_previous_due_date(): void
     {
-        // PLG-HQ-2026-0026: due 10/07, pawned 11/05, renewed late on 24/07.
+        // PLG-HQ-2026-0026: due 10/07 (one day before the 11/07 anniversary), pawned
+        // 11/05, renewed late on 24/07. The term's real first day is 11/07.
         $renewal = $this->renewalOf('2026-05-11', '2026-07-24', '2026-07-10');
 
-        $this->assertSame('10/07/2026', $renewal->ticket_start_date->format('d/m/Y'));
+        $this->assertSame('11/07/2026', $renewal->ticket_start_date->format('d/m/Y'));
+    }
+
+    public function test_it_is_not_the_stored_due_date_itself(): void
+    {
+        $renewal = $this->renewalOf('2026-05-11', '2026-07-24', '2026-07-10');
+
+        // 10/07 is one day before the anniversary; the term starts the day after it.
+        $this->assertNotSame('10/07/2026', $renewal->ticket_start_date->format('d/m/Y'));
     }
 
     public function test_it_is_not_the_day_the_customer_came_in(): void
@@ -62,18 +72,18 @@ class RenewalReceiptStartDateTest extends TestCase
 
     public function test_a_second_renewal_is_dated_from_its_own_previous_due_date(): void
     {
-        // Term 1 ended 10/07; term 2 (dated 10/07) ends 10/01; term 3 is dated 10/01.
+        // Term 1 due 10/07 -> starts 11/07, ends 10/01; term 2 due 10/01 -> starts 11/01.
         $first = $this->renewalOf('2026-05-11', '2026-07-24', '2026-07-10');
         $second = $this->renewalOf('2026-05-11', '2027-01-15', '2027-01-10');
 
-        $this->assertSame('10/07/2026', $first->ticket_start_date->format('d/m/Y'));
-        $this->assertSame('10/01/2027', $second->ticket_start_date->format('d/m/Y'));
+        $this->assertSame('11/07/2026', $first->ticket_start_date->format('d/m/Y'));
+        $this->assertSame('11/01/2027', $second->ticket_start_date->format('d/m/Y'));
     }
 
     public function test_the_actual_renewal_day_is_still_recorded(): void
     {
-        // The ticket prints the due date, but created_at keeps the real walk-in date
-        // so it can be answered later.
+        // The ticket prints the term's first day, but created_at keeps the real
+        // walk-in date so it can be answered later.
         $renewal = $this->renewalOf('2026-05-11', '2026-07-24', '2026-07-10');
 
         $this->assertSame('24/07/2026', $renewal->created_at->format('d/m/Y'));
