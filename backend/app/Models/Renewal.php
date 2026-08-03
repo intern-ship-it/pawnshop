@@ -117,18 +117,19 @@ class Renewal extends Model
      * When a renewed term ends, given the previous due date it continues from.
      *
      * The term is anchored to the PREVIOUS DUE DATE, not the day the customer walks
-     * in: a pledge due 10/07 renewed for 6 months runs to 10/01 whether he comes on
+     * in: a pledge due 10/07 renewed for 6 months runs to 09/01 whether he comes on
      * the 3rd, the 10th or the 24th. A late renewer therefore gets fewer usable
      * days -- that is the client's rule, and the actual visit date is kept on the
      * row as created_at for reference.
      *
-     * No -1 day here: the previous due date is already the term's own anchor, and
-     * "+ N months" lands on the date that reads back as exactly N BULAN (10/07 ->
-     * 10/01). Existing renewals were stored this way, so nothing needs backfilling.
+     * The "-1 day" is the same convention a new pledge uses (PledgeController: start
+     * + N months - 1 day), so the ticket reads the same way: the start date on the
+     * left, its day-before-anniversary on the right -- 10/07 -> 09/01, exactly as a
+     * pawn of 23/07 gives 22/01.
      */
     public static function dueDateForNewTerm(Carbon $previousDueDate, int $termMonths): Carbon
     {
-        return $previousDueDate->copy()->addMonths($termMonths);
+        return $previousDueDate->copy()->addMonths($termMonths)->subDay();
     }
 
     public static function generateRenewalNo(int $branchId): string

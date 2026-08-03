@@ -7,25 +7,29 @@ use Carbon\Carbon;
 use Tests\TestCase;
 
 /**
- * A renewed term continues from the previous due date, per the client.
+ * A renewed term continues from the previous due date, per the client, and ends one
+ * day before the anniversary -- the same "-1 day" convention a new pledge uses.
  *
- * The new term is measured from where the old one ended, NOT from the day the
- * customer walks in. So a pledge due 10/07 renewed for 6 months runs to 10/01
- * whether the customer comes on the 3rd, the 10th, or the 24th. A late renewer
- * therefore gets fewer usable days -- the term is anchored to the due date, and the
- * day he actually came in is kept only as a record (Renewal::created_at).
+ * The term is anchored to where the old one ended, NOT to the day the customer walks
+ * in. So a pledge due 10/07 renewed for 6 months runs to 09/01 (10/07 + 6 months -
+ * 1 day) whether he comes on the 3rd, the 10th or the 24th. The -1 makes the ticket
+ * read the way a new pledge does: start date on the left, its day-before-anniversary
+ * on the right (10/07 -> 09/01, just as a pawn of 23/07 gives 22/01). The actual
+ * visit date is kept only as a record (Renewal::created_at).
  *
  * dueDateForNewTerm(previousDueDate, months) is the single rule the renewal quote
  * and the save share, so the screen cannot promise an expiry the ticket contradicts.
  */
 class RenewalTermStartsOnRenewalDateTest extends TestCase
 {
-    public function test_the_new_term_runs_six_months_from_the_previous_due_date(): void
+    public function test_the_new_term_ends_one_day_before_the_anniversary(): void
     {
-        // Due 10/07/2026, six-month renewal -> 10/01/2027.
+        // Due 10/07/2026, six-month renewal -> 10/07 + 6 months - 1 day = 09/01/2027.
         $due = Renewal::dueDateForNewTerm(Carbon::parse('2026-07-10'), 6);
 
-        $this->assertSame('2027-01-10', $due->toDateString());
+        $this->assertSame('2027-01-09', $due->toDateString());
+        // Not the bare anniversary -- that would be a day too long.
+        $this->assertNotSame('2027-01-10', $due->toDateString());
     }
 
     public function test_the_expiry_ignores_when_the_customer_came_in(): void
@@ -34,17 +38,30 @@ class RenewalTermStartsOnRenewalDateTest extends TestCase
         // is the same, because it is measured from the due date, not the visit.
         $due = Renewal::dueDateForNewTerm(Carbon::parse('2026-07-10'), 6);
 
-        $this->assertSame('2027-01-10', $due->toDateString());
+        $this->assertSame('2027-01-09', $due->toDateString());
+    }
+
+    public function test_it_matches_how_a_new_pledge_counts_its_term(): void
+    {
+        // A new pledge does start + N months - 1 day (PledgeController). A renewal
+        // counts the same way from the previous due date, so the two ticket types
+        // never disagree on what a 6-month term looks like.
+        $start = Carbon::parse('2026-07-10');
+
+        $this->assertSame(
+            $start->copy()->addMonths(6)->subDay()->toDateString(),
+            Renewal::dueDateForNewTerm($start, 6)->toDateString()
+        );
     }
 
     public function test_short_terms_follow_the_same_rule(): void
     {
-        // Legacy 2/3/4-month bookings renew off the previous due date too.
+        // Legacy 2/3/4-month bookings renew off the previous due date too, -1 day.
         $due = Carbon::parse('2026-07-10');
 
-        $this->assertSame('2026-09-10', Renewal::dueDateForNewTerm($due, 2)->toDateString());
-        $this->assertSame('2026-10-10', Renewal::dueDateForNewTerm($due, 3)->toDateString());
-        $this->assertSame('2026-11-10', Renewal::dueDateForNewTerm($due, 4)->toDateString());
+        $this->assertSame('2026-09-09', Renewal::dueDateForNewTerm($due, 2)->toDateString());
+        $this->assertSame('2026-10-09', Renewal::dueDateForNewTerm($due, 3)->toDateString());
+        $this->assertSame('2026-11-09', Renewal::dueDateForNewTerm($due, 4)->toDateString());
     }
 
     public function test_the_previous_due_date_is_not_mutated(): void
@@ -60,14 +77,14 @@ class RenewalTermStartsOnRenewalDateTest extends TestCase
     public function test_a_month_end_due_date_overflows_rather_than_clamping(): void
     {
         // 31/08 + 6 months has no 31/02 to land on, so Carbon rolls forward into
-        // March. Locked in deliberately so the behaviour is a conscious choice, not
-        // an accident, if a month-end due date is ever renewed.
+        // March; then -1 day. Locked in deliberately so the behaviour is a conscious
+        // choice, not an accident, if a month-end due date is ever renewed.
         $due = Carbon::parse('2026-08-31');
 
         $this->assertSame(
-            $due->copy()->addMonths(6)->toDateString(),
+            $due->copy()->addMonths(6)->subDay()->toDateString(),
             Renewal::dueDateForNewTerm($due, 6)->toDateString()
         );
-        $this->assertSame('2027-03-03', Renewal::dueDateForNewTerm($due, 6)->toDateString());
+        $this->assertSame('2027-03-02', Renewal::dueDateForNewTerm($due, 6)->toDateString());
     }
 }
