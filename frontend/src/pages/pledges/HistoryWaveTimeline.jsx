@@ -166,11 +166,12 @@ function buildEvents(pledge) {
       title: `Renewal #${idx + 1}`,
       ref: r.renewalNo,
       date: r.renewalDate,
-      amount: r.interestAmount,
-      amountLabel: "Interest paid",
+      // A renewal only extends the due date -- it collects no money. The interest is
+      // taken on the Interest Payment screen and shows as its own event, so no amount
+      // and no "Interest paid" row here (r.interestAmount is just the accrued figure
+      // printed on the receipt, never cash received).
       rows: [
         { label: "Extended", value: `${r.renewalMonths} month(s)` },
-        { label: "Interest paid", value: formatCurrency(r.interestAmount) },
         { label: "New due date", value: formatDate(r.newDueDate), accent: true },
       ],
     });
