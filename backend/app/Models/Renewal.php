@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -47,6 +48,57 @@ class Renewal extends Model
         'terms_accepted' => 'boolean',
     ];
 
+    /**
+     * Interest that actually changed hands at the counter.
+     *
+     * A renewal only extends the due date; the money is taken on the interest
+     * payment screen. RenewalController writes cash_amount/transfer_amount as zero
+     * and keeps `interest_amount` purely as the accrued figure for the receipt, so
+     * summing that column counts interest nobody paid. Historical renewals DID
+     * collect, so credit what was received rather than assuming zero.
+     *
+     * Mirrors InterestPayment::interest_collected so reports can sum one field
+     * across both record types, and Pledge::total_interest_paid, which already
+     * credits renewals by money received for the same reason.
+     */
+    public function getInterestCollectedAttribute(): float
+    {
+        return round((float) $this->cash_amount + (float) $this->transfer_amount, 2);
+    }
+
+    /**
+     * The date a renewal ticket is dated -- what prints under "Tarikh Dipajak".
+     *
+     * The new term begins the DAY AFTER the previous due date. The stored due date
+     * is itself one day before the anniversary (a pledge's own "-1 day" convention),
+     * so the real anniversary -- and the first day of the renewed term -- is
+     * previous_due_date + 1. A pledge due 10/07 therefore prints 11/07 here, and its
+     * six-month renewal ends 10/01, exactly the way a new pledge reads (23/07 pawn
+     * -> 22/01 due).
+     *
+     * Deliberately NOT the pledge's pledge_date (the first-pawn date, which never
+     * moves) and NOT the day the customer came in. The visit date is kept on the row
+     * as created_at, so "when did he renew?" stays answerable even though it is not
+     * what prints.
+     *
+     * Falls back to created_at, then today, so a preview rendered before the row is
+     * saved (no previous_due_date yet) still prints a date.
+     */
+    public function getTicketStartDateAttribute(): Carbon
+    {
+        if ($this->previous_due_date) {
+            $due = $this->previous_due_date instanceof Carbon
+                ? $this->previous_due_date->copy()
+                : Carbon::parse($this->previous_due_date);
+
+            return $due->addDay();
+        }
+
+        $date = $this->created_at ?? Carbon::today();
+
+        return $date instanceof Carbon ? $date->copy() : Carbon::parse($date);
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
@@ -70,6 +122,28 @@ class Renewal extends Model
     public function interestBreakdown(): HasMany
     {
         return $this->hasMany(RenewalInterestBreakdown::class);
+    }
+
+    /**
+     * When a renewed term ends, given the previous due date it continues from.
+     *
+     * The new term starts the day AFTER the previous due date (that stored date is
+     * itself one day before the anniversary), runs `termMonths`, and ends one day
+     * before its own anniversary -- the same "-1 day" convention a new pledge uses
+     * (PledgeController: start + N months - 1 day).
+     *
+     * So a pledge due 10/07 renewed for 6 months: term starts 11/07, ends 10/01. The
+     * ticket reads 11/07 -> 10/01, exactly as a pawn of 23/07 reads 23/07 -> 22/01.
+     * The addDay/subDay are written out rather than cancelled so the reasoning -- and
+     * month-end behaviour -- stays visible.
+     *
+     * The term is anchored to the due date, not the day the customer walks in, so a
+     * late renewer gets fewer usable days; the actual visit stays on the row as
+     * created_at for reference.
+     */
+    public static function dueDateForNewTerm(Carbon $previousDueDate, int $termMonths): Carbon
+    {
+        return $previousDueDate->copy()->addDay()->addMonths($termMonths)->subDay();
     }
 
     public static function generateRenewalNo(int $branchId): string

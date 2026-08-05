@@ -381,6 +381,9 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/vaults/{vault}/boxes', [StorageController::class , 'boxes']);
                 Route::get('/boxes/{box}/slots', [StorageController::class , 'slots']);
                 Route::get('/available-slots', [StorageController::class , 'availableSlots']);
+                // Find which drawer holds an item, by pledge/renewal/redemption no,
+                // customer, IC or barcode — the rack map can only filter one drawer.
+                Route::get('/locate', [StorageController::class , 'locate']);
                 Route::get('/next-available-slot', [StorageController::class , 'nextAvailableSlot']);
                 Route::get('/box-summary/{box}', [StorageController::class , 'boxSummary']);
                 Route::get('/capacity', [StorageController::class , 'capacity']);

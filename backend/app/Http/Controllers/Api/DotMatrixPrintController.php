@@ -765,6 +765,27 @@ HTML;
     }
 
     /**
+     * A renewal receipt describes the RENEWAL term, not the pledge's original term.
+     *
+     * applyPledgeRatesToSettings sets redemption_period to what the customer first
+     * signed for (e.g. "2 BULAN" for a legacy 2-month pledge). That is right for a
+     * pledge reprint, but wrong on a renewal that extends by the standard term: the
+     * TEMPOH box and the KADAR lines ("... TEMPOH {period} ...") would print the old
+     * 2-month period on a receipt that actually grants 6 months. Override it with the
+     * renewal's own stored months so both match the new term. Modern pledges already
+     * renew for 6 and were unaffected; this fixes the legacy short-term ones.
+     */
+    private function applyRenewalTermToSettings(array $settings, Renewal $renewal): array
+    {
+        $months = (int) ($renewal->renewal_months ?? 0);
+        if ($months > 0) {
+            $settings['redemption_period'] = $months . ' BULAN';
+        }
+
+        return $settings;
+    }
+
+    /**
      * Generate styled HTML receipt - Page 1 of 2
      * FIXED: Proper A5 Landscape sizing - fits exactly in 1 page
      */
@@ -3686,6 +3707,8 @@ HTML;
             }
 
             $settings = $this->getCompanySettings($pledge->branch);
+            // Renewal receipt: show the renewal term, not the pledge's original term.
+            $settings = $this->applyRenewalTermToSettings($settings, $renewal);
             $overlay1 = $this->generatePrePrintedRenewalOverlayA4($renewal, $pledge, $settings);
             $overlay2 = $this->generatePrePrintedRenewalOverlayA4Copy2($renewal, $pledge, $settings);
             $frontHtml = $this->wrapA4PortraitOverlay($overlay1, $overlay2);
@@ -3722,10 +3745,12 @@ HTML;
             $totalWeight += $item->net_weight ?? $item->gross_weight ?? 0;
         }
 
-        // Format dates
-        $pledgeDate = $pledge->pledge_date ?? $pledge->created_at;
-        if (is_string($pledgeDate))
-            $pledgeDate = Carbon::parse($pledgeDate);
+        // Format dates. "Tarikh Dipajak" is the day the customer came in to renew,
+        // not the pledge's pledge_date -- a renewal re-dates the ticket, and the
+        // original pawn date never moves. Reading it off the pledge printed the
+        // first-pawned date on every renewal here, while the A4 overlay printed the
+        // renewal date: same renewal, two dates depending on paper size.
+        $pledgeDate = $renewal->ticket_start_date;
         $dueDate = $pledge->due_date;
         if (is_string($dueDate))
             $dueDate = Carbon::parse($dueDate);
@@ -4458,6 +4483,8 @@ HTML;
 
             $settings = $this->getCompanySettings($pledge->branch);
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
+            // Renewal receipt: show the renewal term, not the pledge's original term.
+            $settings = $this->applyRenewalTermToSettings($settings, $renewal);
 
             // Generate BOTH blank form template AND renewal data overlay
             // Renewal: drop the standard-rate entries, which describe the original
@@ -4604,6 +4631,8 @@ HTML;
 
             $settings = $this->getCompanySettings($pledge->branch);
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
+            // Renewal receipt: show the renewal term, not the pledge's original term.
+            $settings = $this->applyRenewalTermToSettings($settings, $renewal);
 
             // Generate BOTH blank form template AND renewal data overlay
             // Renewal: drop the standard-rate entries, which describe the original

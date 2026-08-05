@@ -510,20 +510,137 @@ class StorageController extends Controller
             return $this->error('Unauthorized', 403);
         }
 
+        // Opt-in extras for the rack map's on-screen search: the paperwork a customer
+        // can walk in holding (renewal/redemption ticket numbers, receipt no, IC).
+        // Off by default so the callers that do NOT search -- the new-pledge slot
+        // picker, and Print Reconciliation, which walks every box in the branch --
+        // keep exactly the payload and query count they had before.
+        $withSearchTerms = $request->boolean('with_search_terms');
+
+        $itemRelations = $withSearchTerms
+            ? [
+                'pledge:id,pledge_no,receipt_no,status,customer_id,due_date',
+                'pledge.customer:id,name,ic_number',
+                'pledge.renewals:id,pledge_id,renewal_no',
+                'pledge.redemption:id,pledge_id,redemption_no',
+            ]
+            : [
+                'pledge:id,pledge_no,status,customer_id,due_date',
+                'pledge.customer:id,name',
+            ];
+
+        $itemRelations[] = 'category:id,name_en,name_ms,code';
+        $itemRelations[] = 'purity:id,name,code';
+
         $slots = $box->slots()
-            ->with(['currentItems' => function ($q) {
+            ->with(['currentItems' => function ($q) use ($itemRelations) {
                 $q->select('id', 'pledge_id', 'category_id', 'purity_id', 'net_weight', 'gross_weight', 'net_value', 'gross_value', 'description', 'barcode', 'slot_id', 'photo')
-                  ->with([
-                      'pledge:id,pledge_no,status,customer_id,due_date',
-                      'pledge.customer:id,name',
-                      'category:id,name_en,name_ms,code',
-                      'purity:id,name,code',
-                  ]);
+                  ->with($itemRelations);
             }])
             ->orderBy('slot_number')
             ->get();
 
         return $this->success($slots);
+    }
+
+    /**
+     * Locate stored items anywhere in the branch, by any number a customer may quote.
+     *
+     * The rack map's own search can only filter the drawer currently on screen,
+     * because that is the only drawer whose slots are ever loaded. An item sitting
+     * three drawers away was never in the haystack, so searching its renewal number
+     * reported "no slots in this drawer" — technically true, and useless. This asks
+     * the database instead, and reports which drawer to open.
+     *
+     * Matches the same terms as the pledge list: pledge/receipt/renewal/redemption
+     * numbers, customer name and IC, and the item barcode.
+     */
+    public function locate(Request $request): JsonResponse
+    {
+        $branchId = $request->user()->branch_id;
+        $search = trim((string) $request->get('search', ''));
+
+        // One character matches most of the branch; the answer would be noise.
+        if (mb_strlen($search) < 2) {
+            return $this->success([]);
+        }
+
+        $items = PledgeItem::query()
+            // Never select `photo` here: it is a base64 data-URI (~110KB a row) and
+            // this query spans every drawer in the branch.
+            ->select('id', 'pledge_id', 'slot_id', 'description', 'barcode')
+            ->whereNotNull('slot_id')
+            ->whereNotIn('status', ['redeemed', 'released'])
+            ->whereHas('slot.box.vault', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            })
+            ->where(function ($q) use ($search) {
+                $q->where('barcode', 'like', "%{$search}%")
+                    ->orWhereHas('pledge', function ($pq) use ($search) {
+                        $pq->where('pledge_no', 'like', "%{$search}%")
+                            ->orWhere('receipt_no', 'like', "%{$search}%")
+                            ->orWhereHas('customer', function ($cq) use ($search) {
+                                $cq->where('name', 'like', "%{$search}%")
+                                    ->orWhere('ic_number', 'like', "%{$search}%");
+                            })
+                            ->orWhereHas('renewals', function ($rq) use ($search) {
+                                $rq->where('renewal_no', 'like', "%{$search}%");
+                            })
+                            ->orWhereHas('redemption', function ($rq) use ($search) {
+                                $rq->where('redemption_no', 'like', "%{$search}%");
+                            });
+                    });
+            })
+            ->with([
+                'pledge:id,pledge_no,customer_id',
+                'pledge.customer:id,name',
+                'slot:id,box_id,slot_number,slot_group,subslot_number',
+                'slot.box:id,vault_id,name,has_subslots,subslots_per_slot',
+                'slot.box.vault:id,name',
+            ])
+            // A broad term (a common surname) could match hundreds. Cap it, and say
+            // so, rather than shipping the whole branch to the browser.
+            ->limit(201)
+            ->get();
+
+        $truncated = $items->count() > 200;
+
+        // One row per pledge per slot. A four-item pledge sits in a single slot, and
+        // listing "DRAWER B slot 3" four times tells the counter nothing extra.
+        $matches = $items->take(200)
+            ->groupBy(fn ($item) => $item->slot_id . ':' . $item->pledge_id)
+            ->map(function ($group) {
+                $item = $group->first();
+                $slot = $item->slot;
+                $box = $slot?->box;
+
+                return [
+                    'description' => $item->description,
+                    'barcode' => $item->barcode,
+                    'item_count' => $group->count(),
+                    'pledge_no' => $item->pledge->pledge_no ?? null,
+                    'customer_name' => $item->pledge->customer->name ?? null,
+                    'vault_id' => $box->vault->id ?? null,
+                    'vault_name' => $box->vault->name ?? null,
+                    'box_id' => $box->id ?? null,
+                    'box_name' => $box->name ?? null,
+                    'slot_id' => $slot->id ?? null,
+                    'slot_number' => $slot->slot_number ?? null,
+                    // The grid labels a subslotted drawer "Slot 02 · 2", not by the
+                    // raw sequential slot_number. Ship the box's layout so the
+                    // result list can print the same label the shelf carries.
+                    'slot_group' => $slot->slot_group,
+                    'subslot_number' => $slot->subslot_number,
+                    'box_has_subslots' => (bool) ($box->has_subslots ?? false),
+                    'subslots_per_slot' => $box->subslots_per_slot ?? 1,
+                ];
+            })
+            ->values();
+
+        return $this->success([
+            'matches' => $matches,
+            'truncated' => $truncated,
+        ]);
     }
 
     /**

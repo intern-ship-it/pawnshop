@@ -74,6 +74,13 @@ class PledgeController extends Controller
                     })
                     ->orWhereHas('redemption', function ($rq) use ($search) {
                     $rq->where('redemption_no', 'like', "%{$search}%");
+                    })
+                    // A renewal issues its own ticket (RNW-...), and that is the
+                    // number printed on the receipt the customer walks out with.
+                    // Without this, searching the number off a renewal ticket
+                    // returned nothing at all.
+                    ->orWhereHas('renewals', function ($rnq) use ($search) {
+                    $rnq->where('renewal_no', 'like', "%{$search}%");
                     });
             });
         }
@@ -94,6 +101,31 @@ class PledgeController extends Controller
                 } elseif ($s === 'overdue_partial') {
                     $query->where('status', 'overdue')
                         ->whereHas('redemption');
+                } elseif ($s === 'overdue') {
+                    // Same real-state definition the stats tiles use: the stored
+                    // status never flips when a due date passes, so an active pledge
+                    // past its due date is overdue too. Matching on the column alone
+                    // returned nothing while the tile reported pledges overdue.
+                    $overdueToday = Carbon::today()->toDateString();
+                    $query->where(function ($q) use ($overdueToday) {
+                        $q->where('status', 'overdue')
+                            ->orWhere(function ($q2) use ($overdueToday) {
+                                $q2->where('status', 'active')
+                                    ->whereNotNull('due_date')
+                                    ->whereDate('due_date', '<', $overdueToday);
+                            });
+                    });
+                } elseif ($s === 'active') {
+                    // Mirror of the branch above, so Active and Overdue partition the
+                    // list the same way the two tiles count them. Without this, a
+                    // past-due pledge appeared under BOTH filters and the Active
+                    // filter disagreed with its own tile.
+                    $activeToday = Carbon::today()->toDateString();
+                    $query->where('status', 'active')
+                        ->where(function ($q) use ($activeToday) {
+                            $q->whereNull('due_date')
+                                ->orWhereDate('due_date', '>=', $activeToday);
+                        });
                 } else {
                     $realStatuses[] = $s;
                 }
@@ -173,8 +205,35 @@ class PledgeController extends Controller
         $base = Pledge::where('branch_id', $branchId);
 
         $total = (clone $base)->count();
-        $active = (clone $base)->where('status', 'active')->count();
-        $overdue = (clone $base)->where('status', 'overdue')->count();
+
+        // A pledge past its due date is overdue in fact, but nothing ever flips the
+        // stored column: it sits at 'active' until a renewal or redemption rewrites
+        // it. Counting the column alone reported "Overdue 0" while pledges sat weeks
+        // late, and inflated "Active" by the same amount. Count by real state instead:
+        // the stored status OR an active pledge whose due date has passed.
+        $today = Carbon::today()->toDateString();
+
+        $overdue = (clone $base)
+            ->where(function ($q) use ($today) {
+                $q->where('status', 'overdue')
+                    ->orWhere(function ($q2) use ($today) {
+                        $q2->where('status', 'active')
+                            ->whereNotNull('due_date')
+                            ->whereDate('due_date', '<', $today);
+                    });
+            })
+            ->count();
+
+        // Active means active AND not yet past due. A row with no due date cannot be
+        // judged late, so it stays counted as active rather than vanishing from both.
+        $active = (clone $base)
+            ->where('status', 'active')
+            ->where(function ($q) use ($today) {
+                $q->whereNull('due_date')
+                    ->orWhereDate('due_date', '>=', $today);
+            })
+            ->count();
+
         $redeemed = (clone $base)->where('status', 'redeemed')->count();
         $totalValue = (clone $base)
             ->whereIn('status', ['active', 'overdue'])

@@ -48,6 +48,18 @@ class InterestPayment extends Model
         'transfer_amount' => 'decimal:2',
     ];
 
+    /**
+     * Interest that actually changed hands at the counter.
+     *
+     * Interest payments are the channel that collects it, so what was charged is
+     * what was taken. Mirrors Renewal::interest_collected -- which is zero for a
+     * modern renewal -- so reports can sum one field across both record types.
+     */
+    public function getInterestCollectedAttribute(): float
+    {
+        return round((float) $this->interest_amount, 2);
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

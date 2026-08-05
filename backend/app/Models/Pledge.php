@@ -251,6 +251,58 @@ class Pledge extends Model
     }
 
     /**
+     * The branch's standard term length: the widest month a configured standard/
+     * custom rate rule covers, defaulting to 6 when no ladder exists. This is the
+     * value both controllers used to read for themselves; centralising it here (and
+     * in currentTermMonths) is what keeps the renewal gate and the interest-payment
+     * screen from ever disagreeing on the term.
+     */
+    public function standardTermMonths(): int
+    {
+        $end = (int) \App\Models\InterestRate::where('is_active', true)
+            ->whereIn('rate_type', ['standard', 'custom'])
+            ->where(function ($q) {
+                $q->where('branch_id', $this->branch_id)->orWhereNull('branch_id');
+            })
+            ->max('to_month');
+
+        return $end > 0 ? $end : 6;
+    }
+
+    /**
+     * The length in months of the pledge's CURRENT term — what "a full term of
+     * interest" is measured against by both the renewal gate and the interest
+     * screen.
+     *
+     * Legacy pledges were booked for short terms (2, 3, 4 months) while every modern
+     * pledge is booked for the standard 6. Reading the term from the pledge's own
+     * booked dates lets an old 2-month pledge renew once its 2 months are paid,
+     * instead of being wrongly forced to prepay all 6.
+     *
+     *  - First term (renewal_count 0): the pledge's own booked span, rounded to whole
+     *    months from pledge_date to due_date. Modern pledges round to exactly 6, so
+     *    nothing changes for them.
+     *  - After a renewal (renewal_count >= 1): the standard length, since every
+     *    renewal extends by the fixed standard term regardless of the original
+     *    booking.
+     */
+    public function currentTermMonths(): int
+    {
+        // First term with real dates: derive from the pledge's own booking.
+        if ((int) $this->renewal_count === 0 && $this->pledge_date && $this->due_date) {
+            $months = (int) round(
+                Carbon::parse($this->pledge_date)->floatDiffInMonths(Carbon::parse($this->due_date))
+            );
+            if ($months >= 1) {
+                return $months;
+            }
+        }
+
+        // Renewed terms, or an un-dated row, fall back to the standard length.
+        return $this->standardTermMonths();
+    }
+
+    /**
      * The ladder month this pledge's CURRENT term begins at.
      *
      * Months keep climbing across renewals: term 1 is months 1-6, term 2 is 7-12,
@@ -277,6 +329,25 @@ class Pledge extends Model
      */
     public function fullTermInterest(int $termMonths = 6): float
     {
+        // An unsettled pledge that ran past its due date reprices EVERY month to the
+        // overdue rate, so the term it must settle costs the overdue rate throughout.
+        if ($this->overdueRepricingApplies()) {
+            return round((float) $this->loan_amount * ($this->overdueRate() / 100) * $termMonths, 2);
+        }
+
+        return $this->ladderTermInterest($termMonths);
+    }
+
+    /**
+     * The term's interest at the pledge's OWN ladder — no overdue repricing.
+     *
+     * Kept separate because overdueRepricingApplies() asks "did he pay what he
+     * originally owed?", and answering that with the repriced figure would both
+     * recurse and move the goalposts: the customer is judged against the rates he
+     * signed for, not the penalty rates.
+     */
+    private function ladderTermInterest(int $termMonths): float
+    {
         $service = app(\App\Services\InterestCalculationService::class)->forPledge($this);
         $principal = (float) $this->loan_amount;
         $flatRate = (float) $this->interest_rate;
@@ -290,6 +361,59 @@ class Pledge extends Model
         }
 
         return round($total, 2);
+    }
+
+    /**
+     * The penalty rate an overdue pledge reprices to.
+     *
+     * Prefers the pledge's own frozen column so a reprint or a later settings change
+     * cannot alter what this customer was told, then the customer's own override,
+     * then the branch rule, and finally the service default.
+     */
+    public function overdueRate(): float
+    {
+        if ($this->interest_rate_overdue !== null) {
+            return (float) $this->interest_rate_overdue;
+        }
+
+        if ($this->customer && $this->customer->custom_interest_rate_overdue !== null) {
+            return (float) $this->customer->custom_interest_rate_overdue;
+        }
+
+        $configured = \App\Models\InterestRate::where('is_active', true)
+            ->where('rate_type', 'overdue')
+            ->where(function ($q) {
+                $q->where('branch_id', $this->branch_id)->orWhereNull('branch_id');
+            })
+            ->value('rate_percentage');
+
+        return $configured !== null
+            ? (float) $configured
+            : \App\Services\InterestCalculationService::OVERDUE_RATE;
+    }
+
+    /**
+     * Whether this pledge's whole bill reprices to the overdue rate.
+     *
+     * The client's rule: a pledge that passes its due date WITHOUT its term interest
+     * having been settled moves to the overdue rate for every month — the term months
+     * are recharged, not just the months past the due date. Settling the term in full
+     * protects the customer: he keeps the rates he signed for even if he is late.
+     *
+     * "Past the due date" is strictly after it — a pledge due today is still on normal
+     * rates and only flips tomorrow.
+     */
+    public function overdueRepricingApplies(): bool
+    {
+        if (!$this->due_date || !Carbon::today()->gt($this->due_date)) {
+            return false;
+        }
+
+        $termMonths = $this->currentTermMonths();
+
+        // Half a cent of tolerance so rounding cannot leave a fully-paid term looking
+        // a fraction short and hit the customer with the penalty rate.
+        return $this->interestPaidThisTerm() + 0.005 < $this->ladderTermInterest($termMonths);
     }
 
     public static function generatePledgeNo(int $branchId): string

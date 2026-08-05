@@ -95,11 +95,14 @@ const storageService = {
 
   /**
    * Get slots by box
-   * @param {number} boxId 
+   * @param {number} boxId
+   * @param {Object} params - optional; pass { with_search_terms: 1 } to include the
+   *   renewal/redemption/receipt numbers and IC the rack map's search needs. Omitted
+   *   by default so callers that never search keep the smaller payload.
    * @returns {Promise}
    */
-  async getSlots(boxId) {
-    return apiGet(`/storage/boxes/${boxId}/slots`)
+  async getSlots(boxId, params = {}) {
+    return apiGet(`/storage/boxes/${boxId}/slots`, params)
   },
 
   /**
@@ -147,6 +150,19 @@ const storageService = {
    */
   async getAvailableSlots(params = {}) {
     return apiGet('/storage/available-slots', params)
+  },
+
+  /**
+   * Find which drawer holds an item, anywhere in the branch.
+   *
+   * The rack map only ever loads the slots of the drawer on screen, so its own
+   * search cannot see an item stored elsewhere. This asks the server instead.
+   *
+   * @param {string} search - pledge/renewal/redemption/receipt no, customer, IC or barcode
+   * @returns {Promise}
+   */
+  async locate(search) {
+    return apiGet('/storage/locate', { search })
   },
 
   /**
