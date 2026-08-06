@@ -156,6 +156,84 @@ class Pledge extends Model
         return $this->status === 'active' && Carbon::today()->gt($this->due_date);
     }
 
+    /**
+     * Filter by one or more display statuses (comma-separated), OR-combined.
+     *
+     * Several statuses are "virtual" -- they are not the stored `status` column but a
+     * real-state view of it, because the column never flips when a due date passes:
+     * an active pledge past its due date is overdue in fact. `overdue` and `active`
+     * therefore each expand to a condition on status + due_date.
+     *
+     * The statuses must be OR'd, not AND'd. Passing "active,overdue" means "either
+     * redeemable state" -- the redemption search relies on it. Applying each branch
+     * as a bare ->where() (as the controller once did inline) AND-ed them into
+     * "active AND overdue", a contradiction that returned zero rows and made the
+     * redemption lookup fail for every pledge.
+     */
+    public function scopeDisplayStatus($query, string $status)
+    {
+        $statuses = array_filter(array_map('trim', explode(',', $status)));
+        if (empty($statuses)) {
+            return $query;
+        }
+
+        $today = Carbon::today()->toDateString();
+
+        return $query->where(function ($outer) use ($statuses, $today) {
+            foreach ($statuses as $s) {
+                switch ($s) {
+                    case 'due_soon':
+                        $weekAhead = Carbon::parse($today)->addDays(7)->toDateString();
+                        $outer->orWhere(function ($q) use ($today, $weekAhead) {
+                            $q->where('status', 'active')
+                                ->whereBetween('due_date', [$today, $weekAhead]);
+                        });
+                        break;
+
+                    case 'partial':
+                        $outer->orWhere(function ($q) {
+                            $q->where('status', 'active')->whereHas('redemption');
+                        });
+                        break;
+
+                    case 'overdue_partial':
+                        $outer->orWhere(function ($q) {
+                            $q->where('status', 'overdue')->whereHas('redemption');
+                        });
+                        break;
+
+                    case 'overdue':
+                        // Stored 'overdue', OR active-but-past-due (real state).
+                        $outer->orWhere(function ($q) use ($today) {
+                            $q->where('status', 'overdue')
+                                ->orWhere(function ($q2) use ($today) {
+                                    $q2->where('status', 'active')
+                                        ->whereNotNull('due_date')
+                                        ->whereDate('due_date', '<', $today);
+                                });
+                        });
+                        break;
+
+                    case 'active':
+                        // Active AND not yet past due, so Active and Overdue partition
+                        // the list the same way the stat tiles count them.
+                        $outer->orWhere(function ($q) use ($today) {
+                            $q->where('status', 'active')
+                                ->where(function ($q2) use ($today) {
+                                    $q2->whereNull('due_date')
+                                        ->orWhereDate('due_date', '>=', $today);
+                                });
+                        });
+                        break;
+
+                    default:
+                        $outer->orWhere('status', $s);
+                        break;
+                }
+            }
+        });
+    }
+
     public function isInGracePeriod(): bool
     {
         $today = Carbon::today();

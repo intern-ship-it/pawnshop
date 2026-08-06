@@ -85,54 +85,13 @@ class PledgeController extends Controller
             });
         }
 
-        // Filter by status (supports virtual statuses: due_soon, partial, overdue_partial)
+        // Filter by status. Supports virtual statuses (active, overdue, due_soon,
+        // partial, overdue_partial) and OR-combines them, so "active,overdue" means
+        // either redeemable state -- see Pledge::scopeDisplayStatus. Combining them
+        // with bare ->where() calls here previously AND-ed "active AND overdue" into a
+        // contradiction, which broke the redemption search's active,overdue lookup.
         if ($status = $request->get('status')) {
-            $statuses = explode(',', $status);
-            $realStatuses = [];
-            foreach ($statuses as $s) {
-                if ($s === 'due_soon') {
-                    $today = Carbon::today();
-                    $weekAhead = (clone $today)->addDays(7);
-                    $query->where('status', 'active')
-                        ->whereBetween('due_date', [$today, $weekAhead]);
-                } elseif ($s === 'partial') {
-                    $query->where('status', 'active')
-                        ->whereHas('redemption');
-                } elseif ($s === 'overdue_partial') {
-                    $query->where('status', 'overdue')
-                        ->whereHas('redemption');
-                } elseif ($s === 'overdue') {
-                    // Same real-state definition the stats tiles use: the stored
-                    // status never flips when a due date passes, so an active pledge
-                    // past its due date is overdue too. Matching on the column alone
-                    // returned nothing while the tile reported pledges overdue.
-                    $overdueToday = Carbon::today()->toDateString();
-                    $query->where(function ($q) use ($overdueToday) {
-                        $q->where('status', 'overdue')
-                            ->orWhere(function ($q2) use ($overdueToday) {
-                                $q2->where('status', 'active')
-                                    ->whereNotNull('due_date')
-                                    ->whereDate('due_date', '<', $overdueToday);
-                            });
-                    });
-                } elseif ($s === 'active') {
-                    // Mirror of the branch above, so Active and Overdue partition the
-                    // list the same way the two tiles count them. Without this, a
-                    // past-due pledge appeared under BOTH filters and the Active
-                    // filter disagreed with its own tile.
-                    $activeToday = Carbon::today()->toDateString();
-                    $query->where('status', 'active')
-                        ->where(function ($q) use ($activeToday) {
-                            $q->whereNull('due_date')
-                                ->orWhereDate('due_date', '>=', $activeToday);
-                        });
-                } else {
-                    $realStatuses[] = $s;
-                }
-            }
-            if (!empty($realStatuses)) {
-                $query->whereIn('status', $realStatuses);
-            }
+            $query->displayStatus($status);
         }
 
         // Filter by date range
