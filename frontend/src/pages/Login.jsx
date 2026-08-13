@@ -95,7 +95,7 @@ export default function Login() {
         if (response) {
           // Token is valid, user is authenticated - redirect to dashboard
           dispatch(setUser(response));
-          navigate("/", { replace: true });
+          navigate("/dashboard", { replace: true });
           return;
         }
       } catch (error) {
@@ -201,7 +201,7 @@ export default function Login() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 

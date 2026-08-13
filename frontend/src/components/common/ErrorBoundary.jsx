@@ -55,7 +55,7 @@ export default function ErrorBoundary() {
               <Button
                 variant="outline"
                 className="w-full justify-center"
-                onClick={() => (window.location.href = "/")}
+                onClick={() => (window.location.href = "/dashboard")}
               >
                 Go to Dashboard
               </Button>
