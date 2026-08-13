@@ -204,14 +204,20 @@ const revealChild = {
 /** The 當 roundel used as the brand mark. */
 function Logo({ size = 40 }) {
   return (
-    <img
-      src="/landing/logo.png"
-      alt="Dsara Asset Ventures"
-      width={size}
-      height={size}
-      className="shrink-0 object-contain"
+    // The PNG has an opaque white margin, so clip it to a circle and scale
+    // past the edge to crop the white away.
+    <span
+      className="inline-block shrink-0 overflow-hidden rounded-full"
       style={{ width: size, height: size }}
-    />
+    >
+      <img
+        src="/landing/logo.png"
+        alt="Dsara Asset Ventures"
+        width={size}
+        height={size}
+        className="h-full w-full scale-[1.14] object-cover"
+      />
+    </span>
   );
 }
 
