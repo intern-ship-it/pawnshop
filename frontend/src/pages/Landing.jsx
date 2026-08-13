@@ -403,33 +403,35 @@ function Hero() {
             <Logo size={92} />
           </motion.span>
         </motion.div>
-
-        <motion.p
-          variants={revealChild}
-          className="mt-10 text-2xl font-bold sm:text-3xl"
-          style={{ color: "#4A6C8A" }}
-        >
-Trusted & Secure Pawnbroking Services </motion.p>
- Fair appraisals, competitive pawn values and a simple redemption process.        
-
         <motion.h1
           variants={revealChild}
-          className="mt-2 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl"
-          style={{ color: RED }}
+          className="mt-8 text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl"
+          style={{ color: RED}}
         >
+          Dsara Asset
+          Ventures
         </motion.h1>
+
+        {/* Hairline rule between the name and the strapline */}
+        <motion.span
+          variants={revealChild}
+          className="mx-auto mt-6 block h-1 w-20 rounded-full bg-zinc-900/80"
+        />
 
         <motion.p
           variants={revealChild}
-          className="mt-3 text-2xl font-bold sm:text-3xl"
+          className="mt-6 text-xl font-bold sm:text-2xl"
           style={{ color: "#4A6C8A" }}
         >
+          Trusted &amp; Secure Pawnbroking Services
         </motion.p>
 
         <motion.p
           variants={revealChild}
-          className="mt-7 text-lg font-bold italic text-zinc-900 sm:text-xl"
+          className="mx-auto mt-3 max-w-xl text-base font-medium text-zinc-800 sm:text-lg"
         >
+          Fair appraisals, competitive pawn values and a simple redemption
+          process.
         </motion.p>
       </motion.div>
     </section>
