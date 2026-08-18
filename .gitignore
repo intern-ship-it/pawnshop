@@ -131,6 +131,8 @@ backend/public/vite.svg
 *.pdf
 *.csv
 *.png
+# ...but landing-page artwork is source, not a generated export.
+!frontend/public/landing/*.png
 commissions_*.csv
 daily-closing-*.pdf
 sales-report-*.pdf

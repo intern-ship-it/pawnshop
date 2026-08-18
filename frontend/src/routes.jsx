@@ -23,6 +23,9 @@ const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Profile = lazy(() => import("@/pages/Profile"));
 
+// Public marketing site — served at "/", no authentication
+const Landing = lazy(() => import("@/pages/Landing"));
+
 // Customer pages
 const CustomerList = lazy(() => import("@/pages/customers/CustomerList"));
 const CustomerDetail = lazy(() => import("@/pages/customers/CustomerDetail"));
@@ -110,13 +113,26 @@ export const router = createBrowserRouter([
     element: withSuspense(ResetPassword),
     errorElement: <ErrorBoundary />,
   },
+  // PUBLIC MARKETING SITE — no authentication, no MainLayout chrome.
   {
     path: "/",
+    element: withSuspense(Landing),
+    errorElement: <ErrorBoundary />,
+  },
+
+  // STAFF APPLICATION
+  // Pathless layout route: it contributes no URL segment, so every child below
+  // keeps the exact path it had when MainLayout was mounted at "/". Only the
+  // dashboard moved — from "/" to "/dashboard" — to free the root for Landing.
+  {
     element: <MainLayout />,
     errorElement: <ErrorBoundary />,
     children: [
       // Dashboard
-      { index: true, element: withPermission(Dashboard, "dashboard.view") },
+      {
+        path: "dashboard",
+        element: withPermission(Dashboard, "dashboard.view"),
+      },
       {
         path: "profile",
         element: withSuspense(Profile),
@@ -182,10 +198,11 @@ export const router = createBrowserRouter([
 
 // Export route paths for easy reference
 export const ROUTES = {
+  HOME: "/",
   LOGIN: "/login",
   FORGOT_PASSWORD: "/forgot-password",
   RESET_PASSWORD: "/reset-password",
-  DASHBOARD: "/",
+  DASHBOARD: "/dashboard",
   CUSTOMERS: "/customers",
   CUSTOMER_NEW: "/customers/new",
   CUSTOMER_DETAIL: (id) => `/customers/${id}`,

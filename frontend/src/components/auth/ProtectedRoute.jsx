@@ -10,7 +10,7 @@ import { useAppSelector } from "@/app/hooks";
  * Route to permission mapping
  */
 const routePermissions = {
-  "/": "dashboard.view",
+  "/dashboard": "dashboard.view",
   "/customers": "customers.view",
   "/customers/new": "customers.create",
   "/customers/:id": "customers.view",
@@ -75,7 +75,7 @@ const hasPermission = (permissions, requiredPermission, roleSlug) => {
 export default function ProtectedRoute({
   children,
   permission = null,
-  fallback = "/",
+  fallback = "/dashboard",
 }) {
   const location = useLocation();
   const { isAuthenticated, role, permissions } = useAppSelector(

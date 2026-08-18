@@ -43,7 +43,7 @@ const menuConfig = [
     items: [
       {
         name: "Dashboard",
-        path: "/",
+        path: "/dashboard",
         icon: LayoutDashboard,
         exact: true,
         permission: "dashboard.view",

@@ -69,7 +69,7 @@ export default function Breadcrumb({ className, customItems }) {
         <ol className="flex items-center gap-1">
           <li>
             <Link
-              to="/"
+              to="/dashboard"
               className="flex items-center gap-1 text-zinc-500 hover:text-zinc-700 transition-colors"
             >
               <Home className="w-4 h-4" />
@@ -98,8 +98,8 @@ export default function Breadcrumb({ className, customItems }) {
   // Auto-generate breadcrumbs from URL path
   const pathSegments = location.pathname.split("/").filter(Boolean);
 
-  // Don't show breadcrumb on root/dashboard
-  if (pathSegments.length === 0) {
+  // Don't show breadcrumb on the dashboard — it is already the crumb root
+  if (pathSegments.length === 0 || location.pathname === "/dashboard") {
     return null;
   }
 
@@ -109,7 +109,7 @@ export default function Breadcrumb({ className, customItems }) {
         {/* Home link */}
         <li>
           <Link
-            to="/"
+            to="/dashboard"
             className="flex items-center gap-1 text-zinc-500 hover:text-zinc-700 transition-colors"
           >
             <Home className="w-4 h-4" />
