@@ -666,6 +666,12 @@ export default function WhatsAppSettings() {
           pledge_no: "PLG-2024-TEST",
           receipt_no: "PLG-2024-TEST",
           date: new Date().toLocaleDateString("en-MY"),
+          // Pledge detail lines. Providers that send an approved template
+          // reject blank parameters outright, so every field a real send
+          // supplies has to be present here or the test cannot go through.
+          items: "RING (916) - 5.00G",
+          total_weight: "5.00",
+          interest_rate: "1.00",
           loan_amount: "2,500.00",
           due_date: new Date(
             Date.now() + 180 * 24 * 60 * 60 * 1000,
@@ -676,6 +682,16 @@ export default function WhatsAppSettings() {
           ).toLocaleDateString("en-MY"),
           total_paid: "2,550.00",
           redemption_amount: "2,550.00",
+          // Renewal fields
+          renewal_no: "RNW-2024-TEST",
+          extended: "6",
+          // Redemption fields
+          redemption_no: "RDM-2024-TEST",
+          items_released: "RING (916) - 5.00G",
+          principal: "2,500.00",
+          interest: "50.00",
+          payment_mode: "CASH",
+          amount_paid: "2,550.00",
           days_overdue: "0",
           auction_date: new Date(
             Date.now() + 210 * 24 * 60 * 60 * 1000,
@@ -712,12 +728,23 @@ export default function WhatsAppSettings() {
     "{customer_ic}",
     "{pledge_no}",
     "{date}",
+    "{items}",
+    "{total_weight}",
+    "{interest_rate}",
     "{loan_amount}",
     "{due_date}",
     "{interest_paid}",
     "{new_due_date}",
     "{total_paid}",
     "{redemption_amount}",
+    "{renewal_no}",
+    "{extended}",
+    "{redemption_no}",
+    "{items_released}",
+    "{principal}",
+    "{interest}",
+    "{payment_mode}",
+    "{amount_paid}",
     "{days_overdue}",
     "{auction_date}",
     "{company_name}",

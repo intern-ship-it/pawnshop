@@ -75,8 +75,10 @@ return [
         // shared SERVICE_API_KEY, instance_id = this branch's tenant key.
         'grasp_base_url' => env('WA_GATEWAY_BASE_URL', 'https://wbapi.graspsoftwaresolution.com'),
         // Must match the language code the templates were APPROVED under
-        // ('ms' for Malay, 'en' for English). A mismatch fails the send.
-        'grasp_language' => env('WA_GATEWAY_TEMPLATE_LANG', 'ms'),
+        // ('en' for English, 'ms' for Malay). A mismatch fails the send with
+        // Meta error 132001 ("does not exist in <lang>"), so this has to track
+        // whatever the paja_* templates were actually registered as.
+        'grasp_language' => env('WA_GATEWAY_TEMPLATE_LANG', 'en'),
     ],
 
     // Barcode Settings
