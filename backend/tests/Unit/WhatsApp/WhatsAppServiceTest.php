@@ -42,6 +42,128 @@ class WhatsAppServiceTest extends TestCase
             && $r->data()['templateParams'] === ['Ali', 'PLG-9']);
     }
 
+    public function test_ultramsg_body_carries_the_admin_signoff(): void
+    {
+        config([
+            'pawnsys.whatsapp.admin_note' => 'Contact admin on this number for any queries.',
+            'pawnsys.whatsapp.admin_contact' => '+60 12 694 5430',
+        ]);
+        Http::fake(['api.ultramsg.com/*' => Http::response(['sent' => 'true', 'id' => 'm1'], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'ultramsg', 'instance_id' => 'i1', 'api_token' => 't1']);
+
+        (new WhatsAppService())->sendText($config, '60123', 'Your pledge is ready.');
+
+        Http::assertSent(function ($r) {
+            $body = $r->data()['body'] ?? '';
+            return str_contains($body, 'Your pledge is ready.')
+                && str_contains($body, 'Contact admin on this number for any queries. +60 12 694 5430');
+        });
+    }
+
+    public function test_signoff_is_not_appended_twice_on_resend(): void
+    {
+        config([
+            'pawnsys.whatsapp.admin_note' => 'Contact admin on this number for any queries.',
+            'pawnsys.whatsapp.admin_contact' => '+60 12 694 5430',
+        ]);
+        Http::fake(['api.ultramsg.com/*' => Http::response(['sent' => 'true', 'id' => 'm1'], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'ultramsg', 'instance_id' => 'i1', 'api_token' => 't1']);
+
+        $alreadySigned = "Hi
+
+Contact admin on this number for any queries. +60 12 694 5430";
+        (new WhatsAppService())->sendText($config, '60123', $alreadySigned);
+
+        Http::assertSent(fn ($r) => substr_count($r->data()['body'] ?? '', '+60 12 694 5430') === 1);
+    }
+
+    public function test_blank_signoff_config_leaves_the_body_untouched(): void
+    {
+        config(['pawnsys.whatsapp.admin_note' => '', 'pawnsys.whatsapp.admin_contact' => '']);
+        Http::fake(['api.ultramsg.com/*' => Http::response(['sent' => 'true', 'id' => 'm1'], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'ultramsg', 'instance_id' => 'i1', 'api_token' => 't1']);
+
+        (new WhatsAppService())->sendText($config, '60123', 'Plain body');
+
+        Http::assertSent(fn ($r) => ($r->data()['body'] ?? '') === 'Plain body');
+    }
+
+    public function test_dispatches_to_grasp_gateway_with_a_stable_reference(): void
+    {
+        Http::fake(['*/api/internal/send' => Http::response([
+            'success' => true, 'data' => ['status' => 'SENT', 'provider_message_id' => 'wamid.G'],
+        ], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'grasp', 'instance_id' => 'pawnsys', 'api_token' => 'key']);
+        $template = new WhatsAppTemplate([
+            'template_key' => 'pledge_created',
+            'aisensy_campaign' => 'pledge_created_v1',
+            'aisensy_params' => ['customer_name', 'pledge_no'],
+        ]);
+        $data = ['customer_name' => 'Ali', 'pledge_no' => 'PLG-9'];
+
+        $service = new WhatsAppService();
+        $service->sendText($config, '60123456789', 'rendered', $template, $data, 'Ali');
+        $service->sendText($config, '60123456789', 'rendered', $template, $data, 'Ali');
+
+        $references = [];
+        Http::assertSent(function ($r) use (&$references) {
+            $references[] = $r->data()['reference'];
+            return true;
+        });
+
+        // Identical content must reuse the reference so a retry cannot double-charge.
+        $this->assertCount(2, $references);
+        $this->assertSame($references[0], $references[1]);
+        $this->assertStringStartsWith('pawnsys:pledge_created:PLG-9:', $references[0]);
+    }
+
+    public function test_reference_differs_when_the_message_content_differs(): void
+    {
+        Http::fake(['*/api/internal/send' => Http::response([
+            'success' => true, 'data' => ['status' => 'SENT', 'provider_message_id' => 'x'],
+        ], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'grasp', 'instance_id' => 'pawnsys', 'api_token' => 'key']);
+        $template = new WhatsAppTemplate([
+            'template_key' => 'renewal_completed',
+            'aisensy_campaign' => 'renewal_v1',
+            'aisensy_params' => ['customer_name', 'new_due_date'],
+        ]);
+
+        $service = new WhatsAppService();
+        $service->sendText($config, '60123456789', 'r', $template,
+            ['customer_name' => 'Ali', 'pledge_no' => 'PLG-9', 'new_due_date' => '01/09/2026'], 'Ali');
+        $service->sendText($config, '60123456789', 'r', $template,
+            ['customer_name' => 'Ali', 'pledge_no' => 'PLG-9', 'new_due_date' => '01/03/2027'], 'Ali');
+
+        $references = [];
+        Http::assertSent(function ($r) use (&$references) {
+            $references[] = $r->data()['reference'];
+            return true;
+        });
+
+        // A later renewal on the same pledge must not be swallowed as a replay.
+        $this->assertNotSame($references[0], $references[1]);
+    }
+
+    public function test_reference_override_wins_so_manual_resends_are_not_replayed(): void
+    {
+        Http::fake(['*/api/internal/send' => Http::response([
+            'success' => true, 'data' => ['status' => 'SENT', 'provider_message_id' => 'x'],
+        ], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'grasp', 'instance_id' => 'pawnsys', 'api_token' => 'key']);
+        $template = new WhatsAppTemplate([
+            'template_key' => 'pledge_created',
+            'aisensy_campaign' => 'paja_pledge_created_v2',
+            'aisensy_params' => ['customer_name'],
+        ]);
+
+        (new WhatsAppService())->sendText(
+            $config, '60123456789', 'r', $template, ['customer_name' => 'Ali'], 'Ali', 'pawnsys:manual:80'
+        );
+
+        Http::assertSent(fn ($r) => $r->data()['reference'] === 'pawnsys:manual:80');
+    }
+
     public function test_unknown_provider_returns_error(): void
     {
         $config = new WhatsAppConfig(['provider' => 'twilio']);

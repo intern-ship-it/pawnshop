@@ -208,7 +208,7 @@ Sila hubungi kami segera jika anda ingin menebus barang anda.
 // Default WhatsApp config
 const defaultConfig = {
   enabled: false,
-  provider: "ultramsg", // ultramsg, twilio, wati
+  provider: "ultramsg", // ultramsg, twilio, wati, aisensy, grasp
   instanceId: "",
   token: "",
   phoneNumberId: "",
@@ -249,6 +249,12 @@ export default function WhatsAppSettings() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [hasExistingToken, setHasExistingToken] = useState(false);
+
+  // AiSensy and the Grasp gateway both send a Meta-approved template by name
+  // with ordered params, so the message body stored here is never sent — the
+  // campaign/template name and parameter mapping are what matter instead.
+  const usesTemplateMapping =
+    config.provider === "aisensy" || config.provider === "grasp";
 
   // FIX: Add state for viewing full message
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -576,7 +582,7 @@ export default function WhatsAppSettings() {
         content: editingTemplate.template,
         is_enabled: editingTemplate.enabled,
       };
-      if (config.provider === "aisensy") {
+      if (usesTemplateMapping) {
         payload.aisensy_campaign = editingTemplate.aisensy_campaign || null;
         payload.aisensy_params = editingTemplate.aisensy_params || [];
       }
@@ -851,13 +857,20 @@ export default function WhatsAppSettings() {
                     <option value="twilio">Twilio</option>
                     <option value="wati">WATI</option>
                     <option value="aisensy">AiSensy</option>
+                    <option value="grasp">Grasp WhatsApp Gateway</option>
                   </select>
                 </div>
 
                 {config.provider !== "aisensy" && (
                   <Input
-                    label="Instance ID"
-                    placeholder="Enter instance ID"
+                    label={
+                      config.provider === "grasp" ? "Tenant ID" : "Instance ID"
+                    }
+                    placeholder={
+                      config.provider === "grasp"
+                        ? "Tenant key on the gateway, e.g. pawnsys"
+                        : "Enter instance ID"
+                    }
                     value={config.instanceId}
                     onChange={(e) =>
                       setConfig({ ...config, instanceId: e.target.value })
@@ -869,7 +882,11 @@ export default function WhatsAppSettings() {
                 <div>
                   <Input
                     label={
-                      config.provider === "aisensy" ? "API Key" : "API Token"
+                      config.provider === "aisensy"
+                        ? "API Key"
+                        : config.provider === "grasp"
+                          ? "Gateway Service Key"
+                          : "API Token"
                     }
                     type="password"
                     placeholder={
@@ -877,7 +894,9 @@ export default function WhatsAppSettings() {
                         ? "••••••••••••••••"
                         : config.provider === "aisensy"
                           ? "Enter API key"
-                          : "Enter API token"
+                          : config.provider === "grasp"
+                            ? "Enter gateway service key"
+                            : "Enter API token"
                     }
                     value={config.token}
                     onChange={(e) =>
@@ -1009,7 +1028,23 @@ export default function WhatsAppSettings() {
                   <MessageCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-700">
                     <p className="font-medium">How it works:</p>
-                    {config.provider === "aisensy" ? (
+                    {config.provider === "grasp" ? (
+                      <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                        <li>
+                          Ask Grasp to onboard this branch as a tenant on the
+                          gateway
+                        </li>
+                        <li>
+                          Enter the Tenant ID and the gateway Service Key above
+                        </li>
+                        <li>Test connection, then enable WhatsApp</li>
+                        <li>
+                          Map each message type to its approved template name +
+                          parameters (Templates tab)
+                        </li>
+                        <li>Messages will be sent automatically!</li>
+                      </ol>
+                    ) : config.provider === "aisensy" ? (
                       <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
                         <li>
                           Create &amp; get your WhatsApp templates approved in
@@ -1394,7 +1429,7 @@ export default function WhatsAppSettings() {
                 }
               />
 
-              {config.provider !== "aisensy" && (
+              {!usesTemplateMapping && (
               <>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">
@@ -1457,15 +1492,22 @@ export default function WhatsAppSettings() {
               </>
               )}
 
-              {config.provider === "aisensy" && (
+              {usesTemplateMapping && (
                 <>
                 <div className="p-3 bg-blue-50 rounded-lg mb-4">
                   <p className="text-xs text-blue-700">
-                    <strong>Note:</strong> The message body is managed in your AiSensy dashboard. Only the campaign name and parameter mapping are needed here.
+                    <strong>Note:</strong>{" "}
+                    {config.provider === "grasp"
+                      ? "The message body lives in the approved template on the gateway. Only the template name and parameter mapping are needed here."
+                      : "The message body is managed in your AiSensy dashboard. Only the campaign name and parameter mapping are needed here."}
                   </p>
                 </div>
                   <Input
-                    label="AiSensy Campaign Name"
+                    label={
+                      config.provider === "grasp"
+                        ? "Gateway Template Name"
+                        : "AiSensy Campaign Name"
+                    }
                     placeholder="e.g. pledge_created_v1"
                     value={editingTemplate.aisensy_campaign || ""}
                     onChange={(e) =>

@@ -45,7 +45,7 @@ class WhatsAppController extends Controller
         $branchId = $request->user()->branch_id;
 
         $validated = $request->validate([
-            'provider' => 'required|in:ultramsg,twilio,wati,aisensy',
+            'provider' => 'required|in:ultramsg,twilio,wati,aisensy,grasp',
             'instance_id' => 'nullable|string|max:100',
             'api_token' => 'nullable|string|max:2000',
             'phone_number' => 'required|string|max:20',
@@ -292,7 +292,11 @@ class WhatsAppController extends Controller
                 $message,
                 $template,
                 $validated['data'],
-                $validated['recipient_name'] ?? null
+                $validated['recipient_name'] ?? null,
+                // Manual sends repeat the same sample data, which would otherwise
+                // hash to one idempotency reference and be replayed rather than
+                // resent. The log id makes every attempt from here distinct.
+                'pawnsys:manual:' . $log->id
             );
 
             if ($result['success']) {
