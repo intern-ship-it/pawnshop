@@ -938,34 +938,43 @@ function Footer() {
     <footer className="bg-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div>
-          <Logo size={44} />
-          <p
-            className="mt-4 text-sm font-bold leading-snug"
-            style={{ color: RED }}
-          >
-            {CONTACT.company.toUpperCase()}
-          </p>
-          <p className="mt-2 text-xs leading-relaxed text-zinc-600">
+          {/* Every footer column opens with an h-11 header band so all four
+              headings sit on one line and all four bodies start together. */}
+          <div className="flex h-11 items-center gap-3">
+            <Logo size={44} />
+            <p
+              className="text-sm font-bold leading-snug"
+              style={{ color: RED }}
+            >
+              {CONTACT.company.toUpperCase()}
+            </p>
+          </div>
+          <p className="mt-4 text-xs font-semibold leading-relaxed text-zinc-700">
             Licensed pawnbroker in Kuala Lumpur and Selangor, Malaysia.
           </p>
 
-          <a
-            href={CONTACT.phoneHref}
-            className="mt-4 flex items-center gap-1.5 text-xs font-bold transition-opacity hover:opacity-75"
-            style={{ color: RED }}
-          >
-            <Phone className="h-3.5 w-3.5" />
-            {CONTACT.phone}
-          </a>
-          <p className="mt-2 text-xs text-zinc-600">
-            Open daily &middot; 9 am till 6 pm
+          <div className="mt-4 space-y-1.5">
+            <a
+              href={CONTACT.phoneHref}
+              className="flex items-center gap-2 text-xs font-bold transition-opacity hover:opacity-75"
+              style={{ color: RED }}
+            >
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+              {CONTACT.phone}
+            </a>
+          </div>
+          <p className="mt-3 text-xs text-zinc-500">
+            Open daily &middot;{" "}
+            <span className="font-bold text-zinc-900">9 am till 6 pm</span>
           </p>
         </div>
 
         <div id="blog">
-          <p className="text-sm font-bold" style={{ color: RED }}>
-            GOLD PRICE
-          </p>
+          <div className="flex h-11 items-center">
+            <p className="text-sm font-bold" style={{ color: RED }}>
+              GOLD PRICE
+            </p>
+          </div>
           <div className="mt-4 space-y-2">
             {[
               { k: "999", v: "486.20" },
@@ -990,14 +999,16 @@ function Footer() {
         </div>
 
         <div>
-          <p className="text-sm font-bold" style={{ color: RED }}>
-            OPENING TIME
-          </p>
+          <div className="flex h-11 items-center">
+            <p className="text-sm font-bold" style={{ color: RED }}>
+              OPENING TIME
+            </p>
+          </div>
           <ul className="mt-4 space-y-1.5">
             {OPENING_HOURS.map(({ label, hours }) => (
               <li
                 key={label}
-                className="flex items-center justify-between text-xs text-zinc-600"
+                className="flex items-center justify-between text-xs font-semibold text-zinc-700"
               >
                 <span>{label}</span>
                 <span className="font-semibold text-zinc-800">{hours}</span>
@@ -1007,9 +1018,11 @@ function Footer() {
         </div>
 
         <div id="career">
-          <p className="text-sm font-bold" style={{ color: RED }}>
-            ABOUT
-          </p>
+          <div className="flex h-11 items-center">
+            <p className="text-sm font-bold" style={{ color: RED }}>
+              ABOUT
+            </p>
+          </div>
           <ul className="mt-4 space-y-2">
             {[
               { label: "FAQs", href: "#faq" },
@@ -1020,18 +1033,26 @@ function Footer() {
               <li key={l.label}>
                 <a
                   href={l.href}
-                  className="text-xs text-zinc-600 transition-colors hover:text-[#E01F26]"
+                  className="text-xs font-semibold text-zinc-700 transition-colors duration-300 hover:text-[#E01F26]"
                 >
                   {l.label}
                 </a>
               </li>
             ))}
             <li>
+              {/* active:* gives the press-down "push"; the shorter active
+                  duration makes the press snap and the release ease back. */}
               <Link
                 to="/dashboard"
-                className="text-xs font-semibold text-zinc-600 transition-colors hover:text-[#E01F26]"
+                className="group inline-flex origin-left items-center gap-1.5 text-sm font-bold text-zinc-800 transition-[color,transform] duration-300 ease-out hover:text-[#E01F26] active:scale-95 active:text-[#B0161C] active:duration-75"
               >
-                Staff Portal →
+                Staff Portal
+                <span
+                  aria-hidden="true"
+                  className="inline-block transition-transform duration-300 ease-out group-hover:translate-x-1"
+                >
+                  &rarr;
+                </span>
               </Link>
             </li>
           </ul>
