@@ -700,7 +700,13 @@ export default function WhatsAppSettings() {
           interest: "50.00",
           payment_mode: "CASH",
           amount_paid: "2,550.00",
-          days_overdue: "0",
+          // The reminder job supplies these names (see SendDueReminders::
+          // buildTemplateData). days_overdue is the older spelling kept for
+          // template bodies that still reference it.
+          days_overdue: "15",
+          overdue_days: "15",
+          overdue_interest: "1,034.00",
+          current_interest: "517.00",
           auction_date: new Date(
             Date.now() + 210 * 24 * 60 * 60 * 1000,
           ).toLocaleDateString("en-MY"),
@@ -754,6 +760,9 @@ export default function WhatsAppSettings() {
     "{payment_mode}",
     "{amount_paid}",
     "{days_overdue}",
+    "{overdue_days}",
+    "{overdue_interest}",
+    "{current_interest}",
     "{auction_date}",
     "{company_name}",
     "{company_phone}",
