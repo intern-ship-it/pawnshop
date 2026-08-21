@@ -164,6 +164,28 @@ Contact admin on this number for any queries. +60 12 694 5430";
         Http::assertSent(fn ($r) => $r->data()['reference'] === 'pawnsys:manual:80');
     }
 
+    public function test_sandbox_guard_redirects_every_recipient(): void
+    {
+        config(['pawnsys.whatsapp.sandbox_to' => '60146478869']);
+        Http::fake(['api.ultramsg.com/*' => Http::response(['sent' => 'true', 'id' => 'm1'], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'ultramsg', 'instance_id' => 'i1', 'api_token' => 't1']);
+
+        (new WhatsAppService())->sendText($config, '60199999999', 'Hello');
+
+        Http::assertSent(fn ($r) => $r->data()['to'] === '60146478869');
+    }
+
+    public function test_without_the_sandbox_guard_the_real_recipient_is_used(): void
+    {
+        config(['pawnsys.whatsapp.sandbox_to' => null]);
+        Http::fake(['api.ultramsg.com/*' => Http::response(['sent' => 'true', 'id' => 'm1'], 200)]);
+        $config = new WhatsAppConfig(['provider' => 'ultramsg', 'instance_id' => 'i1', 'api_token' => 't1']);
+
+        (new WhatsAppService())->sendText($config, '60199999999', 'Hello');
+
+        Http::assertSent(fn ($r) => $r->data()['to'] === '60199999999');
+    }
+
     public function test_unknown_provider_returns_error(): void
     {
         $config = new WhatsAppConfig(['provider' => 'twilio']);

@@ -4,6 +4,7 @@ namespace App\Services\WhatsApp;
 
 use App\Models\WhatsAppConfig;
 use App\Models\WhatsAppTemplate;
+use Illuminate\Support\Facades\Log;
 use App\Services\WhatsApp\Drivers\AiSensyDriver;
 use App\Services\WhatsApp\Drivers\GraspGatewayDriver;
 use App\Services\WhatsApp\Drivers\UltraMsgDriver;
@@ -33,6 +34,33 @@ class WhatsAppService
             fn ($key) => (string) ($data[$key] ?? ''),
             $template->aisensy_params
         );
+    }
+
+    /**
+     * Redirect the recipient when the sandbox guard is configured.
+     *
+     * Non-production environments run on a restored copy of the live database,
+     * so every customer row holds a real phone number. Rather than mutate that
+     * data — which the next restore would undo — this reroutes the send itself.
+     *
+     * Deliberately NOT gated on app.env: a staging box configured as
+     * 'production' would otherwise silently message real customers. The guard
+     * is active whenever the variable is set, and nowhere else.
+     */
+    private function resolveRecipient(string $phone): string
+    {
+        $sandbox = trim((string) config('pawnsys.whatsapp.sandbox_to'));
+
+        if ($sandbox === '' || $sandbox === $phone) {
+            return $phone;
+        }
+
+        Log::warning('WhatsApp sandbox guard: message redirected', [
+            'intended' => $phone,
+            'sent_to' => $sandbox,
+        ]);
+
+        return $sandbox;
     }
 
     /**
@@ -109,7 +137,7 @@ class WhatsAppService
 
         return $driver->sendText(
             $config,
-            $phone,
+            $this->resolveRecipient($phone),
             $body,
             $template?->aisensy_campaign,
             $params,
@@ -139,7 +167,7 @@ class WhatsAppService
 
         return $driver->sendDocument(
             $config,
-            $phone,
+            $this->resolveRecipient($phone),
             $pdfBase64,
             $filename,
             $body,

@@ -79,6 +79,12 @@ return [
         // Meta error 132001 ("does not exist in <lang>"), so this has to track
         // whatever the paja_* templates were actually registered as.
         'grasp_language' => env('WA_GATEWAY_TEMPLATE_LANG', 'en'),
+
+        // Sandbox guard for non-production copies of the live database.
+        // When set, EVERY outgoing WhatsApp message is redirected to this
+        // number instead of the customer's, so a restored live snapshot cannot
+        // message real customers. Leave unset (the default) in production.
+        'sandbox_to' => env('WHATSAPP_SANDBOX_TO'),
     ],
 
     // Barcode Settings

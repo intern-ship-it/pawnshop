@@ -262,6 +262,7 @@ export default function WhatsAppSettings() {
 
   // FIX: Add state for expanded messages (inline expansion)
   const [expandedMessages, setExpandedMessages] = useState({});
+  const [expandedTemplates, setExpandedTemplates] = useState({});
 
   useEffect(() => {
     loadFromApi();
@@ -462,6 +463,13 @@ export default function WhatsAppSettings() {
     setExpandedMessages((prev) => ({
       ...prev,
       [msgId]: !prev[msgId],
+    }));
+  };
+
+  const toggleTemplateExpansion = (templateId) => {
+    setExpandedTemplates((prev) => ({
+      ...prev,
+      [templateId]: !prev[templateId],
     }));
   };
 
@@ -1196,9 +1204,37 @@ export default function WhatsAppSettings() {
 
                       {/* Preview */}
                       <div className="mt-3 ml-14">
-                        <pre className="text-xs text-zinc-500 bg-zinc-100 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-24">
-                          {template.template.slice(0, 150)}...
+                        <pre
+                          className={cn(
+                            "text-xs text-zinc-500 bg-zinc-100 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap transition-all",
+                            expandedTemplates[template.id]
+                              ? "max-h-none"
+                              : "max-h-24",
+                          )}
+                        >
+                          {expandedTemplates[template.id] ||
+                          template.template.length <= 150
+                            ? template.template
+                            : `${template.template.slice(0, 150)}...`}
                         </pre>
+                        {template.template.length > 150 && (
+                          <button
+                            onClick={() => toggleTemplateExpansion(template.id)}
+                            className="mt-2 flex items-center gap-1 text-xs font-medium text-amber-600 transition-colors hover:text-amber-700"
+                          >
+                            {expandedTemplates[template.id] ? (
+                              <>
+                                <ChevronUp className="h-3 w-3" />
+                                Show less
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3 w-3" />
+                                Show full message
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </Reorder.Item>
