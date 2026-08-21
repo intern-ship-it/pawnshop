@@ -306,6 +306,8 @@ export default function WhatsAppSettings() {
   const [testCountry, setTestCountry] = useState("60");
   // Once the picker is set by hand, stop overriding it as the user keeps typing.
   const [testCountryPinned, setTestCountryPinned] = useState(false);
+  // Approved templates read live from the gateway, for the mapping dropdown.
+  const [gatewayTemplates, setGatewayTemplates] = useState(null);
   const [testTemplate, setTestTemplate] = useState("pledge_created");
   const [isSending, setIsSending] = useState(false);
 
@@ -608,6 +610,16 @@ export default function WhatsAppSettings() {
   const openEditTemplate = (template) => {
     setEditingTemplate({ ...template });
     setShowEditModal(true);
+
+    // Read the approved list fresh each time — templates are approved on the
+    // gateway, not here, so a cached list goes stale without warning.
+    if (usesTemplateMapping) {
+      setGatewayTemplates(null);
+      whatsappService
+        .getGatewayTemplates()
+        .then((r) => setGatewayTemplates(r?.data ?? { available: false, templates: [] }))
+        .catch(() => setGatewayTemplates({ available: false, templates: [] }));
+    }
   };
 
   // TEMPORARY: delete a duplicate template row (hide this button later).
@@ -1668,21 +1680,108 @@ export default function WhatsAppSettings() {
                       : "The message body is managed in your AiSensy dashboard. Only the campaign name and parameter mapping are needed here."}
                   </p>
                 </div>
-                  <Input
-                    label={
+                  {(() => {
+                    const label =
                       config.provider === "grasp"
                         ? "Gateway Template Name"
-                        : "AiSensy Campaign Name"
-                    }
-                    placeholder="e.g. pledge_created_v1"
-                    value={editingTemplate.aisensy_campaign || ""}
-                    onChange={(e) =>
-                      setEditingTemplate({
-                        ...editingTemplate,
-                        aisensy_campaign: e.target.value,
-                      })
-                    }
-                  />
+                        : "AiSensy Campaign Name";
+                    const approved = gatewayTemplates?.templates || [];
+                    const canPick =
+                      gatewayTemplates?.available && approved.length > 0;
+                    const chosen = editingTemplate.aisensy_campaign || "";
+                    // A name saved earlier may no longer be in the approved
+                    // list; keep it selectable rather than silently dropping it.
+                    const missing =
+                      canPick && chosen && !approved.some((t) => t.name === chosen);
+                    const match = approved.find((t) => t.name === chosen);
+                    const mapped = (editingTemplate.aisensy_params || []).length;
+
+                    return (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-zinc-700">
+                          {label}
+                        </label>
+
+                        {gatewayTemplates === null && usesTemplateMapping ? (
+                          <div className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-400">
+                            Loading approved templates…
+                          </div>
+                        ) : canPick ? (
+                          <select
+                            value={chosen}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                aisensy_campaign: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                          >
+                            <option value="">— Select a template —</option>
+                            {missing && (
+                              <option value={chosen}>
+                                {chosen} (not in approved list)
+                              </option>
+                            )}
+                            {approved.map((t) => (
+                              <option key={t.name} value={t.name}>
+                                {t.name} — {t.variable_count} variables
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="e.g. paja_pledge"
+                            value={chosen}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                aisensy_campaign: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                          />
+                        )}
+
+                        {/* Parameter count check against the approved template. */}
+                        {match && (
+                          <p
+                            className={cn(
+                              "mt-1 text-xs font-medium",
+                              match.variable_count === mapped
+                                ? "text-green-600"
+                                : "text-red-600",
+                            )}
+                          >
+                            {match.variable_count === mapped
+                              ? `Needs ${match.variable_count} parameters — you have ${mapped}.`
+                              : `Needs ${match.variable_count} parameters, but ${mapped} are mapped. WhatsApp will reject this send.`}
+                          </p>
+                        )}
+
+                        {gatewayTemplates && !gatewayTemplates.available && (
+                          <p className="mt-1 text-xs text-amber-600">
+                            Could not read the approved list from the gateway —
+                            type the name manually.
+                          </p>
+                        )}
+
+                        {canPick && gatewayTemplates.prefix && (
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Showing {approved.length} of {gatewayTemplates.total}{" "}
+                            templates matching “{gatewayTemplates.prefix}”.
+                          </p>
+                        )}
+
+                        {match?.body && (
+                          <pre className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg bg-zinc-100 p-2 text-[11px] text-zinc-600">
+                            {match.body}
+                          </pre>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 mb-1">
                       Parameters (ordered, comma-separated variable names)

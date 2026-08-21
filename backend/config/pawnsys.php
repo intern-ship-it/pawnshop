@@ -85,6 +85,11 @@ return [
         // number instead of the customer's, so a restored live snapshot cannot
         // message real customers. Leave unset (the default) in production.
         'sandbox_to' => env('WHATSAPP_SANDBOX_TO'),
+
+        // The gateway is multi-tenant and its template list can run to hundreds
+        // of other tenants' templates, so only ours are offered for mapping.
+        // Blank shows everything.
+        'grasp_template_prefix' => env('WA_GATEWAY_TEMPLATE_PREFIX', 'paja_'),
     ],
 
     // Barcode Settings

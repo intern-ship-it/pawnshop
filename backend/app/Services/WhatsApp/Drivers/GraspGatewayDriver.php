@@ -24,11 +24,18 @@ class GraspGatewayDriver implements WhatsAppDriver
         return rtrim((string) config('pawnsys.whatsapp.grasp_base_url'), '/');
     }
 
-    private function http(): \Illuminate\Http\Client\PendingRequest
+    /**
+     * @param int $seconds Sends wait out the gateway's 30s upstream AiSensy
+     *                     timeout, or we abandon requests it is still
+     *                     completing. Reads that only populate a form must not:
+     *                     measured against the live gateway, a failing template
+     *                     list takes the full 30s, which is half a minute of
+     *                     staring at a spinner before the manual fallback
+     *                     appears.
+     */
+    private function http(int $seconds = 40): \Illuminate\Http\Client\PendingRequest
     {
-        // The gateway's upstream AiSensy timeout is 30s, so we must wait longer
-        // than that or we abandon requests the gateway is still completing.
-        $client = Http::timeout(40);
+        $client = Http::timeout($seconds);
         return app()->environment('local') ? $client->withoutVerifying() : $client;
     }
 
@@ -174,6 +181,47 @@ class GraspGatewayDriver implements WhatsAppDriver
         return $body['message'] ?? ('WhatsApp gateway request failed: ' . $status);
     }
 
+    /**
+     * List the tenant's Meta-approved templates, read live from AiSensy.
+     *
+     * The gateway returns HTTP 200 with an empty list on ANY failure — bad
+     * credentials, AiSensy unreachable, tenant not onboarded — so an empty
+     * result is "unknown", never "this tenant has none". Callers must not
+     * present it as an authoritative list.
+     *
+     * @return array{ok: bool, templates: array<int, array{name: string, variable_count: int, body: string}>}
+     */
+    public function listTemplates(WhatsAppConfig $config): array
+    {
+        if (empty($config->api_token) || empty($config->instance_id)) {
+            return ['ok' => false, 'templates' => []];
+        }
+
+        try {
+            $response = $this->http(8)
+                ->withHeaders([
+                    'X-Service-Key' => (string) $config->api_token,
+                    'X-Temple-ID' => (string) $config->instance_id,
+                ])
+                ->get($this->baseUrl() . '/api/internal/templates');
+
+            $body = $response->json() ?? [];
+            $rows = $body['data'] ?? [];
+
+            if (!$response->successful() || !is_array($rows) || $rows === []) {
+                return ['ok' => false, 'templates' => []];
+            }
+
+            return ['ok' => true, 'templates' => array_map(fn ($t) => [
+                'name' => (string) ($t['name'] ?? ''),
+                'variable_count' => (int) ($t['variable_count'] ?? 0),
+                'body' => (string) ($t['body'] ?? ''),
+            ], $rows)];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'templates' => []];
+        }
+    }
+
     public function testConnection(WhatsAppConfig $config): array
     {
         if (empty($config->api_token)) {
@@ -186,7 +234,7 @@ class GraspGatewayDriver implements WhatsAppDriver
         try {
             // /internal/status exercises the service key and the tenant binding
             // together, so it fails loudly on a bad key or an unonboarded tenant.
-            $response = $this->http()
+            $response = $this->http(15)
                 ->withHeaders([
                     'X-Service-Key' => (string) $config->api_token,
                     'X-Temple-ID' => (string) $config->instance_id,

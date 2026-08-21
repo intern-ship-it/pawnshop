@@ -69,6 +69,23 @@ const whatsappService = {
     },
 
     /**
+     * List the Meta-approved templates this branch can map to, read live from
+     * the gateway. Returns available:false when the list could not be read —
+     * the gateway answers 200 with an empty list on failure, so an empty result
+     * must not be shown as "no templates".
+     * GET /api/whatsapp/gateway-templates
+     */
+    getGatewayTemplates: async () => {
+        try {
+            const response = await api.get('/whatsapp/gateway-templates')
+            return response
+        } catch (error) {
+            console.error('Get gateway templates failed:', error)
+            return { success: false, data: { available: false, templates: [] } }
+        }
+    },
+
+    /**
      * Update a message template
      * PUT /api/whatsapp/templates/:id
      * @param {number|string} templateId - Template ID

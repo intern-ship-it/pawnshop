@@ -156,6 +156,49 @@ class GraspGatewayDriverTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_list_templates_returns_the_approved_templates(): void
+    {
+        Http::fake(['*/api/internal/templates' => Http::response([
+            'success' => true,
+            'data' => [
+                ['name' => 'paja_pledge', 'variable_count' => 9, 'body' => 'x {{1}}'],
+                ['name' => 'donation_success', 'variable_count' => 4, 'body' => 'y {{1}}'],
+            ],
+        ], 200)]);
+
+        $result = (new GraspGatewayDriver())->listTemplates($this->config());
+
+        $this->assertTrue($result['ok']);
+        $this->assertCount(2, $result['templates']);
+        $this->assertSame('paja_pledge', $result['templates'][0]['name']);
+        $this->assertSame(9, $result['templates'][0]['variable_count']);
+
+        Http::assertSent(fn ($r) => $r->hasHeader('X-Service-Key', 'service-key')
+            && $r->hasHeader('X-Temple-ID', 'pawnsys'));
+    }
+
+    public function test_empty_list_is_reported_as_unknown_not_as_no_templates(): void
+    {
+        // The gateway answers 200 with an empty list on ANY failure, so this
+        // must never be presented as an authoritative "this tenant has none".
+        Http::fake(['*/api/internal/templates' => Http::response(['success' => true, 'data' => []], 200)]);
+
+        $result = (new GraspGatewayDriver())->listTemplates($this->config());
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame([], $result['templates']);
+    }
+
+    public function test_list_templates_needs_credentials_before_calling_out(): void
+    {
+        Http::fake();
+
+        $result = (new GraspGatewayDriver())->listTemplates(new WhatsAppConfig(['provider' => 'grasp']));
+
+        $this->assertFalse($result['ok']);
+        Http::assertNothingSent();
+    }
+
     public function test_test_connection_checks_key_and_tenant_together(): void
     {
         Http::fake(['*/api/internal/status' => Http::response(['success' => true, 'data' => []], 200)]);
