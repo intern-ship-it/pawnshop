@@ -205,6 +205,68 @@ Sila hubungi kami segera jika anda ingin menebus barang anda.
   },
 ];
 
+// Dialling codes for the test send. Malaysia first as the common case; the
+// rest cover where staff and customers actually are. A bare local number
+// cannot be attributed to a country reliably, so this is chosen, not guessed.
+const TEST_COUNTRIES = [
+  { code: "60", flag: "\u{1F1F2}\u{1F1FE}", name: "Malaysia" },
+  { code: "91", flag: "\u{1F1EE}\u{1F1F3}", name: "India" },
+  { code: "65", flag: "\u{1F1F8}\u{1F1EC}", name: "Singapore" },
+  { code: "62", flag: "\u{1F1EE}\u{1F1E9}", name: "Indonesia" },
+  { code: "66", flag: "\u{1F1F9}\u{1F1ED}", name: "Thailand" },
+  { code: "971", flag: "\u{1F1E6}\u{1F1EA}", name: "UAE" },
+  { code: "44", flag: "\u{1F1EC}\u{1F1E7}", name: "UK" },
+  { code: "1", flag: "\u{1F1FA}\u{1F1F8}", name: "USA" },
+];
+
+/**
+ * Guess the dialling code from a locally-typed number.
+ *
+ * A prefix alone proves nothing — a Malaysian 146478869 opens with the US
+ * code — so an explicit prefix only counts when what follows is a plausible
+ * national number length for that country. Genuinely ambiguous input returns
+ * null and leaves the picker alone rather than misrouting the message.
+ */
+const NATIONAL_LENGTHS = {
+  60: [9, 10],
+  91: [10],
+  65: [8],
+  62: [9, 10, 11, 12],
+  66: [9],
+  971: [9],
+  44: [10],
+  1: [10],
+};
+
+function detectCountryCode(input) {
+  const digits = String(input || "").replace(/[^0-9]/g, "");
+  if (digits.length < 8) return null;
+
+  // A leading 0 is a national trunk prefix, never a country code.
+  if (digits.startsWith("0")) return "60";
+
+  // Typed with the country code in front — but only believe it when the
+  // remainder is a valid national length for that country.
+  const explicit = Object.keys(NATIONAL_LENGTHS)
+    .sort((a, b) => b.length - a.length)
+    .find(
+      (code) =>
+        digits.startsWith(code) &&
+        NATIONAL_LENGTHS[code].includes(digits.length - code.length),
+    );
+  if (explicit) return explicit;
+
+  // Malaysian mobiles are 1x-xxx xxxx without the trunk 0.
+  if (digits.startsWith("1") && (digits.length === 9 || digits.length === 10)) {
+    return "60";
+  }
+
+  // Indian mobiles are 10 digits starting 6-9.
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return "91";
+
+  return null;
+}
+
 // Default WhatsApp config
 const defaultConfig = {
   enabled: false,
@@ -241,6 +303,9 @@ export default function WhatsAppSettings() {
   // Test modal
   const [showTestModal, setShowTestModal] = useState(false);
   const [testPhone, setTestPhone] = useState("");
+  const [testCountry, setTestCountry] = useState("60");
+  // Once the picker is set by hand, stop overriding it as the user keeps typing.
+  const [testCountryPinned, setTestCountryPinned] = useState(false);
   const [testTemplate, setTestTemplate] = useState("pledge_created");
   const [isSending, setIsSending] = useState(false);
 
@@ -640,28 +705,22 @@ export default function WhatsAppSettings() {
 
     setIsSending(true);
     try {
-      // Normalize phone number - add country code if not present
-      let normalizedPhone = testPhone
-        .trim()
-        .replace(/\s+/g, "")
-        .replace(/-/g, "");
+      // The country comes from the picker, so the local part is whatever is
+      // left after stripping punctuation, a leading 0, or a code the user
+      // typed anyway. WhatsApp wants digits only, no '+'.
+      let localPart = testPhone.trim().replace(/[^0-9+]/g, "");
 
-      // Get country code from settings (without the +)
-      const countryCode = (config.defaultCountryCode || "+60").replace("+", "");
-
-      // If phone doesn't start with country code, add it
-      if (
-        !normalizedPhone.startsWith(countryCode) &&
-        !normalizedPhone.startsWith("+")
-      ) {
-        // Remove leading 0 if present (e.g., 0123456789 -> 123456789)
-        if (normalizedPhone.startsWith("0")) {
-          normalizedPhone = normalizedPhone.substring(1);
-        }
-        normalizedPhone = countryCode + normalizedPhone;
+      if (localPart.startsWith("+")) {
+        localPart = localPart.substring(1);
       }
-      // If starts with +, remove it (WhatsApp API usually wants just digits)
-      normalizedPhone = normalizedPhone.replace("+", "");
+      if (localPart.startsWith(testCountry)) {
+        localPart = localPart.substring(testCountry.length);
+      }
+      if (localPart.startsWith("0")) {
+        localPart = localPart.substring(1);
+      }
+
+      const normalizedPhone = testCountry + localPart;
 
       const response = await whatsappService.send({
         template_key: testTemplate,
@@ -1412,14 +1471,49 @@ export default function WhatsAppSettings() {
               </h3>
 
               <div className="space-y-4">
-                <Input
-                  label="Phone Number"
-                  placeholder="0123456789 or 60123456789"
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                  leftIcon={Phone}
-                  hint={`Country code ${config.defaultCountryCode || "+60"} will be added automatically if not included`}
-                />
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">
+                    Phone Number
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={testCountry}
+                      onChange={(e) => {
+                        setTestCountry(e.target.value);
+                        setTestCountryPinned(true);
+                      }}
+                      className="w-36 shrink-0 rounded-lg border border-zinc-300 px-2 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                      aria-label="Country dialling code"
+                    >
+                      {TEST_COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} +{c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      className="flex-1"
+                      placeholder="0123456789"
+                      value={testPhone}
+                      onChange={(e) => {
+                        setTestPhone(e.target.value);
+                        if (!testCountryPinned) {
+                          const guess = detectCountryCode(e.target.value);
+                          if (guess) setTestCountry(guess);
+                        }
+                      }}
+                      leftIcon={Phone}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Sending to{" "}
+                    <span className="font-semibold text-zinc-700">
+                      +{testCountry}
+                      {testPhone.replace(/[^0-9]/g, "").replace(/^0/, "")}
+                    </span>{" "}
+                    &middot; enter the local number without the country code.
+                  </p>
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 mb-1">
