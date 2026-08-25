@@ -205,10 +205,72 @@ Sila hubungi kami segera jika anda ingin menebus barang anda.
   },
 ];
 
+// Dialling codes for the test send. Malaysia first as the common case; the
+// rest cover where staff and customers actually are. A bare local number
+// cannot be attributed to a country reliably, so this is chosen, not guessed.
+const TEST_COUNTRIES = [
+  { code: "60", flag: "\u{1F1F2}\u{1F1FE}", name: "Malaysia" },
+  { code: "91", flag: "\u{1F1EE}\u{1F1F3}", name: "India" },
+  { code: "65", flag: "\u{1F1F8}\u{1F1EC}", name: "Singapore" },
+  { code: "62", flag: "\u{1F1EE}\u{1F1E9}", name: "Indonesia" },
+  { code: "66", flag: "\u{1F1F9}\u{1F1ED}", name: "Thailand" },
+  { code: "971", flag: "\u{1F1E6}\u{1F1EA}", name: "UAE" },
+  { code: "44", flag: "\u{1F1EC}\u{1F1E7}", name: "UK" },
+  { code: "1", flag: "\u{1F1FA}\u{1F1F8}", name: "USA" },
+];
+
+/**
+ * Guess the dialling code from a locally-typed number.
+ *
+ * A prefix alone proves nothing — a Malaysian 146478869 opens with the US
+ * code — so an explicit prefix only counts when what follows is a plausible
+ * national number length for that country. Genuinely ambiguous input returns
+ * null and leaves the picker alone rather than misrouting the message.
+ */
+const NATIONAL_LENGTHS = {
+  60: [9, 10],
+  91: [10],
+  65: [8],
+  62: [9, 10, 11, 12],
+  66: [9],
+  971: [9],
+  44: [10],
+  1: [10],
+};
+
+function detectCountryCode(input) {
+  const digits = String(input || "").replace(/[^0-9]/g, "");
+  if (digits.length < 8) return null;
+
+  // A leading 0 is a national trunk prefix, never a country code.
+  if (digits.startsWith("0")) return "60";
+
+  // Typed with the country code in front — but only believe it when the
+  // remainder is a valid national length for that country.
+  const explicit = Object.keys(NATIONAL_LENGTHS)
+    .sort((a, b) => b.length - a.length)
+    .find(
+      (code) =>
+        digits.startsWith(code) &&
+        NATIONAL_LENGTHS[code].includes(digits.length - code.length),
+    );
+  if (explicit) return explicit;
+
+  // Malaysian mobiles are 1x-xxx xxxx without the trunk 0.
+  if (digits.startsWith("1") && (digits.length === 9 || digits.length === 10)) {
+    return "60";
+  }
+
+  // Indian mobiles are 10 digits starting 6-9.
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return "91";
+
+  return null;
+}
+
 // Default WhatsApp config
 const defaultConfig = {
   enabled: false,
-  provider: "ultramsg", // ultramsg, twilio, wati
+  provider: "ultramsg", // ultramsg, twilio, wati, aisensy, grasp
   instanceId: "",
   token: "",
   phoneNumberId: "",
@@ -241,6 +303,11 @@ export default function WhatsAppSettings() {
   // Test modal
   const [showTestModal, setShowTestModal] = useState(false);
   const [testPhone, setTestPhone] = useState("");
+  const [testCountry, setTestCountry] = useState("60");
+  // Once the picker is set by hand, stop overriding it as the user keeps typing.
+  const [testCountryPinned, setTestCountryPinned] = useState(false);
+  // Approved templates read live from the gateway, for the mapping dropdown.
+  const [gatewayTemplates, setGatewayTemplates] = useState(null);
   const [testTemplate, setTestTemplate] = useState("pledge_created");
   const [isSending, setIsSending] = useState(false);
 
@@ -250,12 +317,19 @@ export default function WhatsAppSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasExistingToken, setHasExistingToken] = useState(false);
 
+  // AiSensy and the Grasp gateway both send a Meta-approved template by name
+  // with ordered params, so the message body stored here is never sent — the
+  // campaign/template name and parameter mapping are what matter instead.
+  const usesTemplateMapping =
+    config.provider === "aisensy" || config.provider === "grasp";
+
   // FIX: Add state for viewing full message
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
   // FIX: Add state for expanded messages (inline expansion)
   const [expandedMessages, setExpandedMessages] = useState({});
+  const [expandedTemplates, setExpandedTemplates] = useState({});
 
   useEffect(() => {
     loadFromApi();
@@ -459,6 +533,13 @@ export default function WhatsAppSettings() {
     }));
   };
 
+  const toggleTemplateExpansion = (templateId) => {
+    setExpandedTemplates((prev) => ({
+      ...prev,
+      [templateId]: !prev[templateId],
+    }));
+  };
+
   // FIX: Open message in modal
   const openMessageModal = (msg) => {
     setSelectedMessage(msg);
@@ -529,6 +610,16 @@ export default function WhatsAppSettings() {
   const openEditTemplate = (template) => {
     setEditingTemplate({ ...template });
     setShowEditModal(true);
+
+    // Read the approved list fresh each time — templates are approved on the
+    // gateway, not here, so a cached list goes stale without warning.
+    if (usesTemplateMapping) {
+      setGatewayTemplates(null);
+      whatsappService
+        .getGatewayTemplates()
+        .then((r) => setGatewayTemplates(r?.data ?? { available: false, templates: [] }))
+        .catch(() => setGatewayTemplates({ available: false, templates: [] }));
+    }
   };
 
   // TEMPORARY: delete a duplicate template row (hide this button later).
@@ -576,7 +667,7 @@ export default function WhatsAppSettings() {
         content: editingTemplate.template,
         is_enabled: editingTemplate.enabled,
       };
-      if (config.provider === "aisensy") {
+      if (usesTemplateMapping) {
         payload.aisensy_campaign = editingTemplate.aisensy_campaign || null;
         payload.aisensy_params = editingTemplate.aisensy_params || [];
       }
@@ -626,28 +717,22 @@ export default function WhatsAppSettings() {
 
     setIsSending(true);
     try {
-      // Normalize phone number - add country code if not present
-      let normalizedPhone = testPhone
-        .trim()
-        .replace(/\s+/g, "")
-        .replace(/-/g, "");
+      // The country comes from the picker, so the local part is whatever is
+      // left after stripping punctuation, a leading 0, or a code the user
+      // typed anyway. WhatsApp wants digits only, no '+'.
+      let localPart = testPhone.trim().replace(/[^0-9+]/g, "");
 
-      // Get country code from settings (without the +)
-      const countryCode = (config.defaultCountryCode || "+60").replace("+", "");
-
-      // If phone doesn't start with country code, add it
-      if (
-        !normalizedPhone.startsWith(countryCode) &&
-        !normalizedPhone.startsWith("+")
-      ) {
-        // Remove leading 0 if present (e.g., 0123456789 -> 123456789)
-        if (normalizedPhone.startsWith("0")) {
-          normalizedPhone = normalizedPhone.substring(1);
-        }
-        normalizedPhone = countryCode + normalizedPhone;
+      if (localPart.startsWith("+")) {
+        localPart = localPart.substring(1);
       }
-      // If starts with +, remove it (WhatsApp API usually wants just digits)
-      normalizedPhone = normalizedPhone.replace("+", "");
+      if (localPart.startsWith(testCountry)) {
+        localPart = localPart.substring(testCountry.length);
+      }
+      if (localPart.startsWith("0")) {
+        localPart = localPart.substring(1);
+      }
+
+      const normalizedPhone = testCountry + localPart;
 
       const response = await whatsappService.send({
         template_key: testTemplate,
@@ -660,6 +745,12 @@ export default function WhatsAppSettings() {
           pledge_no: "PLG-2024-TEST",
           receipt_no: "PLG-2024-TEST",
           date: new Date().toLocaleDateString("en-MY"),
+          // Pledge detail lines. Providers that send an approved template
+          // reject blank parameters outright, so every field a real send
+          // supplies has to be present here or the test cannot go through.
+          items: "RING (916) - 5.00G",
+          total_weight: "5.00",
+          interest_rate: "1.00",
           loan_amount: "2,500.00",
           due_date: new Date(
             Date.now() + 180 * 24 * 60 * 60 * 1000,
@@ -670,7 +761,23 @@ export default function WhatsAppSettings() {
           ).toLocaleDateString("en-MY"),
           total_paid: "2,550.00",
           redemption_amount: "2,550.00",
-          days_overdue: "0",
+          // Renewal fields
+          renewal_no: "RNW-2024-TEST",
+          extended: "6",
+          // Redemption fields
+          redemption_no: "RDM-2024-TEST",
+          items_released: "RING (916) - 5.00G",
+          principal: "2,500.00",
+          interest: "50.00",
+          payment_mode: "CASH",
+          amount_paid: "2,550.00",
+          // The reminder job supplies these names (see SendDueReminders::
+          // buildTemplateData). days_overdue is the older spelling kept for
+          // template bodies that still reference it.
+          days_overdue: "15",
+          overdue_days: "15",
+          overdue_interest: "1,034.00",
+          current_interest: "517.00",
           auction_date: new Date(
             Date.now() + 210 * 24 * 60 * 60 * 1000,
           ).toLocaleDateString("en-MY"),
@@ -706,13 +813,27 @@ export default function WhatsAppSettings() {
     "{customer_ic}",
     "{pledge_no}",
     "{date}",
+    "{items}",
+    "{total_weight}",
+    "{interest_rate}",
     "{loan_amount}",
     "{due_date}",
     "{interest_paid}",
     "{new_due_date}",
     "{total_paid}",
     "{redemption_amount}",
+    "{renewal_no}",
+    "{extended}",
+    "{redemption_no}",
+    "{items_released}",
+    "{principal}",
+    "{interest}",
+    "{payment_mode}",
+    "{amount_paid}",
     "{days_overdue}",
+    "{overdue_days}",
+    "{overdue_interest}",
+    "{current_interest}",
     "{auction_date}",
     "{company_name}",
     "{company_phone}",
@@ -851,13 +972,20 @@ export default function WhatsAppSettings() {
                     <option value="twilio">Twilio</option>
                     <option value="wati">WATI</option>
                     <option value="aisensy">AiSensy</option>
+                    <option value="grasp">Grasp WhatsApp Gateway</option>
                   </select>
                 </div>
 
                 {config.provider !== "aisensy" && (
                   <Input
-                    label="Instance ID"
-                    placeholder="Enter instance ID"
+                    label={
+                      config.provider === "grasp" ? "Tenant ID" : "Instance ID"
+                    }
+                    placeholder={
+                      config.provider === "grasp"
+                        ? "Tenant key on the gateway, e.g. pawnsys"
+                        : "Enter instance ID"
+                    }
                     value={config.instanceId}
                     onChange={(e) =>
                       setConfig({ ...config, instanceId: e.target.value })
@@ -869,7 +997,11 @@ export default function WhatsAppSettings() {
                 <div>
                   <Input
                     label={
-                      config.provider === "aisensy" ? "API Key" : "API Token"
+                      config.provider === "aisensy"
+                        ? "API Key"
+                        : config.provider === "grasp"
+                          ? "Gateway Service Key"
+                          : "API Token"
                     }
                     type="password"
                     placeholder={
@@ -877,7 +1009,9 @@ export default function WhatsAppSettings() {
                         ? "••••••••••••••••"
                         : config.provider === "aisensy"
                           ? "Enter API key"
-                          : "Enter API token"
+                          : config.provider === "grasp"
+                            ? "Enter gateway service key"
+                            : "Enter API token"
                     }
                     value={config.token}
                     onChange={(e) =>
@@ -1009,7 +1143,23 @@ export default function WhatsAppSettings() {
                   <MessageCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-700">
                     <p className="font-medium">How it works:</p>
-                    {config.provider === "aisensy" ? (
+                    {config.provider === "grasp" ? (
+                      <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                        <li>
+                          Ask Grasp to onboard this branch as a tenant on the
+                          gateway
+                        </li>
+                        <li>
+                          Enter the Tenant ID and the gateway Service Key above
+                        </li>
+                        <li>Test connection, then enable WhatsApp</li>
+                        <li>
+                          Map each message type to its approved template name +
+                          parameters (Templates tab)
+                        </li>
+                        <li>Messages will be sent automatically!</li>
+                      </ol>
+                    ) : config.provider === "aisensy" ? (
                       <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
                         <li>
                           Create &amp; get your WhatsApp templates approved in
@@ -1134,9 +1284,37 @@ export default function WhatsAppSettings() {
 
                       {/* Preview */}
                       <div className="mt-3 ml-14">
-                        <pre className="text-xs text-zinc-500 bg-zinc-100 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-24">
-                          {template.template.slice(0, 150)}...
+                        <pre
+                          className={cn(
+                            "text-xs text-zinc-500 bg-zinc-100 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap transition-all",
+                            expandedTemplates[template.id]
+                              ? "max-h-none"
+                              : "max-h-24",
+                          )}
+                        >
+                          {expandedTemplates[template.id] ||
+                          template.template.length <= 150
+                            ? template.template
+                            : `${template.template.slice(0, 150)}...`}
                         </pre>
+                        {template.template.length > 150 && (
+                          <button
+                            onClick={() => toggleTemplateExpansion(template.id)}
+                            className="mt-2 flex items-center gap-1 text-xs font-medium text-amber-600 transition-colors hover:text-amber-700"
+                          >
+                            {expandedTemplates[template.id] ? (
+                              <>
+                                <ChevronUp className="h-3 w-3" />
+                                Show less
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3 w-3" />
+                                Show full message
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </Reorder.Item>
@@ -1305,14 +1483,49 @@ export default function WhatsAppSettings() {
               </h3>
 
               <div className="space-y-4">
-                <Input
-                  label="Phone Number"
-                  placeholder="0123456789 or 60123456789"
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                  leftIcon={Phone}
-                  hint={`Country code ${config.defaultCountryCode || "+60"} will be added automatically if not included`}
-                />
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">
+                    Phone Number
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={testCountry}
+                      onChange={(e) => {
+                        setTestCountry(e.target.value);
+                        setTestCountryPinned(true);
+                      }}
+                      className="w-36 shrink-0 rounded-lg border border-zinc-300 px-2 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                      aria-label="Country dialling code"
+                    >
+                      {TEST_COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} +{c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      className="flex-1"
+                      placeholder="0123456789"
+                      value={testPhone}
+                      onChange={(e) => {
+                        setTestPhone(e.target.value);
+                        if (!testCountryPinned) {
+                          const guess = detectCountryCode(e.target.value);
+                          if (guess) setTestCountry(guess);
+                        }
+                      }}
+                      leftIcon={Phone}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Sending to{" "}
+                    <span className="font-semibold text-zinc-700">
+                      +{testCountry}
+                      {testPhone.replace(/[^0-9]/g, "").replace(/^0/, "")}
+                    </span>{" "}
+                    &middot; enter the local number without the country code.
+                  </p>
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 mb-1">
@@ -1394,7 +1607,7 @@ export default function WhatsAppSettings() {
                 }
               />
 
-              {config.provider !== "aisensy" && (
+              {!usesTemplateMapping && (
               <>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">
@@ -1457,24 +1670,124 @@ export default function WhatsAppSettings() {
               </>
               )}
 
-              {config.provider === "aisensy" && (
+              {usesTemplateMapping && (
                 <>
                 <div className="p-3 bg-blue-50 rounded-lg mb-4">
                   <p className="text-xs text-blue-700">
-                    <strong>Note:</strong> The message body is managed in your AiSensy dashboard. Only the campaign name and parameter mapping are needed here.
+                    <strong>Note:</strong>{" "}
+                    {config.provider === "grasp"
+                      ? "The message body lives in the approved template on the gateway. Only the template name and parameter mapping are needed here."
+                      : "The message body is managed in your AiSensy dashboard. Only the campaign name and parameter mapping are needed here."}
                   </p>
                 </div>
-                  <Input
-                    label="AiSensy Campaign Name"
-                    placeholder="e.g. pledge_created_v1"
-                    value={editingTemplate.aisensy_campaign || ""}
-                    onChange={(e) =>
-                      setEditingTemplate({
-                        ...editingTemplate,
-                        aisensy_campaign: e.target.value,
-                      })
-                    }
-                  />
+                  {(() => {
+                    const label =
+                      config.provider === "grasp"
+                        ? "Gateway Template Name"
+                        : "AiSensy Campaign Name";
+                    const approved = gatewayTemplates?.templates || [];
+                    const canPick =
+                      gatewayTemplates?.available && approved.length > 0;
+                    const chosen = editingTemplate.aisensy_campaign || "";
+                    // A name saved earlier may no longer be in the approved
+                    // list; keep it selectable rather than silently dropping it.
+                    const missing =
+                      canPick && chosen && !approved.some((t) => t.name === chosen);
+                    const match = approved.find((t) => t.name === chosen);
+                    const mapped = (editingTemplate.aisensy_params || []).length;
+
+                    return (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-zinc-700">
+                          {label}
+                        </label>
+
+                        {gatewayTemplates === null && usesTemplateMapping ? (
+                          <div className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-400">
+                            Loading approved templates…
+                          </div>
+                        ) : canPick ? (
+                          <select
+                            value={chosen}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                aisensy_campaign: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                          >
+                            <option value="">— Select a template —</option>
+                            {missing && (
+                              <option value={chosen}>
+                                {chosen} (not in approved list)
+                              </option>
+                            )}
+                            {approved.map((t) => (
+                              <option key={t.name} value={t.name}>
+                                {t.name} — {t.variable_count} variables
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="e.g. paja_pledge"
+                            value={chosen}
+                            onChange={(e) =>
+                              setEditingTemplate({
+                                ...editingTemplate,
+                                aisensy_campaign: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                          />
+                        )}
+
+                        {/* Parameter count check against the approved template. */}
+                        {match && (
+                          <p
+                            className={cn(
+                              "mt-1 text-xs font-medium",
+                              match.variable_count === mapped
+                                ? "text-green-600"
+                                : "text-red-600",
+                            )}
+                          >
+                            {match.variable_count === mapped
+                              ? `Needs ${match.variable_count} parameters — you have ${mapped}.`
+                              : `Needs ${match.variable_count} parameters, but ${mapped} are mapped. WhatsApp will reject this send.`}
+                          </p>
+                        )}
+
+                        {gatewayTemplates && !gatewayTemplates.available && (
+                          <p className="mt-1 text-xs text-amber-600">
+                            Could not read the approved list from the gateway —
+                            type the name manually.
+                          </p>
+                        )}
+
+                        {gatewayTemplates?.stale && (
+                          <p className="mt-1 text-xs text-amber-600">
+                            {gatewayTemplates.reason}
+                          </p>
+                        )}
+
+                        {canPick && gatewayTemplates.prefix && (
+                          <p className="mt-1 text-xs text-zinc-500">
+                            Showing {approved.length} of {gatewayTemplates.total}{" "}
+                            templates matching “{gatewayTemplates.prefix}”.
+                          </p>
+                        )}
+
+                        {match?.body && (
+                          <pre className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg bg-zinc-100 p-2 text-[11px] text-zinc-600">
+                            {match.body}
+                          </pre>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 mb-1">
                       Parameters (ordered, comma-separated variable names)

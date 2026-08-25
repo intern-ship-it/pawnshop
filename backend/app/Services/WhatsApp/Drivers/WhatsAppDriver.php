@@ -15,7 +15,9 @@ interface WhatsAppDriver
         string $renderedMessage,
         ?string $campaign = null,
         array $templateParams = [],
-        ?string $recipientName = null
+        ?string $recipientName = null,
+        /** Idempotency key. Only the gateway driver uses it. */
+        ?string $reference = null
     ): array;
 
     /**
@@ -30,7 +32,9 @@ interface WhatsAppDriver
         ?string $publicUrl = null,
         ?string $campaign = null,
         array $templateParams = [],
-        ?string $recipientName = null
+        ?string $recipientName = null,
+        /** Idempotency key. Only the gateway driver uses it. */
+        ?string $reference = null
     ): array;
 
     /**

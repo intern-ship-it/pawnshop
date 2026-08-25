@@ -20,7 +20,8 @@ class UltraMsgDriver implements WhatsAppDriver
         string $renderedMessage,
         ?string $campaign = null,
         array $templateParams = [],
-        ?string $recipientName = null
+        ?string $recipientName = null,
+        ?string $reference = null
     ): array {
         try {
             $response = $this->http()->asForm()->post(
@@ -52,7 +53,8 @@ class UltraMsgDriver implements WhatsAppDriver
         ?string $publicUrl = null,
         ?string $campaign = null,
         array $templateParams = [],
-        ?string $recipientName = null
+        ?string $recipientName = null,
+        ?string $reference = null
     ): array {
         try {
             $response = $this->http()->timeout(60)->asForm()->post(

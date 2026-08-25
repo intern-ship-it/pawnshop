@@ -60,6 +60,36 @@ return [
         'provider' => env('WHATSAPP_PROVIDER', 'ultramsg'),
         'instance_id' => env('WHATSAPP_INSTANCE_ID'),
         'api_token' => env('WHATSAPP_API_TOKEN'),
+
+        // Sign-off appended to every outgoing message body. This only reaches
+        // the customer on providers that send our own text (UltraMsg). AiSensy
+        // builds the body from its own Meta-approved template and ignores
+        // whatever we render, so for AiSensy this line must be added to the
+        // template in the AiSensy dashboard instead. Blank note = no sign-off.
+        'admin_note' => env('WHATSAPP_ADMIN_NOTE', 'Contact admin on this number for any queries.'),
+        'admin_contact' => env('WHATSAPP_ADMIN_CONTACT', '+60 12 694 5430'),
+
+        // Grasp WhatsApp Gateway (provider 'grasp'). We are the AiSensy partner,
+        // so sends route app -> gateway -> AiSensy -> Meta. The branch's
+        // whatsapp_config carries the credentials: api_token = the gateway's
+        // shared SERVICE_API_KEY, instance_id = this branch's tenant key.
+        'grasp_base_url' => env('WA_GATEWAY_BASE_URL', 'https://wbapi.graspsoftwaresolution.com'),
+        // Must match the language code the templates were APPROVED under
+        // ('en' for English, 'ms' for Malay). A mismatch fails the send with
+        // Meta error 132001 ("does not exist in <lang>"), so this has to track
+        // whatever the paja_* templates were actually registered as.
+        'grasp_language' => env('WA_GATEWAY_TEMPLATE_LANG', 'en'),
+
+        // Sandbox guard for non-production copies of the live database.
+        // When set, EVERY outgoing WhatsApp message is redirected to this
+        // number instead of the customer's, so a restored live snapshot cannot
+        // message real customers. Leave unset (the default) in production.
+        'sandbox_to' => env('WHATSAPP_SANDBOX_TO'),
+
+        // The gateway is multi-tenant and its template list can run to hundreds
+        // of other tenants' templates, so only ours are offered for mapping.
+        // Blank shows everything.
+        'grasp_template_prefix' => env('WA_GATEWAY_TEMPLATE_PREFIX', 'paja_'),
     ],
 
     // Barcode Settings

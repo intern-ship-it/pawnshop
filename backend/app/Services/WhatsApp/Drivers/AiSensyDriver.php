@@ -26,7 +26,8 @@ class AiSensyDriver implements WhatsAppDriver
         string $renderedMessage,
         ?string $campaign = null,
         array $templateParams = [],
-        ?string $recipientName = null
+        ?string $recipientName = null,
+        ?string $reference = null
     ): array {
         if (empty($campaign)) {
             return ['success' => false, 'message_id' => null,
@@ -45,7 +46,8 @@ class AiSensyDriver implements WhatsAppDriver
         ?string $publicUrl = null,
         ?string $campaign = null,
         array $templateParams = [],
-        ?string $recipientName = null
+        ?string $recipientName = null,
+        ?string $reference = null
     ): array {
         if (empty($campaign)) {
             return ['success' => false, 'message_id' => null,

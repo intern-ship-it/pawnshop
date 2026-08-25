@@ -45,7 +45,7 @@ class WhatsAppController extends Controller
         $branchId = $request->user()->branch_id;
 
         $validated = $request->validate([
-            'provider' => 'required|in:ultramsg,twilio,wati,aisensy',
+            'provider' => 'required|in:ultramsg,twilio,wati,aisensy,grasp',
             'instance_id' => 'nullable|string|max:100',
             'api_token' => 'nullable|string|max:2000',
             'phone_number' => 'required|string|max:20',
@@ -88,7 +88,121 @@ class WhatsAppController extends Controller
             $config = WhatsAppConfig::create($validated);
         }
 
+        if ($config->provider === 'grasp') {
+            $this->applyGatewayTemplateDefaults($branchId);
+        }
+
         return $this->success($config, 'WhatsApp configuration updated');
+    }
+
+    /**
+     * List the approved templates this branch can map to.
+     *
+     * Proxied rather than called from the browser: the gateway's service key is
+     * a shared secret that must never reach client-side code.
+     */
+    public function gatewayTemplates(Request $request): JsonResponse
+    {
+        $config = WhatsAppConfig::where('branch_id', $request->user()->branch_id)->first();
+
+        if (!$config || $config->provider !== 'grasp') {
+            return $this->success([
+                'available' => false,
+                'reason' => 'The template list is only available on the Grasp gateway.',
+                'templates' => [],
+            ]);
+        }
+
+        $cacheKey = 'wa_gateway_templates_' . $config->branch_id;
+        $result = (new \App\Services\WhatsApp\Drivers\GraspGatewayDriver())->listTemplates($config);
+
+        // The gateway answers 200 with an empty list on any failure, so an empty
+        // result cannot be shown as "no templates". Its AiSensy connection is
+        // intermittent, and the approved list changes rarely, so a reading that
+        // did work stands in for one that did not — the alternative is the
+        // dropdown vanishing mid-session and staff typing names by hand again.
+        if (!$result['ok']) {
+            $cached = cache()->get($cacheKey);
+
+            if ($cached) {
+                return $this->success($cached + [
+                    'stale' => true,
+                    'reason' => 'Showing the last list read from the gateway; it is not responding right now.',
+                ]);
+            }
+
+            return $this->success([
+                'available' => false,
+                'reason' => 'Could not read the template list from the gateway.',
+                'templates' => [],
+            ]);
+        }
+
+        $prefix = (string) config('pawnsys.whatsapp.grasp_template_prefix');
+        $all = $result['templates'];
+        $ours = $prefix === ''
+            ? $all
+            : array_values(array_filter($all, fn ($t) => str_starts_with($t['name'], $prefix)));
+
+        $payload = [
+            'available' => true,
+            'prefix' => $prefix,
+            'total' => count($all),
+            'templates' => $ours,
+        ];
+
+        cache()->put($cacheKey, $payload, now()->addHours(12));
+
+        return $this->success($payload);
+    }
+
+    /**
+     * Fill in the Grasp gateway's template names and parameter order for any
+     * row that has none.
+     *
+     * These name Meta-approved templates and are identical on every
+     * environment, but they live in the database, so each one was being
+     * re-entered by hand — eight names and eight ordered lists. A mistyped name
+     * fails loudly; a parameter in the wrong position does not, it just prints
+     * the IC where the name should be.
+     *
+     * Applied on selecting this provider rather than at deploy time, because
+     * the names belong to this gateway: an UltraMsg or AiSensy branch has its
+     * own and must not inherit these. Blank fields only — a branch that has
+     * pointed a row at a different approved template keeps its own mapping.
+     */
+    private function applyGatewayTemplateDefaults(int $branchId): void
+    {
+        foreach (\Database\Seeders\WhatsAppTemplateSeeder::templates() as $template) {
+            // The branch override wins where one exists, matching how the send
+            // path resolves a template.
+            $row = WhatsAppTemplate::where('template_key', $template['template_key'])
+                ->where(function ($q) use ($branchId) {
+                    $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+                })
+                ->orderBy('branch_id', 'desc')
+                ->first();
+
+            if (!$row) {
+                continue;
+            }
+
+            $changed = false;
+
+            if (blank($row->aisensy_campaign)) {
+                $row->aisensy_campaign = $template['campaign'];
+                $changed = true;
+            }
+
+            if (blank($row->aisensy_params)) {
+                $row->aisensy_params = $template['variables'];
+                $changed = true;
+            }
+
+            if ($changed) {
+                $row->save();
+            }
+        }
     }
     /**
      * Test WhatsApp connection
@@ -292,7 +406,11 @@ class WhatsAppController extends Controller
                 $message,
                 $template,
                 $validated['data'],
-                $validated['recipient_name'] ?? null
+                $validated['recipient_name'] ?? null,
+                // Manual sends repeat the same sample data, which would otherwise
+                // hash to one idempotency reference and be replayed rather than
+                // resent. The log id makes every attempt from here distinct.
+                'pawnsys:manual:' . $log->id
             );
 
             if ($result['success']) {
