@@ -113,12 +113,24 @@ class WhatsAppController extends Controller
             ]);
         }
 
+        $cacheKey = 'wa_gateway_templates_' . $config->branch_id;
         $result = (new \App\Services\WhatsApp\Drivers\GraspGatewayDriver())->listTemplates($config);
 
         // The gateway answers 200 with an empty list on any failure, so an empty
-        // result cannot be shown as "no templates" — the UI falls back to free
-        // text and says so rather than offering an empty dropdown.
+        // result cannot be shown as "no templates". Its AiSensy connection is
+        // intermittent, and the approved list changes rarely, so a reading that
+        // did work stands in for one that did not — the alternative is the
+        // dropdown vanishing mid-session and staff typing names by hand again.
         if (!$result['ok']) {
+            $cached = cache()->get($cacheKey);
+
+            if ($cached) {
+                return $this->success($cached + [
+                    'stale' => true,
+                    'reason' => 'Showing the last list read from the gateway; it is not responding right now.',
+                ]);
+            }
+
             return $this->success([
                 'available' => false,
                 'reason' => 'Could not read the template list from the gateway.',
@@ -132,12 +144,16 @@ class WhatsAppController extends Controller
             ? $all
             : array_values(array_filter($all, fn ($t) => str_starts_with($t['name'], $prefix)));
 
-        return $this->success([
+        $payload = [
             'available' => true,
             'prefix' => $prefix,
             'total' => count($all),
             'templates' => $ours,
-        ]);
+        ];
+
+        cache()->put($cacheKey, $payload, now()->addHours(12));
+
+        return $this->success($payload);
     }
 
     /**

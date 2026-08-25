@@ -1767,6 +1767,12 @@ export default function WhatsAppSettings() {
                           </p>
                         )}
 
+                        {gatewayTemplates?.stale && (
+                          <p className="mt-1 text-xs text-amber-600">
+                            {gatewayTemplates.reason}
+                          </p>
+                        )}
+
                         {canPick && gatewayTemplates.prefix && (
                           <p className="mt-1 text-xs text-zinc-500">
                             Showing {approved.length} of {gatewayTemplates.total}{" "}
