@@ -427,7 +427,11 @@ class RenewalController extends Controller
                 // Same rule the store path commits, so the quote cannot promise a
                 // different expiry from the one the customer's ticket carries. The
                 // new term continues from the current due date, not from today.
-                'new_due_date' => Renewal::dueDateForNewTerm($pledge->due_date, $renewalMonths)->toDateString(),
+                'new_due_date' => Renewal::dueDateForNewTerm(
+                    $pledge->due_date,
+                    $renewalMonths,
+                    $pledge->interestPaidThroughDate()
+                )->toDateString(),
             ],
             'calculation' => [
                 'interest_breakdown' => $calculation['breakdown'],
@@ -561,7 +565,14 @@ class RenewalController extends Controller
             // The renewed term continues from the current due date, not from the day
             // the customer came in. previous_due_date below records that same date,
             // and created_at records the actual visit for reference.
-            $newDueDate = Renewal::dueDateForNewTerm($pledge->due_date, $renewalMonths);
+            // Same anchor the quote used, so the ticket cannot promise one expiry and
+            // the pledge carry another. The anchor is recorded on the row because the
+            // ticket's printed start date is read back from it: deriving that start
+            // from the due date instead would re-date legacy rows whose stored dates
+            // do not follow this arithmetic.
+            $paidThrough = $pledge->interestPaidThroughDate();
+            $termStartDate = Renewal::termStartForNewTerm($pledge->due_date, $paidThrough);
+            $newDueDate = Renewal::dueDateForNewTerm($pledge->due_date, $renewalMonths, $paidThrough);
 
             // Create renewal
             $renewal = Renewal::create([
@@ -571,6 +582,7 @@ class RenewalController extends Controller
                 'renewal_count' => $pledge->renewal_count + 1,
                 'renewal_months' => $renewalMonths,
                 'previous_due_date' => $pledge->due_date,
+                'term_start_date' => $termStartDate,
                 'new_due_date' => $newDueDate,
                 'interest_rate' => $customRate,
                 // Interest accrued to date, shown on the receipt. NOT collected here —

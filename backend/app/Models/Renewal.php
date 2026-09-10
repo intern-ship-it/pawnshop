@@ -19,6 +19,7 @@ class Renewal extends Model
         'renewal_count',
         'renewal_months',
         'previous_due_date',
+        'term_start_date',
         'new_due_date',
         'interest_rate',
         'interest_amount',
@@ -38,6 +39,7 @@ class Renewal extends Model
 
     protected $casts = [
         'previous_due_date' => 'date',
+        'term_start_date' => 'date',
         'new_due_date' => 'date',
         'interest_rate' => 'decimal:2',
         'interest_amount' => 'decimal:2',
@@ -86,6 +88,15 @@ class Renewal extends Model
      */
     public function getTicketStartDateAttribute(): Carbon
     {
+        // The anchor actually used, recorded at renewal time. Rows written before that
+        // column existed have none and fall through to the derivation below -- which is
+        // precisely what they print today, so no old ticket is re-dated.
+        if ($this->term_start_date) {
+            return $this->term_start_date instanceof Carbon
+                ? $this->term_start_date->copy()
+                : Carbon::parse($this->term_start_date);
+        }
+
         if ($this->previous_due_date) {
             $due = $this->previous_due_date instanceof Carbon
                 ? $this->previous_due_date->copy()
@@ -140,10 +151,40 @@ class Renewal extends Model
      * The term is anchored to the due date, not the day the customer walks in, so a
      * late renewer gets fewer usable days; the actual visit stays on the row as
      * created_at for reference.
+     *
+     * $paidThrough moves that anchor forward for a customer who went overdue and paid
+     * interest PAST the due date. Client-confirmed 2026-09-10: those months must not
+     * be sold twice. A pledge due 24/07 whose interest is paid to 25/09 renews to
+     * 24/03, not 24/01 — six months paid, six months received. Anchoring on the due
+     * date alone charged a full term while handing back only the part that did not
+     * overlap what was already settled.
+     *
+     * It can only ever push the date later, never earlier, and for a pledge renewed
+     * on time the two anchors are the same date, so on-time renewals are unaffected.
      */
-    public static function dueDateForNewTerm(Carbon $previousDueDate, int $termMonths): Carbon
+    public static function dueDateForNewTerm(
+        Carbon $previousDueDate,
+        int $termMonths,
+        ?Carbon $paidThrough = null
+    ): Carbon {
+        return static::termStartForNewTerm($previousDueDate, $paidThrough)
+            ->addMonths($termMonths)
+            ->subDay();
+    }
+
+    /**
+     * The first day of the renewed term — the anchor the new due date is measured from,
+     * and the date the ticket is dated. Split out so the printed start date and the
+     * printed expiry can never be derived from different rules: a ticket reading
+     * 25/07 -> 24/03 above the words "6 BULAN" is a contradiction the customer can see.
+     */
+    public static function termStartForNewTerm(Carbon $previousDueDate, ?Carbon $paidThrough = null): Carbon
     {
-        return $previousDueDate->copy()->addDay()->addMonths($termMonths)->subDay();
+        $start = $previousDueDate->copy()->addDay();
+
+        return ($paidThrough !== null && $paidThrough->gt($start))
+            ? $paidThrough->copy()
+            : $start;
     }
 
     public static function generateRenewalNo(int $branchId): string

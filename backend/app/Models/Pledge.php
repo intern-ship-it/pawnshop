@@ -471,6 +471,27 @@ class Pledge extends Model
     }
 
     /**
+     * The date this term's interest is settled up to — the far edge of the furthest
+     * period a completed payment covered. Each payment stores period_to as the start
+     * of the first month it did NOT cover, so it is already the day the next term
+     * would begin.
+     *
+     * Matched on term_number for the same reason interestPaidThisTerm() is: timestamps
+     * cannot separate a payment from a renewal made in the same second.
+     *
+     * Null when the term has no completed payments, so callers keep their own default.
+     */
+    public function interestPaidThroughDate(): ?Carbon
+    {
+        $paidThrough = $this->interestPayments()
+            ->where('status', 'completed')
+            ->where('term_number', (int) $this->renewal_count)
+            ->max('period_to');
+
+        return $paidThrough ? Carbon::parse($paidThrough) : null;
+    }
+
+    /**
      * Whether this pledge's whole bill reprices to the overdue rate.
      *
      * The client's rule: a pledge that passes its due date WITHOUT its term interest
