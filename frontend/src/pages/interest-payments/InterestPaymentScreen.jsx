@@ -421,14 +421,26 @@ export default function InterestPaymentScreen() {
                         <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0" />
                         <div>
                           <h4 className="font-semibold text-zinc-800 mb-1">
-                            Interest fully settled
+                            {period?.is_overdue ? "Interest paid up to date" : "Interest fully settled"}
                           </h4>
+                          {/* An overdue pledge is never "settled for the term" — it keeps
+                              accruing. It is only paid up to the month it has reached, and
+                              reopens when the next month starts. */}
                           <p className="text-sm text-zinc-600">
-                            All {period?.term_months ?? 6} months of this term have been
-                            paid. Nothing further is payable
-                            {pledgeMeta?.can_renew === false
-                              ? "; this pledge must now be redeemed."
-                              : " until the pledge is renewed."}
+                            {period?.is_overdue ? (
+                              <>
+                                All {period?.months_paid} months up to now have been paid.
+                                Nothing further is payable until the next month begins.
+                              </>
+                            ) : (
+                              <>
+                                All {period?.term_months ?? 6} months of this term have been
+                                paid. Nothing further is payable
+                                {pledgeMeta?.can_renew === false
+                                  ? "; this pledge must now be redeemed."
+                                  : " until the pledge is renewed."}
+                              </>
+                            )}
                           </p>
                           {(pledge?.pledge_no || pledgeMeta?.pledge_no) && (
                             <Button
@@ -501,7 +513,9 @@ export default function InterestPaymentScreen() {
                         Months to Pay
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {Array.from({ length: Math.max(6, period?.months_remaining || 1) }, (_, i) => i + 1).map((months) => (
+                        {/* max_months_to_pay equals the term remainder inside the term,
+                            and stretches to 12 once the pledge is past due unsettled. */}
+                        {Array.from({ length: Math.max(6, period?.max_months_to_pay || period?.months_remaining || 1) }, (_, i) => i + 1).map((months) => (
                           <button
                             key={months}
                             onClick={() => {

@@ -17,6 +17,9 @@ use Carbon\Carbon;
 
 class InterestPaymentController extends Controller
 {
+    /** Ceiling on months collectable from a pledge that is past due and unsettled. */
+    private const MAX_PAYABLE_MONTHS = 12;
+
     protected $interestService;
 
     public function __construct(InterestCalculationService $interestService)
@@ -214,28 +217,17 @@ class InterestPaymentController extends Controller
         $pledgeDate = Carbon::parse($pledge->pledge_date);
         $termMonths = $this->termMonths($pledge);
 
-        // Months already paid THIS TERM, counted by the money actually received down
-        // the ladder — not by payment dates, which miscounted (2 months of money read
-        // as 3) and then billed the wrong tier. This is the same figure the renewal
-        // gate uses, so the two screens agree.
-        $paidThisTerm = $pledge->interestPaidThisTerm();
-
         // A pledge that ran past its due date without settling its term reprices EVERY
-        // month to the overdue rate, term months included. Money already received is
-        // then worth fewer months, because each month now costs the penalty rate.
+        // month to the overdue rate, term months included.
         $repriceOverdue = $pledge->overdueRepricingApplies();
         $overdueRate = $pledge->overdueRate();
 
-        if ($repriceOverdue) {
-            $monthCost = (float) $pledge->loan_amount * ($overdueRate / 100);
-            $monthsPaid = $monthCost > 0
-                ? min($termMonths, (int) floor(($paidThisTerm + 0.005) / $monthCost))
-                : 0;
-        } else {
-            $monthsPaid = $this->interestService
-                ->forPledge($pledge)
-                ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths);
-        }
+        // How far the pledge may be billed: its term, or 12 months once it is past due
+        // (see payableMonths()). The paid counter is bounded by the same ceiling, so a
+        // customer who paid 8 months on an overdue pledge reads back as 8, not as the
+        // term's 6.
+        $ceilingMonths = $this->payableMonths($pledge->isOverdue(), $termMonths);
+        $monthsPaid = $this->monthsPaidThisTerm($pledge, $termMonths, $ceilingMonths);
 
         // The current term began at current_term_start; each unpaid month is billed
         // from there. months_paid full months have been settled, so the next unpaid
@@ -245,24 +237,25 @@ class InterestPaymentController extends Controller
             : $pledgeDate->copy();
         $periodFrom = $termStart->copy()->addMonths($monthsPaid);
 
-        // By default, offer to settle the rest of the term. The customer may pay any
-        // number of remaining months up to the term (prepayment is allowed so a young
-        // pledge can settle all 6 and renew), but never past it.
-        //
-        // Zero, not one, when the term is fully paid: max(1, ...) used to invent a
-        // month that was not owed, so a settled pledge kept offering the month after
-        // its own term — month 25 of a 24-month pledge.
-        $monthsOwed = max(0, $termMonths - $monthsPaid);
+        $monthsElapsed = max(1, $pledge->months_elapsed);
+
+        // How many months may still be taken at all: the ceiling less what is paid.
+        // Inside the term that is the term's remainder, exactly as before.
+        $payableMonths = max(0, $ceilingMonths - $monthsPaid);
+
+        // What is actually due right now, and the screen's default selection. Zero,
+        // not one, when nothing is owed: max(1, ...) used to invent a month that was
+        // not owed, so a settled pledge kept offering the month after its own term.
+        $monthsOwed = $this->monthsDue($pledge->isOverdue(), $termMonths, $ceilingMonths, $monthsElapsed, $monthsPaid);
         $monthsRemaining = $monthsOwed;
 
         if ($request->has('months_to_pay')) {
             $requested = (int) $request->input('months_to_pay');
-            // Clamp to what is actually still owed on the term.
-            $monthsRemaining = max(0, min($requested, $monthsOwed));
+            // Clamp to what is actually still payable.
+            $monthsRemaining = max(0, min($requested, $payableMonths));
         }
 
         $periodTo = $periodFrom->copy()->addMonths($monthsRemaining);
-        $monthsElapsed = max(1, $pledge->months_elapsed);
 
         // Calculate interest, month by month down the pledge's frozen rate ladder.
         // Paying months 4-6 of a 0.5%/1.0% ladder must bill 1.0%, not the flat
@@ -334,6 +327,10 @@ class InterestPaymentController extends Controller
                 'months_paid' => $monthsPaid,
                 'months_remaining' => $monthsRemaining,
                 'term_months' => $termMonths,
+                // How many months the screen may offer. Same as months_remaining
+                // inside the term; up to 12 once the pledge is past due and unsettled.
+                'max_months_to_pay' => $payableMonths,
+                'is_overdue' => $pledge->isOverdue(),
                 // Nothing left to pay on this term. The screen shows a settled notice
                 // instead of a breakdown, rather than offering a month that is not owed.
                 'term_settled' => $monthsOwed === 0,
@@ -376,6 +373,125 @@ class InterestPaymentController extends Controller
     private function termMonths(Pledge $pledge): int
     {
         return $pledge->currentTermMonths();
+    }
+
+    /**
+     * The highest month number this pledge may be billed to. A pledge inside its term
+     * is capped at the term, exactly as before. One that passed its due date without
+     * settling keeps accruing beyond it, so the operator may collect up to 12 months —
+     * those extra months price themselves off the same overdue/tier rules as any other
+     * month, no special pricing here.
+     */
+    private function payableMonths(bool $isOverdue, int $termMonths): int
+    {
+        // Past the due date, not "past due AND still owing". overdueRepricingApplies()
+        // flips off the moment a term's worth of money lands, which collapsed the room
+        // back to 6 and made a pledge paid to month 8 read as settled at 6.
+        return $isOverdue
+            ? max($termMonths, self::MAX_PAYABLE_MONTHS)
+            : $termMonths;
+    }
+
+    /**
+     * What the pledge owes right now — the screen's default selection, and the test
+     * for "nothing further payable". Inside the term that is the term's remainder, as
+     * it always was. Past the due date it is the months actually elapsed, with no
+     * grace: months_elapsed rounds a started month up to a whole one, so a single day
+     * past due owes the whole of month 7. Capped at the payable ceiling.
+     */
+    private function monthsDue(
+        bool $isOverdue,
+        int $termMonths,
+        int $ceilingMonths,
+        int $monthsElapsed,
+        int $monthsPaid
+    ): int {
+        $billTo = $isOverdue
+            ? min($ceilingMonths, max($termMonths, $monthsElapsed))
+            : $termMonths;
+
+        return max(0, $billTo - $monthsPaid);
+    }
+
+    /**
+     * Months already settled on the current term.
+     *
+     * Counted by the money actually received, priced at the rate that applies today —
+     * not by payment dates, which miscounted (2 months of money read as 3) and then
+     * billed the wrong tier. On an unsettled overdue pledge that money is worth fewer
+     * months, because every month now costs the penalty rate; that repricing is the
+     * confirmed rule and is preserved here.
+     *
+     * The count is then capped by the months actually billed on the recorded
+     * breakdown. Without that cap the two pricing views disagree once a pledge has
+     * been paid past its term: RM 2,472 collected as 8 months at the 2% overdue rate
+     * reads as 12 months when re-priced down the cheaper ladder. Taking the lesser of
+     * the two never credits a month that was neither paid for nor billed. Payments
+     * predating the breakdown table have no rows to cap against, so they fall back to
+     * the money count alone.
+     */
+    private function monthsPaidThisTerm(Pledge $pledge, int $termMonths, int $ceilingMonths): int
+    {
+        $paidThisTerm = $pledge->interestPaidThisTerm();
+
+        if ($pledge->overdueRepricingApplies()) {
+            $monthCost = (float) $pledge->loan_amount * ($pledge->overdueRate() / 100);
+            $byMoney = $monthCost > 0 ? (int) floor(($paidThisTerm + 0.005) / $monthCost) : 0;
+        } else {
+            $byMoney = $this->interestService
+                ->forPledge($pledge)
+                ->monthsCoveredBy(
+                    $paidThisTerm,
+                    (float) $pledge->loan_amount,
+                    (float) $pledge->interest_rate,
+                    $ceilingMonths,
+                    $pledge->termStartMonth($termMonths)
+                );
+        }
+
+        return $this->creditedMonths(
+            $byMoney,
+            $this->monthsBilledThisTerm($pledge, $termMonths),
+            $ceilingMonths
+        );
+    }
+
+    /**
+     * The lesser of what the money buys and what was actually billed, bounded by the
+     * ceiling. Kept free of the model so the rule can be tested on its own.
+     */
+    private function creditedMonths(int $byMoney, ?int $billed, int $ceilingMonths): int
+    {
+        $byMoney = max(0, min($ceilingMonths, $byMoney));
+
+        return $billed === null ? $byMoney : min($byMoney, max(0, $billed));
+    }
+
+    /**
+     * Months billed on this term according to the stored breakdown rows, which record
+     * the exact ladder month each payment covered. Null when any completed payment on
+     * the term has no breakdown rows — a legacy payment cannot bound anything, and
+     * treating its absence as zero would wipe out months the customer really paid.
+     */
+    private function monthsBilledThisTerm(Pledge $pledge, int $termMonths): ?int
+    {
+        $payments = $pledge->interestPayments()
+            ->where('status', 'completed')
+            ->where('term_number', (int) $pledge->renewal_count)
+            ->with('breakdown:id,interest_payment_id,month_number')
+            ->get();
+
+        if ($payments->isEmpty()) {
+            return 0;
+        }
+
+        if ($payments->contains(fn ($payment) => $payment->breakdown->isEmpty())) {
+            return null;
+        }
+
+        $highestMonth = $payments->flatMap->breakdown->max('month_number');
+
+        return max(0, (int) $highestMonth - $pledge->termStartMonth($termMonths) + 1);
     }
 
     /**
@@ -459,49 +575,46 @@ class InterestPaymentController extends Controller
             $pledgeDate = Carbon::parse($pledge->pledge_date);
             $termMonths = $this->termMonths($pledge);
 
-            $paidThisTerm = $pledge->interestPaidThisTerm();
-
             // Same overdue repricing as calculate(), so the charge matches the preview.
             $repriceOverdue = $pledge->overdueRepricingApplies();
             $overdueRate = $pledge->overdueRate();
 
-            if ($repriceOverdue) {
-                $monthCost = (float) $pledge->loan_amount * ($overdueRate / 100);
-                $monthsPaid = $monthCost > 0
-                    ? min($termMonths, (int) floor(($paidThisTerm + 0.005) / $monthCost))
-                    : 0;
-            } else {
-                $monthsPaid = $this->interestService
-                    ->forPledge($pledge)
-                    ->monthsCoveredBy($paidThisTerm, (float) $pledge->loan_amount, (float) $pledge->interest_rate, $termMonths, $pledge->termStartMonth($termMonths));
-            }
+            $ceilingMonths = $this->payableMonths($pledge->isOverdue(), $termMonths);
+            $monthsPaid = $this->monthsPaidThisTerm($pledge, $termMonths, $ceilingMonths);
 
             $termStart = $pledge->current_term_start
                 ? Carbon::parse($pledge->current_term_start)
                 : $pledgeDate->copy();
             $periodFrom = $termStart->copy()->addMonths($monthsPaid);
 
-            $monthsOwed = max(0, $termMonths - $monthsPaid);
+            $monthsElapsed = max(1, $pledge->months_elapsed);
+            $monthsOwed = $this->monthsDue($pledge->isOverdue(), $termMonths, $ceilingMonths, $monthsElapsed, $monthsPaid);
 
-            // Nothing owed on this term: refuse rather than invent a month. A
-            // disabled button is a courtesy; this endpoint is callable directly, and
+            // Nothing owed right now: refuse rather than invent a month. A disabled
+            // button is a courtesy; this endpoint is callable directly, and
             // max(1, ...) here would have charged for a month past the pledge's term.
             if ($monthsOwed === 0) {
                 DB::rollBack();
                 return $this->error(
-                    'This term\'s interest is already settled in full. Nothing further is payable'
-                        . ($pledge->renewal_count < $this->maxRenewals()
-                            ? ' until the pledge is renewed.'
-                            : '; this pledge must now be redeemed.'),
+                    $pledge->isOverdue()
+                        ? "Interest is already paid up to month {$monthsPaid}. Nothing further is payable until the next month begins."
+                        : 'This term\'s interest is already settled in full. Nothing further is payable'
+                            . ($pledge->renewal_count < $this->maxRenewals()
+                                ? ' until the pledge is renewed.'
+                                : '; this pledge must now be redeemed.'),
                     422
                 );
             }
 
+            // Same ceiling and same default as calculate(), so a submit without an
+            // explicit months_to_pay charges exactly what the screen preselected.
+            $payableMonths = max(0, $ceilingMonths - $monthsPaid);
             $monthsRemaining = $monthsOwed;
 
-            // Prepayment allowed, but never past the term.
+            // Prepayment allowed, but never past what is payable — the term, or 12
+            // months once the pledge is past due and unsettled (see calculate()).
             if (isset($validated['months_to_pay'])) {
-                $monthsRemaining = max(1, min((int) $validated['months_to_pay'], $monthsOwed));
+                $monthsRemaining = max(1, min((int) $validated['months_to_pay'], $payableMonths));
             }
 
             $periodTo = $periodFrom->copy()->addMonths($monthsRemaining);
