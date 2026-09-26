@@ -127,6 +127,12 @@ export default function PledgeList() {
 
   // Passkey Modal State
   const [passkeyModalOpen, setPasskeyModalOpen] = useState(false);
+  // Which form to print, when a pledge has more than one. Null = not asking.
+  const [printChoice, setPrintChoice] = useState(null);
+  // Which item set the barcode label describes: null = whatever is still in
+  // storage, otherwise the id of the redemption whose items it covers.
+  const [barcodeChoice, setBarcodeChoice] = useState(null);
+  const [barcodeRedemptionId, setBarcodeRedemptionId] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
 
   // Cancel Modal State
@@ -248,8 +254,12 @@ export default function PledgeList() {
           : pledge.status,
         renewalCount: pledge.renewal_count || 0,
         latestRenewalId: pledge.renewals?.[0]?.id || null,
+        latestRenewalNo: pledge.renewals?.[0]?.renewal_no || null,
         latestRedemptionId: pledge.redemption?.[0]?.id || null,
         latestRedemptionNo: pledge.redemption?.[0]?.redemption_no || null,
+        // All of them, newest first: a pledge redeemed in parts has a receipt per
+        // part, and every one of them is printable.
+        redemptions: pledge.redemption || [],
         interestPaidMonths: parseInt(pledge.interest_paid_months_total) || 0,
         interestPaidThrough: pledge.interest_paid_through || null,
         itemsCount: pledge.items?.length || pledge.items_count || 0,
@@ -315,14 +325,16 @@ export default function PledgeList() {
 
     switch (type) {
       case 'print':
-        handlePrint(payload.pledge);
+        openPrintChoice(payload.pledge, 'print');
         break;
       case 'reprint':
-        handleReprint(payload.pledge, null, payload.forceTarget ?? null);
+        // An explicit target from the caller wins; otherwise ask.
+        if (payload.forceTarget) handleReprint(payload.pledge, null, payload.forceTarget);
+        else openPrintChoice(payload.pledge, 'reprint');
         break;
       case 'barcode':
-        // Show reprint reason modal instead of printing directly
-        await handleReprintBarcodeClick(payload.pledge);
+        // Ask which items first, then the reprint reason.
+        openBarcodeChoice(payload.pledge);
         break;
       case 'download':
         handleDownloadPdf(payload.pledge);
@@ -347,11 +359,148 @@ export default function PledgeList() {
     return { kind: "pledge", id: pledge.id, label: "Pledge" };
   };
 
+  // Every form this pledge could print, newest event first.
+  //
+  // resolvePrintTarget picks exactly one, and for a PARTIAL redemption it picks the
+  // original: the pledge is still active, so the status test never matches and the
+  // operator got all four items when they wanted the two that were redeemed. The
+  // redemption was loaded all along, just never offered. So offer the choice rather
+  // than guess harder.
+  const buildPrintOptions = (pledge) => {
+    const options = [];
+
+    (pledge.redemptions || []).forEach((redemption) => {
+      const count = redemption.items_count;
+
+      options.push({
+        kind: "redemption",
+        id: redemption.id,
+        label: "Redemption",
+        docNo: redemption.redemption_no,
+        hint: [
+          count ? `${count} item(s) redeemed` : "Only the items redeemed",
+          redemption.created_at ? formatDate(redemption.created_at) : null,
+        ]
+          .filter(Boolean)
+          .join(" — "),
+      });
+    });
+
+    if (pledge.renewalCount > 0 && pledge.latestRenewalId) {
+      options.push({
+        kind: "renewal",
+        id: pledge.latestRenewalId,
+        label: "Renewal",
+        docNo: pledge.latestRenewalNo,
+        hint: "The renewed term",
+      });
+    }
+
+    options.push({
+      kind: "pledge",
+      id: pledge.id,
+      label: "Original pledge",
+      docNo: pledge.receiptNo || pledge.pledgeNo,
+      hint: `All ${pledge.itemsCount} item(s)`,
+    });
+
+    return options;
+  };
+
+  const sameTarget = (a, b) => a && b && a.kind === b.kind && a.id === b.id;
+
+  // Only worth asking when there is more than one answer: a plain pledge with no
+  // history still prints in a single click, exactly as before.
+  const openPrintChoice = (pledge, mode) => {
+    const options = buildPrintOptions(pledge);
+
+    if (options.length < 2) {
+      if (mode === "reprint") handleReprint(pledge, null, null);
+      else handlePrint(pledge, null, null);
+      return;
+    }
+
+    setPrintChoice({
+      pledge,
+      mode,
+      options,
+      // Preselect whatever it prints today, so pressing Print without reading
+      // changes nothing.
+      selected: resolvePrintTarget(pledge),
+    });
+  };
+
+  const confirmPrintChoice = () => {
+    if (!printChoice) return;
+    const { pledge, mode, selected } = printChoice;
+    setPrintChoice(null);
+
+    if (mode === "reprint") handleReprint(pledge, null, selected);
+    else handlePrint(pledge, null, selected);
+  };
+
+  // A barcode labels a packet in the locker, so by default it describes what is
+  // actually there. Each redemption is offered too, for reprinting the tag that
+  // went out with those items.
+  const buildBarcodeOptions = (pledge) => {
+    const redemptions = pledge.redemptions || [];
+    const redeemedWeight = redemptions.reduce(
+      (sum, r) => sum + (parseFloat(r.items_weight) || 0),
+      0,
+    );
+    const redeemedCount = redemptions.reduce(
+      (sum, r) => sum + (parseInt(r.items_count) || 0),
+      0,
+    );
+
+    const options = [
+      {
+        redemptionId: null,
+        label: "Still in storage",
+        hint: `${Math.max(0, (pledge.itemsCount || 0) - redeemedCount)} item(s) — ${(
+          (parseFloat(pledge.totalWeight) || 0)
+        ).toFixed(2)}g`,
+      },
+    ];
+
+    redemptions.forEach((redemption) => {
+      options.push({
+        redemptionId: redemption.id,
+        label: `Redemption ${redemption.redemption_no || ""}`.trim(),
+        hint: `${redemption.items_count || 0} item(s) — ${(
+          parseFloat(redemption.items_weight) || 0
+        ).toFixed(2)}g`,
+      });
+    });
+
+    return options;
+  };
+
+  const openBarcodeChoice = async (pledge) => {
+    const options = buildBarcodeOptions(pledge);
+
+    if (options.length < 2) {
+      setBarcodeRedemptionId(null);
+      await handleReprintBarcodeClick(pledge);
+      return;
+    }
+
+    setBarcodeChoice({ pledge, options, selected: options[0] });
+  };
+
+  const confirmBarcodeChoice = async () => {
+    if (!barcodeChoice) return;
+    const { pledge, selected } = barcodeChoice;
+    setBarcodeChoice(null);
+    setBarcodeRedemptionId(selected.redemptionId);
+    await handleReprintBarcodeClick(pledge);
+  };
+
   // Handle print pre-printed form with data
-  const handlePrint = async (pledge, e) => {
+  const handlePrint = async (pledge, e, forceTarget = null) => {
     if (e) e.stopPropagation();
     const pledgeId = pledge.id;
-    const target = resolvePrintTarget(pledge);
+    const target = forceTarget ?? resolvePrintTarget(pledge);
 
     // Get token using the helper function
     const token = getToken();
@@ -957,7 +1106,10 @@ export default function PledgeList() {
 
     setPrintingBarcodeId(pledge.id);
     try {
-      const response = await fetch(`${apiUrl}/print/barcodes/${pledge.id}`, {
+      const barcodeQuery = barcodeRedemptionId
+        ? `?redemption_id=${barcodeRedemptionId}`
+        : "";
+      const response = await fetch(`${apiUrl}/print/barcodes/${pledge.id}${barcodeQuery}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2038,6 +2190,135 @@ export default function PledgeList() {
             >
               {cancelling ? "Cancelling..." : "Confirm Cancel"}
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Which form to print. Only shown when the pledge has a renewal or a
+          redemption behind it — otherwise printing stays a single click. */}
+      <Modal
+        isOpen={Boolean(printChoice)}
+        onClose={() => setPrintChoice(null)}
+        title="Which receipt do you want to print?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-500">
+            {printChoice?.pledge?.receiptNo || printChoice?.pledge?.pledgeNo}
+          </p>
+
+          <div className="space-y-2">
+            {printChoice?.options.map((option) => {
+              const isSelected = sameTarget(option, printChoice.selected);
+
+              return (
+                <button
+                  key={`${option.kind}-${option.id}`}
+                  type="button"
+                  onClick={() =>
+                    setPrintChoice((current) =>
+                      current ? { ...current, selected: option } : current,
+                    )
+                  }
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors",
+                    isSelected
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-zinc-200 hover:border-amber-300",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-4 h-4 rounded-full border-2 flex-shrink-0",
+                      isSelected
+                        ? "border-amber-500 bg-amber-500 ring-2 ring-inset ring-white"
+                        : "border-zinc-300",
+                    )}
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium text-zinc-800">
+                      {option.label}
+                    </span>
+                    <span className="block text-xs text-zinc-500 truncate">
+                      {option.docNo ? `${option.docNo} — ` : ""}
+                      {option.hint}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setPrintChoice(null)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmPrintChoice}>
+              <Printer className="w-4 h-4 mr-2" />
+              Print
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Which items the barcode label describes. Only asked when some of the
+          pledge has been redeemed, so an ordinary pledge prints as before. */}
+      <Modal
+        isOpen={Boolean(barcodeChoice)}
+        onClose={() => setBarcodeChoice(null)}
+        title="Which items is this barcode for?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-500">
+            {barcodeChoice?.pledge?.receiptNo || barcodeChoice?.pledge?.pledgeNo}
+          </p>
+
+          <div className="space-y-2">
+            {barcodeChoice?.options.map((option) => {
+              const isSelected =
+                option.redemptionId === barcodeChoice.selected?.redemptionId;
+
+              return (
+                <button
+                  key={option.redemptionId ?? "storage"}
+                  type="button"
+                  onClick={() =>
+                    setBarcodeChoice((current) =>
+                      current ? { ...current, selected: option } : current,
+                    )
+                  }
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors",
+                    isSelected
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-zinc-200 hover:border-amber-300",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-4 h-4 rounded-full border-2 flex-shrink-0",
+                      isSelected
+                        ? "border-amber-500 bg-amber-500 ring-2 ring-inset ring-white"
+                        : "border-zinc-300",
+                    )}
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium text-zinc-800">
+                      {option.label}
+                    </span>
+                    <span className="block text-xs text-zinc-500 truncate">
+                      {option.hint}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setBarcodeChoice(null)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmBarcodeChoice}>Continue</Button>
           </div>
         </div>
       </Modal>

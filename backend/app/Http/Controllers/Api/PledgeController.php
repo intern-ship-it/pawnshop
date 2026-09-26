@@ -39,10 +39,19 @@ class PledgeController extends Controller
             ->with(['customer:id,name,ic_number,phone,country_code,selfie_photo'])
             // Load latest renewal and redemption IDs for print routing
             ->with(['renewals' => function ($q) {
-            $q->select('id', 'pledge_id')->latest()->limit(1);
+            // renewal_no so the print chooser can name the form, not just link it.
+            $q->select('id', 'pledge_id', 'renewal_no')->latest()->limit(1);
         }])
+            // Every redemption, not just the newest. A pledge can be redeemed in
+            // several parts, and the print chooser must offer each receipt: capping
+            // this at one row hid the earlier redemptions, so the two items released
+            // first could never be reprinted. Newest first, so [0] is still the latest
+            // for callers that only want that.
             ->with(['redemption' => function ($q) {
-            $q->select('id', 'pledge_id', 'redemption_no')->latest()->limit(1);
+            $q->select('id', 'pledge_id', 'redemption_no', 'created_at')
+                ->withCount('items')
+                ->withSum('items as items_weight', 'net_weight')
+                ->latest();
         }])
             // Count all items in the pledge
             ->withCount('items as items_count')

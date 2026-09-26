@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Redemption extends Model
 {
@@ -57,6 +58,16 @@ class Redemption extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * The pledge items this redemption released. A partial redemption takes only some
+     * of the pledge's items, so this is how many that receipt actually covers -- the
+     * pledge's own item count says nothing about it.
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(PledgeItem::class);
     }
 
     public function pledge(): BelongsTo

@@ -184,6 +184,25 @@ class PrintController extends Controller
 
         $pledge->load(['items.category', 'items.purity', 'items.vault', 'items.box', 'items.slot']);
 
+        // Which items this label describes.
+        //
+        // A partially redeemed pledge keeps its redeemed items on the record, and
+        // summing all of them labelled the storage packet with goods that had already
+        // gone home: four items and 125.62g for a locker holding one bar of 100g.
+        // The label describes what is in storage, unless the operator asked for the
+        // receipt of a particular redemption.
+        $redemptionId = $request->query('redemption_id');
+
+        $labelItems = $redemptionId
+            ? $pledge->items->where('redemption_id', (int) $redemptionId)->values()
+            : $pledge->items->whereNull('redemption_id')->values();
+
+        // A fully redeemed pledge has nothing left in storage; label it with
+        // everything rather than printing an empty tag.
+        if ($labelItems->isEmpty()) {
+            $labelItems = $pledge->items;
+        }
+
         $generator = new BarcodeGeneratorSVG();
 
         // One barcode per pledge
@@ -193,13 +212,13 @@ class PrintController extends Controller
         );
 
         // Summarize items for the label
-        $itemSummary = $pledge->items->map(function ($item) {
+        $itemSummary = $labelItems->map(function ($item) {
             return ($item->category->name_en ?? 'Item') . ' ' . ($item->purity->code ?? '') . ' ' . $item->net_weight . 'g';
         })->implode(', ');
 
         // Build storage location string from first item (all items in a pledge share the same vault)
         $storageLocation = '';
-        $firstItem = $pledge->items->first();
+        $firstItem = $labelItems->first();
         if ($firstItem && $firstItem->vault && $firstItem->box && $firstItem->slot) {
             $lockerLetter = substr(trim($firstItem->vault->name), -1);
             $drawerLetter = $firstItem->box->box_number;
@@ -219,7 +238,7 @@ class PrintController extends Controller
         }
 
         // Collect descriptions/remarks from all items
-        $descriptions = $pledge->items->map(function ($item) {
+        $descriptions = $labelItems->map(function ($item) {
             return trim(($item->description ?? '') . ' ' . ($item->remarks ?? ''));
         })->filter()->values()->implode(', ');
 
@@ -228,10 +247,10 @@ class PrintController extends Controller
                 'item_code' => $barcodeValue,
                 'image' => $barcodeImage,
                 'pledge_no' => $pledge->pledge_no,
-                'category' => $firstItem && $firstItem->category ? ($firstItem->category->name_en ?? '') : ($pledge->items->count() . ' item(s)'),
+                'category' => $firstItem && $firstItem->category ? ($firstItem->category->name_en ?? '') : ($labelItems->count() . ' item(s)'),
                 'quantity' => $firstItem->quantity ?? 1,
                 'purity' => $firstItem && $firstItem->purity ? ($firstItem->purity->code ?? '') : '',
-                'net_weight' => $pledge->items->sum('net_weight'),
+                'net_weight' => $labelItems->sum('net_weight'),
                 'item_summary' => $itemSummary,
                 'storage_location' => $storageLocation,
                 'description' => $descriptions,
@@ -242,7 +261,7 @@ class PrintController extends Controller
             'pledge_no' => $pledge->pledge_no,
             'receipt_no' => $pledge->receipt_no,
             'storage_location' => $storageLocation,
-            'total_items' => $pledge->items->count(),
+            'total_items' => $labelItems->count(),
         ]);
     }
 
