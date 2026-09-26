@@ -674,9 +674,14 @@ HTML;
             'phone' => $settingsMap['phone'] ?? $branch->phone ?? '03-12345678',
             'phone2' => $settingsMap['phone2'] ?? '',
             'fax' => $settingsMap['fax'] ?? '',
-            'business_hours' => $settingsMap['business_hours'] ?? '9.00AM - 6.00PM',
-            'business_days' => $settingsMap['business_days'] ?? 'ISNIN - AHAD',
-            'closed_days' => $settingsMap['closed_days'] ?? 'CUTI AM & AHAD : PAJAK SAHAJA',
+            // The header box prints three lines: weekdays, Sunday, then the closure
+            // note. Sunday keeps shorter hours, so it cannot share one day-range with
+            // the rest of the week.
+            'business_days' => $settingsMap['business_days'] ?? 'ISNIN - SABTU',
+            'business_hours' => $settingsMap['business_hours'] ?? '9AM-6PM',
+            'weekend_days' => $settingsMap['weekend_days'] ?? 'AHAD',
+            'weekend_hours' => $settingsMap['weekend_hours'] ?? '9AM-1PM',
+            'closed_days' => $settingsMap['closed_days'] ?? 'KEDAI TUTUP : CUTI UMUM',
             'handling_fee' => $settingsMap['receipt_handling_fee'] ?? $settingsMap['handling_fee'] ?? '50 SEN',
             'redemption_period' => $settingsMap['receipt_redemption_period'] ?? $settingsMap['redemption_period'] ?? '6 BULAN',
             'interest_rate_normal' => $interestRateNormal,
@@ -775,6 +780,28 @@ HTML;
      * renewal's own stored months so both match the new term. Modern pledges already
      * renew for 6 and were unaffected; this fixes the legacy short-term ones.
      */
+    /**
+     * The three lines of the yellow opening-hours box in every receipt header.
+     *
+     * Built in one place because six generators print the same box on different paper
+     * sizes, and the shop's hours must not differ by which one an operator picked.
+     *
+     * "BUKA 7 HARI" is gone: Sunday now closes at 1, so the shop is no longer open the
+     * same seven days, and a fourth line would have grown the box and pushed the whole
+     * header down the page. The per-variant font sizes are set so three lines occupy
+     * the height the old title plus single line did.
+     */
+    private function businessHoursLines(array $settings): string
+    {
+        $esc = fn ($value) => htmlspecialchars((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return implode('<br>', array_filter([
+            $esc($settings['business_days'] ?? '') . ' : ' . $esc($settings['business_hours'] ?? ''),
+            $esc($settings['weekend_days'] ?? '') . ' : ' . $esc($settings['weekend_hours'] ?? ''),
+            $esc($settings['closed_days'] ?? ''),
+        ], fn ($line) => trim($line) !== '' && trim($line) !== ':'));
+    }
+
     private function applyRenewalTermToSettings(array $settings, Renewal $renewal): array
     {
         $months = (int) ($renewal->renewal_months ?? 0);
@@ -846,7 +873,7 @@ HTML;
         <div class="header-right">
             {$estHtml}
             <div class="phone-box">Ã°Å¸â€œÅ¾ {$settings['phone']}</div>
-            <div class="business-hours">BUKA 7 HARI<br>{$settings['business_days']} : {$settings['business_hours']}<br>{$settings['closed_days']}</div>
+            <div class="business-hours">BUKA 7 HARI<br>{$this->businessHoursLines($settings)}</div>
         </div>
     </div>
 
@@ -902,7 +929,7 @@ HTML;
 .header-right{text-align:right;min-width:45mm}
 .established{background:#c41e3a;color:white;padding:3px 6px;border-radius:50%;font-size:8px;font-weight:bold;display:inline-block;margin-bottom:1.5mm;line-height:1.1}
 .phone-box{background:#c41e3a;color:white;padding:2px 5px;font-size:10px;margin-bottom:1.5mm;display:inline-block}
-.business-hours{font-size:8px;text-align:right;color:#c41e3a;font-weight:bold;line-height:1.2}
+.business-hours{font-size:8px;text-align:right;color:#c41e3a;font-weight:800;line-height:1.2}
 .main-content{display:flex;gap:3mm}
 .left-section{flex:1;border:1px solid #1a4a7a;padding:2mm}
 .right-section{width:52mm;min-width:52mm}
@@ -1618,12 +1645,12 @@ HTML;
 .pp-hrs-box {
     background: #f5c518;
     color: #000;
-    padding: 2mm;
+    padding: 0.5mm 2mm;
     min-width: 50mm;
     text-align: center;
 }
-.pp-hrs-title { font-size: clamp(8px, 1.5vw, 11px); font-weight: bold; }
-.pp-hrs-line { font-size: clamp(6px, 1.2vw, 8px); font-weight: bold; line-height: 1.2; color: #1a4a7a; }
+.pp-hrs-title { font-size: clamp(5.4px, 1vw, 7px); font-weight: 800; line-height: 1.1; }
+.pp-hrs-line { font-size: clamp(5.4px, 1vw, 7px); font-weight: 800; line-height: 1.1; color: #1a4a7a; }
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MIDDLE SECTION - Items & Ticket
@@ -1854,7 +1881,7 @@ HTML;
             </div>
             <div class="pp-hrs-box">
                 <div class="pp-hrs-title">BUKA 7 HARI</div>
-                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+                <div class="pp-hrs-line">{$this->businessHoursLines($settings)}</div>
             </div>
         </div>
     </div>
@@ -2918,9 +2945,9 @@ HTML;
 .pp-sejak { background: #d42027; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #b01a20; }
 .pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; }
 .pp-sejak-yr { font-size: 11px; font-weight: bold; line-height: 1; }
-.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 45.4mm; text-align: center; }
-.pp-hrs-title { font-size: 12px; font-weight: bold; text-align: center; }
-.pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 0.4mm 2.5mm; width: 45.4mm; text-align: center; }
+.pp-hrs-title { font-size: 7.5px; font-weight: 800; line-height: 1.1; text-align: center; }
+.pp-hrs-line { font-size: 7.5px; font-weight: 800; line-height: 1.1; color: #1a4a7a; }
 
 /* Middle section */
 .pp-mid { display: flex; border: 1px solid #1a4a7a; }
@@ -3057,7 +3084,7 @@ HTMLSTART
             </div>
             <div class="pp-hrs-box">
                 <div class="pp-hrs-title">BUKA 7 HARI</div>
-                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+                <div class="pp-hrs-line">{$this->businessHoursLines($settings)}</div>
             </div>
         </div>
     </div>
@@ -4165,7 +4192,7 @@ HTML;
             </div>
             <div class="ppp-hours-box">
                 <div class="ppp-hours-title">BUKA 7 HARI</div>
-                <div class="ppp-hours-line">{$businessDays} : {$businessHours}</div>
+                <div class="ppp-hours-line">{$this->businessHoursLines($settings)}</div>
             </div>
         </div>
     </div>
@@ -4320,9 +4347,9 @@ FORM;
 .ppp-sejak { background: #d42027; color: #fff; width: 9mm; height: 9mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #b01a20; }
 .ppp-sejak-lbl { font-size: 4px; font-weight: bold; }
 .ppp-sejak-yr { font-size: 7px; font-weight: bold; }
-.ppp-hours-box { background: #f5c518; color: #000; padding: 1mm 2mm; text-align: center; min-width: 38mm; }
-.ppp-hours-title { font-size: 8px; font-weight: bold; }
-.ppp-hours-line { font-size: 6px; font-weight: bold; color: #1a4a7a; }
+.ppp-hours-box { background: #f5c518; color: #000; padding: 0.3mm 2mm; text-align: center; min-width: 38mm; }
+.ppp-hours-title { font-size: 5.4px; font-weight: 800; line-height: 1.06; }
+.ppp-hours-line { font-size: 5.4px; font-weight: 800; line-height: 1.06; color: #1a4a7a; }
 
 /* â”€â”€ MIDDLE â€” items section grows to fill available space â”€â”€ */
 .ppp-mid { 
@@ -5899,9 +5926,9 @@ HTML;
 .pp-sejak { background: #008000; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #006400; }
 .pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; }
 .pp-sejak-yr { font-size: 11px; font-weight: bold; line-height: 1; }
-.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 45.4mm; text-align: center; }
-.pp-hrs-title { font-size: 12px; font-weight: bold; text-align: center; }
-.pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 0.4mm 2.5mm; width: 45.4mm; text-align: center; }
+.pp-hrs-title { font-size: 7.5px; font-weight: 800; line-height: 1.1; text-align: center; }
+.pp-hrs-line { font-size: 7.5px; font-weight: 800; line-height: 1.1; color: #1a4a7a; }
 
 /* Middle section */
 .pp-mid { display: flex; border: 1px solid #1a4a7a; }
@@ -6039,7 +6066,7 @@ HTMLSTART
             </div>
             <div class="pp-hrs-box">
                 <div class="pp-hrs-title">BUKA 7 HARI</div>
-                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+                <div class="pp-hrs-line">{$this->businessHoursLines($settings)}</div>
             </div>
         </div>
     </div>
@@ -6720,9 +6747,9 @@ HTML;
 .pp-sejak { background: #008000; color: #fff; width: 13mm; height: 13mm; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1.5px solid #006400; }
 .pp-sejak-lbl { font-size: 6px; font-weight: bold; line-height: 1; }
 .pp-sejak-yr { font-size: 11px; font-weight: bold; line-height: 1; }
-.pp-hrs-box { background: #f5c518; color: #000; padding: 1.5mm 2.5mm; width: 45.4mm; text-align: center; }
-.pp-hrs-title { font-size: 12px; font-weight: bold; text-align: center; }
-.pp-hrs-line { font-size: 8px; font-weight: bold; line-height: 1.3; color: #1a4a7a; }
+.pp-hrs-box { background: #f5c518; color: #000; padding: 0.4mm 2.5mm; width: 45.4mm; text-align: center; }
+.pp-hrs-title { font-size: 7.5px; font-weight: 800; line-height: 1.1; text-align: center; }
+.pp-hrs-line { font-size: 7.5px; font-weight: 800; line-height: 1.1; color: #1a4a7a; }
 
 /* Middle section */
 .pp-mid { display: flex; border: 1px solid #1a4a7a; }
@@ -6861,7 +6888,7 @@ HTMLSTART
             </div>
             <div class="pp-hrs-box">
                 <div class="pp-hrs-title">BUKA 7 HARI</div>
-                <div class="pp-hrs-line">{$businessDays} : {$businessHours}</div>
+                <div class="pp-hrs-line">{$this->businessHoursLines($settings)}</div>
             </div>
         </div>
     </div>
