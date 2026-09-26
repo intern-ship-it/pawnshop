@@ -483,7 +483,12 @@ class CustomerController extends Controller
         $activeLoanAmount = $customer->pledges()->whereIn('status', ['active', 'overdue'])->sum('loan_amount');
 
         $stats = [
-            'total_pledges' => $customer->total_pledges ?? $customer->pledges()->count(),
+            // Counted, not read off customers.total_pledges: that column is a cached
+            // counter kept in sync by SyncCustomerStats, and it has drifted (four
+            // customers currently read one higher than their real pledge count).
+            // The detail screen derives its "closed" tab from total minus active, so a
+            // stale total would show a badge with no rows behind it.
+            'total_pledges' => $customer->pledges()->count(),
             'active_pledges' => $activePledgeCount,
             'total_loan_amount' => $activeLoanAmount,
             'total_renewals' => $customer->pledges()->withCount('renewals')->get()->sum('renewals_count'),

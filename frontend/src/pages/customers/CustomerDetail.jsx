@@ -588,13 +588,26 @@ export default function CustomerDetail() {
     );
   }
 
-  // Filter pledges based on active tab
-  const filteredPledges = pledges.filter((p) => {
-    if (activeTab === "active") {
-      return p.status === "active" || p.status === "overdue";
-    }
-    return true;
-  });
+  // The two tabs partition the customer's pledges rather than overlapping. The
+  // history tab used to return everything, so a live pledge appeared under both
+  // and the counts never added up.
+  //
+  // "Closed" is the inverse of open, not a list of closed statuses: should a new
+  // status ever be added, it shows up in one of the tabs instead of silently
+  // belonging to neither.
+  const isOpenPledge = (p) => p.status === "active" || p.status === "overdue";
+
+  const filteredPledges = pledges.filter((p) =>
+    activeTab === "active" ? isOpenPledge(p) : !isOpenPledge(p),
+  );
+
+  // From the statistics, which count every pledge; the list itself is capped at
+  // 100 rows, so counting the array would undercount a long-standing customer.
+  const totalPledgeCount =
+    statistics?.total_pledges ?? customer?.total_pledges ?? pledges.length;
+  const openPledgeCount =
+    statistics?.active_pledges ?? customer?.active_pledges ?? 0;
+  const closedPledgeCount = Math.max(0, totalPledgeCount - openPledgeCount);
 
   return (
     <PageWrapper
@@ -965,7 +978,7 @@ export default function CustomerDetail() {
                         : "bg-zinc-100 text-zinc-600",
                     )}
                   >
-                    {statistics?.active_pledges ?? customer.active_pledges ?? 0}
+                    {openPledgeCount}
                   </span>
                 </button>
                 <button
@@ -977,7 +990,7 @@ export default function CustomerDetail() {
                       : "text-zinc-500 hover:text-zinc-700",
                   )}
                 >
-                  All History
+                  Closed Pledges
                   <span
                     className={cn(
                       "px-2 py-0.5 rounded-full text-xs",
@@ -986,9 +999,7 @@ export default function CustomerDetail() {
                         : "bg-zinc-100 text-zinc-600",
                     )}
                   >
-                    {statistics?.total_pledges ??
-                      customer.total_pledges ??
-                      pledges.length}
+                    {closedPledgeCount}
                   </span>
                 </button>
               </div>
@@ -1009,12 +1020,12 @@ export default function CustomerDetail() {
                   <h3 className="text-lg font-medium text-zinc-900 mb-1">
                     {activeTab === "active"
                       ? "No Active Pledges"
-                      : "No History Found"}
+                      : "No Closed Pledges"}
                   </h3>
                   <p className="text-zinc-500 mb-6 max-w-sm mx-auto">
                     {activeTab === "active"
                       ? "This customer has no currently active pledges."
-                      : "This customer has not made any pledges yet."}
+                      : "Nothing has been redeemed, forfeited, auctioned or cancelled yet."}
                   </p>
                   <Button onClick={handleNewPledge}>
                     <Plus className="w-4 h-4 mr-2" />
