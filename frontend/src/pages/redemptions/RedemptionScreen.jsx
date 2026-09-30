@@ -751,9 +751,13 @@ export default function RedemptionScreen() {
           }),
         );
 
-        // Auto-trigger print and WhatsApp
+        // Auto-trigger print and WhatsApp. The remaining-items figure is passed
+        // in rather than read from state, which this render has not seen yet.
+        const itemsLeft =
+          data.items_remaining ?? allItems.length - selectedItemIds.length;
+
         setTimeout(() => {
-          autoTriggerPostRedemption(redemptionInfo.id);
+          autoTriggerPostRedemption(redemptionInfo.id, pledge.id, itemsLeft);
         }, 500);
       } else {
         throw new Error(
@@ -777,15 +781,41 @@ export default function RedemptionScreen() {
     }
   };
 
+  /**
+   * Resolve once the print window is gone, or after two minutes if the operator
+   * leaves it open -- the label should not be lost because a tab stayed around.
+   */
+  const waitForWindowToClose = (printWindow) =>
+    new Promise((resolve) => {
+      if (!printWindow || printWindow.closed) {
+        resolve();
+        return;
+      }
+
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        if (printWindow.closed || Date.now() - startedAt > 120000) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 400);
+    });
+
   // Auto-trigger print, barcode, and WhatsApp after successful redemption
-  const autoTriggerPostRedemption = async (redemptionId) => {
+  const autoTriggerPostRedemption = async (redemptionId, pledgeId, itemsRemaining) => {
     const token = getToken();
     const apiUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
     
-    // Auto-print receipt
-    handlePrintReceiptAuto(redemptionId);
+    // Auto-print receipt, then the storage label once that window is out of the
+    // way -- two print windows at once fight over the printer dialog.
+    const receiptWindow = await handlePrintReceiptAuto(redemptionId);
 
-    // Barcode label printing is not needed after redemption.
+    // A label is only needed while goods are still held. A full redemption empties
+    // the slot, which is why this step was dropped; a PARTIAL one leaves items
+    // behind, and the packet's old label still claims the ones just handed back.
+    if (itemsRemaining > 0 && pledgeId) {
+      await printRemainingItemsBarcode(pledgeId, receiptWindow);
+    }
 
     // Auto-send WhatsApp if customer has phone
     if (pledge?.customerPhone) {
@@ -957,6 +987,109 @@ export default function RedemptionScreen() {
 
   // Auto-print receipt
   // Uses pre-printed data overlay (same as pledge/renewal auto-print)
+  /**
+   * The storage label for what is still held, printed after a partial redemption.
+   *
+   * The packet left in the locker keeps its old label, which still names the items
+   * the customer has just taken home. The endpoint defaults to unredeemed items, so
+   * the label describes exactly what remains.
+   *
+   * Waits for the receipt window to close first: two print dialogs at once means the
+   * operator answers one and loses the other.
+   */
+  const printRemainingItemsBarcode = async (pledgeId, receiptWindow) => {
+    await waitForWindowToClose(receiptWindow);
+
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const apiUrl =
+        import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+
+      const response = await fetch(`${apiUrl}/print/barcodes/${pledgeId}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const label = data?.data?.items?.[0];
+      if (!data.success || !label) return;
+
+      const labelWindow = window.open("", "_blank", "width=400,height=400");
+      if (!labelWindow) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Barcode Not Printed",
+            message:
+              "Allow pop-ups to print the storage label, or reprint it from All Pledges.",
+          }),
+        );
+        return;
+      }
+
+      // Escaped rather than interpolated raw. These values come from our own API,
+      // but a description or purity code is ultimately operator-entered text, and a
+      // print window is not the place to find out it contained markup.
+      const esc = (value) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      // The barcode is an SVG data URI we generate; anything else is not drawn.
+      const imageSrc = String(label.image || "").startsWith("data:image/")
+        ? label.image
+        : "";
+
+      labelWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Barcode - ${esc(data.data.pledge_no)}</title>
+          <style>
+            @page { size: 50mm 25mm; margin: 0; }
+            body { margin: 0; font-family: Arial, sans-serif; text-align: center; }
+            .no { display: flex; justify-content: space-between; font-size: 9px;
+                  font-weight: bold; padding: 2mm 2mm 0; }
+            .img { padding: 1mm 2mm; }
+            .img img, .img svg { max-width: 100%; }
+            .meta { font-size: 10px; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="no">
+            <span>${esc(data.data.pledge_no)}</span>
+            <span>${parseInt(data.data.total_items) || 0} ITEM(S)</span>
+          </div>
+          <div class="img"><img src="${esc(imageSrc)}" alt="barcode"></div>
+          <div class="meta">${esc(label.purity || "")}</div>
+          <div class="meta">${parseFloat(label.net_weight || 0).toFixed(2)}g</div>
+          <script>
+            window.onload = function() { window.print(); };
+          <\/script>
+        </body>
+        </html>
+      `);
+      labelWindow.document.close();
+
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Barcode Ready",
+          message: `Storage label for ${data.data.total_items} remaining item(s) sent to printer`,
+        }),
+      );
+    } catch (error) {
+      console.error("Auto-barcode error:", error);
+    }
+  };
+
   const handlePrintReceiptAuto = async (redemptionId) => {
     if (!redemptionId) return;
 
@@ -987,7 +1120,7 @@ export default function RedemptionScreen() {
 
       // Open print window with data overlay for pre-printed form
       const printWindow = window.open("", "_blank", "width=800,height=600");
-      if (!printWindow) return;
+      if (!printWindow) return null;
 
       printWindow.document.write(`
         <!DOCTYPE html>
@@ -1018,8 +1151,13 @@ export default function RedemptionScreen() {
           message: "Redemption receipt sent to printer automatically",
         }),
       );
+
+      // Handed back so the barcode label can wait its turn rather than opening
+      // a second window over the top of this one.
+      return printWindow;
     } catch (error) {
       console.error("Auto-print error:", error);
+      return null;
     } finally {
       setIsPrintingReceipt(false);
     }
