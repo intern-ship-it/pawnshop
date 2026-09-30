@@ -439,6 +439,11 @@ class CustomerController extends Controller
             // PHP memory limit; this list view never renders the photo.
             ->with(['items' => fn ($q) => $q->select(\App\Models\PledgeItem::listColumns())
                 ->with(['category', 'purity'])])
+            // Redemption receipts, newest first, so a partly-redeemed pledge can name
+            // the batch each released item left in. The items already carry
+            // redemption_id; this only supplies the number and date to show beside it.
+            ->with(['redemption' => fn ($q) => $q->select('id', 'pledge_id', 'redemption_no', 'created_at')
+                ->latest()])
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 15));
 

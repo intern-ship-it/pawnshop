@@ -597,9 +597,33 @@ export default function CustomerDetail() {
   // belonging to neither.
   const isOpenPledge = (p) => p.status === "active" || p.status === "overdue";
 
+  const redeemedItems = (p) =>
+    (p.items || []).filter((item) => item.redemption_id);
+
+  // Some items released, the pledge itself still live. It belongs in both tabs:
+  // open, because goods are still held against it, and closed, because part of
+  // it genuinely is finished and the customer may ask what they took back.
+  const isPartiallyRedeemed = (p) =>
+    isOpenPledge(p) && redeemedItems(p).length > 0;
+
   const filteredPledges = pledges.filter((p) =>
-    activeTab === "active" ? isOpenPledge(p) : !isOpenPledge(p),
+    activeTab === "active"
+      ? isOpenPledge(p)
+      : !isOpenPledge(p) || isPartiallyRedeemed(p),
   );
+
+  // The redemption receipts a pledge's released items belong to, newest first,
+  // each with the items it took. Grouped from the items themselves so an item
+  // can never be listed under a batch it was not part of.
+  const redemptionBatches = (p) =>
+    (p.redemption || [])
+      .map((redemption) => ({
+        ...redemption,
+        items: redeemedItems(p).filter(
+          (item) => Number(item.redemption_id) === Number(redemption.id),
+        ),
+      }))
+      .filter((batch) => batch.items.length > 0);
 
   // From the statistics, which count every pledge; the list itself is capped at
   // 100 rows, so counting the array would undercount a long-standing customer.
@@ -607,7 +631,12 @@ export default function CustomerDetail() {
     statistics?.total_pledges ?? customer?.total_pledges ?? pledges.length;
   const openPledgeCount =
     statistics?.active_pledges ?? customer?.active_pledges ?? 0;
-  const closedPledgeCount = Math.max(0, totalPledgeCount - openPledgeCount);
+  // Partly-redeemed pledges are counted as open by the statistics, so add them
+  // back here or the tab's badge would not match the rows it shows. Counted from
+  // the loaded list, which the 100-row cap makes a floor rather than a total.
+  const partialCount = pledges.filter(isPartiallyRedeemed).length;
+  const closedPledgeCount =
+    Math.max(0, totalPledgeCount - openPledgeCount) + partialCount;
 
   return (
     <PageWrapper
@@ -1035,10 +1064,19 @@ export default function CustomerDetail() {
               ) : (
                 <div className="divide-y divide-zinc-100">
                   {filteredPledges.map((pledge) => {
-                    const config = statusConfig[pledge.status] || {
-                      label: pledge.status,
-                      variant: "secondary",
-                    };
+                    const partial = isPartiallyRedeemed(pledge);
+                    const batches = partial ? redemptionBatches(pledge) : [];
+                    const releasedCount = redeemedItems(pledge).length;
+
+                    // A partly-redeemed pledge is still active, so its own status
+                    // would read plain "Active" and hide that most of the goods
+                    // have already gone home.
+                    const config = partial
+                      ? { label: "Active (Partial)", variant: "warning" }
+                      : statusConfig[pledge.status] || {
+                          label: pledge.status,
+                          variant: "secondary",
+                        };
                     const isExpanded = expandedPledge === pledge.id;
                     const items = pledge.items || [];
 
@@ -1172,6 +1210,51 @@ export default function CustomerDetail() {
                             exit={{ opacity: 0, height: 0 }}
                             className="px-4 pb-4 bg-zinc-50 border-t border-zinc-100"
                           >
+                            {/* What the customer has already taken back, receipt by
+                                receipt. Only on a partly-redeemed pledge: a closed one
+                                is wholly redeemed and the status says so. */}
+                            {batches.length > 0 && (
+                              <div className="pt-4">
+                                <h4 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
+                                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                  Redeemed — {releasedCount} of {items.length} item(s)
+                                </h4>
+                                <div className="space-y-2">
+                                  {batches.map((batch) => (
+                                    <div
+                                      key={batch.id}
+                                      className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg"
+                                    >
+                                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        <span className="text-sm font-medium text-emerald-900">
+                                          {batch.redemption_no}
+                                          <span className="ml-2 text-xs font-normal text-emerald-700">
+                                            {batch.items.length} item(s)
+                                          </span>
+                                        </span>
+                                        <span className="text-xs text-emerald-700">
+                                          {formatDate(batch.created_at)}
+                                        </span>
+                                      </div>
+                                      <ul className="space-y-0.5">
+                                        {batch.items.map((item) => (
+                                          <li
+                                            key={item.id}
+                                            className="text-xs text-emerald-800"
+                                          >
+                                            {item.description ||
+                                              item.category?.name_en ||
+                                              "Item"}{" "}
+                                            — {item.net_weight}g
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
                               {/* Items List */}
                               <div>
@@ -1187,10 +1270,19 @@ export default function CustomerDetail() {
                                         item.photo_url ||
                                         item.image ||
                                         null;
+                                      // Released items stay on the pledge for the
+                                      // record, and used to look identical to the
+                                      // ones still in the locker.
+                                      const isReleased = Boolean(item.redemption_id);
                                       return (
                                         <div
                                           key={item.id || idx}
-                                          className="flex items-center gap-3 p-3 bg-white rounded-lg border border-zinc-200"
+                                          className={cn(
+                                            "flex items-center gap-3 p-3 rounded-lg border",
+                                            isReleased
+                                              ? "bg-zinc-50 border-zinc-200 opacity-70"
+                                              : "bg-white border-zinc-200",
+                                          )}
                                         >
                                           {/* Item Photo */}
                                           {itemPhoto ? (
@@ -1212,6 +1304,11 @@ export default function CustomerDetail() {
                                                 item.category?.name ||
                                                 item.category_name ||
                                                 "Gold Item"}
+                                              {isReleased && (
+                                                <span className="ml-2 text-[10px] font-semibold uppercase text-emerald-700">
+                                                  Redeemed
+                                                </span>
+                                              )}
                                             </p>
                                             <p className="text-xs text-zinc-500">
                                               {item.purity?.code ||
