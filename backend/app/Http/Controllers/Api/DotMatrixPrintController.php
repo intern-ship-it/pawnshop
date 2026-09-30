@@ -802,6 +802,33 @@ HTML;
         ], fn ($line) => trim($line) !== '' && trim($line) !== ':'));
     }
 
+    /**
+     * Narrow a pledge's items to the ones still held, when the caller asks for the
+     * "still in storage" form.
+     *
+     * A partial redemption reduces the pledge's own figures -- loan_amount and
+     * total_weight already describe what is left -- but the printed item list still
+     * named every item ever pledged. The receipt then showed four items above a
+     * principal that only covered one of them. There was no form describing the
+     * customer's current position at all.
+     *
+     * Filtering the loaded relation rather than each generator keeps the item list,
+     * the weight and the count derived from one collection, so they cannot disagree.
+     * Anything that would leave the form empty is ignored.
+     */
+    private function applyItemScope(Request $request, Pledge $pledge): void
+    {
+        if ($request->input('scope') !== 'remaining') {
+            return;
+        }
+
+        $held = $pledge->items->whereNull('redemption_id')->values();
+
+        if ($held->isNotEmpty()) {
+            $pledge->setRelation('items', $held);
+        }
+    }
+
     private function applyRenewalTermToSettings(array $settings, Renewal $renewal): array
     {
         $months = (int) ($renewal->renewal_months ?? 0);
@@ -3413,6 +3440,8 @@ HTML;
                 'payments.bank',
             ]);
 
+            $this->applyItemScope($request, $pledge);
+
             $settings = $this->getCompanySettings($pledge->branch);
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);
 
@@ -3571,6 +3600,8 @@ HTML;
                 'branch',
                 'payments.bank',
             ]);
+
+            $this->applyItemScope($request, $pledge);
 
             $settings = $this->getCompanySettings($pledge->branch);
             $settings = $this->applyPledgeRatesToSettings($settings, $pledge);

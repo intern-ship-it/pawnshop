@@ -133,6 +133,7 @@ export default function PledgeList() {
   // storage, otherwise the id of the redemption whose items it covers.
   const [barcodeChoice, setBarcodeChoice] = useState(null);
   const [barcodeRedemptionId, setBarcodeRedemptionId] = useState(null);
+  const [barcodeScope, setBarcodeScope] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
 
   // Cancel Modal State
@@ -396,6 +397,26 @@ export default function PledgeList() {
       });
     }
 
+    // What the customer still has with us. Only meaningful once some of the
+    // pledge has gone: the pledge's own principal and weight already describe
+    // this position, but the printed item list named every item ever pledged,
+    // so the form showed four items above a principal covering one of them.
+    const redeemedCount = (pledge.redemptions || []).reduce(
+      (sum, r) => sum + (parseInt(r.items_count) || 0),
+      0,
+    );
+
+    if (redeemedCount > 0) {
+      options.push({
+        kind: "pledge",
+        id: pledge.id,
+        scope: "remaining",
+        label: "Still in storage",
+        docNo: pledge.receiptNo || pledge.pledgeNo,
+        hint: `${Math.max(0, (pledge.itemsCount || 0) - redeemedCount)} item(s) still held`,
+      });
+    }
+
     options.push({
       kind: "pledge",
       id: pledge.id,
@@ -407,7 +428,8 @@ export default function PledgeList() {
     return options;
   };
 
-  const sameTarget = (a, b) => a && b && a.kind === b.kind && a.id === b.id;
+  const sameTarget = (a, b) =>
+    a && b && a.kind === b.kind && a.id === b.id && (a.scope ?? null) === (b.scope ?? null);
 
   // Only worth asking when there is more than one answer: a plain pledge with no
   // history still prints in a single click, exactly as before.
@@ -473,6 +495,17 @@ export default function PledgeList() {
       });
     });
 
+    // The whole pledge, which is what this label printed before it learned to
+    // tell held items from released ones.
+    options.push({
+      redemptionId: null,
+      scope: "all",
+      label: "Original pledge",
+      hint: `All ${pledge.itemsCount || 0} item(s) — ${(
+        (parseFloat(pledge.totalWeight) || 0) + redeemedWeight
+      ).toFixed(2)}g`,
+    });
+
     return options;
   };
 
@@ -481,6 +514,7 @@ export default function PledgeList() {
 
     if (options.length < 2) {
       setBarcodeRedemptionId(null);
+      setBarcodeScope(null);
       await handleReprintBarcodeClick(pledge);
       return;
     }
@@ -493,6 +527,7 @@ export default function PledgeList() {
     const { pledge, selected } = barcodeChoice;
     setBarcodeChoice(null);
     setBarcodeRedemptionId(selected.redemptionId);
+    setBarcodeScope(selected.scope ?? null);
     await handleReprintBarcodeClick(pledge);
   };
 
@@ -529,6 +564,9 @@ export default function PledgeList() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
+          // "remaining" narrows the item list to what is still held; absent, the
+          // form prints every item the pledge ever had.
+          body: JSON.stringify(target.scope ? { scope: target.scope } : {}),
         },
       );
 
@@ -734,6 +772,9 @@ export default function PledgeList() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
+          // "remaining" narrows the item list to what is still held; absent, the
+          // form prints every item the pledge ever had.
+          body: JSON.stringify(target.scope ? { scope: target.scope } : {}),
         },
       );
 
@@ -1108,7 +1149,9 @@ export default function PledgeList() {
     try {
       const barcodeQuery = barcodeRedemptionId
         ? `?redemption_id=${barcodeRedemptionId}`
-        : "";
+        : barcodeScope
+          ? `?scope=${barcodeScope}`
+          : "";
       const response = await fetch(`${apiUrl}/print/barcodes/${pledge.id}${barcodeQuery}`, {
         method: "GET",
         headers: {
@@ -2275,11 +2318,12 @@ export default function PledgeList() {
           <div className="space-y-2">
             {barcodeChoice?.options.map((option) => {
               const isSelected =
-                option.redemptionId === barcodeChoice.selected?.redemptionId;
+                option.redemptionId === barcodeChoice.selected?.redemptionId &&
+                (option.scope ?? null) === (barcodeChoice.selected?.scope ?? null);
 
               return (
                 <button
-                  key={option.redemptionId ?? "storage"}
+                  key={option.redemptionId ?? option.scope ?? "storage"}
                   type="button"
                   onClick={() =>
                     setBarcodeChoice((current) =>

@@ -191,11 +191,17 @@ class PrintController extends Controller
         // gone home: four items and 125.62g for a locker holding one bar of 100g.
         // The label describes what is in storage, unless the operator asked for the
         // receipt of a particular redemption.
-        $redemptionId = $request->query('redemption_id');
+        $redemptionId = $request->input('redemption_id');
+        $scope = $request->input('scope');
 
-        $labelItems = $redemptionId
-            ? $pledge->items->where('redemption_id', (int) $redemptionId)->values()
-            : $pledge->items->whereNull('redemption_id')->values();
+        if ($scope === 'all') {
+            // Everything the pledge ever held, which is what this label used to be.
+            $labelItems = $pledge->items;
+        } elseif ($redemptionId) {
+            $labelItems = $pledge->items->where('redemption_id', (int) $redemptionId)->values();
+        } else {
+            $labelItems = $pledge->items->whereNull('redemption_id')->values();
+        }
 
         // A fully redeemed pledge has nothing left in storage; label it with
         // everything rather than printing an empty tag.
