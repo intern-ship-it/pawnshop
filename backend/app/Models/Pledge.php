@@ -470,6 +470,102 @@ class Pledge extends Model
             : \App\Services\InterestCalculationService::OVERDUE_RATE;
     }
 
+    public function principalChanges(): HasMany
+    {
+        return $this->hasMany(PledgePrincipalChange::class)->orderBy('effective_from');
+    }
+
+    public function principalPayments(): HasMany
+    {
+        return $this->hasMany(PrincipalPayment::class);
+    }
+
+    /**
+     * Principal the customer has paid directly, rather than by releasing goods.
+     */
+    public function principalPaidDirect(): float
+    {
+        return round((float) $this->principalPayments()
+            ->where('status', 'completed')
+            ->sum('amount'), 2);
+    }
+
+    /**
+     * What this pledge's principal was on a given date.
+     *
+     * Interest has always been "today's loan_amount x rate", charged to every month
+     * including ones long past. Harmless while the principal never moved; wrong once
+     * a partial redemption or a payment against the principal reduces it, because the
+     * months the customer held the larger sum are then rebilled on the smaller one.
+     *
+     * A pledge with no recorded changes falls back to loan_amount — which is exactly
+     * what every caller did before — so nothing moves until a change is recorded.
+     */
+    public function principalOn(Carbon $date): float
+    {
+        $change = $this->principalChanges
+            ->filter(fn ($row) => !$row->effective_from->gt($date))
+            ->last();
+
+        return $change
+            ? (float) $change->principal_amount
+            : (float) $this->loan_amount;
+    }
+
+    /**
+     * The principal that applied during a given ladder month. Month 1 begins on the
+     * pledge date, so month N begins N-1 months later; the rate for that month is
+     * charged on whatever was outstanding when it began.
+     */
+    public function principalForMonth(int $monthNumber): float
+    {
+        $start = Carbon::parse($this->pledge_date)->addMonths(max(0, $monthNumber - 1));
+
+        return $this->principalOn($start);
+    }
+
+    /**
+     * Record a principal change, so later months bill on the new amount and earlier
+     * ones keep billing on the old. Writes nothing when the amount has not moved.
+     */
+    public function recordPrincipalChange(
+        float $principal,
+        string $reason,
+        ?Carbon $effectiveFrom = null,
+        ?Model $source = null,
+        ?int $userId = null
+    ): ?PledgePrincipalChange {
+        $effectiveFrom = $effectiveFrom ?? Carbon::today();
+
+        if (abs($this->principalOn($effectiveFrom) - $principal) < 0.005) {
+            return null;
+        }
+
+        // An opening row is needed before the first change, or the months before it
+        // would fall back to loan_amount — which by then is already the NEW figure.
+        if ($this->principalChanges->isEmpty()) {
+            $this->principalChanges()->create([
+                'effective_from' => Carbon::parse($this->pledge_date),
+                'principal_amount' => (float) $this->loan_amount,
+                'reason' => PledgePrincipalChange::REASON_INITIAL,
+                'created_by' => $userId,
+            ]);
+        }
+
+        $change = $this->principalChanges()->create([
+            'effective_from' => $effectiveFrom,
+            'principal_amount' => round($principal, 2),
+            'reason' => $reason,
+            'source_type' => $source ? get_class($source) : null,
+            'source_id' => $source?->getKey(),
+            'created_by' => $userId,
+        ]);
+
+        $this->load('principalChanges');
+
+        return $change;
+    }
+
     /**
      * The date this term's interest is settled up to — the far edge of the furthest
      * period a completed payment covered. Each payment stores period_to as the start

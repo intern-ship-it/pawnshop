@@ -42,6 +42,9 @@ const RenewalScreen = lazy(() => import("@/pages/renewals/RenewalScreen"));
 const InterestPaymentScreen = lazy(
   () => import("@/pages/interest-payments/InterestPaymentScreen"),
 );
+const PrincipalPaymentScreen = lazy(
+  () => import("@/pages/principal-payments/PrincipalPaymentScreen"),
+);
 const RedemptionScreen = lazy(
   () => import("@/pages/redemptions/RedemptionScreen"),
 );
@@ -151,6 +154,9 @@ export const router = createBrowserRouter([
       // TRANSACTION ROUTES
       { path: "renewals", element: withPermission(RenewalScreen, "renewals.view") },
       { path: "interest-payments", element: withPermission(InterestPaymentScreen, "interest-payments.view") },
+      // Shares the interest-payment permission: the same till action, money in
+      // against a live pledge.
+      { path: "principal-payments", element: withPermission(PrincipalPaymentScreen, "interest-payments.view") },
       { path: "redemptions", element: withPermission(RedemptionScreen, "redemptions.view") },
 
       // INVENTORY ROUTES
@@ -212,6 +218,7 @@ export const ROUTES = {
   PLEDGE_DETAIL: (id) => `/pledges/${id}`,
   RENEWALS: "/renewals",
   INTEREST_PAYMENTS: "/interest-payments",
+  PRINCIPAL_PAYMENTS: "/principal-payments",
   REDEMPTIONS: "/redemptions",
   INVENTORY: "/inventory",
   RACK_MAP: "/inventory/rack-map",

@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\HardwareController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\MykadProxyController;
 use App\Http\Controllers\Api\InterestPaymentController;
+use App\Http\Controllers\Api\PrincipalPaymentController;
 use App\Http\Controllers\Api\WhatsAppReceiptController;
 
 /* |-------------------------------------------------------------------------- | API Routes |-------------------------------------------------------------------------- */
@@ -298,6 +299,18 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('check.permission:renewals,view');
         Route::post('/renewals', [RenewalController::class , 'store'])
             ->middleware('check.permission:renewals,create');
+
+        // Principal Payments (reduce the loan, keep the goods and the due date)
+        Route::prefix('principal-payments')->group(
+            function () {
+            Route::get('/today', [PrincipalPaymentController::class, 'today']);
+            Route::get('/calculate', [PrincipalPaymentController::class, 'calculate']);
+            // Taking money shares the interest-payment permission: the two are the
+            // same counter action, and a till that may collect one may collect the other.
+            Route::post('/', [PrincipalPaymentController::class, 'store'])
+                ->middleware('check.permission:interest-payments,create');
+        }
+        );
 
         // Interest Payments (interest-only, no term extension)
         Route::prefix('interest-payments')->group(

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Redemption;
 use App\Models\Pledge;
 use App\Models\PledgeItem;
+use App\Models\PledgePrincipalChange;
 use App\Models\Slot;
 use App\Models\AuditLog;
 use App\Models\Notification;
@@ -295,6 +296,86 @@ class RedemptionController extends Controller
      * - Issue 1: Now accepts both 'active' and 'overdue' pledges
      * - Issue 2: Supports partial item redemption
      */
+    /**
+     * Principal the customer has paid directly that no released item has used up yet.
+     *
+     * Client-confirmed 2026-10-01: paying off the principal buys goods outright. With
+     * RM 5,000 paid against a RM 10,000 loan over four equal items, two items may walk
+     * out with nothing further to pay; a third costs its own RM 2,500.
+     *
+     * Each item carries a share of the ORIGINAL loan, by its value. Everything the
+     * principal has fallen by is either a direct payment or principal settled at the
+     * counter as goods were released, so the credit already absorbed is
+     *
+     *     released shares - (original loan - outstanding - paid directly)
+     *
+     * and whatever is left of the payments is still spendable. Zero for a pledge that
+     * has never taken a principal payment, so every other redemption prices as before.
+     */
+    private function unusedPrincipalCredit(Pledge $pledge, $allItems): float
+    {
+        $paidDirect = $pledge->principalPaidDirect();
+
+        if ($paidDirect <= 0.005) {
+            return 0.0;
+        }
+
+        return $this->creditRemaining(
+            $paidDirect,
+            $this->originalLoanAmount($pledge, $paidDirect),
+            (float) $pledge->loan_amount,
+            (float) $allItems->whereNotNull('redemption_id')->sum('net_value'),
+            (float) $allItems->sum('net_value')
+        );
+    }
+
+    /**
+     * How much of the principal already paid is still unspent.
+     *
+     * Each item carries a share of the ORIGINAL loan, by value. Everything the
+     * principal has fallen by is either a direct payment or principal settled at the
+     * counter as goods were released, so what the credit has absorbed is
+     *
+     *     released shares - (original loan - outstanding - paid directly)
+     *
+     * and the rest of the payments is still spendable. Kept free of the models so the
+     * rule can be read and tested on its own.
+     */
+    private function creditRemaining(
+        float $paidDirect,
+        float $originalLoan,
+        float $outstanding,
+        float $releasedNetValue,
+        float $totalNetValue
+    ): float {
+        if ($paidDirect <= 0.005 || $totalNetValue <= 0) {
+            return 0.0;
+        }
+
+        $releasedShares = $originalLoan * ($releasedNetValue / $totalNetValue);
+        $settledAtCounter = $originalLoan - $outstanding - $paidDirect;
+
+        return round(max(0, $paidDirect - ($releasedShares - $settledAtCounter)), 2);
+    }
+
+    /**
+     * The loan as first advanced. Read off the principal ledger's opening row where one
+     * exists, otherwise rebuilt by adding back everything that has reduced it since.
+     */
+    private function originalLoanAmount(Pledge $pledge, float $paidDirect): float
+    {
+        $opening = $pledge->principalChanges
+            ->firstWhere('reason', PledgePrincipalChange::REASON_INITIAL);
+
+        if ($opening) {
+            return (float) $opening->principal_amount;
+        }
+
+        return (float) $pledge->loan_amount
+            + $paidDirect
+            + (float) $pledge->redemption()->sum('principal_amount');
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -355,6 +436,22 @@ class RedemptionController extends Controller
                 // Pro-rata loan amount
                 $proRataRatio = $totalNetValue > 0 ? ($selectedNetValue / $totalNetValue) : 1;
                 $loanAmountToRedeem = $pledge->loan_amount * $proRataRatio;
+
+                // Money already paid against the principal has bought part of these
+                // goods outright, and must not be charged for twice.
+                //
+                // Client-confirmed 2026-10-01: a customer who has paid RM 5,000 off a
+                // RM 10,000 loan over four equal items may take two of them with
+                // nothing further to pay, and a third by paying its own RM 2,500.
+                //
+                // The credit is what the items still held are worth against the loan,
+                // less what is actually outstanding -- the gap the customer has already
+                // closed. It is applied only on pledges that have taken a principal
+                // payment, so every other redemption prices exactly as it did before.
+                $loanAmountToRedeem = max(
+                    0,
+                    $loanAmountToRedeem - $this->unusedPrincipalCredit($pledge, $allItems)
+                );
             }
 
             $calculation = $this->calculatorFor($pledge, $validated['interest_rate'] ?? null)->calculateRedemption(
@@ -447,6 +544,18 @@ class RedemptionController extends Controller
                 // Update pledge totals for remaining items
                 $remainingNetValue = $remainingItems->sum('net_value');
                 $remainingLoanAmount = $pledge->loan_amount - $loanAmountToRedeem;
+
+                // Record the drop BEFORE writing it, so the ledger's opening row can
+                // still read the outgoing principal off the pledge. Without this the
+                // months already elapsed would rebill on the reduced amount -- the
+                // customer held the larger sum through them and owes interest on it.
+                $pledge->recordPrincipalChange(
+                    round($remainingLoanAmount, 2),
+                    \App\Models\PledgePrincipalChange::REASON_PARTIAL_REDEMPTION,
+                    now(),
+                    $redemption,
+                    $userId
+                );
 
                 $pledge->update([
                     'net_value' => $remainingNetValue,

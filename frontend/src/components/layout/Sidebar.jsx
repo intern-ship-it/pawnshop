@@ -32,6 +32,7 @@ import {
   Calendar,
   Printer,
   Banknote,
+  TrendingDown,
 } from "lucide-react";
 
 /**
@@ -79,6 +80,13 @@ const menuConfig = [
         name: "Interest Payments",
         path: "/interest-payments",
         icon: Banknote,
+        exact: true,
+        permission: "interest-payments.view",
+      },
+      {
+        name: "Principal Payment",
+        path: "/principal-payments",
+        icon: TrendingDown,
         exact: true,
         permission: "interest-payments.view",
       },

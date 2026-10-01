@@ -277,12 +277,19 @@ class InterestPaymentController extends Controller
                     ? $overdueRate
                     : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate']);
 
-            $monthlyInterest = $principal * ($monthRate / 100);
+            // The sum outstanding WHEN that month ran, not today's. A pledge whose
+            // principal later dropped -- a partial redemption, a payment against the
+            // principal -- must still charge the earlier months on the larger amount
+            // the customer actually held. Falls back to loan_amount when the pledge
+            // has no recorded changes, which is every pledge that never moved.
+            $monthPrincipal = $pledge->principalForMonth($monthNumber);
+            $monthlyInterest = $monthPrincipal * ($monthRate / 100);
             $cumulative += $monthlyInterest;
 
             $breakdown[] = [
                 'month' => $monthNumber,
                 'rate' => $monthRate,
+                'principal' => round($monthPrincipal, 2),
                 'interest' => round($monthlyInterest, 2),
                 'cumulative' => round($cumulative, 2),
             ];
@@ -638,7 +645,8 @@ class InterestPaymentController extends Controller
                         ? $overdueRate
                         : $calculator->rateForMaintainedMonth($monthNumber, $rate)['rate']);
 
-                $monthlyInterest = $principal * ($monthRate / 100);
+                // Same per-month principal the preview quoted.
+                $monthlyInterest = $pledge->principalForMonth($monthNumber) * ($monthRate / 100);
                 $cumulative += $monthlyInterest;
 
                 $breakdownData[] = [
