@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { EASE, DURATION } from "@/lib/motion";
 import { X } from "lucide-react";
 import Button from "./Button";
 
@@ -26,6 +28,7 @@ export default function Modal({
   footer,
 }) {
   const modalRef = useRef(null);
+  const reduced = useReducedMotion();
 
   // Handle escape key
   useEffect(() => {
@@ -54,22 +57,34 @@ export default function Modal({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
+  // AnimatePresence rather than an early return: a modal that vanished the instant
+  // it closed gave no sense of where it went, and every dialog in the app is this
+  // component, so the exit belongs here rather than at each call site.
   return createPortal(
+    <AnimatePresence>
+      {isOpen && (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop - clicks on this close the modal */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: DURATION.fast }}
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={closeOnBackdrop ? onClose : undefined}
       />
 
       {/* Modal Content */}
-      <div
+      <motion.div
         ref={modalRef}
+        // Barely a scale at all. A dialog that zooms reads as decoration; this just
+        // settles into place and leaves the same way.
+        initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 4 }}
+        transition={{ duration: DURATION.base, ease: EASE }}
         className={cn(
           "relative w-full bg-white rounded-2xl shadow-2xl overflow-hidden",
-          "animate-in zoom-in-95 fade-in duration-200",
           "flex flex-col max-h-[calc(100vh-2rem)]",
           sizes[size],
           className,
@@ -114,8 +129,10 @@ export default function Modal({
             {footer}
           </div>
         )}
-      </div>
-    </div>,
+      </motion.div>
+    </div>
+      )}
+    </AnimatePresence>,
     document.body,
   );
 }

@@ -5,6 +5,8 @@
 
 import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
+import { motion, useReducedMotion } from "framer-motion";
+import { EASE, DURATION } from "@/lib/motion";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { toggleSidebarCollapse, setSidebarOpen } from "@/features/ui/uiSlice";
 import { logout } from "@/features/auth/authSlice";
@@ -198,6 +200,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { sidebarCollapsed, sidebarOpen } = useAppSelector((state) => state.ui);
+  const reducedMotion = useReducedMotion();
   const { user, role, permissions } = useAppSelector((state) => state.auth);
   const isDesktop = useIsDesktop();
 
@@ -416,7 +419,19 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 px-3 scrollbar-thin">
         {filteredMenu.map((section, sectionIndex) => (
-          <div key={sectionIndex} className="mb-6">
+          <motion.div
+            key={sectionIndex}
+            initial={reducedMotion ? false : { opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{
+              duration: DURATION.base,
+              ease: EASE,
+              // Sections cascade down the rail, so the eye follows the order the
+              // menu is actually in rather than everything landing at once.
+              delay: reducedMotion ? 0 : sectionIndex * 0.06,
+            }}
+            className="mb-6"
+          >
             {!collapsed && (
               <h3 className="px-3 mb-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
                 {section.title}
@@ -443,7 +458,19 @@ export default function Sidebar() {
                       )}
                     >
                       {isActive && (
-                        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-amber-500 rounded-r-full" />
+                        // layoutId makes one marker travel between items rather
+                        // than one vanishing and another appearing, so the rail
+                        // shows the move instead of just the destination.
+                        <motion.span
+                          layoutId={reducedMotion ? undefined : "sidebar-active"}
+                          transition={{ duration: DURATION.fast, ease: EASE }}
+                          // The vertical centring is a style, not the -translate-y-1/2
+                          // class: a layout animation drives transform itself, and the
+                          // class would be overwritten mid-flight, dropping the marker
+                          // half its height.
+                          style={{ y: "-50%" }}
+                          className="absolute left-0 top-1/2 w-1 h-6 bg-amber-500 rounded-r-full"
+                        />
                       )}
 
                       <Icon
@@ -469,7 +496,7 @@ export default function Sidebar() {
                 );
               })}
             </ul>
-          </div>
+          </motion.div>
         ))}
       </nav>
 

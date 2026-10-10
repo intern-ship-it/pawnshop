@@ -1,5 +1,15 @@
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { EASE, DURATION } from "@/lib/motion";
 
+/**
+ * Every screen renders through here, so this is where page motion belongs: one
+ * definition instead of each page inventing its own entrance.
+ *
+ * The header and the content arrive a beat apart. That ordering is the point -- the
+ * eye lands on the title, then the body settles beneath it -- and it is small enough
+ * that an operator who moves fast never waits on it.
+ */
 export default function PageWrapper({
   title,
   subtitle,
@@ -8,11 +18,22 @@ export default function PageWrapper({
   className,
   fullWidth = false,
 }) {
+  const reduced = useReducedMotion();
+
+  // An operator who has asked their system to stop animating still gets the fade,
+  // which carries the "this is new" signal without the movement.
+  const rise = reduced ? 0 : 8;
+
   return (
     <div className={cn("space-y-6", !fullWidth && "max-w-[1600px] mx-auto", className)}>
       {/* Page Header */}
       {(title || actions) && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: rise }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: DURATION.base, ease: EASE }}
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+        >
           <div>
             {title && (
               <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-zinc-800 to-zinc-600 bg-clip-text text-transparent">
@@ -31,11 +52,17 @@ export default function PageWrapper({
               {actions}
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* Page Content */}
-      <div>{children}</div>
+      <motion.div
+        initial={{ opacity: 0, y: rise }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: DURATION.base, ease: EASE, delay: reduced ? 0 : 0.05 }}
+      >
+        {children}
+      </motion.div>
     </div>
   );
 }

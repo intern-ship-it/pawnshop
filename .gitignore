@@ -143,3 +143,5 @@ batu-caves-merchant-qr.png
 # ===========================
 *.sql
 dsaraassetventur_dsara_pajak_kedai.sql
+# graphify output
+graphify-out/
