@@ -119,6 +119,7 @@ export default function RedemptionScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
+  const [isPrintingLabel, setIsPrintingLabel] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
@@ -710,6 +711,9 @@ export default function RedemptionScreen() {
           id: redemptionInfo.id,
           redemptionId: redemptionInfo.redemption_no || redemptionInfo.id,
           pledgeId: pledge.pledgeNo,
+          // The row id, which pledgeId above is not -- that one carries the
+          // printed pledge number for display.
+          pledgeRecordId: pledge.id,
           customerName: pledge.customerName,
           customerPhone: pledge.customerPhone,
           principal: calculation.principal,
@@ -2573,6 +2577,33 @@ export default function RedemptionScreen() {
           >
             Download PDF (A5)
           </Button>
+
+          {/* Only while goods are still held. The label prints itself once the
+              receipt window closes, but that can be lost to a blocked pop-up or a
+              printer that was not ready, and the packet in the locker still carries
+              a tag naming the items the customer just took home. */}
+          {redemptionResult?.itemsRemaining > 0 && (
+            <Button
+              variant="outline"
+              fullWidth
+              leftIcon={ScanLine}
+              loading={isPrintingLabel}
+              onClick={async () => {
+                setIsPrintingLabel(true);
+                try {
+                  await printRemainingItemsBarcode(
+                    redemptionResult.pledgeRecordId,
+                    null,
+                  );
+                } finally {
+                  setIsPrintingLabel(false);
+                }
+              }}
+              className="mt-3"
+            >
+              Print Barcode ({redemptionResult.itemsRemaining} item(s) left)
+            </Button>
+          )}
 
           <div className="flex gap-3 mt-4">
             <Button
